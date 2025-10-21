@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\common.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\Weda.SubNode.Abstractions\Weda.SubNode.Abstractions.csproj" />
+    <ProjectReference Include="..\Weda.SubNode.Core\Weda.SubNode.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NATS.Net" />
+  </ItemGroup>
+
+</Project>

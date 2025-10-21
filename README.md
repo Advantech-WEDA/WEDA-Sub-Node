@@ -1,20 +1,43 @@
-# Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+English / [繁體中文](README_zh.md)
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+# Weda SubNode SDK
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+A comprehensive .NET SDK for IoT edge devices, providing device connectivity, data acquisition, processing, and cloud integration.
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+## Documentation
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+**[Read Full Documentation](docs/wiki/en/README.md)**
+
+- [Introduction](docs/wiki/en/introduction.md) - SDK overview and features
+- [How to Start](docs/wiki/en/how_to_start.md) - Quick start guide
+- [Modbus Scanner](docs/wiki/en/modbus/ModbusScanner.md) - Auto-discover device configuration
+- [Telemetry Transform](docs/wiki/en/transform/TelemetryTransform.md) - Data processing pipeline
+
+## Quick Start
+
+```bash
+# Install template
+dotnet new install Weda.SubNode.Templates
+
+# Create project
+dotnet new wedaapi -n MyIoTApp
+cd MyIoTApp
+
+# Run
+dotnet run
+```
+
+## Features
+
+- **Multi-Protocol Support** - Modbus TCP/RTU, MQTT
+- **Data Processing Pipeline** - Calibration, filtering, transformation
+- **Event-Driven Architecture** - Extensible event system
+- **Cloud Integration** - Weda EdgeSync Cloud platform
+- **Easy to Use** - ASP.NET Core-style framework
+
+## License
+
+Copyright © 2025 Advantech Corporation
+
+---
+**Version**: 0.0.1 | **Maintainer**: Rain Hu
