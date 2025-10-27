@@ -10,7 +10,7 @@ public class ModbusProtocolParserFactory
     /// <summary>
     /// Create a parser for the specified Modbus data type
     /// </summary>
-    public IProtocolParser<ushort[], object> CreateParser(ModbusDataType dataType)
+    public IModbusDataParser<ushort[], object> CreateParser(ModbusDataType dataType)
     {
         return new ModbusProtocolParser(dataType);
     }
@@ -18,7 +18,7 @@ public class ModbusProtocolParserFactory
     /// <summary>
     /// Create a parser from sensor register configuration
     /// </summary>
-    public IProtocolParser<ushort[], object> CreateParser(ModbusSensorRegister register)
+    public IModbusDataParser<ushort[], object> CreateParser(ModbusSensorRegister register)
     {
         return new ModbusProtocolParser(register.DataType);
     }

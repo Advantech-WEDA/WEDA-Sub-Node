@@ -43,6 +43,7 @@ public sealed class DeviceOrchestrator : IDisposable
         IWedaApplicationContext context,
         ICommunication communication,
         ILifecycleHooks lifecycleHooks,
+        DeviceConfiguration? configuration = null,
         string? deviceId = null)
     {
         _logger = context.GetLogger<DeviceOrchestrator>();
@@ -67,6 +68,7 @@ public sealed class DeviceOrchestrator : IDisposable
 
         TelemetryPipeline = new TelemetryPipeline(
             _deviceId,
+            configuration,
             context.CloudService,
             context.GetLogger<TelemetryPipeline>(),
             healthMonitor: HealthMonitor);

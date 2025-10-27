@@ -87,19 +87,50 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext using IConfiguration.
     /// Reads configuration from "Nats" section and loads device configuration.
+    ///
+    /// Device configuration selection:
+    /// - If deviceConfigKey is empty (default): Automatically selects the first device configuration found under "DeviceConfigs" section
+    /// - If deviceConfigKey is specified (e.g., "MyFirstDevice"): Uses "DeviceConfigs:{deviceConfigKey}" path
     /// </summary>
     /// <param name="configuration">Configuration instance.</param>
+    /// <param name="deviceConfigKey">
+    /// Device configuration key name (without "DeviceConfigs:" prefix).
+    /// If empty (default), auto-selects the first device configuration found.
+    /// If specified (e.g., "MyFirstDevice"), uses "DeviceConfigs:MyFirstDevice" path.
+    /// </param>
     /// <param name="loggerFactory">Optional logger factory.</param>
-    /// <param name="deviceConfigKey">Device configuration key (default: "DeviceConfigs:MyFirstDevice").</param>
     public WedaApplicationContext(
         IConfiguration configuration,
-        ILoggerFactory? loggerFactory = null,
-        string deviceConfigKey = "DeviceConfigs:MyFirstDevice")
+        string deviceConfigKey = "",
+        ILoggerFactory? loggerFactory = null)
         : this(options =>
         {
             options.Configuration = configuration;
             options.LoggerFactory = loggerFactory;
-            options.DeviceConfigurationKey = deviceConfigKey;
+
+            // Determine the actual device configuration key
+            string actualConfigKey;
+            if (string.IsNullOrEmpty(deviceConfigKey))
+            {
+                // Auto-select first device config under DeviceConfigs
+                var deviceConfigsSection = configuration.GetSection("DeviceConfigs");
+                var firstKey = deviceConfigsSection.GetChildren().FirstOrDefault()?.Key;
+
+                if (firstKey == null)
+                {
+                    throw new InvalidOperationException(
+                        "No device configurations found under 'DeviceConfigs' section in appsettings.json");
+                }
+
+                actualConfigKey = $"DeviceConfigs:{firstKey}";
+            }
+            else
+            {
+                // Use specified key with DeviceConfigs prefix
+                actualConfigKey = $"DeviceConfigs:{deviceConfigKey}";
+            }
+
+            options.DeviceConfigurationKey = actualConfigKey;
 
             // Bind NATS configuration from "Nats" section
             var natsSection = configuration.GetSection("Nats");

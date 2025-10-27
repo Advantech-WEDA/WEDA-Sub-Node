@@ -1,0 +1,37 @@
+using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Devices.Generic;
+
+namespace Weda.SubNode.Devices.Advantech;
+
+/// <summary>
+/// WISE-4012SE device implementation.
+/// 4-channel analog input module with MQTT ISensing protocol support.
+///
+/// Features:
+/// - 4x Analog Input channels (AI0-AI3)
+/// - MQTT communication with ISensing JSON protocol
+/// - Temperature and humidity monitoring
+/// - Pub/Sub architecture for real-time data
+/// </summary>
+public class Wise4012SeDevice : MqttISensingDevice
+{
+    /// <summary>
+    /// Creates a WISE-4012SE device with ApplicationContext only.
+    /// Automatically retrieves configuration from context.
+    /// </summary>
+    public Wise4012SeDevice(IWedaApplicationContext context)
+        : base(context)
+    {
+    }
+
+    /// <summary>
+    /// Creates a WISE-4012SE device with ApplicationContext and explicit configuration.
+    /// </summary>
+    public Wise4012SeDevice(
+        IWedaApplicationContext context,
+        DeviceConfiguration configuration)
+        : base(context, configuration)
+    {
+    }
+}

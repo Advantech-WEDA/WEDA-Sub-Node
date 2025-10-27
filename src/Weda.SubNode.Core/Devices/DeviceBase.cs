@@ -51,6 +51,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             context,
             _communication,
             this, // ILifecycleHooks
+            configuration, // Pass full configuration for sensor-level transform/filter support
             configuration.DeviceId); // Pass deviceId from configuration
 
         // Single initializer handles registration

@@ -7,7 +7,7 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 /// Modbus protocol parser for converting register data to C# types
 /// Only handles protocol encoding/decoding, NOT calibration
 /// </summary>
-public class ModbusProtocolParser : IBidirectionalProtocolParser<ushort[], object>
+public class ModbusProtocolParser : IModbusDataParser<ushort[], object>
 {
     private readonly ModbusDataType _dataType;
 

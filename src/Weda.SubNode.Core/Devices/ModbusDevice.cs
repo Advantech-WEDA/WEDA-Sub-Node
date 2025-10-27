@@ -1,12 +1,10 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication;
-using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Core.Protocols.Modbus;
 
 namespace Weda.SubNode.Core.Devices;
@@ -83,28 +81,24 @@ public class ModbusDevice : DeviceBase
                 var parser = _parserFactory.CreateParser(register);
                 var parsedValue = parser.Parse(rawData);
 
-                // Step 3: Apply DSP filter pipeline (transforms and calibration are applied later in TelemetryPipeline)
-                var finalValue = await ApplyDspPipelineAsync(sensor, Convert.ToDouble(parsedValue), cancellationToken);
-
-                // Step 4: Create telemetry measure (transforms will be applied by TelemetryPipeline)
+                // Step 3: Create telemetry measure with raw parsed value
+                // Transforms and DSP filters will be applied by TelemetryPipeline
                 var measure = new TelemetryMeasure
                 {
                     ResourceId = sensor.ResourceId,
-                    Value = finalValue,
+                    Value = parsedValue,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
 
                 measures.Add(measure);
 
-                // Detailed debug log with all stages of data processing
+                // Detailed debug log
                 _logger.LogDebug(
-                    "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}, Parsed={Parsed}, AfterDsp={AfterDsp}",
+                    "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
                     register.Name,
-                    finalValue,
-                    register.ResourceId,
-                    string.Join(",", rawData),
                     parsedValue,
-                    finalValue);
+                    register.ResourceId,
+                    string.Join(",", rawData));
             }
             catch (Exception ex)
             {
@@ -173,29 +167,6 @@ public class ModbusDevice : DeviceBase
         }
 
         return registers;
-    }
-
-    /// <summary>
-    /// Apply sensor-specific DSP filter pipeline
-    /// Filters are applied in order based on their Order property
-    /// </summary>
-    private async Task<double> ApplyDspPipelineAsync(Sensor sensor, double value, CancellationToken cancellationToken)
-    {
-        // Get enabled filters sorted by order
-        var enabledFilters = sensor.Config.DspPipeline
-            .Where(f => f.Enabled)
-            .OrderBy(f => f.Order)
-            .ToList();
-
-        if (enabledFilters.Count == 0)
-            return value; // No filters, return calibrated value as-is
-
-        // TODO: Implement actual DSP filter application
-        // For now, just return the calibrated value
-        // In future, instantiate filters based on Type and Parameters
-        _logger.LogDebug("Sensor {SensorName}: {FilterCount} DSP filters configured", sensor.Name, enabledFilters.Count);
-
-        return await Task.FromResult(value);
     }
 
     public override Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)

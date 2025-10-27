@@ -1,16 +1,14 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Weda.SubNode.Core.Protocols.Modbus;
 using Weda.SubNode.Host.Context;
-using Wise4012Example;
+using Wise4012ISensingExample;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SubNode Template - MyFirstDevice Pattern
+// SubNode ISensing Template - MyFirstISensingDevice Pattern
 // ═══════════════════════════════════════════════════════════════════════════
 // Usage:
-//   dotnet run          - Start the device
-//   dotnet run -- --scan - Scan and generate sensor suggestions
+//   dotnet run          - Start the ISensing device with MQTT
 // ═══════════════════════════════════════════════════════════════════════════
 
 var configuration = new ConfigurationBuilder()
@@ -27,29 +25,21 @@ using var loggerFactory = LoggerFactory.Create(builder => builder.AddSerilog(Log
 try
 {
     // ═══════════════════════════════════════════════════════════════════════════
-    // Code start from here
-    // ═══════════════════════════════════════════════════════════════════════════{
-    // Auto-select first device config from DeviceConfigs section
-    using var context = new WedaApplicationContext(configuration, "MyFirstDevice", loggerFactory);
-    var device = new MyFirstDevice(context);
+    // Code starts from here
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Auto-select first device config from DeviceConfigs section (MyFirstISensingDevice)
+    using var context = new WedaApplicationContext(configuration, "MyFirstISensingDevice", loggerFactory);
+    var device = new MyFirstISensingDevice(context);
 
     if (!await device.InitializeAsync())
     {
         Log.Error("Failed to initialize device");
         return;
     }
-    
-    // if (args.Contains("--scan"))
-    // {
-    //     await ScanAndGenerateReport(device);
-    //     device.Dispose();
-    //     return;
-    // }
 
-    // Start the device (connects to TCP/IP and Read from modbus)
+    // Start the device (connects to MQTT and subscribes to topics)
     await device.StartAsync();
     Log.Information("Device started. Press Ctrl+C to stop...");
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Wait for Ctrl+C to stop the application
@@ -72,40 +62,4 @@ catch (Exception ex)
 finally
 {
     await Log.CloseAndFlushAsync();
-}
-
-static async Task ScanAndGenerateReport(MyFirstDevice device)
-{
-    var scanConfig = new ModbusScanConfig
-    {
-        StartAddress = 0,
-        EndAddress = 99,
-        RegistersPerScan = 4,
-        DelayBetweenScans = 100
-    };
-
-    Log.Information("Scanning addresses 0-99...");
-    var results = await device.ScanRegistersAsync(scanConfig);
-
-    var reportPath = $"modbus_scan_report_{DateTime.Now:yyyyMMdd_HHmmss}.md";
-    await File.WriteAllTextAsync(reportPath, device.GenerateScanReport(results, scanConfig));
-    Log.Information("Report saved: {ReportPath}", reportPath);
-
-    var suggestions = device.GenerateSensorSuggestions(results);
-    if (suggestions.Count > 0)
-    {
-        Log.Information("\nSuggested sensor configuration:\n\"Sensors\": [");
-        for (int i = 0; i < suggestions.Count; i++)
-        {
-            var s = suggestions[i];
-            var comma = i < suggestions.Count - 1 ? "," : "";
-            Log.Information("  {{\n    \"Name\": \"{Name}\",\n    \"Dtmi\": \"dtmi:advantech:EdgeSync:Sensor;1\",\n    \"Parameters\": {{\n      \"RegisterType\": \"HoldingRegister\",\n      \"RegisterAddress\": {Addr},\n      \"RegisterCount\": {Count},\n      \"DataType\": \"{Type}\"\n    }},\n    \"Config\": {{ \"Enabled\": true, \"Interval\": 1000 }}\n  }}{Comma}",
-                s.SuggestedName, s.RegisterAddress, s.RegisterCount, s.SuggestedDataType, comma);
-        }
-        Log.Information("]");
-    }
-    else
-    {
-        Log.Warning("No sensors found. Check device is powered on and settings are correct.");
-    }
 }
