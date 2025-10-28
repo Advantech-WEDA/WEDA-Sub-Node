@@ -9,6 +9,8 @@
   <ItemGroup>
     <PackageReference Include="ErrorOr" />
     <PackageReference Include="MQTTnet" />
+    <PackageReference Include="Polly.Core" />
+    <PackageReference Include="Polly.Extensions" />
   </ItemGroup>
 
 </Project>

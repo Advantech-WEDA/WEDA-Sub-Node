@@ -30,7 +30,7 @@ try
     // Code start from here
     // ═══════════════════════════════════════════════════════════════════════════{
     // Auto-select first device config from DeviceConfigs section
-    using var context = new WedaApplicationContext(configuration, "MyFirstDevice", loggerFactory);
+    using var context = new WedaApplicationContext(configuration, loggerFactory, "MyFirstDevice");
     var device = new MyFirstDevice(context);
 
     if (!await device.InitializeAsync())

@@ -2,13 +2,13 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Utilities;
 
-namespace Weda.SubNode.Core.Protocols.Modbus;
+namespace Weda.SubNode.Core.Protocols.ISensing;
 
 /// <summary>
-/// Strongly-typed configuration for TCP Modbus devices.
+/// Strongly-typed configuration for MQTT ISensing devices (e.g., WISE-4012SE).
 /// Provides IntelliSense-friendly programmatic configuration without needing to consult documentation.
 /// </summary>
-public class TcpModbusDeviceConfiguration : IDeviceConfiguration
+public class MqttISensingDeviceConfiguration : IDeviceConfiguration
 {
     /// <summary>
     /// Device ID (optional, will be auto-generated if not provided)
@@ -26,9 +26,9 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     public string Manufacturer { get; set; } = "Advantech";
 
     /// <summary>
-    /// Device model (default: "Generic Modbus")
+    /// Device model (default: "WISE-4012SE")
     /// </summary>
-    public string Model { get; set; } = "Generic Modbus";
+    public string Model { get; set; } = "WISE-4012SE";
 
     /// <summary>
     /// SubNode software version (default: "1.0")
@@ -41,24 +41,45 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     public string? GroupId { get; set; }
 
     /// <summary>
-    /// TCP/IP host address (required)
+    /// MAC Address of the ISensing device (required for MQTT topic subscription)
+    /// Format: lowercase hexadecimal without separators (e.g., "00d0c9aabbcc")
     /// </summary>
-    public required string Host { get; set; }
+    public required string MacAddress { get; set; }
 
     /// <summary>
-    /// TCP/IP port (default: 502)
+    /// MQTT broker host address (default: "localhost")
     /// </summary>
-    public int Port { get; set; } = 502;
+    public string BrokerHost { get; set; } = "localhost";
 
     /// <summary>
-    /// Modbus slave/unit ID (default: 1)
+    /// MQTT broker port (default: 1883)
     /// </summary>
-    public byte SlaveId { get; set; } = 1;
+    public int BrokerPort { get; set; } = 1883;
 
     /// <summary>
-    /// Sensors/registers to read from the Modbus device
+    /// MQTT client ID (optional, will be auto-generated if not provided)
     /// </summary>
-    public List<ModbusSensorConfiguration> Sensors { get; set; } = new();
+    public string? ClientId { get; set; }
+
+    /// <summary>
+    /// MQTT username (optional)
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// MQTT password (optional)
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// Use TLS/SSL for MQTT connection (default: false)
+    /// </summary>
+    public bool UseTls { get; set; } = false;
+
+    /// <summary>
+    /// Sensors to extract from ISensing protocol messages
+    /// </summary>
+    public List<ISensingSensorConfiguration> Sensors { get; set; } = new();
 
     /// <summary>
     /// Background task execution periods
@@ -83,7 +104,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Adds a sensor configuration to this device
     /// </summary>
-    public TcpModbusDeviceConfiguration AddSensor(ModbusSensorConfiguration sensor)
+    public MqttISensingDeviceConfiguration AddSensor(ISensingSensorConfiguration sensor)
     {
         Sensors.Add(sensor);
         return this;
@@ -92,29 +113,47 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Adds a sensor with inline configuration (fluent API)
     /// </summary>
-    public TcpModbusDeviceConfiguration AddSensor(
+    public MqttISensingDeviceConfiguration AddSensor(
         string name,
         string dtmi,
-        ushort registerAddress,
-        ushort registerCount = 1,
-        ModbusDataType dataType = ModbusDataType.UInt16,
-        ModbusRegisterType registerType = ModbusRegisterType.HoldingRegister,
+        string fieldName,
         SensorGroup sensorGroup = SensorGroup.AI,
-        double scale = 1.0,
-        double offset = 0.0)
+        string unit = "")
     {
-        Sensors.Add(new ModbusSensorConfiguration
+        Sensors.Add(new ISensingSensorConfiguration
         {
             Name = name,
             Dtmi = dtmi,
-            RegisterAddress = registerAddress,
-            RegisterCount = registerCount,
-            DataType = dataType,
-            RegisterType = registerType,
+            FieldName = fieldName,
             SensorGroup = sensorGroup,
-            Scale = scale,
-            Offset = offset
+            Unit = unit
         });
+        return this;
+    }
+
+    /// <summary>
+    /// Sets MQTT broker connection settings
+    /// </summary>
+    public MqttISensingDeviceConfiguration WithBroker(
+        string host,
+        int port = 1883,
+        bool useTls = false)
+    {
+        BrokerHost = host;
+        BrokerPort = port;
+        UseTls = useTls;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets MQTT authentication credentials
+    /// </summary>
+    public MqttISensingDeviceConfiguration WithCredentials(
+        string username,
+        string password)
+    {
+        Username = username;
+        Password = password;
         return this;
     }
 
@@ -155,24 +194,41 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
                 DeviceResourceId = deviceId,
                 Parameters = new Dictionary<string, object>
                 {
-                    ["RegisterAddress"] = sensorConfig.RegisterAddress,
-                    ["RegisterCount"] = sensorConfig.RegisterCount,
-                    ["RegisterType"] = sensorConfig.RegisterType.ToString(),
-                    ["DataType"] = sensorConfig.DataType.ToString(),
-                    ["Scale"] = sensorConfig.Scale,
-                    ["Offset"] = sensorConfig.Offset
+                    ["FieldName"] = sensorConfig.FieldName
                 },
-                Config = sensorConfig.Config,
+                Config = new SensorConfig
+                {
+                    Unit = sensorConfig.Unit
+                },
                 Metadata = sensorConfig.Metadata
             };
         }).ToList();
+
+        // Build communication settings
+        var communication = new Dictionary<string, object>
+        {
+            ["MacAddress"] = MacAddress,
+            ["Manufacturer"] = Manufacturer,
+            ["BrokerHost"] = BrokerHost,
+            ["BrokerPort"] = BrokerPort,
+            ["UseTls"] = UseTls
+        };
+
+        if (!string.IsNullOrEmpty(ClientId))
+            communication["ClientId"] = ClientId;
+
+        if (!string.IsNullOrEmpty(Username))
+            communication["Username"] = Username;
+
+        if (!string.IsNullOrEmpty(Password))
+            communication["Password"] = Password;
 
         return new DeviceConfiguration
         {
             Enabled = Enabled,
             DeviceId = deviceId,
             DeviceName = DeviceName,
-            DeviceType = DeviceType.AdamEthernet,
+            DeviceType = DeviceType.AdamEthernet, // ISensing devices use MQTT but classified as AdamEthernet type
             DtdlPath = DtdlPath,
             DeviceCapabilities = new DeviceCapabilities
             {
@@ -182,12 +238,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
                 DeviceInfo = new Dictionary<string, object>()
             },
             Sensors = sensors,
-            Communication = new Dictionary<string, object>
-            {
-                ["Host"] = Host,
-                ["Port"] = Port,
-                ["SlaveId"] = SlaveId
-            },
+            Communication = communication,
             Periods = Periods,
             Properties = Properties
         };
@@ -195,9 +246,9 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
 }
 
 /// <summary>
-/// Strongly-typed sensor configuration for Modbus sensors
+/// Strongly-typed sensor configuration for ISensing protocol sensors
 /// </summary>
-public class ModbusSensorConfiguration
+public class ISensingSensorConfiguration
 {
     /// <summary>
     /// Resource ID (optional, will be auto-generated if not provided)
@@ -205,7 +256,7 @@ public class ModbusSensorConfiguration
     public string? ResourceId { get; set; }
 
     /// <summary>
-    /// Sensor name (required)
+    /// Sensor name (required, e.g., "AI0", "DI1")
     /// </summary>
     public required string Name { get; set; }
 
@@ -220,39 +271,15 @@ public class ModbusSensorConfiguration
     public SensorGroup SensorGroup { get; set; } = SensorGroup.AI;
 
     /// <summary>
-    /// Modbus register type (default: HoldingRegister)
+    /// ISensing protocol field name (required, e.g., "ai0", "di1")
+    /// This is the key used in the ISensing JSON payload
     /// </summary>
-    public ModbusRegisterType RegisterType { get; set; } = ModbusRegisterType.HoldingRegister;
+    public required string FieldName { get; set; }
 
     /// <summary>
-    /// Starting register address (required)
+    /// Unit of measurement (optional, e.g., "V", "mA", "°C")
     /// </summary>
-    public ushort RegisterAddress { get; set; }
-
-    /// <summary>
-    /// Number of registers to read (default: 1)
-    /// </summary>
-    public ushort RegisterCount { get; set; } = 1;
-
-    /// <summary>
-    /// Data type for parsing the register values (default: UInt16)
-    /// </summary>
-    public ModbusDataType DataType { get; set; } = ModbusDataType.UInt16;
-
-    /// <summary>
-    /// Scale factor applied to the raw value (default: 1.0)
-    /// </summary>
-    public double Scale { get; set; } = 1.0;
-
-    /// <summary>
-    /// Offset applied to the scaled value (default: 0.0)
-    /// </summary>
-    public double Offset { get; set; } = 0.0;
-
-    /// <summary>
-    /// Sensor configuration (DSP filters, transforms, etc.)
-    /// </summary>
-    public SensorConfig Config { get; set; } = new();
+    public string Unit { get; set; } = string.Empty;
 
     /// <summary>
     /// Additional metadata

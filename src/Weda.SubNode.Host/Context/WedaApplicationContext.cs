@@ -101,8 +101,8 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// <param name="loggerFactory">Optional logger factory.</param>
     public WedaApplicationContext(
         IConfiguration configuration,
-        string deviceConfigKey = "",
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        string deviceConfigKey = "")
         : this(options =>
         {
             options.Configuration = configuration;

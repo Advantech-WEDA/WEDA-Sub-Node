@@ -41,66 +41,56 @@ public abstract class CommunicationBase : ICommunication
     public bool IsConnected => State == CommunicationState.Connected;
 
     /// <summary>
-    /// Connect with automatic retry mechanism
+    /// Connects to the communication endpoint (single attempt).
+    /// Retry logic is handled by Polly resilience pipeline in DeviceConnectionManager.
     /// </summary>
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
     {
-        for (int attempt = 0; attempt <= Settings.MaxRetries; attempt++)
+        try
         {
-            try
-            {
-                if (attempt > 0)
-                {
-                    var delay = CalculateRetryDelay(attempt);
-                    _logger.LogWarning("Connection attempt {Attempt}/{MaxRetries}, retrying after {Delay}ms...",
-                        attempt, Settings.MaxRetries, delay);
-                    await Task.Delay(delay, cancellationToken);
-                }
+            _logger.LogDebug("Attempting connection to communication endpoint...");
+            var connected = await ConnectCoreAsync(cancellationToken);
 
-                var connected = await ConnectCoreAsync(cancellationToken);
-                if (connected)
-                {
-                    _reconnectAttempts = 0;
-                    return true;
-                }
-            }
-            catch (Exception ex) when (attempt < Settings.MaxRetries)
+            if (connected)
             {
-                _logger.LogWarning(ex, "Connection attempt {Attempt}/{MaxRetries} failed",
-                    attempt + 1, Settings.MaxRetries + 1);
+                _reconnectAttempts = 0;
+                _logger.LogDebug("Connection successful");
+                return true;
             }
+
+            _logger.LogWarning("Connection failed");
+            State = CommunicationState.Error;
+            return false;
         }
-
-        _logger.LogError("Failed to connect after {MaxRetries} attempts", Settings.MaxRetries + 1);
-        State = CommunicationState.Error;
-        return false;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Connection attempt failed with exception");
+            State = CommunicationState.Error;
+            return false;
+        }
     }
 
     /// <summary>
-    /// Reconnect with exponential backoff
+    /// Reconnects to the communication endpoint after disconnection.
+    /// Retry logic should be handled by the caller (typically through Polly pipeline).
     /// </summary>
     public async Task<bool> ReconnectAsync(CancellationToken cancellationToken = default)
     {
         _reconnectAttempts++;
 
-        if (_reconnectAttempts > Settings.MaxRetries)
-        {
-            _logger.LogError("Max reconnection attempts ({MaxRetries}) reached", Settings.MaxRetries);
-            State = CommunicationState.Error;
-            return false;
-        }
+        _logger.LogInformation("Reconnection attempt {Attempt}...", _reconnectAttempts);
 
-        var delay = CalculateRetryDelay(_reconnectAttempts);
-        _logger.LogWarning("Reconnection attempt {Attempt}/{MaxRetries} after {Delay}ms...",
-            _reconnectAttempts, Settings.MaxRetries, delay);
-
-        await Task.Delay(delay, cancellationToken);
         await DisconnectAsync(cancellationToken);
 
         var connected = await ConnectAsync(cancellationToken);
         if (connected)
         {
             _reconnectAttempts = 0;
+            _logger.LogInformation("Reconnection successful");
+        }
+        else
+        {
+            _logger.LogWarning("Reconnection failed");
         }
 
         return connected;
@@ -122,16 +112,6 @@ public abstract class CommunicationBase : ICommunication
     public abstract Task DisconnectAsync(CancellationToken cancellationToken = default);
     public abstract Task<byte[]> ReadAsync(CancellationToken cancellationToken = default);
     public abstract Task<bool> WriteAsync(byte[] data, CancellationToken cancellationToken = default);
-
-    private int CalculateRetryDelay(int attempt)
-    {
-        if (!Settings.UseExponentialBackoff)
-            return Settings.InitialRetryDelayMs;
-
-        // Exponential backoff: delay = InitialDelay * 2^(attempt-1)
-        var delay = Settings.InitialRetryDelayMs * (int)Math.Pow(2, attempt - 1);
-        return Math.Min(delay, 60000); // Cap at 60 seconds
-    }
 
     protected virtual void OnStateChanged(CommunicationState previousState, CommunicationState currentState, string? reason = null)
     {

@@ -28,7 +28,7 @@ try
     // Code starts from here
     // ═══════════════════════════════════════════════════════════════════════════
     // Auto-select first device config from DeviceConfigs section (MyFirstISensingDevice)
-    using var context = new WedaApplicationContext(configuration, "MyFirstISensingDevice", loggerFactory);
+    using var context = new WedaApplicationContext(configuration, loggerFactory, "MyFirstISensingDevice");
     var device = new MyFirstISensingDevice(context);
 
     if (!await device.InitializeAsync())

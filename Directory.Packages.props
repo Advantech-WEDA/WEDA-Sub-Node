@@ -39,6 +39,11 @@
     <PackageVersion Include="Serilog.Enrichers.Thread" Version="4.0.0" />
     <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
   </ItemGroup>
+  <ItemGroup Label="Resilience - Polly">
+    <PackageVersion Include="Polly.Core" Version="8.5.0" />
+    <PackageVersion Include="Polly.Extensions" Version="8.5.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Polly" Version="9.0.0" />
+  </ItemGroup>
   <ItemGroup Label="System Libraries">
     <PackageVersion Include="System.IO.Ports" Version="9.0.0" />
     <PackageVersion Include="System.Text.Json" Version="9.0.0" />

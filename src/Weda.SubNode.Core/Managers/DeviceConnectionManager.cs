@@ -1,72 +1,100 @@
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+using Polly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core.Managers;
 
 /// <summary>
-/// Manages device connections (physical device + cloud service)
-/// Extracted from DeviceBase to follow Single Responsibility Principle
+/// Manages device connections (physical device + cloud service) with Polly resilience policies.
+/// Uses Polly for retry, circuit breaker, and timeout handling.
+/// Extracted from DeviceBase to follow Single Responsibility Principle.
 /// </summary>
 public class DeviceConnectionManager : IDeviceConnectionManager
 {
     private readonly ICommunication _communication;
     private readonly IWedaCloudService _cloudService;
     private readonly ILogger<DeviceConnectionManager> _logger;
-    private readonly ConnectionOptions _options;
+    private readonly ResiliencePipeline<bool> _devicePipeline;
+    private readonly ResiliencePipeline<bool> _cloudPipeline;
 
     public CommunicationState CurrentState { get; private set; }
 
     public event Func<UpdateConfigurationEvent, Task>? ConfigurationUpdateReceived;
     public event Func<ExecuteCommandEvent, Task>? CommandReceived;
 
+    /// <summary>
+    /// Creates a DeviceConnectionManager with default Polly resilience pipelines.
+    /// </summary>
     public DeviceConnectionManager(
         ICommunication communication,
         IWedaCloudService cloudService,
-        ConnectionOptions? options = null,
+        ILogger<DeviceConnectionManager>? logger = null)
+        : this(communication, cloudService, null, null, logger)
+    {
+    }
+
+    /// <summary>
+    /// Creates a DeviceConnectionManager with custom Polly resilience pipelines.
+    /// </summary>
+    public DeviceConnectionManager(
+        ICommunication communication,
+        IWedaCloudService cloudService,
+        ResiliencePipeline<bool>? devicePipeline,
+        ResiliencePipeline<bool>? cloudPipeline,
         ILogger<DeviceConnectionManager>? logger = null)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
-        _options = options ?? ConnectionOptions.Default;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DeviceConnectionManager>.Instance;
+
+        // Create default pipelines if not provided
+        _devicePipeline = devicePipeline ?? ConnectionPolicies.CreateDeviceConnectionPipeline(_logger);
+        _cloudPipeline = cloudPipeline ?? ConnectionPolicies.CreateCloudConnectionPipeline(_logger);
 
         CurrentState = CommunicationState.Disconnected;
     }
 
     public async Task<ErrorOr<Success>> EstablishConnectionsAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Establishing device connections...");
+        _logger.LogDebug("Establishing device connections with Polly resilience policies...");
         CurrentState = CommunicationState.Connecting;
 
         try
         {
-            // Connect to physical device with retry
-            var deviceConnected = await ConnectWithRetryAsync(
-                () => _communication.ConnectAsync(cancellationToken),
-                "physical device",
+            // Connect to physical device using Polly pipeline (retry + circuit breaker + timeout)
+            _logger.LogDebug("Connecting to physical device...");
+            var deviceConnected = await _devicePipeline.ExecuteAsync(
+                async ct => await _communication.ConnectAsync(ct),
                 cancellationToken);
 
             if (!deviceConnected)
             {
                 CurrentState = CommunicationState.Disconnected;
+                _logger.LogError("Failed to connect to physical device after all retry attempts");
                 return Errors.Device.PhysicalDeviceFailed;
             }
 
-            // Connect to cloud service with retry
-            var cloudConnected = await ConnectWithRetryAsync(
-                () => _cloudService.ConnectAsync(cancellationToken),
-                "cloud service",
+            _logger.LogInformation("Physical device connected successfully");
+
+            // Connect to cloud service using Polly pipeline (retry + circuit breaker + timeout)
+            _logger.LogDebug("Connecting to cloud service...");
+            var cloudConnected = await _cloudPipeline.ExecuteAsync(
+                async ct => await _cloudService.ConnectAsync(ct),
                 cancellationToken);
 
             if (!cloudConnected)
             {
                 CurrentState = CommunicationState.Disconnected;
+                _logger.LogError("Failed to connect to cloud service after all retry attempts");
                 return Errors.Device.CloudServiceFailed;
             }
+
+            _logger.LogInformation("Cloud service connected successfully");
 
             CurrentState = CommunicationState.Connected;
             _logger.LogInformation("All connections established successfully");
@@ -143,56 +171,5 @@ public class DeviceConnectionManager : IDeviceConnectionManager
             _logger.LogError(ex, "Error during disconnection");
             throw;
         }
-    }
-
-    private async Task<bool> ConnectWithRetryAsync(
-        Func<Task<bool>> connectFunc,
-        string targetName,
-        CancellationToken cancellationToken)
-    {
-        for (int attempt = 1; attempt <= _options.MaxRetryAttempts; attempt++)
-        {
-            try
-            {
-                _logger.LogDebug(
-                    "Connecting to {Target} (attempt {Attempt}/{Max})",
-                    targetName,
-                    attempt,
-                    _options.MaxRetryAttempts);
-
-                var connected = await connectFunc();
-
-                if (connected)
-                {
-                    _logger.LogDebug("Successfully connected to {Target}", targetName);
-                    return true;
-                }
-
-                _logger.LogWarning(
-                    "Failed to connect to {Target} (attempt {Attempt}/{Max})",
-                    targetName,
-                    attempt,
-                    _options.MaxRetryAttempts);
-            }
-            catch (Exception ex) when (attempt < _options.MaxRetryAttempts)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Error connecting to {Target} (attempt {Attempt}/{Max})",
-                    targetName,
-                    attempt,
-                    _options.MaxRetryAttempts);
-            }
-
-            if (attempt < _options.MaxRetryAttempts)
-            {
-                var delay = TimeSpan.FromMilliseconds(
-                    _options.RetryDelayMs * Math.Pow(2, attempt - 1));
-
-                await Task.Delay(delay, cancellationToken);
-            }
-        }
-
-        return false;
     }
 }

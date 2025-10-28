@@ -82,7 +82,6 @@ public sealed class DeviceOrchestrator : IDisposable
         ConnectionManager = new DeviceConnectionManager(
             communication,
             context.CloudService,
-            context.ConnectionOptions,
             context.GetLogger<DeviceConnectionManager>());
 
         // Wire up all events

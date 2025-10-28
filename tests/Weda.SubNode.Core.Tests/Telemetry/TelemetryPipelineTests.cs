@@ -27,6 +27,7 @@ public sealed class TelemetryPipelineTests
         _mockCloudService = Substitute.For<IWedaCloudService>();
         _pipeline = new TelemetryPipeline(
             TestDeviceId,
+            configuration: null,
             _mockCloudService,
             NullLogger<TelemetryPipeline>.Instance);
     }
