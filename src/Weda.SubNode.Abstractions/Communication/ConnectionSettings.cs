@@ -34,4 +34,75 @@ public class ConnectionSettings
     /// Write timeout in milliseconds
     /// </summary>
     public int WriteTimeoutMs { get; set; } = 3000;
+
+    /// <summary>
+    /// Security settings for MQTT/TLS connections
+    /// </summary>
+    public SecuritySettings? Security { get; set; }
+}
+
+/// <summary>
+/// Security settings for secure connections (TLS/SSL, authentication)
+/// </summary>
+public class SecuritySettings
+{
+    /// <summary>
+    /// Enable TLS/SSL encryption
+    /// </summary>
+    public bool UseTls { get; set; }
+
+    /// <summary>
+    /// TLS protocol version (default: Tls12 | Tls13)
+    /// </summary>
+    public TlsVersion TlsVersion { get; set; } = TlsVersion.Tls12 | TlsVersion.Tls13;
+
+    /// <summary>
+    /// Allow untrusted certificates (only for development/testing)
+    /// WARNING: Do not use in production\!
+    /// </summary>
+    public bool AllowUntrustedCertificates { get; set; }
+
+    /// <summary>
+    /// Skip certificate hostname validation (only for development/testing)
+    /// WARNING: Do not use in production\!
+    /// </summary>
+    public bool IgnoreCertificateHostnameValidation { get; set; }
+
+    /// <summary>
+    /// Path to CA certificate file for server verification (PEM format)
+    /// </summary>
+    public string? CaCertificatePath { get; set; }
+
+    /// <summary>
+    /// Path to client certificate file for mTLS (PFX/P12 format)
+    /// </summary>
+    public string? ClientCertificatePath { get; set; }
+
+    /// <summary>
+    /// Password for client certificate (if encrypted)
+    /// </summary>
+    public string? ClientCertificatePassword { get; set; }
+
+    /// <summary>
+    /// Username for MQTT authentication
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Password for MQTT authentication
+    /// </summary>
+    public string? Password { get; set; }
+}
+
+/// <summary>
+/// TLS protocol versions (can be combined with bitwise OR)
+/// </summary>
+[Flags]
+public enum TlsVersion
+{
+    None = 0,
+    Tls10 = 1 << 0,
+    Tls11 = 1 << 1,
+    Tls12 = 1 << 2,
+    Tls13 = 1 << 3
 }

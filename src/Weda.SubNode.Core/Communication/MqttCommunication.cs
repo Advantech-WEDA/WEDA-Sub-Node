@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Client;
@@ -157,12 +159,19 @@ public class MqttCommunication : MessageBrokerCommunicationBase<byte[]>, IMessag
             };
 
             // Build connection options
-            var options = new MqttClientOptionsBuilder()
+            var optionsBuilder = new MqttClientOptionsBuilder()
                 .WithTcpServer(_brokerUrl, _port)
                 .WithClientId(_clientId)
                 .WithCleanSession()
-                .WithKeepAlivePeriod(TimeSpan.FromSeconds(60))
-                .Build();
+                .WithKeepAlivePeriod(TimeSpan.FromSeconds(60));
+
+            // Apply security settings if configured
+            if (Settings.Security != null)
+            {
+                ApplySecuritySettings(optionsBuilder, Settings.Security);
+            }
+
+            var options = optionsBuilder.Build();
 
             // Connect
             var result = await _mqttClient.ConnectAsync(options, cancellationToken);
@@ -233,6 +242,133 @@ public class MqttCommunication : MessageBrokerCommunicationBase<byte[]>, IMessag
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Apply security settings to MQTT connection options
+    /// </summary>
+    private void ApplySecuritySettings(MqttClientOptionsBuilder optionsBuilder, SecuritySettings security)
+    {
+        // Apply username/password authentication
+        if (!string.IsNullOrEmpty(security.Username))
+        {
+            optionsBuilder.WithCredentials(security.Username, security.Password);
+            _logger?.LogDebug("MQTT authentication configured with username: {Username}", security.Username);
+        }
+
+        // Apply TLS/SSL settings
+        if (security.UseTls)
+        {
+            optionsBuilder.WithTlsOptions(tlsOptionsBuilder =>
+            {
+                tlsOptionsBuilder.UseTls();
+                tlsOptionsBuilder.WithSslProtocols(ConvertTlsVersion(security.TlsVersion));
+
+                // Load client certificate for mTLS if specified
+                if (!string.IsNullOrEmpty(security.ClientCertificatePath))
+                {
+                    try
+                    {
+                        var clientCert = string.IsNullOrEmpty(security.ClientCertificatePassword)
+                            ? X509CertificateLoader.LoadCertificateFromFile(security.ClientCertificatePath)
+                            : X509CertificateLoader.LoadPkcs12FromFile(security.ClientCertificatePath, security.ClientCertificatePassword);
+
+                        var certificates = new X509Certificate2Collection { clientCert };
+                        tlsOptionsBuilder.WithClientCertificates(certificates);
+                        _logger?.LogInformation("MQTT client certificate loaded from: {Path}", security.ClientCertificatePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to load client certificate from {Path}", security.ClientCertificatePath);
+                        throw;
+                    }
+                }
+
+                // Load CA certificate for server verification if specified
+                if (!string.IsNullOrEmpty(security.CaCertificatePath))
+                {
+                    try
+                    {
+                        var caCert = X509CertificateLoader.LoadCertificateFromFile(security.CaCertificatePath);
+
+                        tlsOptionsBuilder.WithCertificateValidationHandler(context =>
+                        {
+                            // Custom validation with CA certificate
+                            if (context.Certificate == null)
+                                return false;
+
+                            var chain = new X509Chain();
+                            chain.ChainPolicy.ExtraStore.Add(caCert);
+                            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+                            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+
+                            var serverCert = new X509Certificate2(context.Certificate);
+                            var isValid = chain.Build(serverCert);
+
+                            if (!isValid)
+                            {
+                                _logger?.LogWarning("Server certificate validation failed: {Errors}",
+                                    string.Join(", ", chain.ChainStatus.Select(s => s.StatusInformation)));
+                            }
+
+                            return isValid;
+                        });
+                        _logger?.LogInformation("MQTT CA certificate loaded from: {Path}", security.CaCertificatePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to load CA certificate from {Path}", security.CaCertificatePath);
+                        throw;
+                    }
+                }
+
+                // Development/testing options (WARNING: insecure!)
+                if (security.AllowUntrustedCertificates || security.IgnoreCertificateHostnameValidation)
+                {
+                    _logger?.LogWarning("MQTT TLS validation disabled - THIS IS INSECURE AND SHOULD NOT BE USED IN PRODUCTION!");
+
+                    tlsOptionsBuilder.WithCertificateValidationHandler(context =>
+                    {
+                        if (security.AllowUntrustedCertificates)
+                            return true; // Accept any certificate
+
+                        // Perform default validation but ignore hostname mismatch
+                        if (security.IgnoreCertificateHostnameValidation && context.Certificate != null)
+                        {
+                            var chain = new X509Chain();
+                            var serverCert = new X509Certificate2(context.Certificate);
+                            return chain.Build(serverCert);
+                        }
+
+                        return false;
+                    });
+                }
+            });
+
+            _logger?.LogInformation("MQTT TLS/SSL enabled with protocol version: {TlsVersion}", security.TlsVersion);
+        }
+    }
+
+    /// <summary>
+    /// Convert TlsVersion enum to SslProtocols
+    /// </summary>
+    private static SslProtocols ConvertTlsVersion(TlsVersion version)
+    {
+        var protocols = SslProtocols.None;
+
+#pragma warning disable CS0618, SYSLIB0039 // Type or member is obsolete
+        if (version.HasFlag(TlsVersion.Tls10))
+            protocols |= SslProtocols.Tls;
+        if (version.HasFlag(TlsVersion.Tls11))
+            protocols |= SslProtocols.Tls11;
+#pragma warning restore CS0618, SYSLIB0039
+
+        if (version.HasFlag(TlsVersion.Tls12))
+            protocols |= SslProtocols.Tls12;
+        if (version.HasFlag(TlsVersion.Tls13))
+            protocols |= SslProtocols.Tls13;
+
+        return protocols != SslProtocols.None ? protocols : SslProtocols.Tls12 | SslProtocols.Tls13;
     }
 }
 
