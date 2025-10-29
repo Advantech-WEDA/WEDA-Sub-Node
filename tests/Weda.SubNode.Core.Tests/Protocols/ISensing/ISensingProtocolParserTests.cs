@@ -1,4 +1,6 @@
 using System.Text;
+using NSubstitute;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -12,10 +14,12 @@ public class ISensingProtocolParserTests
 {
     private readonly ISensingProtocolParser _parser;
     private readonly SensorMapping _defaultMapping;
+    private readonly IMessageBroker _mockBroker;
 
     public ISensingProtocolParserTests()
     {
-        _parser = new ISensingProtocolParser();
+        _mockBroker = Substitute.For<IMessageBroker>();
+        _parser = new ISensingProtocolParser(_mockBroker);
         _defaultMapping = new SensorMapping
         {
             FieldToResourceId = new Dictionary<string, string>

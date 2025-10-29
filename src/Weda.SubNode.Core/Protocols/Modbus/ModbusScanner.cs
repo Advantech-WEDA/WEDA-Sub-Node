@@ -60,14 +60,17 @@ public record ModbusScanConfig
 /// </summary>
 public class ModbusScanner
 {
-    private readonly ICommunication _communication;
+    private readonly IRequestResponseCommunication<byte[], byte[]> _communication;
     private readonly byte _slaveId;
     private readonly ILogger? _logger;
     private ushort _transactionId = 0;
 
-    public ModbusScanner(ICommunication communication, byte slaveId, ILogger? logger = null)
+    public ModbusScanner(
+        IRequestResponseCommunication<byte[], byte[]> communication,
+        byte slaveId,
+        ILogger? logger = null)
     {
-        _communication = communication;
+        _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _slaveId = slaveId;
         _logger = logger;
     }
@@ -487,9 +490,7 @@ public class ModbusScanner
         CancellationToken cancellationToken)
     {
         var request = BuildModbusRequest(0x03, startAddress, count);
-        await _communication.WriteAsync(request, cancellationToken);
-
-        var response = await _communication.ReadAsync(cancellationToken);
+        var response = await _communication.RequestAsync(request, cancellationToken);
         return ParseModbusResponse(response, count);
     }
 

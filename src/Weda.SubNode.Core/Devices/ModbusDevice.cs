@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Polly;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Policies;
 using Weda.SubNode.Core.Protocols.Modbus;
 
 namespace Weda.SubNode.Core.Devices;
@@ -16,7 +18,8 @@ public class ModbusDevice : DeviceBase
 {
     private readonly byte _slaveId;
     private readonly List<ModbusSensorRegister> _sensorRegisters;
-    private readonly ModbusProtocolParserFactory _parserFactory;
+    private readonly IRequestResponseCommunication<byte[], byte[]> _tcpCommunication;
+    private readonly ResiliencePipeline<bool> _reconnectionPipeline;
     private CancellationTokenSource? _backgroundTasksCts;
     private Task? _telemetryTask;
     private Task? _healthTask;
@@ -24,16 +27,19 @@ public class ModbusDevice : DeviceBase
 
     /// <summary>
     /// Initializes a new instance of ModbusDevice with ApplicationContext.
+    /// ModbusDevice directly manages Modbus TCP communication using request-response pattern.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing Modbus settings.</param>
-    /// <param name="communication">Communication instance for Modbus protocol.</param>
+    /// <param name="communication">TCP communication instance for Modbus protocol.</param>
     public ModbusDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        ICommunication communication)
+        IRequestResponseCommunication<byte[], byte[]> communication)
         : base(context, configuration, communication)
     {
+        _tcpCommunication = communication ?? throw new ArgumentNullException(nameof(communication));
+
         // Extract Modbus protocol settings (SlaveId)
         _slaveId = configuration.GetModbusSlaveId();
 
@@ -42,8 +48,8 @@ public class ModbusDevice : DeviceBase
             .Select(s => s.ToModbusRegister())
             .ToList();
 
-        // Initialize parser factory
-        _parserFactory = new ModbusProtocolParserFactory();
+        // Create Polly reconnection pipeline for background task resilience
+        _reconnectionPipeline = ConnectionPolicies.CreateReconnectionPipeline(_logger);
     }
 
     public override async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
@@ -78,7 +84,7 @@ public class ModbusDevice : DeviceBase
                     cancellationToken);
 
                 // Step 2: Protocol parser - convert registers to C# type
-                var parser = _parserFactory.CreateParser(register);
+                var parser = new ModbusProtocolParser(register.DataType);
                 var parsedValue = parser.Parse(rawData);
 
                 // Step 3: Create telemetry measure with raw parsed value
@@ -126,9 +132,7 @@ public class ModbusDevice : DeviceBase
         CancellationToken cancellationToken)
     {
         var request = BuildModbusRequest(0x03, startAddress, count);
-        await _communication.WriteAsync(request, cancellationToken);
-
-        var response = await _communication.ReadAsync(cancellationToken);
+        var response = await _tcpCommunication.RequestAsync(request, cancellationToken);
         return ParseModbusResponse(response, count);
     }
 
@@ -184,7 +188,7 @@ public class ModbusDevice : DeviceBase
     {
         _logger.LogInformation("Starting Modbus register scan for device {DeviceId}", DeviceId);
 
-        var scanner = new ModbusScanner(_communication, _slaveId, _logger);
+        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
         var results = await scanner.ScanHoldingRegistersAsync(config, cancellationToken);
 
         // Print results to console
@@ -198,7 +202,7 @@ public class ModbusDevice : DeviceBase
     /// </summary>
     public List<SensorSuggestion> GenerateSensorSuggestions(List<ModbusScanResult> scanResults)
     {
-        var scanner = new ModbusScanner(_communication, _slaveId, _logger);
+        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
         return scanner.GenerateSensorSuggestions(scanResults);
     }
 
@@ -210,7 +214,7 @@ public class ModbusDevice : DeviceBase
     /// <returns>Markdown formatted report</returns>
     public string GenerateScanReport(List<ModbusScanResult> scanResults, ModbusScanConfig config)
     {
-        var scanner = new ModbusScanner(_communication, _slaveId, _logger);
+        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
 
         // Build device info from configuration
         var deviceInfo = new Dictionary<string, object>
@@ -236,23 +240,31 @@ public class ModbusDevice : DeviceBase
             {
                 try
                 {
-                    // Check if communication is in error state, attempt reconnection
+                    // Check if communication is in error state, attempt reconnection using Polly
                     if (ConnectionState == CommunicationState.Error ||
                         ConnectionState == CommunicationState.Disconnected)
                     {
-                        _logger.LogWarning("Device {DeviceId} communication in {State} state, attempting reconnection...",
+                        _logger.LogWarning("Device {DeviceId} communication in {State} state, attempting reconnection with Polly pipeline...",
                             DeviceId, ConnectionState);
 
                         if (_communication is CommunicationBase commBase)
                         {
-                            var reconnected = await commBase.ReconnectAsync(cts);
-                            if (!reconnected)
+                            // Use Polly reconnection pipeline (unlimited retries with exponential backoff)
+                            var reconnected = await _reconnectionPipeline.ExecuteAsync(
+                                async ct => await commBase.ReconnectAsync(ct),
+                                cts);
+
+                            if (reconnected)
                             {
-                                _logger.LogError("Failed to reconnect device {DeviceId}", DeviceId);
+                                _logger.LogInformation("Device {DeviceId} reconnected successfully via Polly pipeline", DeviceId);
+                            }
+                            else
+                            {
+                                // This should rarely happen since pipeline has unlimited retries
+                                _logger.LogError("Failed to reconnect device {DeviceId} even after Polly retries", DeviceId);
                                 await Task.Delay(period, cts);
                                 continue;
                             }
-                            _logger.LogInformation("Device {DeviceId} reconnected successfully", DeviceId);
                         }
                     }
 
@@ -267,13 +279,12 @@ public class ModbusDevice : DeviceBase
                     if (measures.Count > 0)
                     {
                         await SendTelemetryAsync(ToAsyncEnumerable(measures), cts);
-
-                        // Reset reconnection counter on successful operation
-                        if (_communication is CommunicationBase commBase)
-                        {
-                            commBase.ResetReconnectAttempts();
-                        }
                     }
+                }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                {
+                    _logger.LogInformation("Telemetry task cancelled for device {DeviceId}", DeviceId);
+                    break;
                 }
                 catch (Exception ex)
                 {

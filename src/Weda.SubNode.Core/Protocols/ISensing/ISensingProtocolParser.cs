@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -8,12 +9,46 @@ using Weda.SubNode.Core.Protocols.ISensing.Models;
 namespace Weda.SubNode.Core.Protocols.ISensing;
 
 /// <summary>
-/// ISensing MQTT protocol parser (Placeholder implementation)
-/// Supports both Parse (JSON -> TelemetryMeasure) and Encode (TelemetryMeasure -> JSON)
+/// ISensing MQTT protocol parser.
+/// Implements IProtocolParser&lt;byte[], object&gt; for ISensing JSON protocol.
+/// Supports both Parse (JSON -> TelemetryMeasure) and Encode (TelemetryMeasure -> JSON).
 /// </summary>
 public class ISensingProtocolParser : IProtocolParser
 {
-    // ===== Parse Methods (ISensing JSON -> Internal Format) =====
+    private readonly IMessageBroker _communication;
+
+    /// <summary>
+    /// Gets the underlying communication instance (MQTT communication for ISensing)
+    /// </summary>
+    public ICommunication Communication => _communication;
+
+    public ISensingProtocolParser(IMessageBroker communication)
+    {
+        _communication = communication ?? throw new ArgumentNullException(nameof(communication));
+    }
+
+    // ===== Low-Level Protocol Operations (IProtocolParser<byte[], object>) =====
+
+    /// <summary>
+    /// Parse raw byte array to object (typically ISensingSensorData).
+    /// </summary>
+    public object Parse(byte[] rawData)
+    {
+        var json = Encoding.UTF8.GetString(rawData);
+        var sensorData = JsonSerializer.Deserialize<ISensingSensorData>(json);
+        return sensorData ?? throw new ISensingProtocolException("Failed to parse ISensing data", json);
+    }
+
+    /// <summary>
+    /// Encode object to byte array (reverse of Parse).
+    /// </summary>
+    public byte[] Encode(object value)
+    {
+        var json = JsonSerializer.Serialize(value);
+        return Encoding.UTF8.GetBytes(json);
+    }
+
+    // ===== High-Level Telemetry Operations =====
 
     public List<TelemetryMeasure> ParseSensorData(byte[] payload, SensorMapping? sensorMapping = null)
     {
@@ -23,8 +58,9 @@ public class ISensingProtocolParser : IProtocolParser
 
     public List<TelemetryMeasure> ParseSensorData(string jsonPayload, SensorMapping? sensorMapping = null)
     {
-        // TODO: Implement actual JSON parsing
-        throw new NotImplementedException("ParseSensorData not yet implemented");
+        // TODO: Implement actual JSON parsing with SensorMapping
+        // For now, throw NotImplementedException to indicate this needs to be implemented
+        throw new NotImplementedException("ParseSensorData with SensorMapping not yet implemented");
     }
 
     /// <summary>

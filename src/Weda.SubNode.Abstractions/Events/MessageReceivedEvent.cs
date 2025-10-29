@@ -1,15 +1,16 @@
 namespace Weda.SubNode.Abstractions.Events;
 
 /// <summary>
-/// Event: Message received from message broker (MQTT, NATS, etc.).
+/// Generic event for message received from message broker (MQTT, NATS, etc.).
 /// Fired when a message is received on a subscribed topic.
 /// </summary>
+/// <typeparam name="TMessage">Message payload type</typeparam>
 /// <param name="Topic">The topic the message was received on.</param>
 /// <param name="Payload">The message payload.</param>
 /// <param name="Timestamp">The timestamp when message was received.</param>
-public sealed record MessageReceivedEvent(
+public record MessageReceivedEvent<TMessage>(
     string Topic,
-    byte[] Payload,
+    TMessage Payload,
     DateTimeOffset Timestamp)
 {
     /// <summary>
@@ -23,3 +24,12 @@ public sealed record MessageReceivedEvent(
     /// </summary>
     public bool Retain { get; init; }
 }
+
+/// <summary>
+/// Non-generic message received event for backward compatibility.
+/// Uses byte[] as the default message type.
+/// </summary>
+public sealed record MessageReceivedEvent(
+    string Topic,
+    byte[] Payload,
+    DateTimeOffset Timestamp) : MessageReceivedEvent<byte[]>(Topic, Payload, Timestamp);

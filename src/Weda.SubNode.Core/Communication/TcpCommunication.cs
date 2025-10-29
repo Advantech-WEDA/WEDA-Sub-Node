@@ -59,8 +59,9 @@ public static class TcpCommunicationExtensions
 
 /// <summary>
 /// TCP communication implementation (for Modbus TCP, raw TCP, etc.)
+/// Implements request-response pattern where each request expects a response.
 /// </summary>
-public class TcpCommunication : CommunicationBase
+public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
 {
     private readonly string _host;
     private readonly int _port;
@@ -126,13 +127,23 @@ public class TcpCommunication : CommunicationBase
         await Task.CompletedTask;
     }
 
-    public override async Task<byte[]> ReadAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Send a request and wait for response.
+    /// For TCP, this writes the request data and then reads the response.
+    /// </summary>
+    public override async Task<byte[]> RequestAsync(byte[] request, CancellationToken cancellationToken = default)
     {
         if (!IsConnected || _stream == null)
             throw new InvalidOperationException("Not connected");
 
         try
         {
+            // Write request
+            _logger.LogDebug("Sending TCP request with {ByteCount} bytes", request.Length);
+            await _stream.WriteAsync(request, cancellationToken);
+            await _stream.FlushAsync(cancellationToken);
+
+            // Read response
             var buffer = new byte[256]; // Modbus typical response size
             var bytesRead = await _stream.ReadAsync(buffer, cancellationToken);
 
@@ -143,39 +154,17 @@ public class TcpCommunication : CommunicationBase
                 return Array.Empty<byte>();
             }
 
-            var result = new byte[bytesRead];
-            Array.Copy(buffer, result, bytesRead);
+            var response = new byte[bytesRead];
+            Array.Copy(buffer, response, bytesRead);
 
-            _logger.LogDebug("Read {ByteCount} bytes from TCP", bytesRead);
-            return result;
+            _logger.LogDebug("Received TCP response with {ByteCount} bytes", bytesRead);
+            return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error reading from TCP");
+            _logger.LogError(ex, "Error during TCP request-response");
             State = CommunicationState.Error;
             throw;
-        }
-    }
-
-    public override async Task<bool> WriteAsync(byte[] data, CancellationToken cancellationToken = default)
-    {
-        if (!IsConnected || _stream == null)
-            throw new InvalidOperationException("Not connected");
-
-        try
-        {
-            _logger.LogDebug("Writing {ByteCount} bytes to TCP", data.Length);
-
-            await _stream.WriteAsync(data, cancellationToken);
-            await _stream.FlushAsync(cancellationToken);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error writing to TCP");
-            State = CommunicationState.Error;
-            return false;
         }
     }
 }

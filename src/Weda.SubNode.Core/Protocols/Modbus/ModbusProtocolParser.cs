@@ -1,25 +1,42 @@
-using System.Text;
+using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
+using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Protocols.Modbus;
 
 /// <summary>
-/// Modbus protocol parser for converting register data to C# types
-/// Only handles protocol encoding/decoding, NOT calibration
+/// Modbus protocol parser for converting register data to C# types.
+/// Implements IProtocolParser&lt;ushort[], object&gt; generic interface.
+/// This is a stateless data converter - ModbusDevice manages communication directly.
+/// Only handles protocol encoding/decoding (data type conversion), NOT calibration or communication.
 /// </summary>
-public class ModbusProtocolParser : IModbusDataParser<ushort[], object>
+public class ModbusProtocolParser : IProtocolParser<ushort[], object>
 {
     private readonly ModbusDataType _dataType;
 
+    /// <summary>
+    /// Data type name for metadata
+    /// </summary>
     public string DataType => _dataType.ToString();
+
+    /// <summary>
+    /// Communication property not applicable for Modbus parser.
+    /// ModbusDevice manages communication directly due to batch read optimization needs.
+    /// </summary>
+    public ICommunication Communication =>
+        throw new NotSupportedException("ModbusDevice manages communication directly for batch read optimization");
 
     public ModbusProtocolParser(ModbusDataType dataType)
     {
         _dataType = dataType;
     }
 
+    // ===== Low-Level Protocol Operations (IProtocolParser<ushort[], object>) =====
+
     /// <summary>
-    /// Parse Modbus registers to C# value
+    /// Parse Modbus registers to C# value.
+    /// Low-level protocol operation from IProtocolParser&lt;ushort[], object&gt;.
     /// </summary>
     public object Parse(ushort[] registers)
     {
@@ -39,7 +56,8 @@ public class ModbusProtocolParser : IModbusDataParser<ushort[], object>
     }
 
     /// <summary>
-    /// Encode C# value to Modbus registers
+    /// Encode C# value to Modbus registers.
+    /// Low-level protocol operation from IProtocolParser&lt;ushort[], object&gt;.
     /// </summary>
     public ushort[] Encode(object value)
     {
@@ -56,6 +74,37 @@ public class ModbusProtocolParser : IModbusDataParser<ushort[], object>
             ModbusDataType.String16 => EncodeString16(Convert.ToString(value) ?? string.Empty),
             _ => [Convert.ToUInt16(value)]
         };
+    }
+
+    // ===== High-Level Telemetry Operations (IProtocolParser<ushort[], object>) =====
+
+    /// <summary>
+    /// Parse Modbus frame payload to telemetry measures.
+    /// Note: This implementation requires SensorMapping to be provided.
+    /// </summary>
+    public List<TelemetryMeasure> ParseSensorData(byte[] payload, SensorMapping? sensorMapping = null)
+    {
+        // TODO: Implement full Modbus frame parsing (MBAP header + PDU)
+        // For now, this is a placeholder that throws NotImplementedException
+        throw new NotImplementedException("ParseSensorData from byte[] not yet implemented for Modbus");
+    }
+
+    /// <summary>
+    /// Encode telemetry measures to Modbus frame payload.
+    /// </summary>
+    public byte[] EncodeSensorData(IEnumerable<TelemetryMeasure> measures)
+    {
+        // TODO: Implement Modbus frame encoding
+        throw new NotImplementedException("EncodeSensorData not yet implemented for Modbus");
+    }
+
+    /// <summary>
+    /// Encode device command to Modbus frame payload.
+    /// </summary>
+    public byte[] EncodeCommand(DeviceCommand command)
+    {
+        // TODO: Implement Modbus command encoding (Function Code 05/06/15/16)
+        throw new NotImplementedException("EncodeCommand not yet implemented for Modbus");
     }
 
     // Parse methods

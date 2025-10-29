@@ -16,7 +16,6 @@ public class MqttCommunicationTests
             brokerUrl: "localhost",
             port: 1883,
             clientId: "test-client",
-            defaultTopic: "test/topic",
             settings: null,
             logger: NullLogger<CommunicationBase>.Instance);
     }
@@ -85,20 +84,18 @@ public class MqttCommunicationTests
     public void MessageReceived_Event_ShouldBeRaisedWhenMessageArrives()
     {
         // Arrange
-        MessageReceivedEvent? receivedEvent = null;
+        MessageReceivedEvent<byte[]>? receivedEvent = null;
         _mqtt.MessageReceived += (sender, e) => receivedEvent = e;
 
-        var testEvent = new MessageReceivedEvent(
-            Topic: "test/topic",
-            Payload: new byte[] { 1, 2, 3 },
-            Timestamp: DateTimeOffset.UtcNow);
+        var topic = "test/topic";
+        var payload = new byte[] { 1, 2, 3 };
 
         // Act
         // Trigger event via reflection (for testing event mechanism)
         var onMessageReceivedMethod = typeof(MqttCommunication).GetMethod(
             "OnMessageReceived",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        onMessageReceivedMethod?.Invoke(_mqtt, new object[] { testEvent });
+        onMessageReceivedMethod?.Invoke(_mqtt, new object[] { topic, payload, 0, false });
 
         // Assert
         Assert.NotNull(receivedEvent);
@@ -126,25 +123,8 @@ public class MqttCommunicationTests
             await _mqtt.DisconnectAsync());
     }
 
-    [Fact]
-    public async Task ReadAsync_ShouldReturnMessageFromQueue()
-    {
-        // Act & Assert
-        var cts = new CancellationTokenSource(100); // 100ms timeout
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.ReadAsync(cts.Token));
-    }
-
-    [Fact]
-    public async Task WriteAsync_WithData_ShouldPublishToDefaultTopic()
-    {
-        // Arrange
-        var data = System.Text.Encoding.UTF8.GetBytes("test data");
-
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.WriteAsync(data));
-    }
+    // Note: ReadAsync/WriteAsync removed from MqttCommunication
+    // MqttCommunication now uses pure Pub/Sub pattern (Subscribe/Publish)
 
     #endregion
 
@@ -182,8 +162,7 @@ public class MqttCommunicationTests
         var mqtt = Mqtt.Create(
             brokerUrl: "172.16.8.122",
             port: 1883,
-            clientId: "custom-client",
-            defaultTopic: "custom/topic");
+            clientId: "custom-client");
 
         // Assert
         Assert.NotNull(mqtt);

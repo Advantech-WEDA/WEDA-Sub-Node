@@ -58,7 +58,7 @@ public class ISensingDeviceTests : IDisposable
             }
         };
 
-        _mqtt = new MqttCommunication("localhost", 1883, "test-client", null, null, NullLogger<CommunicationBase>.Instance);
+        _mqtt = new MqttCommunication("localhost", 1883, "test-client", null, NullLogger<CommunicationBase>.Instance);
         _device = new ISensingDevice(_context, _configuration, _mqtt);
     }
 

@@ -1,32 +1,24 @@
 using System.Collections.Concurrent;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Client;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Abstractions.Events;
 
 namespace Weda.SubNode.Core.Communication;
 
 /// <summary>
-/// MQTT communication implementation supporting both ICommunication and IMessageBroker
-/// - ICommunication: ReadAsync/WriteAsync for business logic compatibility
-/// - IMessageBroker: Subscribe/Publish for native MQTT operations
+/// MQTT communication implementation using Message Broker (Pub/Sub) pattern.
+/// Provides subscribe/publish operations for topic-based messaging.
 /// </summary>
-public class MqttCommunication : CommunicationBase, IMessageBroker
+public class MqttCommunication : MessageBrokerCommunicationBase<byte[]>, IMessageBroker
 {
     private readonly string _brokerUrl;
     private readonly int _port;
     private readonly string? _clientId;
-    private readonly string? _defaultTopic;
 
     // MQTTnet client
     private IMqttClient? _mqttClient;
     private readonly MqttFactory _mqttFactory;
-
-    // Internal message queue for ICommunication.ReadAsync compatibility
-    private readonly BlockingCollection<byte[]> _messageQueue;
-    private readonly int _maxQueueSize;
 
     // Active subscriptions tracking
     private readonly ConcurrentDictionary<string, bool> _subscriptions;
@@ -35,7 +27,6 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
         string brokerUrl,
         int port,
         string? clientId = null,
-        string? defaultTopic = null,
         ConnectionSettings? settings = null,
         ILogger<CommunicationBase>? logger = null)
         : base(settings, logger)
@@ -43,9 +34,6 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
         _brokerUrl = brokerUrl ?? throw new ArgumentNullException(nameof(brokerUrl));
         _port = port;
         _clientId = clientId ?? $"mqtt-client-{Guid.NewGuid():N}";
-        _defaultTopic = defaultTopic;
-        _maxQueueSize = 100; // Default queue size
-        _messageQueue = new BlockingCollection<byte[]>(_maxQueueSize);
         _subscriptions = new ConcurrentDictionary<string, bool>();
         _mqttFactory = new MqttFactory();
     }
@@ -55,7 +43,7 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
     /// <summary>
     /// Subscribe to MQTT topic
     /// </summary>
-    public virtual async Task<bool> SubscribeAsync(string topic, CancellationToken cancellationToken = default)
+    public override async Task<bool> SubscribeAsync(string topic, CancellationToken cancellationToken = default)
     {
         if (_mqttClient == null || !_mqttClient.IsConnected)
         {
@@ -85,7 +73,7 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
     /// <summary>
     /// Unsubscribe from MQTT topic
     /// </summary>
-    public virtual async Task<bool> UnsubscribeAsync(string topic, CancellationToken cancellationToken = default)
+    public override async Task<bool> UnsubscribeAsync(string topic, CancellationToken cancellationToken = default)
     {
         if (_mqttClient == null || !_mqttClient.IsConnected)
         {
@@ -114,7 +102,7 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
     /// <summary>
     /// Publish message to MQTT topic
     /// </summary>
-    public virtual async Task<bool> PublishAsync(string topic, byte[] payload, CancellationToken cancellationToken = default)
+    public override async Task<bool> PublishAsync(string topic, byte[] payload, CancellationToken cancellationToken = default)
     {
         if (_mqttClient == null || !_mqttClient.IsConnected)
         {
@@ -141,12 +129,7 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
         }
     }
 
-    /// <summary>
-    /// Event fired when message received on subscribed topics
-    /// </summary>
-    public event EventHandler<MessageReceivedEvent>? MessageReceived;
-
-    // ===== ICommunication Implementation (Compatibility Layer) =====
+    // ===== Connection Management =====
 
     /// <summary>
     /// Connect to MQTT broker
@@ -225,29 +208,6 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
     }
 
     /// <summary>
-    /// Read from internal message queue (blocking until message available)
-    /// Provides compatibility with ICommunication interface
-    /// </summary>
-    public override Task<byte[]> ReadAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.Run(() => _messageQueue.Take(cancellationToken), cancellationToken);
-    }
-
-    /// <summary>
-    /// Publish to default topic (if set)
-    /// Provides compatibility with ICommunication interface
-    /// </summary>
-    public override Task<bool> WriteAsync(byte[] data, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrEmpty(_defaultTopic))
-        {
-            throw new InvalidOperationException("Default topic not set. Use PublishAsync with explicit topic instead.");
-        }
-
-        return PublishAsync(_defaultTopic, data, cancellationToken);
-    }
-
-    /// <summary>
     /// Handler for MQTT messages received from MQTTnet client
     /// </summary>
     private Task OnMqttMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs e)
@@ -257,27 +217,12 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
             var topic = e.ApplicationMessage.Topic;
             var payload = e.ApplicationMessage.PayloadSegment.ToArray();
 
-            // Add to message queue for ICommunication.ReadAsync compatibility
-            if (_messageQueue.Count < _maxQueueSize)
-            {
-                _messageQueue.TryAdd(payload);
-            }
-            else
-            {
-                _logger?.LogWarning("Message queue full, dropping message from topic {Topic}", topic);
-            }
-
-            // Trigger MessageReceived event for IMessageBroker
-            var messageEvent = new MessageReceivedEvent(
-                Topic: topic,
-                Payload: payload,
-                Timestamp: DateTimeOffset.UtcNow)
-            {
-                QoS = (int)e.ApplicationMessage.QualityOfServiceLevel,
-                Retain = e.ApplicationMessage.Retain
-            };
-
-            OnMessageReceived(messageEvent);
+            // Trigger MessageReceived event using base class helper method
+            OnMessageReceived(
+                topic: topic,
+                message: payload,
+                qos: (int)e.ApplicationMessage.QualityOfServiceLevel,
+                retain: e.ApplicationMessage.Retain);
 
             _logger?.LogDebug("Received message from topic {Topic}, payload size: {Size} bytes",
                 topic, payload.Length);
@@ -288,32 +233,6 @@ public class MqttCommunication : CommunicationBase, IMessageBroker
         }
 
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Trigger MessageReceived event (for testing and internal use)
-    /// </summary>
-    protected virtual void OnMessageReceived(MessageReceivedEvent e)
-    {
-        MessageReceived?.Invoke(this, e);
-    }
-
-    /// <summary>
-    /// Dispose resources
-    /// </summary>
-    public new void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _messageQueue?.Dispose();
-            _mqttClient?.Dispose();
-        }
     }
 }
 
@@ -334,10 +253,9 @@ public static class Mqtt
         string brokerUrl,
         int port,
         string? clientId = null,
-        string? defaultTopic = null,
         ConnectionSettings? settings = null,
         ILogger<CommunicationBase>? logger = null)
     {
-        return new MqttCommunication(brokerUrl, port, clientId, defaultTopic, settings, logger);
+        return new MqttCommunication(brokerUrl, port, clientId, settings, logger);
     }
 }

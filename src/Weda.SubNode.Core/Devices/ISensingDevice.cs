@@ -46,7 +46,7 @@ public class ISensingDevice : DeviceBase, ISensorControl
         : base(context, configuration, messageBroker)
     {
         _messageBroker = messageBroker ?? throw new ArgumentNullException(nameof(messageBroker));
-        _protocolParser = new ISensingProtocolParser();
+        _protocolParser = new ISensingProtocolParser(messageBroker);
 
         // Extract MQTT topics from configuration
         // Expected format: "Advantech/{MacAddress}/data" and "Advantech/{MacAddress}/status"
@@ -154,7 +154,7 @@ public class ISensingDevice : DeviceBase, ISensorControl
     /// </summary>
     /// <param name="sender">Event sender (typically the message broker)</param>
     /// <param name="e">Message event arguments containing topic and payload</param>
-    protected virtual void OnMessageReceived(object? sender, MessageReceivedEvent e)
+    protected virtual void OnMessageReceived(object? sender, MessageReceivedEvent<byte[]> e)
     {
         try
         {
