@@ -137,10 +137,20 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<bool> SendTelemetryAsync(List<TelemetryMeasure> measures, CancellationToken ct = default)
     {
-        var result = await _orchestrator.RetryOrchestrator.ExecuteAsync<ErrorOr<Success>>(
-            async c => await _orchestrator.TelemetryPipeline.ProcessAsync(measures, c),
-            "SendTelemetry", ct);
-        return !result.IsError;
+        try
+        {
+            // Use Polly pipeline for resilient telemetry sending
+            var result = await _orchestrator.OperationPipeline.ExecuteAsync(
+                async c => await _orchestrator.TelemetryPipeline.ProcessAsync(measures, c),
+                ct);
+
+            return !result.IsError;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send telemetry for device {DeviceId} after all retries", DeviceId);
+            return false;
+        }
     }
 
     public async Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken ct = default, params IDspFilter[] filters)

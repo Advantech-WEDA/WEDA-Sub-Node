@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Polly;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -8,6 +9,7 @@ using Weda.SubNode.Core.Devices.Lifecycle;
 using Weda.SubNode.Core.Devices.Retry;
 using Weda.SubNode.Core.Devices.StateMachine;
 using Weda.SubNode.Core.Managers;
+using Weda.SubNode.Core.Policies;
 using Weda.SubNode.Core.Telemetry;
 
 namespace Weda.SubNode.Core.Devices;
@@ -24,7 +26,16 @@ public sealed class DeviceOrchestrator : IDisposable
     // All managers in one place
     public IDeviceStateMachine StateMachine { get; }
     public DeviceHealthMonitor HealthMonitor { get; }
+
+    [Obsolete("Use OperationPipeline (Polly) instead. RetryOrchestrator will be removed in future versions.")]
     public RetryOrchestrator RetryOrchestrator { get; }
+
+    /// <summary>
+    /// Polly resilience pipeline for general device operations (telemetry, commands, etc.)
+    /// Replaces RetryOrchestrator with standardized retry, circuit breaker, and timeout handling.
+    /// </summary>
+    public ResiliencePipeline OperationPipeline { get; }
+
     public ITelemetryPipeline TelemetryPipeline { get; }
     public DeviceLifecycleManager LifecycleManager { get; }
     public IDeviceConnectionManager ConnectionManager { get; }
@@ -60,11 +71,18 @@ public sealed class DeviceOrchestrator : IDisposable
             communication: communication,
             thresholds: null);
 
+        // Create Polly operation pipeline for general device operations
+        OperationPipeline = ConnectionPolicies.CreateGeneralOperationPipeline(
+            context.GetLogger<DeviceOrchestrator>());
+
+        // Keep RetryOrchestrator for backward compatibility (marked as obsolete)
+#pragma warning disable CS0618 // Type or member is obsolete
         RetryOrchestrator = new RetryOrchestrator(
             _deviceId,
             context.GetLogger<RetryOrchestrator>(),
             retryPolicy: RetryPolicy.Exponential,
             circuitBreakerPolicy: CircuitBreakerPolicy.Default);
+#pragma warning restore CS0618 // Type or member is obsolete
 
         TelemetryPipeline = new TelemetryPipeline(
             _deviceId,
@@ -117,6 +135,7 @@ public sealed class DeviceOrchestrator : IDisposable
             HealthChanged?.Invoke(s, e);
         };
 
+#pragma warning disable CS0618 // Type or member is obsolete
         RetryOrchestrator.RetryAttempting += (s, e) =>
         {
             _logger.LogDebug("Retry attempt {Attempt} for {Operation}", e.AttemptNumber, e.OperationName);
@@ -128,6 +147,7 @@ public sealed class DeviceOrchestrator : IDisposable
             _logger.LogWarning("Circuit breaker changed: {Previous} -> {Current}", e.PreviousState, e.CurrentState);
             CircuitBreakerStateChanged?.Invoke(s, e);
         };
+#pragma warning restore CS0618 // Type or member is obsolete
 
         TelemetryPipeline.StageExecuting += (s, e) =>
         {

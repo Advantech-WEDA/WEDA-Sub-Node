@@ -161,6 +161,141 @@ public static class ConnectionPolicies
             })
             .Build();
     }
+
+    /// <summary>
+    /// Creates a resilience pipeline for device reconnection during runtime with:
+    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 30s) + jitter
+    /// - No Circuit Breaker (keep trying to reconnect)
+    /// - Timeout: 20 seconds per reconnection attempt
+    /// </summary>
+    public static ResiliencePipeline<bool> CreateReconnectionPipeline(
+        ILogger logger,
+        ConnectionPolicyOptions? options = null)
+    {
+        options ??= new ConnectionPolicyOptions
+        {
+            MaxRetryAttempts = int.MaxValue, // Unlimited retries for reconnection
+            InitialDelay = TimeSpan.FromSeconds(1),
+            MaxDelay = TimeSpan.FromSeconds(30),
+            Timeout = TimeSpan.FromSeconds(20)
+        };
+
+        return new ResiliencePipelineBuilder<bool>()
+            .AddRetry(new RetryStrategyOptions<bool>
+            {
+                MaxRetryAttempts = options.MaxRetryAttempts,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = options.InitialDelay,
+                UseJitter = true,
+                MaxDelay = options.MaxDelay, // delay = min(MaxDelay, exponential_backoff)
+                ShouldHandle = new PredicateBuilder<bool>()
+                    .HandleResult(false)
+                    .Handle<Exception>(ex => ex is not OperationCanceledException),
+                OnRetry = args =>
+                {
+                    logger.LogWarning(
+                        "Reconnection attempt {AttemptNumber} failed, retrying after {DelayDuration}ms...",
+                        args.AttemptNumber,
+                        args.RetryDelay.TotalMilliseconds);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .AddTimeout(new TimeoutStrategyOptions
+            {
+                Timeout = options.Timeout,
+                OnTimeout = args =>
+                {
+                    logger.LogWarning(
+                        "Reconnection attempt timed out after {Timeout}s",
+                        args.Timeout.TotalSeconds);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+    }
+
+    /// <summary>
+    /// Creates a general-purpose resilience pipeline for device operations with:
+    /// - Retry: 3 attempts with exponential backoff (500ms, 1s, 2s) + jitter
+    /// - Circuit Breaker: Opens after 50% failure rate (min 4 calls), breaks for 15s
+    /// - Timeout: 10 seconds per operation
+    /// Suitable for telemetry sending, command execution, etc.
+    /// </summary>
+    public static ResiliencePipeline CreateGeneralOperationPipeline(
+        ILogger logger,
+        ConnectionPolicyOptions? options = null)
+    {
+        options ??= new ConnectionPolicyOptions
+        {
+            MaxRetryAttempts = 3,
+            InitialDelay = TimeSpan.FromMilliseconds(500),
+            MaxDelay = TimeSpan.FromSeconds(5),
+            Timeout = TimeSpan.FromSeconds(10),
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
+            CircuitBreakerMinThroughput = 4,
+            CircuitBreakerBreakDuration = TimeSpan.FromSeconds(15)
+        };
+
+        return new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = options.MaxRetryAttempts,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = options.InitialDelay,
+                UseJitter = true,
+                MaxDelay = options.MaxDelay,
+                ShouldHandle = new PredicateBuilder()
+                    .Handle<Exception>(ex => ex is not OperationCanceledException),
+                OnRetry = args =>
+                {
+                    logger.LogWarning(
+                        "Operation attempt {AttemptNumber}/{MaxAttempts} failed, retrying after {DelayDuration}ms...",
+                        args.AttemptNumber,
+                        options.MaxRetryAttempts,
+                        args.RetryDelay.TotalMilliseconds);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+            {
+                FailureRatio = options.CircuitBreakerFailureRatio,
+                SamplingDuration = options.CircuitBreakerSamplingDuration,
+                MinimumThroughput = options.CircuitBreakerMinThroughput,
+                BreakDuration = options.CircuitBreakerBreakDuration,
+                ShouldHandle = new PredicateBuilder()
+                    .Handle<Exception>(ex => ex is not OperationCanceledException),
+                OnOpened = args =>
+                {
+                    logger.LogError(
+                        "Circuit breaker OPENED: Operations suspended for {BreakDuration}s",
+                        args.BreakDuration.TotalSeconds);
+                    return ValueTask.CompletedTask;
+                },
+                OnClosed = args =>
+                {
+                    logger.LogInformation("Circuit breaker CLOSED: Operations resumed");
+                    return ValueTask.CompletedTask;
+                },
+                OnHalfOpened = args =>
+                {
+                    logger.LogInformation("Circuit breaker HALF-OPEN: Testing operation...");
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .AddTimeout(new TimeoutStrategyOptions
+            {
+                Timeout = options.Timeout,
+                OnTimeout = args =>
+                {
+                    logger.LogWarning(
+                        "Operation timed out after {Timeout}s",
+                        args.Timeout.TotalSeconds);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+    }
 }
 
 /// <summary>
@@ -179,7 +314,8 @@ public sealed class ConnectionPolicyOptions
     public TimeSpan InitialDelay { get; set; } = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    /// Maximum retry delay cap (default: 10 seconds)
+    /// Maximum retry delay cap - delay = min(MaxDelay, exponential_backoff(attempt))
+    /// This ensures retry delays have an upper bound (default: 10 seconds)
     /// </summary>
     public TimeSpan MaxDelay { get; set; } = TimeSpan.FromSeconds(10);
 

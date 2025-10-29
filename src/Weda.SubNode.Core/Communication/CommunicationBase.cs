@@ -14,7 +14,6 @@ public abstract class CommunicationBase : ICommunication
     protected readonly ILogger<CommunicationBase> _logger;
     private CommunicationState _state = CommunicationState.Disconnected;
     private bool _disposed;
-    private int _reconnectAttempts = 0;
 
     public ConnectionSettings Settings { get; }
 
@@ -53,7 +52,6 @@ public abstract class CommunicationBase : ICommunication
 
             if (connected)
             {
-                _reconnectAttempts = 0;
                 _logger.LogDebug("Connection successful");
                 return true;
             }
@@ -72,20 +70,18 @@ public abstract class CommunicationBase : ICommunication
 
     /// <summary>
     /// Reconnects to the communication endpoint after disconnection.
-    /// Retry logic should be handled by the caller (typically through Polly pipeline).
+    /// This is a single reconnection attempt. For retry logic with exponential backoff,
+    /// use Polly's CreateReconnectionPipeline from ConnectionPolicies.
     /// </summary>
     public async Task<bool> ReconnectAsync(CancellationToken cancellationToken = default)
     {
-        _reconnectAttempts++;
-
-        _logger.LogInformation("Reconnection attempt {Attempt}...", _reconnectAttempts);
+        _logger.LogDebug("Reconnecting to communication endpoint...");
 
         await DisconnectAsync(cancellationToken);
-
         var connected = await ConnectAsync(cancellationToken);
+
         if (connected)
         {
-            _reconnectAttempts = 0;
             _logger.LogInformation("Reconnection successful");
         }
         else
@@ -96,22 +92,8 @@ public abstract class CommunicationBase : ICommunication
         return connected;
     }
 
-    /// <summary>
-    /// Reset reconnection attempt counter (call on successful operation)
-    /// </summary>
-    public void ResetReconnectAttempts()
-    {
-        if (_reconnectAttempts > 0)
-        {
-            _logger.LogDebug("Resetting reconnection attempts counter");
-            _reconnectAttempts = 0;
-        }
-    }
-
     protected abstract Task<bool> ConnectCoreAsync(CancellationToken cancellationToken = default);
     public abstract Task DisconnectAsync(CancellationToken cancellationToken = default);
-    public abstract Task<byte[]> ReadAsync(CancellationToken cancellationToken = default);
-    public abstract Task<bool> WriteAsync(byte[] data, CancellationToken cancellationToken = default);
 
     protected virtual void OnStateChanged(CommunicationState previousState, CommunicationState currentState, string? reason = null)
     {
