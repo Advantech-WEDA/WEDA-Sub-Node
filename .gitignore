@@ -370,3 +370,4 @@ FodyWeavers.xsd
 # docs
 docs/.*
 docs/tickets/
+.device-registration.json

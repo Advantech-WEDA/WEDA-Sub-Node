@@ -1,0 +1,15 @@
+{
+  "deviceName": "WiseDevice4012SE",
+  "registrationStatus": "accepted",
+  "deviceId": "241430767635267584",
+  "natsTopicAssignments": {
+    "telemetryTopic": "eco1j.weda.dm.telemetry.241430767635267584",
+    "batchTelemetryTopic": "eco1j.weda.dm.telemetry-batch.241430767635267584",
+    "healthTopic": "eco1j.weda.dm.health.241430767635267584",
+    "configUpdateTopic": "eco1j.weda.dm.config.241430767635267584.req",
+    "configResponseTopic": "eco1j.weda.dm.config.241430767635267584.rsp",
+    "commandTopic": "eco1j.weda.dm.command.241430767635267584.req",
+    "commandResponseTopic": "eco1j.weda.dm.command.241430767635267584.rsp",
+    "eventTopic": "eco1j.weda.dm.event.241430767635267584"
+  }
+}
