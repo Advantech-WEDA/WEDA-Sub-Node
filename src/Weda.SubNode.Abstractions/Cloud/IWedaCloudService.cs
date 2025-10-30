@@ -1,0 +1,84 @@
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Telemetry;
+
+namespace Weda.SubNode.Abstractions.Cloud;
+
+/// <summary>
+/// Weda cloud service interface (abstraction for NATS or other message brokers)
+/// Internally uses IJetStreamClient for communication
+/// </summary>
+public interface IWedaCloudService : IDisposable
+{
+    /// <summary>
+    /// Is connected to cloud
+    /// </summary>
+    bool IsConnected { get; }
+
+    /// <summary>
+    /// Connect to cloud service
+    /// </summary>
+    Task<bool> ConnectAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Disconnect from cloud service
+    /// </summary>
+    Task DisconnectAsync(CancellationToken cancellationToken = default);
+
+    // ===== Internal methods (used by DeviceBase template method pattern) =====
+    // These methods should not be called directly by users
+
+    /// <summary>
+    /// Get or register device ID (checks repository first, then registers with Cloud if needed)
+    /// INTERNAL USE ONLY - Called by DeviceBase.InitializeAsync
+    /// </summary>
+    Task<string?> GetOrRegisterDeviceIdAsync(DeviceInfo info, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Configure NATS topic assignments for telemetry and health reporting
+    /// Must be called after device registration to enable telemetry transmission
+    /// INTERNAL USE ONLY - Called by DeviceInitializer after registration
+    /// </summary>
+    void ConfigureTopics(NatsTopicAssignments topicAssignments);
+
+    /// <summary>
+    /// Upload device configuration to DMA
+    /// INTERNAL USE ONLY - Called by DeviceBase.InitializeAsync
+    /// </summary>
+    Task<bool> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get current device configuration from cloud
+    /// </summary>
+    Task<DeviceConfiguration?> GetDeviceConfigurationAsync(string deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Send telemetry to cloud
+    /// Topic: &lt;protoVer&gt;.&lt;groupID&gt;.&lt;deviceId&gt;.dm.dt.update.rl
+    /// </summary>
+    Task<bool> SendTelemetryAsync(string deviceId, TelemetryData telemetryData, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Report device health to cloud
+    /// </summary>
+    Task<bool> ReportHealthAsync(string deviceId, DeviceHealth health, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Subscribe to configuration updates from cloud
+    /// Returns IDisposable to unsubscribe
+    /// </summary>
+    Task<IDisposable> SubscribeConfigurationUpdatesAsync(
+        string deviceId,
+        Func<UpdateConfigurationEvent, Task> handler,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Subscribe to commands from cloud
+    /// Returns IDisposable to unsubscribe
+    /// </summary>
+    Task<IDisposable> SubscribeCommandsAsync(
+        string deviceId,
+        Func<ExecuteCommandEvent, Task> handler,
+        CancellationToken cancellationToken = default);
+}

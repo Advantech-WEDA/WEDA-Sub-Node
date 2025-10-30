@@ -1,0 +1,151 @@
+# Azure DevOps Pipeline for Weda SubDevice
+# Automated build, test, and code coverage
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - feature/*
+  paths:
+    exclude:
+      - README.md
+      - docs/**
+      - .gitignore
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - README.md
+      - docs/**
+      - .gitignore
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '9.0.x'
+  testResultsDirectory: '$(Build.ArtifactStagingDirectory)/TestResults'
+  coverageThreshold: 60
+
+stages:
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: BuildAndTest
+        displayName: 'Build, Test, and Coverage'
+        steps:
+          # Install .NET SDK
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK $(dotnetVersion)'
+            inputs:
+              version: $(dotnetVersion)
+              includePreviewVersions: false
+
+          # Restore NuGet packages
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet packages'
+            inputs:
+              command: 'restore'
+              projects: '**/*.csproj'
+              feedsToUse: 'select'
+              verbosityRestore: 'Minimal'
+
+          # Build solution
+          - task: DotNetCoreCLI@2
+            displayName: 'Build solution'
+            inputs:
+              command: 'build'
+              projects: '**/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-restore'
+
+          # Run tests with code coverage
+          - task: DotNetCoreCLI@2
+            displayName: 'Run tests with coverage'
+            inputs:
+              command: 'test'
+              projects: 'tests/**/*.csproj'
+              arguments: >
+                --configuration $(buildConfiguration)
+                --no-build
+                --collect:"XPlat Code Coverage"
+                --results-directory $(testResultsDirectory)
+                --logger trx
+                --settings tests/coverlet.runsettings
+              publishTestResults: true
+
+          # Install ReportGenerator tool
+          - task: DotNetCoreCLI@2
+            displayName: 'Install ReportGenerator'
+            inputs:
+              command: 'custom'
+              custom: 'tool'
+              arguments: 'install --global dotnet-reportgenerator-globaltool'
+
+          # Generate code coverage HTML report
+          - script: |
+              reportgenerator \
+                -reports:$(testResultsDirectory)/**/coverage.cobertura.xml \
+                -targetdir:$(testResultsDirectory)/coveragereport \
+                -reporttypes:"HtmlInline_AzurePipelines;Cobertura;Badges;MarkdownSummaryGithub" \
+                -sourcedirs:$(Build.SourcesDirectory)/src
+            displayName: 'Generate coverage report'
+
+          # Publish coverage report as pipeline artifact
+          - publish: $(testResultsDirectory)/coveragereport
+            artifact: CodeCoverageReport
+            displayName: 'Publish coverage report'
+
+          # Check coverage threshold
+          - task: PowerShell@2
+            displayName: 'Check coverage threshold'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $coverageFile = "$(testResultsDirectory)/coveragereport/Cobertura.xml"
+
+                if (-Not (Test-Path $coverageFile)) {
+                  Write-Host "##vso[task.logissue type=error]Coverage file not found: $coverageFile"
+                  exit 1
+                }
+
+                [xml]$coverage = Get-Content $coverageFile
+                $lineRate = [double]$coverage.coverage.'line-rate' * 100
+                $branchRate = [double]$coverage.coverage.'branch-rate' * 100
+
+                Write-Host "==================================="
+                Write-Host "Code Coverage Summary"
+                Write-Host "==================================="
+                Write-Host "Line Coverage:   $([math]::Round($lineRate, 2))%"
+                Write-Host "Branch Coverage: $([math]::Round($branchRate, 2))%"
+                Write-Host "Threshold:       $(coverageThreshold)%"
+                Write-Host "==================================="
+
+                if ($lineRate -lt $(coverageThreshold)) {
+                  Write-Host "##vso[task.logissue type=error]Line coverage $([math]::Round($lineRate, 2))% is below threshold $(coverageThreshold)%"
+                  exit 1
+                }
+
+                Write-Host "##vso[task.complete result=Succeeded;]✅ Coverage meets threshold!"
+
+          # Publish test results
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '$(testResultsDirectory)/**/*.trx'
+              mergeTestResults: true
+              failTaskOnFailedTests: true
+              testRunTitle: 'Weda SubDevice Tests'
+
+          # Publish test results as artifacts
+          - publish: $(testResultsDirectory)
+            artifact: TestResults
+            displayName: 'Publish test results artifacts'
+            condition: succeededOrFailed()

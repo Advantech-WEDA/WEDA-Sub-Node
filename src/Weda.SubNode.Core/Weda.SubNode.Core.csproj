@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\common.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\Weda.SubNode.Abstractions\Weda.SubNode.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ErrorOr" />
+  </ItemGroup>
+
+</Project>

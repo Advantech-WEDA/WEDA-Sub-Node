@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Weda.SubNode.Core\Weda.SubNode.Core.csproj" />
+    <ProjectReference Include="..\..\src\Weda.SubNode.Devices\Weda.SubNode.Devices.csproj" />
+    <ProjectReference Include="..\..\src\Weda.SubNode.Cloud\Weda.SubNode.Cloud.csproj" />
+    <ProjectReference Include="..\Weda.SubNode.TestBase\Weda.SubNode.TestBase.csproj" />
+  </ItemGroup>
+
+</Project>

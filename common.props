@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <!-- SDK and Language Version -->
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- Build Configuration -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- Missing XML comment -->
+
+    <!-- Assembly Information -->
+    <Company>Advantech</Company>
+    <Product>Weda SubDevice SDK</Product>
+    <Copyright>Copyright © Advantech 2024-2025</Copyright>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <!-- Common Package References for all projects -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <!-- Analyzer Configuration -->
+  <PropertyGroup>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+</Project>

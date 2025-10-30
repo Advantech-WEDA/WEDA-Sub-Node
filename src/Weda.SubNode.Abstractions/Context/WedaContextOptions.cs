@@ -1,0 +1,68 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Nats;
+using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Devices;
+
+namespace Weda.SubNode.Abstractions.Context;
+
+/// <summary>
+/// Configuration options for WedaApplicationContext.
+/// </summary>
+public class WedaContextOptions
+{
+    /// <summary>
+    /// Gets or sets the cloud service instance.
+    /// If not set, a default cloud service will be created.
+    /// </summary>
+    public IWedaCloudService? CloudService { get; set; }
+
+    /// <summary>
+    /// Gets or sets the logger factory instance.
+    /// If not set, NullLoggerFactory will be used.
+    /// </summary>
+    public ILoggerFactory? LoggerFactory { get; set; }
+
+    /// <summary>
+    /// Gets or sets a factory function for creating communication instances.
+    /// If set, this will be used instead of the default communication factory.
+    /// Useful for testing with mock communication instances.
+    /// </summary>
+    public Func<string, int, ICommunication>? CommunicationFactory { get; set; }
+
+    /// <summary>
+    /// Gets or sets the connection options for DeviceConnectionManager.
+    /// </summary>
+    public ConnectionOptions ConnectionOptions { get; set; } = ConnectionOptions.Default;
+
+    /// <summary>
+    /// Gets or sets the NATS connection settings.
+    /// If not set, defaults to "nats://localhost:4222".
+    /// </summary>
+    public NatsConnectionSettings NatsConnectionSettings { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets whether to dispose services on context disposal.
+    /// Default is true.
+    /// </summary>
+    public bool DisposeServices { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the configuration instance.
+    /// Used to access application settings.
+    /// </summary>
+    public IConfiguration? Configuration { get; set; }
+
+    /// <summary>
+    /// Gets or sets the device configuration key in the configuration section.
+    /// Default is "DeviceConfigs:MyFirstDevice".
+    /// </summary>
+    public string DeviceConfigurationKey { get; set; } = "DeviceConfigs:MyFirstDevice";
+
+    /// <summary>
+    /// Gets or sets whether to automatically load DTDL from configured path.
+    /// Default is true.
+    /// </summary>
+    public bool AutoLoadDtdl { get; set; } = true;
+}

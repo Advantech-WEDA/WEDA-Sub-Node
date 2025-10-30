@@ -1,0 +1,31 @@
+using System.Text.Json.Serialization;
+using Weda.SubNode.Abstractions.Cloud.Clients.Common;
+using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Telemetry;
+
+namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+
+/// <summary>
+/// Device registration request
+/// Used for full device registration after obtaining device ID
+/// </summary>
+public class DeviceRegistrationRequest : Request<DeviceRegistrationDto>
+{
+    /// <summary>
+    /// Create a new device registration request from DeviceConfiguration
+    /// Only DeviceName and DeviceType are used for registration
+    /// </summary>
+    public static DeviceRegistrationRequest Create(DeviceInfo info)
+    {
+        var dto = new DeviceRegistrationDto(info.DeviceName, info.DeviceType.ToStringValue());
+        return Create<DeviceRegistrationRequest>(dto);
+    }
+}
+
+/// <summary>
+/// Device registration data
+/// Contains DeviceName and DeviceType
+/// </summary>
+public record DeviceRegistrationDto(
+    [property: JsonPropertyName("deviceName")] string DeviceName,
+    [property: JsonPropertyName("deviceType")] string DeviceType);
