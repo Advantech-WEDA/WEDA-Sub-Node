@@ -12,12 +12,17 @@ namespace Weda.SubNode.Core.Policies;
 public static class ConnectionPolicies
 {
     /// <summary>
-    /// Creates a resilience pipeline for device connections (TCP/MQTT) with:
+    /// Creates a unified resilience pipeline for all connection types (Device/Cloud/Reconnection):
     /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
     /// - No Circuit Breaker (persistent connection attempts)
     /// - Timeout: 30 seconds per connection attempt
+    ///
+    /// This single policy is used for:
+    /// - Initial device connections (TCP/MQTT)
+    /// - Initial cloud service connections
+    /// - Runtime reconnection attempts
     /// </summary>
-    public static ResiliencePipeline<bool> CreateDeviceConnectionPipeline(
+    public static ResiliencePipeline<bool> CreateConnectionPipeline(
         ILogger logger,
         ConnectionPolicyOptions? options = null)
     {
@@ -46,73 +51,28 @@ public static class ConnectionPolicies
     }
 
     /// <summary>
-    /// Creates a resilience pipeline for cloud service connections with unlimited retry:
-    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
-    /// - No Circuit Breaker (persistent connection attempts)
-    /// - Timeout: 30 seconds per connection attempt
+    /// Alias for CreateConnectionPipeline. Use for device connections.
+    /// </summary>
+    public static ResiliencePipeline<bool> CreateDeviceConnectionPipeline(
+        ILogger logger,
+        ConnectionPolicyOptions? options = null)
+        => CreateConnectionPipeline(logger, options);
+
+    /// <summary>
+    /// Alias for CreateConnectionPipeline. Use for cloud connections.
     /// </summary>
     public static ResiliencePipeline<bool> CreateCloudConnectionPipeline(
         ILogger logger,
         ConnectionPolicyOptions? options = null)
-    {
-        options ??= ConnectionPolicyOptions.Default;
-
-        // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
-        var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
-            logger: logger,
-            initialDelay: options.InitialDelay,
-            maxDelay: options.MaxDelay);
-
-        return new ResiliencePipelineBuilder<bool>()
-            .AddPipeline(retryPipeline)
-            .AddTimeout(new TimeoutStrategyOptions
-            {
-                Timeout = options.Timeout,
-                OnTimeout = args =>
-                {
-                    logger.LogWarning(
-                        "Cloud connection timed out after {Timeout}s",
-                        args.Timeout.TotalSeconds);
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .Build();
-    }
+        => CreateConnectionPipeline(logger, options);
 
     /// <summary>
-    /// Creates a resilience pipeline for device reconnection during runtime with:
-    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
-    /// - No Circuit Breaker (persistent reconnection attempts)
-    /// - Timeout: 30 seconds per reconnection attempt
-    /// Note: This now uses the same policy as initial connections for consistency.
+    /// Alias for CreateConnectionPipeline. Use for reconnection.
     /// </summary>
     public static ResiliencePipeline<bool> CreateReconnectionPipeline(
         ILogger logger,
         ConnectionPolicyOptions? options = null)
-    {
-        options ??= ConnectionPolicyOptions.Default;
-
-        // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
-        var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
-            logger: logger,
-            initialDelay: options.InitialDelay,
-            maxDelay: options.MaxDelay);
-
-        return new ResiliencePipelineBuilder<bool>()
-            .AddPipeline(retryPipeline)
-            .AddTimeout(new TimeoutStrategyOptions
-            {
-                Timeout = options.Timeout,
-                OnTimeout = args =>
-                {
-                    logger.LogWarning(
-                        "Reconnection attempt timed out after {Timeout}s",
-                        args.Timeout.TotalSeconds);
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .Build();
-    }
+        => CreateConnectionPipeline(logger, options);
 
     /// <summary>
     /// Creates a general-purpose resilience pipeline for device operations with:
@@ -252,8 +212,7 @@ public sealed class ConnectionPolicyOptions
     };
 
     /// <summary>
-    /// Legacy: Alias for Default. All connection types now use the same policy.
+    /// Alias for Default. All connection types now use the same policy.
     /// </summary>
-    [Obsolete("Use Default instead. All connection types now share the same policy.")]
     public static ConnectionPolicyOptions CloudDefault => Default;
 }
