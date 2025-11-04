@@ -69,6 +69,7 @@ public class DeviceConfiguration
     [JsonIgnore]
     public DeviceInfo DeviceInfo => new DeviceInfo
     {
+        DeviceId = DeviceId,
         DeviceName = DeviceName,
         DeviceType = DeviceType,
         Manufacturer = DeviceCapabilities.Manufacturer,

@@ -60,30 +60,33 @@ public class DeviceInitializer
             configuration.DeviceName,
             configuration.DeviceType);
 
-        // Step 1: Check for existing registration
+        // Step 1: Check for existing registration (to get stored deviceId if available)
         var existingRegistration = await GetExistingRegistrationAsync(cancellationToken);
         if (existingRegistration != null)
         {
             _logger.LogInformation(
-                "Found existing device registration: DeviceId={DeviceId}",
+                "Found existing device ID in storage: DeviceId={DeviceId}",
                 existingRegistration.DeviceId);
 
+            // Set the deviceId in configuration so it will be sent to cloud
             configuration.DeviceId = existingRegistration.DeviceId;
-            GenerateSensorResourceIds(configuration, existingRegistration.DeviceId);
-
-            // Configure NATS topics from existing registration
-            _cloudService.ConfigureTopics(existingRegistration.NatsTopicAssignments);
-
-            // Upload configuration if needed
-            await UploadConfigurationAsync(configuration, cancellationToken);
-
-            return existingRegistration;
+        }
+        else
+        {
+            _logger.LogInformation("No existing device ID found in storage - cloud will generate new ID");
         }
 
-        // Step 2: Register device (gets device ID from cloud)
+        // Step 2: ALWAYS register device with cloud (with or without deviceId)
+        // Cloud will either:
+        // - Use the provided deviceId if it exists and is valid
+        // - Generate a new deviceId if not provided or invalid
+        _logger.LogInformation(
+            "Registering device with cloud: DeviceId={DeviceId}",
+            configuration.DeviceId ?? "(new)");
+
         var registrationData = await RegisterDeviceAsync(configuration, cancellationToken);
 
-        // Step 3: Set device ID in configuration
+        // Step 3: Set device ID in configuration (cloud may have changed it)
         configuration.DeviceId = registrationData.DeviceId;
 
         // Step 4: Generate sensor resource IDs

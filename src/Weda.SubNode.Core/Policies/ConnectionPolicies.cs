@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.CircuitBreaker;
-using Polly.Retry;
 using Polly.Timeout;
 
 namespace Weda.SubNode.Core.Policies;
@@ -24,28 +23,15 @@ public static class ConnectionPolicies
     {
         options ??= ConnectionPolicyOptions.Default;
 
+        // Use RetryPolicyFactory for retry logic
+        var retryPipeline = RetryPolicyFactory.CreateNTimeRetryBool(
+            logger: logger,
+            maxRetries: options.MaxRetryAttempts,
+            initialDelay: options.InitialDelay,
+            maxDelay: options.MaxDelay);
+
         return new ResiliencePipelineBuilder<bool>()
-            .AddRetry(new RetryStrategyOptions<bool>
-            {
-                MaxRetryAttempts = options.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = options.InitialDelay,
-                UseJitter = true,
-                MaxDelay = options.MaxDelay,
-                ShouldHandle = new PredicateBuilder<bool>()
-                    .HandleResult(false) // Retry when connection fails (returns false)
-                    .Handle<Exception>(ex => ex is not OperationCanceledException),
-                OnRetry = args =>
-                {
-                    logger.LogWarning(
-                        "Connection attempt {AttemptNumber}/{MaxAttempts} failed, retrying after {DelayDuration}ms... (Outcome: {Outcome})",
-                        args.AttemptNumber,
-                        options.MaxRetryAttempts,
-                        args.RetryDelay.TotalMilliseconds,
-                        args.Outcome.Result ? "Success" : "Failure");
-                    return ValueTask.CompletedTask;
-                }
-            })
+            .AddPipeline(retryPipeline)
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions<bool>
             {
                 FailureRatio = options.CircuitBreakerFailureRatio,
@@ -100,27 +86,15 @@ public static class ConnectionPolicies
     {
         options ??= ConnectionPolicyOptions.CloudDefault;
 
+        // Use RetryPolicyFactory for retry logic
+        var retryPipeline = RetryPolicyFactory.CreateNTimeRetryBool(
+            logger: logger,
+            maxRetries: options.MaxRetryAttempts,
+            initialDelay: options.InitialDelay,
+            maxDelay: options.MaxDelay);
+
         return new ResiliencePipelineBuilder<bool>()
-            .AddRetry(new RetryStrategyOptions<bool>
-            {
-                MaxRetryAttempts = options.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = options.InitialDelay,
-                UseJitter = true,
-                MaxDelay = options.MaxDelay,
-                ShouldHandle = new PredicateBuilder<bool>()
-                    .HandleResult(false)
-                    .Handle<Exception>(ex => ex is not OperationCanceledException),
-                OnRetry = args =>
-                {
-                    logger.LogWarning(
-                        "Cloud connection attempt {AttemptNumber}/{MaxAttempts} failed, retrying after {DelayDuration}ms...",
-                        args.AttemptNumber,
-                        options.MaxRetryAttempts,
-                        args.RetryDelay.TotalMilliseconds);
-                    return ValueTask.CompletedTask;
-                }
-            })
+            .AddPipeline(retryPipeline)
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions<bool>
             {
                 FailureRatio = options.CircuitBreakerFailureRatio,
@@ -180,26 +154,14 @@ public static class ConnectionPolicies
             Timeout = TimeSpan.FromSeconds(20)
         };
 
+        // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
+        var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
+            logger: logger,
+            initialDelay: options.InitialDelay,
+            maxDelay: options.MaxDelay);
+
         return new ResiliencePipelineBuilder<bool>()
-            .AddRetry(new RetryStrategyOptions<bool>
-            {
-                MaxRetryAttempts = options.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = options.InitialDelay,
-                UseJitter = true,
-                MaxDelay = options.MaxDelay, // delay = min(MaxDelay, exponential_backoff)
-                ShouldHandle = new PredicateBuilder<bool>()
-                    .HandleResult(false)
-                    .Handle<Exception>(ex => ex is not OperationCanceledException),
-                OnRetry = args =>
-                {
-                    logger.LogWarning(
-                        "Reconnection attempt {AttemptNumber} failed, retrying after {DelayDuration}ms...",
-                        args.AttemptNumber,
-                        args.RetryDelay.TotalMilliseconds);
-                    return ValueTask.CompletedTask;
-                }
-            })
+            .AddPipeline(retryPipeline)
             .AddTimeout(new TimeoutStrategyOptions
             {
                 Timeout = options.Timeout,
@@ -237,26 +199,15 @@ public static class ConnectionPolicies
             CircuitBreakerBreakDuration = TimeSpan.FromSeconds(15)
         };
 
+        // Use RetryPolicyFactory for retry logic
+        var retryPipeline = RetryPolicyFactory.CreateNTimeRetry(
+            logger: logger,
+            maxRetries: options.MaxRetryAttempts,
+            initialDelay: options.InitialDelay,
+            maxDelay: options.MaxDelay);
+
         return new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                MaxRetryAttempts = options.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = options.InitialDelay,
-                UseJitter = true,
-                MaxDelay = options.MaxDelay,
-                ShouldHandle = new PredicateBuilder()
-                    .Handle<Exception>(ex => ex is not OperationCanceledException),
-                OnRetry = args =>
-                {
-                    logger.LogWarning(
-                        "Operation attempt {AttemptNumber}/{MaxAttempts} failed, retrying after {DelayDuration}ms...",
-                        args.AttemptNumber,
-                        options.MaxRetryAttempts,
-                        args.RetryDelay.TotalMilliseconds);
-                    return ValueTask.CompletedTask;
-                }
-            })
+            .AddPipeline(retryPipeline)
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions
             {
                 FailureRatio = options.CircuitBreakerFailureRatio,

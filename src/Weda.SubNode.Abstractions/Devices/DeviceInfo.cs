@@ -5,6 +5,13 @@ namespace Weda.SubNode.Abstractions.Devices;
 public class DeviceInfo
 {
     /// <summary>
+    /// Device ID (optional - if provided, cloud will use it; otherwise cloud will generate new ID)
+    /// Format: UUID or {machineId}-{suffix}
+    /// </summary>
+    [JsonPropertyName("deviceId")]
+    public string? DeviceId { get; set; }
+
+    /// <summary>
     /// Device name (e.g., "adam4612", "temp-sensor-1")
     /// </summary>
     [JsonPropertyName("deviceName")]
