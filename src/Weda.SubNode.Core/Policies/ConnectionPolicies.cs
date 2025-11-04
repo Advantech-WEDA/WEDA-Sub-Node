@@ -13,7 +13,7 @@ public static class ConnectionPolicies
 {
     /// <summary>
     /// Creates a resilience pipeline for device connections (TCP/MQTT) with:
-    /// - Retry: 3 attempts with exponential backoff (1s, 2s, 4s) + jitter
+    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
     /// - Circuit Breaker: Opens after 50% failure rate (min 4 calls), breaks for 20s
     /// - Timeout: 30 seconds per connection attempt
     /// </summary>
@@ -23,10 +23,9 @@ public static class ConnectionPolicies
     {
         options ??= ConnectionPolicyOptions.Default;
 
-        // Use RetryPolicyFactory for retry logic
-        var retryPipeline = RetryPolicyFactory.CreateNTimeRetryBool(
+        // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
+        var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
             logger: logger,
-            maxRetries: options.MaxRetryAttempts,
             initialDelay: options.InitialDelay,
             maxDelay: options.MaxDelay);
 
@@ -75,8 +74,8 @@ public static class ConnectionPolicies
     }
 
     /// <summary>
-    /// Creates a resilience pipeline for cloud service connections with more aggressive retry:
-    /// - Retry: 5 attempts with exponential backoff (500ms, 1s, 2s, 4s, 8s) + jitter
+    /// Creates a resilience pipeline for cloud service connections with unlimited retry:
+    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
     /// - Circuit Breaker: Opens after 60% failure rate (min 3 calls), breaks for 30s
     /// - Timeout: 60 seconds per connection attempt
     /// </summary>
@@ -86,10 +85,9 @@ public static class ConnectionPolicies
     {
         options ??= ConnectionPolicyOptions.CloudDefault;
 
-        // Use RetryPolicyFactory for retry logic
-        var retryPipeline = RetryPolicyFactory.CreateNTimeRetryBool(
+        // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
+        var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
             logger: logger,
-            maxRetries: options.MaxRetryAttempts,
             initialDelay: options.InitialDelay,
             maxDelay: options.MaxDelay);
 
@@ -296,13 +294,13 @@ public sealed class ConnectionPolicyOptions
     public TimeSpan CircuitBreakerBreakDuration { get; set; } = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// Default policy for device connections
+    /// Default policy for device connections (AlwaysRetry with 1s initial, 60s max)
     /// </summary>
     public static ConnectionPolicyOptions Default => new()
     {
-        MaxRetryAttempts = 3,
+        MaxRetryAttempts = int.MaxValue, // Unlimited (not used when AlwaysRetry)
         InitialDelay = TimeSpan.FromSeconds(1),
-        MaxDelay = TimeSpan.FromSeconds(10),
+        MaxDelay = TimeSpan.FromSeconds(60),
         Timeout = TimeSpan.FromSeconds(30),
         CircuitBreakerFailureRatio = 0.5,
         CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
@@ -311,13 +309,13 @@ public sealed class ConnectionPolicyOptions
     };
 
     /// <summary>
-    /// Default policy for cloud service connections (more aggressive retry)
+    /// Default policy for cloud service connections (AlwaysRetry with 1s initial, 60s max)
     /// </summary>
     public static ConnectionPolicyOptions CloudDefault => new()
     {
-        MaxRetryAttempts = 5,
-        InitialDelay = TimeSpan.FromMilliseconds(500),
-        MaxDelay = TimeSpan.FromSeconds(15),
+        MaxRetryAttempts = int.MaxValue, // Unlimited (not used when AlwaysRetry)
+        InitialDelay = TimeSpan.FromSeconds(1),
+        MaxDelay = TimeSpan.FromSeconds(60),
         Timeout = TimeSpan.FromSeconds(60),
         CircuitBreakerFailureRatio = 0.6,
         CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
