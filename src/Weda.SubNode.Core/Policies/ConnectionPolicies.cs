@@ -14,7 +14,7 @@ public static class ConnectionPolicies
     /// <summary>
     /// Creates a resilience pipeline for device connections (TCP/MQTT) with:
     /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
-    /// - Circuit Breaker: Opens after 50% failure rate (min 4 calls), breaks for 20s
+    /// - No Circuit Breaker (persistent connection attempts)
     /// - Timeout: 30 seconds per connection attempt
     /// </summary>
     public static ResiliencePipeline<bool> CreateDeviceConnectionPipeline(
@@ -31,34 +31,6 @@ public static class ConnectionPolicies
 
         return new ResiliencePipelineBuilder<bool>()
             .AddPipeline(retryPipeline)
-            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<bool>
-            {
-                FailureRatio = options.CircuitBreakerFailureRatio,
-                SamplingDuration = options.CircuitBreakerSamplingDuration,
-                MinimumThroughput = options.CircuitBreakerMinThroughput,
-                BreakDuration = options.CircuitBreakerBreakDuration,
-                ShouldHandle = new PredicateBuilder<bool>()
-                    .HandleResult(false)
-                    .Handle<Exception>(ex => ex is not OperationCanceledException),
-                OnOpened = args =>
-                {
-                    logger.LogError(
-                        "Circuit breaker OPENED: Connection attempts suspended for {BreakDuration}s due to {FailureRate:P0} failure rate",
-                        args.BreakDuration.TotalSeconds,
-                        options.CircuitBreakerFailureRatio);
-                    return ValueTask.CompletedTask;
-                },
-                OnClosed = args =>
-                {
-                    logger.LogInformation("Circuit breaker CLOSED: Connection attempts resumed");
-                    return ValueTask.CompletedTask;
-                },
-                OnHalfOpened = args =>
-                {
-                    logger.LogInformation("Circuit breaker HALF-OPEN: Testing connection...");
-                    return ValueTask.CompletedTask;
-                }
-            })
             .AddTimeout(new TimeoutStrategyOptions
             {
                 Timeout = options.Timeout,
@@ -76,14 +48,14 @@ public static class ConnectionPolicies
     /// <summary>
     /// Creates a resilience pipeline for cloud service connections with unlimited retry:
     /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
-    /// - Circuit Breaker: Opens after 60% failure rate (min 3 calls), breaks for 30s
-    /// - Timeout: 60 seconds per connection attempt
+    /// - No Circuit Breaker (persistent connection attempts)
+    /// - Timeout: 30 seconds per connection attempt
     /// </summary>
     public static ResiliencePipeline<bool> CreateCloudConnectionPipeline(
         ILogger logger,
         ConnectionPolicyOptions? options = null)
     {
-        options ??= ConnectionPolicyOptions.CloudDefault;
+        options ??= ConnectionPolicyOptions.Default;
 
         // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
         var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
@@ -93,33 +65,6 @@ public static class ConnectionPolicies
 
         return new ResiliencePipelineBuilder<bool>()
             .AddPipeline(retryPipeline)
-            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<bool>
-            {
-                FailureRatio = options.CircuitBreakerFailureRatio,
-                SamplingDuration = options.CircuitBreakerSamplingDuration,
-                MinimumThroughput = options.CircuitBreakerMinThroughput,
-                BreakDuration = options.CircuitBreakerBreakDuration,
-                ShouldHandle = new PredicateBuilder<bool>()
-                    .HandleResult(false)
-                    .Handle<Exception>(ex => ex is not OperationCanceledException),
-                OnOpened = args =>
-                {
-                    logger.LogError(
-                        "Cloud circuit breaker OPENED: Suspended for {BreakDuration}s",
-                        args.BreakDuration.TotalSeconds);
-                    return ValueTask.CompletedTask;
-                },
-                OnClosed = args =>
-                {
-                    logger.LogInformation("Cloud circuit breaker CLOSED: Resumed");
-                    return ValueTask.CompletedTask;
-                },
-                OnHalfOpened = args =>
-                {
-                    logger.LogInformation("Cloud circuit breaker HALF-OPEN: Testing...");
-                    return ValueTask.CompletedTask;
-                }
-            })
             .AddTimeout(new TimeoutStrategyOptions
             {
                 Timeout = options.Timeout,
@@ -136,21 +81,16 @@ public static class ConnectionPolicies
 
     /// <summary>
     /// Creates a resilience pipeline for device reconnection during runtime with:
-    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 30s) + jitter
-    /// - No Circuit Breaker (keep trying to reconnect)
-    /// - Timeout: 20 seconds per reconnection attempt
+    /// - Retry: Unlimited retries with exponential backoff (1s, 2s, 4s, ..., max 60s) + jitter
+    /// - No Circuit Breaker (persistent reconnection attempts)
+    /// - Timeout: 30 seconds per reconnection attempt
+    /// Note: This now uses the same policy as initial connections for consistency.
     /// </summary>
     public static ResiliencePipeline<bool> CreateReconnectionPipeline(
         ILogger logger,
         ConnectionPolicyOptions? options = null)
     {
-        options ??= new ConnectionPolicyOptions
-        {
-            MaxRetryAttempts = int.MaxValue, // Unlimited retries for reconnection
-            InitialDelay = TimeSpan.FromSeconds(1),
-            MaxDelay = TimeSpan.FromSeconds(30),
-            Timeout = TimeSpan.FromSeconds(20)
-        };
+        options ??= ConnectionPolicyOptions.Default;
 
         // Use RetryPolicyFactory for unlimited retry logic (AlwaysRetry)
         var retryPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
@@ -294,11 +234,14 @@ public sealed class ConnectionPolicyOptions
     public TimeSpan CircuitBreakerBreakDuration { get; set; } = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// Default policy for device connections (AlwaysRetry with 1s initial, 60s max)
+    /// Default policy for all connection types (Device/Cloud/Reconnection):
+    /// - AlwaysRetry: Unlimited retries with 1s initial delay, 60s max delay
+    /// - Timeout: 30 seconds per attempt
+    /// - No Circuit Breaker: Persistent connection attempts
     /// </summary>
     public static ConnectionPolicyOptions Default => new()
     {
-        MaxRetryAttempts = int.MaxValue, // Unlimited (not used when AlwaysRetry)
+        MaxRetryAttempts = int.MaxValue, // Unlimited (AlwaysRetry)
         InitialDelay = TimeSpan.FromSeconds(1),
         MaxDelay = TimeSpan.FromSeconds(60),
         Timeout = TimeSpan.FromSeconds(30),
@@ -309,17 +252,8 @@ public sealed class ConnectionPolicyOptions
     };
 
     /// <summary>
-    /// Default policy for cloud service connections (AlwaysRetry with 1s initial, 60s max)
+    /// Legacy: Alias for Default. All connection types now use the same policy.
     /// </summary>
-    public static ConnectionPolicyOptions CloudDefault => new()
-    {
-        MaxRetryAttempts = int.MaxValue, // Unlimited (not used when AlwaysRetry)
-        InitialDelay = TimeSpan.FromSeconds(1),
-        MaxDelay = TimeSpan.FromSeconds(60),
-        Timeout = TimeSpan.FromSeconds(60),
-        CircuitBreakerFailureRatio = 0.6,
-        CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
-        CircuitBreakerMinThroughput = 3,
-        CircuitBreakerBreakDuration = TimeSpan.FromSeconds(30)
-    };
+    [Obsolete("Use Default instead. All connection types now share the same policy.")]
+    public static ConnectionPolicyOptions CloudDefault => Default;
 }
