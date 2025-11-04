@@ -20,6 +20,8 @@ public class ModbusDevice : DeviceBase
     private readonly List<ModbusSensorRegister> _sensorRegisters;
     private readonly IRequestResponseCommunication<byte[], byte[]> _tcpCommunication;
     private readonly ResiliencePipeline<bool> _reconnectionPipeline;
+    private readonly ModbusBatchReader _batchReader;
+    private readonly bool _useBatchOptimization;
     private CancellationTokenSource? _backgroundTasksCts;
     private Task? _telemetryTask;
     private Task? _healthTask;
@@ -32,13 +34,18 @@ public class ModbusDevice : DeviceBase
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing Modbus settings.</param>
     /// <param name="communication">TCP communication instance for Modbus protocol.</param>
+    /// <param name="useBatchOptimization">Enable batch reading optimization (default: true)</param>
+    /// <param name="batchOptions">Batch optimization options (optional)</param>
     public ModbusDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        IRequestResponseCommunication<byte[], byte[]> communication)
+        IRequestResponseCommunication<byte[], byte[]> communication,
+        bool useBatchOptimization = true,
+        ModbusBatchOptimizationOptions? batchOptions = null)
         : base(context, configuration, communication)
     {
         _tcpCommunication = communication ?? throw new ArgumentNullException(nameof(communication));
+        _useBatchOptimization = useBatchOptimization;
 
         // Extract Modbus protocol settings (SlaveId)
         _slaveId = configuration.GetModbusSlaveId();
@@ -48,72 +55,135 @@ public class ModbusDevice : DeviceBase
             .Select(s => s.ToModbusRegister())
             .ToList();
 
+        // Create batch reader for optimized multi-sensor reading
+        _batchReader = new ModbusBatchReader(
+            _tcpCommunication,
+            _slaveId,
+            _logger,
+            batchOptions);
+
         // Create Polly reconnection pipeline for background task resilience
         _reconnectionPipeline = ConnectionPolicies.CreateReconnectionPipeline(_logger);
+
+        if (_useBatchOptimization)
+        {
+            _logger.LogInformation(
+                "Modbus batch optimization ENABLED for device {DeviceId} ({SensorCount} sensors)",
+                DeviceId,
+                _sensorRegisters.Count);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Modbus batch optimization DISABLED for device {DeviceId} (using legacy single-point reading)",
+                DeviceId);
+        }
     }
 
     public override async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         var measures = new List<TelemetryMeasure>();
 
-        foreach (var register in _sensorRegisters)
+        // Filter enabled sensors
+        var enabledSensors = _sensorRegisters
+            .Where(r => Configuration.Sensors.First(s => s.Name == r.Name).Config.Enabled)
+            .ToList();
+
+        if (enabledSensors.Count == 0)
         {
-            try
-            {
-                // Get sensor configuration
-                var sensor = Configuration.Sensors.First(s => s.Name == register.Name);
+            _logger.LogTrace("No enabled sensors to read");
+            return measures;
+        }
 
-                // Skip if sensor is disabled
-                if (!sensor.Config.Enabled)
+        if (_useBatchOptimization)
+        {
+            // Use batch reader for optimized multi-sensor reading
+            var results = await _batchReader.ReadSensorsAsync(enabledSensors, cancellationToken);
+
+            foreach (var (sensorName, result) in results)
+            {
+                if (result.Success && result.Value != null)
                 {
-                    _logger.LogTrace("Sensor {SensorName} is disabled, skipping", sensor.Name);
-                    continue;
+                    var sensor = Configuration.Sensors.First(s => s.Name == sensorName);
+                    var measure = new TelemetryMeasure
+                    {
+                        ResourceId = sensor.ResourceId,
+                        Value = result.Value,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    };
+
+                    measures.Add(measure);
+
+                    _logger.LogDebug(
+                        "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
+                        sensorName,
+                        result.Value,
+                        sensor.ResourceId,
+                        result.RawRegisters != null ? string.Join(",", result.RawRegisters) : "N/A");
                 }
-
-                _logger.LogDebug(
-                    "Reading Modbus register: Address={Address}, Count={Count}, Type={Type}",
-                    register.RegisterAddress,
-                    register.RegisterCount,
-                    register.RegisterType);
-
-                // Step 1: Read raw data from hardware via communication
-                var rawData = await ReadModbusRegistersAsync(
-                    register.RegisterType,
-                    register.RegisterAddress,
-                    register.RegisterCount,
-                    cancellationToken);
-
-                // Step 2: Protocol parser - convert registers to C# type
-                var parser = new ModbusProtocolParser(register.DataType);
-                var parsedValue = parser.Parse(rawData);
-
-                // Step 3: Create telemetry measure with raw parsed value
-                // Transforms and DSP filters will be applied by TelemetryPipeline
-                var measure = new TelemetryMeasure
+                else
                 {
-                    ResourceId = sensor.ResourceId,
-                    Value = parsedValue,
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                };
-
-                measures.Add(measure);
-
-                // Detailed debug log
-                _logger.LogDebug(
-                    "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
-                    register.Name,
-                    parsedValue,
-                    register.ResourceId,
-                    string.Join(",", rawData));
+                    _logger.LogError(
+                        "Failed to read sensor {SensorName}: {Error}",
+                        sensorName,
+                        result.ErrorMessage ?? "Unknown error");
+                }
             }
-            catch (Exception ex)
+        }
+        else
+        {
+            // Legacy single-point reading mode
+            foreach (var register in enabledSensors)
             {
-                _logger.LogError(ex,
-                    "Error reading sensor {SensorName} at address {Address} from device {DeviceId}",
-                    register.Name,
-                    register.RegisterAddress,
-                    DeviceId);
-                // Continue reading other sensors even if one fails
+                try
+                {
+                    var sensor = Configuration.Sensors.First(s => s.Name == register.Name);
+
+                    _logger.LogDebug(
+                        "Reading Modbus register: Address={Address}, Count={Count}, Type={Type}",
+                        register.RegisterAddress,
+                        register.RegisterCount,
+                        register.RegisterType);
+
+                    // Step 1: Read raw data from hardware via communication
+                    var rawData = await ReadModbusRegistersAsync(
+                        register.RegisterType,
+                        register.RegisterAddress,
+                        register.RegisterCount,
+                        cancellationToken);
+
+                    // Step 2: Protocol parser - convert registers to C# type
+                    var parser = new ModbusProtocolParser(register.DataType);
+                    var parsedValue = parser.Parse(rawData);
+
+                    // Step 3: Create telemetry measure with raw parsed value
+                    // Transforms and DSP filters will be applied by TelemetryPipeline
+                    var measure = new TelemetryMeasure
+                    {
+                        ResourceId = sensor.ResourceId,
+                        Value = parsedValue,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    };
+
+                    measures.Add(measure);
+
+                    // Detailed debug log
+                    _logger.LogDebug(
+                        "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
+                        register.Name,
+                        parsedValue,
+                        register.ResourceId,
+                        string.Join(",", rawData));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Error reading sensor {SensorName} at address {Address} from device {DeviceId}",
+                        register.Name,
+                        register.RegisterAddress,
+                        DeviceId);
+                    // Continue reading other sensors even if one fails
+                }
             }
         }
 
