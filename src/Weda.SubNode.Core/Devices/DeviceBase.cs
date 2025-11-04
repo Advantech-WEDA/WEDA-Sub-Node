@@ -212,8 +212,22 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         };
         _orchestrator.ConnectionManager.CommandReceived += async e =>
         {
+            // Raise event first (for observers/logging)
             CommandReceived?.Invoke(this, e);
-            await Task.CompletedTask;
+
+            // Execute command on device
+            try
+            {
+                _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
+                var success = await ExecuteCommandAsync(e.Command);
+                _logger.LogInformation("Command execution {Result}: {CommandName}",
+                    success ? "succeeded" : "failed",
+                    e.Command.DeviceCmd);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
+            }
         };
     }
 

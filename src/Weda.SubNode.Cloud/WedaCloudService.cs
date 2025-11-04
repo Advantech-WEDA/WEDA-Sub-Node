@@ -30,6 +30,7 @@ public sealed class WedaCloudService : IWedaCloudService
     private readonly IDeviceRegistrationStorage _registrationStorage;
     private bool _isConnected;
     private bool _disposed;
+    private NatsTopicAssignments? _topicAssignments;
 
     public WedaCloudService(
         NatsClient client,
@@ -52,11 +53,13 @@ public sealed class WedaCloudService : IWedaCloudService
         ArgumentNullException.ThrowIfNull(topicAssignments);
 
         _logger.LogInformation(
-            "Configuring NATS topic assignments: TelemetryTopic={TelemetryTopic}, BatchTelemetryTopic={BatchTelemetryTopic}, HealthTopic={HealthTopic}",
+            "Configuring NATS topic assignments: TelemetryTopic={TelemetryTopic}, BatchTelemetryTopic={BatchTelemetryTopic}, HealthTopic={HealthTopic}, CommandTopic={CommandTopic}",
             topicAssignments.TelemetryTopic,
             topicAssignments.BatchTelemetryTopic,
-            topicAssignments.HealthTopic);
+            topicAssignments.HealthTopic,
+            topicAssignments.CommandTopic);
 
+        _topicAssignments = topicAssignments;
         _telemetryClient.ConfigureTopics(topicAssignments);
     }
 
@@ -280,16 +283,99 @@ public sealed class WedaCloudService : IWedaCloudService
         Func<ExecuteCommandEvent, Task> handler,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Subscribing to commands: DeviceId={DeviceId}", deviceId);
+        ArgumentNullException.ThrowIfNull(handler);
 
-        // TODO: Subscribe via NATS JetStream
-        // var subscription = await _jetStreamClient.SubscribeAsync(
-        //     subject: $"{groupId}.weda.dm.command.{deviceName}",
-        //     handler: async (msg) => await handler(ParseCommand(msg)),
-        //     cancellationToken: cancellationToken);
+        if (_topicAssignments == null)
+        {
+            throw new InvalidOperationException(
+                "Topic assignments not configured. Call ConfigureTopics() before subscribing to commands.");
+        }
 
-        // Return no-op disposable for now
-        return Task.FromResult<IDisposable>(new NoOpDisposable());
+        var commandTopic = _topicAssignments.CommandTopic;
+        _logger.LogInformation(
+            "Subscribing to commands: DeviceId={DeviceId}, Topic={Topic}",
+            deviceId,
+            commandTopic);
+
+        // Create a disposable wrapper with its own cancellation token
+        var disposableSubscription = new NatsSubscriptionDisposable();
+
+        // Subscribe to NATS command topic using pub/sub pattern
+        var subscription = _client.SubscribeAsync<DeviceCommand>(
+            subject: commandTopic,
+            cancellationToken: disposableSubscription.Token);
+
+        // Start background task to process commands
+        _ = Task.Run(async () =>
+        {
+            _logger.LogInformation("Command subscription task started for device: {DeviceId}", deviceId);
+
+            try
+            {
+                await foreach (var msg in subscription.WithCancellation(disposableSubscription.Token))
+                {
+                    try
+                    {
+                        if (msg.Data == null)
+                        {
+                            _logger.LogWarning("Received null command data from topic: {Topic}", commandTopic);
+                            continue;
+                        }
+
+                        _logger.LogInformation(
+                            "Received command: DeviceCmd={DeviceCmd}, Timeout={Timeout}",
+                            msg.Data.DeviceCmd,
+                            msg.Data.Timeout);
+
+                        // Create ExecuteCommandEvent
+                        var commandEvent = new ExecuteCommandEvent(
+                            DeviceId: deviceId,
+                            Command: msg.Data,
+                            Timestamp: DateTimeOffset.UtcNow);
+
+                        // Invoke handler
+                        await handler(commandEvent);
+
+                        _logger.LogDebug("Command handled successfully: {DeviceCmd}", msg.Data.DeviceCmd);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex,
+                            "Error processing command for device: {DeviceId}",
+                            deviceId);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Command subscription cancelled for device: {DeviceId}", deviceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Command subscription error for device: {DeviceId}", deviceId);
+            }
+
+            _logger.LogInformation("Command subscription task ended for device: {DeviceId}", deviceId);
+        }, disposableSubscription.Token);
+
+        // Return the disposable subscription wrapper
+        return Task.FromResult<IDisposable>(disposableSubscription);
+    }
+
+    /// <summary>
+    /// Simple disposable wrapper for NATS subscription
+    /// </summary>
+    private class NatsSubscriptionDisposable : IDisposable
+    {
+        private readonly CancellationTokenSource _cts = new();
+
+        public CancellationToken Token => _cts.Token;
+
+        public void Dispose()
+        {
+            _cts.Cancel();
+            _cts.Dispose();
+        }
     }
 
     public void Dispose()
