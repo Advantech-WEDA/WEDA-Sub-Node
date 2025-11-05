@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Host.Context;
+using Weda.SubNode.Core;
 using WedaSubNode;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -10,7 +11,7 @@ using WedaSubNode;
 // ═══════════════════════════════════════════════════════════════════════════
 // This template demonstrates how to create a custom device by inheriting
 // from TcpModbusDevice. Communication is automatically created from configuration.
-// Dependencies: Weda.SubNode.Host, Weda.SubNode.Devices, Weda.SubNode.Cloud
+// Using MockCloudService for standalone operation without real cloud connection.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Configuration & Logging Setup
@@ -33,17 +34,14 @@ try
     var config = configuration.GetSection("DeviceConfigs:MyFirstDevice").Get<DeviceConfiguration>()
         ?? throw new InvalidOperationException("Device configuration not found");
 
-    // Load NATS configuration
-    var natsUrl = configuration["Nats:Url"] ?? "nats://localhost:4222";
-
-    // Create ApplicationContext with logging
+    // Create ApplicationContext with MockCloudService
     using var context = new WedaApplicationContext(options =>
     {
         options.LoggerFactory = loggerFactory;
-        options.NatsUrl = natsUrl;
+        options.CloudService = WedaFactory.Cloud.Mock; // Use mock cloud service
     });
 
-    Log.Information("NATS URL configured: {NatsUrl}", natsUrl);
+    Log.Information("✅ Application context created with MockCloudService");
 
     // Create your custom device instance - Simple API!
     var device = new MyFirstDevice(context, config);

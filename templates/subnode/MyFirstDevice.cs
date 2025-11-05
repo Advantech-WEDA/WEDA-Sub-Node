@@ -33,11 +33,11 @@ public class MyFirstDevice : TcpModbusDevice
         foreach (var sensor in Configuration.Sensors)
         {
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
-            if (measure?.ValueObject != null)
+            if (measure?.Value != null)
             {
                 _logger.LogInformation("{SensorName}: {Value}",
                     sensor.Name,
-                    measure.ValueObject);
+                    measure.Value);
             }
         }
 

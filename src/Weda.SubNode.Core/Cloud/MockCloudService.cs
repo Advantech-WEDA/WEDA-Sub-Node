@@ -9,20 +9,20 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Core.Cloud;
 
 /// <summary>
-/// Null object pattern implementation of IWedaCloudService
+/// Mock implementation of IWedaCloudService for testing and development
 /// Used for testing and standalone device operation without cloud connectivity
 /// Logs all operations instead of sending to cloud
 /// </summary>
-public class NullCloudService : IWedaCloudService
+public class MockCloudService : IWedaCloudService
 {
-    private readonly ILogger<NullCloudService> _logger;
+    private readonly ILogger<MockCloudService> _logger;
     private bool _isConnected;
     private bool _disposed;
     private DeviceConfiguration? _deviceConfiguration;
 
-    public NullCloudService(ILogger<NullCloudService>? logger = null)
+    public MockCloudService(ILogger<MockCloudService>? logger = null)
     {
-        _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<NullCloudService>();
+        _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<MockCloudService>();
     }
 
     public bool IsConnected => _isConnected;

@@ -3,18 +3,18 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Host.Context;
-using Weda.SubNode.Core.Devices;
-using Weda.SubNode.Host;
+using Weda.SubNode.Core;
+using WedaApiC;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WedaApplication - CreateBuilder Pattern (Advanced / Full Control)
+// WedaApplication - Advanced Pattern with MyFirstDevice Example
 // ═══════════════════════════════════════════════════════════════════════════
-// Use this pattern when you need fine-grained control over:
-// - Configuration loading strategy
-// - Logging setup and customization
-// - Manual device instantiation
-// - Cloud service selection (Mock / Real)
-// - Event handlers and custom logic
+// This template demonstrates advanced features:
+// - Full control over configuration and logging
+// - Custom device implementation with event subscriptions
+// - MockCloudService for standalone operation
+// - Advanced telemetry processing and business rules
+// - Event-driven architecture
 // ═══════════════════════════════════════════════════════════════════════════
 
 // 1. Load Configuration
@@ -34,56 +34,51 @@ using var loggerFactory = LoggerFactory.Create(builder => builder.AddSerilog(Log
 
 try
 {
-    Log.Information("Starting Weda SubNode Application (Advanced Mode)");
+    Log.Information("╔════════════════════════════════════════════════════════╗");
+    Log.Information("║ WedaApi-C: Advanced Control Pattern Example           ║");
+    Log.Information("╚════════════════════════════════════════════════════════╝");
 
     // 3. Load Device Configuration
-    var deviceConfig = configuration.GetSection("DeviceConfigs:ModbusDevice").Get<DeviceConfiguration>()
-        ?? throw new InvalidOperationException("Device configuration 'DeviceConfigs:ModbusDevice' not found in appsettings.json");
+    var deviceConfig = configuration.GetSection("DeviceConfigs:MyFirstDevice").Get<DeviceConfiguration>()
+        ?? throw new InvalidOperationException("Device configuration 'DeviceConfigs:MyFirstDevice' not found in appsettings.json");
 
-    // 4. Load NATS configuration
-    var natsUrl = configuration["Nats:Url"] ?? "nats://localhost:4222";
-
-    // 5. Create ApplicationContext with logging
+    // 4. Create ApplicationContext with MockCloudService
     using var context = new WedaApplicationContext(options =>
     {
         options.LoggerFactory = loggerFactory;
-        options.NatsUrl = natsUrl;
+        options.CloudService = WedaFactory.Cloud.Mock; // Use mock cloud service
     });
 
-    Log.Information("NATS URL configured: {NatsUrl}", natsUrl);
+    Log.Information("✅ Application context created with MockCloudService");
 
-    // 6. Create Device Instance - Simple API with context
-    var device = new ModbusDevice(context, deviceConfig);
+    // 5. Create Your Custom Device Instance
+    var device = new MyFirstDevice(context, deviceConfig);
 
-    // 7. Subscribe to Device Events (Optional)
-    device.DataReceived += (sender, e) =>
-    {
-        Log.Information("Data received from {DeviceId}: {Count} measures",
-            e.DeviceId, e.Data.Count);
-    };
+    // 6. Initialize and Start Device
+    Log.Information("🔄 Initializing MyFirstDevice...");
 
-    device.TelemetrySent += (sender, e) =>
-    {
-        Log.Information("Telemetry sent: {Success}, Count: {Count}",
-            e.Success, e.MeasureCount);
-    };
-
-    device.ConnectionStateChanged += (sender, e) =>
-    {
-        Log.Information("Connection state changed: {Previous} -> {Current}",
-            e.PreviousState, e.CurrentState);
-    };
-
-    // 8. Initialize and Start Device
     var initialized = await device.InitializeAsync();
     if (!initialized)
     {
-        Log.Error("Failed to initialize device");
+        Log.Error("❌ Failed to initialize device");
         return;
     }
 
     await device.StartAsync();
-    Log.Information("Device started successfully. Press Ctrl+C to stop...");
+
+    Log.Information("✅ MyFirstDevice started successfully!");
+    Log.Information("   Connecting to Modbus device at {Host}:{Port}",
+        deviceConfig.Communication.GetValueOrDefault("Host", "unknown"),
+        deviceConfig.Communication.GetValueOrDefault("Port", 0));
+    Log.Information("   Sensor count: {Count}", deviceConfig.Sensors.Count);
+    Log.Information("");
+    Log.Information("📊 The device will now:");
+    Log.Information("   - Read sensor values from Modbus device");
+    Log.Information("   - Process telemetry through custom business rules");
+    Log.Information("   - Send telemetry to MockCloudService (logged only)");
+    Log.Information("   - Monitor for threshold violations");
+    Log.Information("");
+    Log.Information("Press Ctrl+C to stop...");
 
     // 9. Wait for cancellation
     var cts = new CancellationTokenSource();
