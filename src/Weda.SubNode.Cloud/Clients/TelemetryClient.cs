@@ -1,11 +1,7 @@
-using System.Text.Json;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
-
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;

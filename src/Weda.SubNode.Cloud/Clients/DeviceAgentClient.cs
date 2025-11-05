@@ -1,6 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Net;
@@ -8,8 +5,6 @@ using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Mapping;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Cloud.Serialization;
-
 
 namespace Weda.SubNode.Cloud.Clients;
 

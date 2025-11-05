@@ -45,6 +45,7 @@ try
     // Wait for Ctrl+C to stop the application
     // ═══════════════════════════════════════════════════════════════════════════
     var cts = new CancellationTokenSource();
+    
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
     await Task.Delay(Timeout.Infinite, cts.Token);
 

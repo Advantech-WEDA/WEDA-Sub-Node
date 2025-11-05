@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using NATS.Client.Core;
 using NATS.Net;
-
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
@@ -132,10 +130,7 @@ public sealed class WedaCloudService : IWedaCloudService
             {
                 _logger.LogInformation("Found existing device registration: DeviceId={DeviceId}", existingRegistration.DeviceId);
 
-                // Configure NATS topics from stored registration
-                ConfigureTopics(existingRegistration.NatsTopicAssignments);
-
-                return existingRegistration.DeviceId;
+                info.DeviceId = existingRegistration.DeviceId;
             }
         }
         catch (Exception ex)

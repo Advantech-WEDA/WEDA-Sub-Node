@@ -84,11 +84,17 @@ public class Wise4012SeDeviceIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadTelemetryAsync_ShouldThrowNotImplemented()
+    public async Task ReadTelemetryAsync_ShouldReturnCachedData()
     {
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _device.ReadTelemetryAsync());
+        // Wise4012SeDevice inherits from ISensingDevice which returns cached data from MQTT messages
+        // When no data is received yet, it should return an empty list
+
+        // Act
+        var result = await _device.ReadTelemetryAsync();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Empty(result); // No data received yet
     }
 
     public void Dispose()

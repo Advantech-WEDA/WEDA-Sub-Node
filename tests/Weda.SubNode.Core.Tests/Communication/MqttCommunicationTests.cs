@@ -47,37 +47,43 @@ public class MqttCommunicationTests
     #region IMessageBroker Tests
 
     [Fact]
-    public async Task SubscribeAsync_WithValidTopic_ShouldReturnTrue()
+    public async Task SubscribeAsync_WhenNotConnected_ShouldReturnFalse()
     {
         // Arrange
         var topic = "Advantech/+/data";
 
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.SubscribeAsync(topic));
+        // Act
+        var result = await _mqtt.SubscribeAsync(topic);
+
+        // Assert
+        Assert.False(result); // Should return false when not connected
     }
 
     [Fact]
-    public async Task PublishAsync_WithValidTopicAndPayload_ShouldReturnTrue()
+    public async Task PublishAsync_WhenNotConnected_ShouldReturnFalse()
     {
         // Arrange
         var topic = "Advantech/device1/ctl";
         var payload = System.Text.Encoding.UTF8.GetBytes("{\"do1\": true}");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.PublishAsync(topic, payload));
+        // Act
+        var result = await _mqtt.PublishAsync(topic, payload);
+
+        // Assert
+        Assert.False(result); // Should return false when not connected
     }
 
     [Fact]
-    public async Task UnsubscribeAsync_WithValidTopic_ShouldReturnTrue()
+    public async Task UnsubscribeAsync_WhenNotConnected_ShouldReturnFalse()
     {
         // Arrange
         var topic = "Advantech/+/data";
 
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.UnsubscribeAsync(topic));
+        // Act
+        var result = await _mqtt.UnsubscribeAsync(topic);
+
+        // Assert
+        Assert.False(result); // Should return false when not connected
     }
 
     [Fact]
@@ -108,19 +114,29 @@ public class MqttCommunicationTests
     #region ICommunication Tests
 
     [Fact]
-    public async Task ConnectAsync_WithValidBroker_ShouldReturnTrue()
+    public async Task ConnectAsync_WhenBrokerUnavailable_ShouldReturnFalse()
     {
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.ConnectAsync());
+        // MqttCommunication is now implemented but requires actual broker connection
+        // Without a running broker, it should return false or throw exception
+
+        // Act
+        var result = await _mqtt.ConnectAsync();
+
+        // Assert
+        Assert.False(result); // Should return false when broker is unavailable
     }
 
     [Fact]
-    public async Task DisconnectAsync_WhenConnected_ShouldDisconnect()
+    public async Task DisconnectAsync_WhenNotConnected_ShouldNotThrow()
     {
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _mqtt.DisconnectAsync());
+        // MqttCommunication is now implemented
+        // Disconnecting when not connected should not throw exception
+
+        // Act & Assert (should not throw)
+        await _mqtt.DisconnectAsync();
+
+        // Assert
+        Assert.False(_mqtt.IsConnected);
     }
 
     // Note: ReadAsync/WriteAsync removed from MqttCommunication

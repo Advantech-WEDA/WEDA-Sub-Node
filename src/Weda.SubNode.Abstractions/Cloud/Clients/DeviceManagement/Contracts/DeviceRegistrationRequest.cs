@@ -17,7 +17,7 @@ public class DeviceRegistrationRequest : Request<DeviceRegistrationDto>
     /// </summary>
     public static DeviceRegistrationRequest Create(DeviceInfo info)
     {
-        var dto = new DeviceRegistrationDto(info.DeviceName, info.DeviceType.ToStringValue());
+        var dto = new DeviceRegistrationDto(info.DeviceId, info.DeviceName, info.DeviceType.ToStringValue());
         return Create<DeviceRegistrationRequest>(dto);
     }
 }
@@ -27,5 +27,6 @@ public class DeviceRegistrationRequest : Request<DeviceRegistrationDto>
 /// Contains DeviceName and DeviceType
 /// </summary>
 public record DeviceRegistrationDto(
+    [property: JsonPropertyName("deviceId")] string? DeviceId,
     [property: JsonPropertyName("deviceName")] string DeviceName,
     [property: JsonPropertyName("deviceType")] string DeviceType);

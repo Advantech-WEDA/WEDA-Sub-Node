@@ -111,16 +111,25 @@ public class ISensingDeviceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadTelemetryAsync_ShouldThrowNotImplemented()
+    public async Task ReadTelemetryAsync_ShouldReturnCachedData()
     {
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _device.ReadTelemetryAsync());
+        // ISensingDevice now returns cached data from MQTT messages
+        // When no data is received yet, it should return an empty list
+
+        // Act
+        var result = await _device.ReadTelemetryAsync();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Empty(result); // No data received yet
     }
 
     [Fact]
-    public async Task ExecuteCommandAsync_ShouldThrowNotImplemented()
+    public async Task ExecuteCommandAsync_ShouldReturnTrue()
     {
+        // ISensingDevice ExecuteCommandAsync is now implemented (returns true)
+        // TODO: Will publish command to MQTT topics when command protocol is defined
+
         // Arrange
         var command = new DeviceCommand
         {
@@ -128,9 +137,11 @@ public class ISensingDeviceTests : IDisposable
             Parameters = new Dictionary<string, object> { ["do1"] = true }
         };
 
-        // Act & Assert
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _device.ExecuteCommandAsync(command));
+        // Act
+        var result = await _device.ExecuteCommandAsync(command);
+
+        // Assert
+        Assert.True(result); // Currently returns true (stub implementation)
     }
 
     [Fact]

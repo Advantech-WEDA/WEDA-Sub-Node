@@ -202,16 +202,17 @@ public class MqttISensingIntegrationTests : IDisposable
         // 5. Generate telemetry
         // 6. Send commands
 
-        // For now, verify that all lifecycle methods are defined
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _device.ReadTelemetryAsync());
+        // Verify that lifecycle methods are now implemented
+        var telemetry = await _device.ReadTelemetryAsync();
+        Assert.NotNull(telemetry);
+        Assert.Empty(telemetry); // No data received yet
 
-        await Assert.ThrowsAsync<NotImplementedException>(async () =>
-            await _device.ExecuteCommandAsync(new DeviceCommand
-            {
-                DeviceCmd = "Test",
-                Parameters = new Dictionary<string, object>()
-            }));
+        var commandResult = await _device.ExecuteCommandAsync(new DeviceCommand
+        {
+            DeviceCmd = "Test",
+            Parameters = new Dictionary<string, object>()
+        });
+        Assert.True(commandResult); // Command execution returns true
     }
 
     [Fact]
