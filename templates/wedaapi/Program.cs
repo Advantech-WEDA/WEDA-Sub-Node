@@ -1,50 +1,51 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Host;
 using Weda.SubNode.Host.Context;
 using Weda.SubNode.Core;
+using Weda.SubNode.Simulators.Modbus;
 using WedaApi;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// WedaApplication - Simple Pattern with MyFirstDevice Example
-// ═══════════════════════════════════════════════════════════════════════════
-// This template demonstrates:
-// - Creating a custom device (MyFirstDevice)
-// - Using MockCloudService for standalone operation
-// - Automatic Modbus TCP communication
-// - Event-driven telemetry processing
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Load configuration
+// Configuration
 var configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .Build();
 
-// Configure logging
+// Logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(configuration)
     .CreateLogger();
 
+using var loggerFactory = new SerilogLoggerFactory(Log.Logger);
+
 try
 {
-    Log.Information("Starting WedaApi with MyFirstDevice...");
+    // Start Modbus Simulator
+    var simulatorConfig = configuration.GetSection("TcpModbusSimulatorConfiguration").Get<TcpModbusSimulatorConfiguration>()
+        ?? throw new InvalidOperationException("Simulator configuration not found");
 
-    // Load device configuration
+    var simulator = new TcpModbusSimulator(simulatorConfig, logger: loggerFactory.CreateLogger<TcpModbusSimulator>());
+    await simulator.StartAsync();
+
+    Log.Information("Simulator started on {IP}:{Port}",
+        simulatorConfig.TcpConnection.IpAddress,
+        simulatorConfig.TcpConnection.Port);
+
+    // Start Device
     var deviceConfig = configuration.GetSection("DeviceConfigs:MyFirstDevice").Get<DeviceConfiguration>()
         ?? throw new InvalidOperationException("Device configuration not found");
 
-    // Create context with MockCloudService (no real cloud connection needed)
     var context = new WedaApplicationContext(options =>
     {
-        options.CloudService = WedaFactory.Cloud.Mock; // Use mock cloud service
+        options.LoggerFactory = loggerFactory;
+        options.CloudService = WedaFactory.Cloud.Mock;
     });
 
-    // Create your custom device
     var device = new MyFirstDevice(context, deviceConfig);
 
-    // Initialize and start
     if (!await device.InitializeAsync())
     {
         Log.Error("Failed to initialize device");
@@ -52,11 +53,7 @@ try
     }
 
     await device.StartAsync();
-    Log.Information("✅ MyFirstDevice started successfully!");
-    Log.Information("   Connecting to Modbus device at {Host}:{Port}",
-        deviceConfig.Communication.GetValueOrDefault("Host", "unknown"),
-        deviceConfig.Communication.GetValueOrDefault("Port", 0));
-    Log.Information("   Press Ctrl+C to stop...");
+    Log.Information("MyFirstDevice started. Press Ctrl+C to stop...");
 
     // Wait for cancellation
     var cts = new CancellationTokenSource();
@@ -71,10 +68,11 @@ try
     // Graceful shutdown
     await device.StopAsync();
     device.Dispose();
+    await simulator.StopAsync();
 }
 catch (OperationCanceledException)
 {
-    Log.Information("Application cancelled");
+    Log.Information("Application stopped");
 }
 catch (Exception ex)
 {

@@ -25,13 +25,6 @@ public class WedaContextOptions
     public ILoggerFactory? LoggerFactory { get; set; }
 
     /// <summary>
-    /// Gets or sets a factory function for creating communication instances.
-    /// If set, this will be used instead of the default communication factory.
-    /// Useful for testing with mock communication instances.
-    /// </summary>
-    public Func<string, int, ICommunication>? CommunicationFactory { get; set; }
-
-    /// <summary>
     /// Gets or sets the connection options for DeviceConnectionManager.
     /// </summary>
     public ConnectionOptions ConnectionOptions { get; set; } = ConnectionOptions.Default;
@@ -56,9 +49,9 @@ public class WedaContextOptions
 
     /// <summary>
     /// Gets or sets the device configuration key in the configuration section.
-    /// Default is "DeviceConfigs:MyFirstDevice".
+    /// Default is the first key in DeviceConfigs
     /// </summary>
-    public string DeviceConfigurationKey { get; set; } = "DeviceConfigs:MyFirstDevice";
+    public string DeviceConfigurationKey { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets whether to automatically load DTDL from configured path.

@@ -16,4 +16,3 @@
   - [ ] 什麼是 tranformation? 如何自定義?
   - [ ] 什麼是 dsp filter? 如何自定義?
   - [ ] 要如何接 hooks?
-  - [ ] 要如何

@@ -46,5 +46,5 @@ public class Sensor
     /// <summary>
     /// Reference to parent device resource, following Device Capability UUID Generation Guideline (e.g., "74fe488d5d54-ffff")
     /// </summary>
-    public required string DeviceResourceId { get; set; }
+    public string DeviceResourceId { get; set; } = string.Empty;
 }

@@ -99,9 +99,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
         ushort registerCount = 1,
         ModbusDataType dataType = ModbusDataType.UInt16,
         ModbusRegisterType registerType = ModbusRegisterType.HoldingRegister,
-        SensorGroup sensorGroup = SensorGroup.AI,
-        double scale = 1.0,
-        double offset = 0.0)
+        SensorGroup sensorGroup = SensorGroup.AI)
     {
         Sensors.Add(new ModbusSensorConfiguration
         {
@@ -111,10 +109,20 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
             RegisterCount = registerCount,
             DataType = dataType,
             RegisterType = registerType,
-            SensorGroup = sensorGroup,
-            Scale = scale,
-            Offset = offset
+            SensorGroup = sensorGroup
         });
+        return this;
+    }
+
+    /// <summary>
+    /// Adds multiple sensors to this device
+    /// </summary>
+    public TcpModbusDeviceConfiguration AddSensors(params ModbusSensorConfiguration[] sensors)
+    {
+        foreach (var sensor in sensors)
+        {
+            Sensors.Add(sensor);
+        }
         return this;
     }
 
@@ -158,9 +166,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
                     ["RegisterAddress"] = sensorConfig.RegisterAddress,
                     ["RegisterCount"] = sensorConfig.RegisterCount,
                     ["RegisterType"] = sensorConfig.RegisterType.ToString(),
-                    ["DataType"] = sensorConfig.DataType.ToString(),
-                    ["Scale"] = sensorConfig.Scale,
-                    ["Offset"] = sensorConfig.Offset
+                    ["DataType"] = sensorConfig.DataType.ToString()
                 },
                 Config = sensorConfig.Config,
                 Metadata = sensorConfig.Metadata
@@ -240,19 +246,27 @@ public class ModbusSensorConfiguration
     public ModbusDataType DataType { get; set; } = ModbusDataType.UInt16;
 
     /// <summary>
-    /// Scale factor applied to the raw value (default: 1.0)
-    /// </summary>
-    public double Scale { get; set; } = 1.0;
-
-    /// <summary>
-    /// Offset applied to the scaled value (default: 0.0)
-    /// </summary>
-    public double Offset { get; set; } = 0.0;
-
-    /// <summary>
-    /// Sensor configuration (DSP filters, transforms, etc.)
+    /// Sensor configuration (transform pipeline, DSP filters, etc.)
     /// </summary>
     public SensorConfig Config { get; set; } = new();
+
+    /// <summary>
+    /// Fluent API: Adds a transform to this sensor's pipeline
+    /// </summary>
+    public ModbusSensorConfiguration AddTransform(Abstractions.Transforms.ITelemetryTransform transform)
+    {
+        Config.AddTransform(transform);
+        return this;
+    }
+
+    /// <summary>
+    /// Fluent API: Adds a DSP filter to this sensor's pipeline
+    /// </summary>
+    public ModbusSensorConfiguration AddDspFilter(Abstractions.Dsp.IDspFilter filter)
+    {
+        Config.AddDspFilter(filter);
+        return this;
+    }
 
     /// <summary>
     /// Additional metadata
