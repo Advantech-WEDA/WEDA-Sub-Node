@@ -26,6 +26,20 @@ public interface IDeviceConnectionManager
     Task<ErrorOr<Success>> SubscribeToCloudEventsAsync(string deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Subscribes to cloud events with granular control over which events to subscribe to
+    /// </summary>
+    /// <param name="deviceId">Device identifier</param>
+    /// <param name="enableConfigUpdates">Enable configuration update subscription (downlink)</param>
+    /// <param name="enableCommands">Enable command subscription (downlink)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Success or error result</returns>
+    Task<ErrorOr<Success>> SubscribeToCloudEventsAsync(
+        string deviceId,
+        bool enableConfigUpdates,
+        bool enableCommands,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Disconnects from physical device and cloud service
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>

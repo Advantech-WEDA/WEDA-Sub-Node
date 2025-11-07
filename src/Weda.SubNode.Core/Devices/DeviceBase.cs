@@ -21,6 +21,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly ILogger<DeviceBase> _logger;
     protected readonly IWedaCloudService _cloudService;
     protected readonly ICommunication _communication;
+    protected readonly IWedaApplicationContext _context;
     protected readonly DeviceOrchestrator _orchestrator;
     protected readonly DeviceInitializer _initializer;
 
@@ -43,6 +44,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
@@ -99,7 +101,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Set the device ID after registration
         _orchestrator.SetDeviceId(deviceId);
 
-        var subResult = await _orchestrator.ConnectionManager.SubscribeToCloudEventsAsync(deviceId, ct);
+        // Subscribe to cloud events based on DeviceOptions (Application Layer)
+        var deviceOptions = _context.DeviceOptions;
+        var subResult = await _orchestrator.ConnectionManager.SubscribeToCloudEventsAsync(
+            deviceId,
+            deviceOptions.EnableConfigUpdates,
+            deviceOptions.EnableCommands,
+            ct);
         if (subResult.IsError) return subResult.Errors;
 
         await OnAfterInitializeAsync(ct);

@@ -9,6 +9,7 @@ using Serilog;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
@@ -23,6 +24,7 @@ public class WedaApplicationBuilder
 {
     private readonly HostApplicationBuilder _hostBuilder;
     private readonly List<DeviceConfiguration> _deviceConfigurations = new();
+    private readonly List<Func<IWedaApplicationContext, IDevice>> _deviceFactories = [];
 
     internal WedaApplicationBuilder(HostApplicationBuilder hostBuilder)
     {
@@ -57,6 +59,70 @@ public class WedaApplicationBuilder
     public WedaApplicationBuilder AddDevice(DeviceConfiguration deviceConfiguration)
     {
         _deviceConfigurations.Add(deviceConfiguration);
+        return this;
+    }
+
+    /// <summary>
+    /// Add a custom device with strongly-typed configuration (e.g., TcpModbusDeviceConfiguration).
+    /// The device will be automatically managed with proper lifecycle:
+    /// - InitializeAsync called on startup
+    /// - StartAsync called after successful initialization
+    /// - StopAsync called on shutdown
+    ///
+    /// IMPORTANT: TDevice must have a public constructor with the following signature:
+    ///   public TDevice(IWedaApplicationContext context, DeviceConfiguration config)
+    ///
+    /// This convention ensures all devices can be created uniformly without custom factories.
+    /// </summary>
+    /// <typeparam name="TDevice">The custom device type (e.g., MyFirstDevice : TcpModbusDevice)</typeparam>
+    /// <param name="deviceConfiguration">Strongly-typed device configuration</param>
+    /// <returns>The builder for chaining</returns>
+    /// <example>
+    /// // Define device with required constructor
+    /// public class MyFirstDevice : TcpModbusDevice
+    /// {
+    ///     public MyFirstDevice(IWedaApplicationContext context, DeviceConfiguration config)
+    ///         : base(context, config) { }
+    /// }
+    ///
+    /// // Register device
+    /// var config = new TcpModbusDeviceConfiguration { DeviceName = "Device1", Host = "127.0.0.1" };
+    /// builder.AddDevice&lt;MyFirstDevice&gt;(config);
+    /// </example>
+    public WedaApplicationBuilder AddDevice<TDevice>(IDeviceConfiguration deviceConfiguration)
+        where TDevice : IDevice
+    {
+        var config = deviceConfiguration.ToDeviceConfiguration();
+        return AddDevice(context => (TDevice)Activator.CreateInstance(typeof(TDevice), context, config)!);
+    }
+
+    /// <summary>
+    /// Add a custom device with a factory function that creates the device instance.
+    /// Use this overload when your device needs custom construction logic beyond the standard convention.
+    ///
+    /// The device will be automatically managed with proper lifecycle:
+    /// - InitializeAsync called on startup
+    /// - StartAsync called after successful initialization
+    /// - StopAsync called on shutdown
+    /// Multiple devices added via AddDevice will be managed by a single DeviceHostedService.
+    /// </summary>
+    /// <typeparam name="TDevice">The custom device type that inherits from IDevice</typeparam>
+    /// <param name="deviceFactory">Factory function that creates the device from IWedaApplicationContext</param>
+    /// <returns>The builder for chaining</returns>
+    /// <example>
+    /// // Use factory when device needs special construction
+    /// var config = new TcpModbusDeviceConfiguration { ... };
+    /// var specialService = new MySpecialService();
+    /// builder.AddDevice(context => new MySpecialDevice(
+    ///     context,
+    ///     config.ToDeviceConfiguration(),
+    ///     specialService));  // Extra dependency
+    /// </example>
+    public WedaApplicationBuilder AddDevice<TDevice>(Func<IWedaApplicationContext, TDevice> deviceFactory)
+        where TDevice : IDevice
+    {
+        // Store the factory, will create devices in Build()
+        _deviceFactories.Add(context => deviceFactory(context));
         return this;
     }
 
@@ -139,23 +205,58 @@ public class WedaApplicationBuilder
     }
 
     /// <summary>
-    /// Add telemetry support to the application
+    /// Enable telemetry sending to cloud (uplink)
+    /// Devices will send telemetry data to the cloud platform
     /// </summary>
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder AddTelemetry()
     {
-        // TODO: Add OpenTelemetry integration
+        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        {
+            options.EnableTelemetry = true;
+        });
         return this;
     }
 
     /// <summary>
-    /// Add health reporting support to the application
+    /// Enable health reporting to cloud (uplink)
+    /// Devices will send health status reports to the cloud platform
     /// </summary>
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder AddHealthReporting()
     {
-        // TODO: Add Microsoft.Extensions.Diagnostics.HealthChecks if needed
-        // Services.AddHealthChecks();
+        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        {
+            options.EnableHealthReporting = true;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Enable command receiving from cloud (downlink)
+    /// Devices will be able to receive and execute commands sent from the cloud platform
+    /// </summary>
+    /// <returns>The builder for chaining</returns>
+    public WedaApplicationBuilder AddCommands()
+    {
+        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        {
+            options.EnableCommands = true;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Enable configuration update receiving from cloud (downlink)
+    /// Devices will be able to receive and apply configuration updates sent from the cloud platform
+    /// </summary>
+    /// <returns>The builder for chaining</returns>
+    public WedaApplicationBuilder AddConfigUpdates()
+    {
+        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        {
+            options.EnableConfigUpdates = true;
+        });
         return this;
     }
 
@@ -247,7 +348,9 @@ public class WedaApplicationBuilder
     }
 
     /// <summary>
-    /// Configure logging with a fluent API
+    /// Configure logging with a fluent API (programmatic configuration)
+    /// Use this ONLY if you want to configure logging programmatically instead of using appsettings.json.
+    ///
     /// Example: builder.AddLogging(log => log.WriteToConsole().WriteToFile("logs/app.log"))
     /// </summary>
     /// <param name="configure">Action to configure logging</param>
@@ -258,7 +361,36 @@ public class WedaApplicationBuilder
         configure(configurator);
 
         Log.Logger = configurator.Build();
+        Logging.ClearProviders();
         Logging.AddSerilog(Log.Logger);
+
+        // Configure WedaFactory to use the logger factory from DI
+        var serviceProvider = Services.BuildServiceProvider();
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        Core.WedaFactory.UseLoggerFactory(loggerFactory);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Configure logging from appsettings.json (recommended)
+    /// Reads Serilog configuration from the "Serilog" section in appsettings.json
+    /// </summary>
+    /// <returns>The builder for chaining</returns>
+    public WedaApplicationBuilder AddLogging()
+    {
+        // Configure Serilog from appsettings.json
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(Configuration)
+            .CreateLogger();
+
+        Logging.ClearProviders();
+        Logging.AddSerilog(Log.Logger);
+
+        // Configure WedaFactory to use the logger factory from DI
+        var serviceProvider = Services.BuildServiceProvider();
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        Core.WedaFactory.UseLoggerFactory(loggerFactory);
 
         return this;
     }
@@ -273,11 +405,63 @@ public class WedaApplicationBuilder
         var readOnlyConfigs = _deviceConfigurations.AsReadOnly();
         Services.AddSingleton<IReadOnlyList<DeviceConfiguration>>(readOnlyConfigs);
 
+        // Register WedaApplicationContext
+        Services.AddSingleton<Abstractions.Context.IWedaApplicationContext>(sp =>
+        {
+            var cloudService = sp.GetRequiredService<IWedaCloudService>();
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+            var configuration = sp.GetService<IConfiguration>();
+
+            // Get DeviceOptions from DI (configured by AddTelemetry, AddCommands, etc.)
+            var deviceOptions = sp.GetService<Microsoft.Extensions.Options.IOptions<Abstractions.Devices.DeviceOptions>>()?.Value
+                ?? Abstractions.Devices.DeviceOptions.Default;
+
+            return new Context.WedaApplicationContext(options =>
+            {
+                options.CloudService = cloudService;
+                options.LoggerFactory = loggerFactory;
+                options.Configuration = configuration;
+                options.DeviceOptions = deviceOptions;
+            });
+        });
+
         // Register device factory
         Services.AddSingleton<IDeviceFactory, DeviceFactory>();
 
         // Register hosted service for device management
-        Services.AddHostedService<DeviceHostedService>();
+        // Combine both auto-scan devices and manually added devices into a single HostedService
+        if (readOnlyConfigs.Count > 0 || _deviceFactories.Count > 0)
+        {
+            Services.AddHostedService(sp =>
+            {
+                var logger = sp.GetRequiredService<ILogger<DeviceHostedService>>();
+                var context = sp.GetRequiredService<IWedaApplicationContext>();
+                var allDevices = new List<IDevice>();
+
+                // Add devices from auto-scan configurations
+                // Auto-scan creates ModbusDevice (framework built-in) using the standard constructor convention
+                if (readOnlyConfigs.Count > 0)
+                {
+                    foreach (var config in readOnlyConfigs)
+                    {
+                        // Use Activator to create ModbusDevice with standard constructor:
+                        // public ModbusDevice(IWedaApplicationContext context, DeviceConfiguration config)
+                        var deviceType = typeof(Core.Devices.ModbusDevice);
+                        var device = (IDevice)Activator.CreateInstance(deviceType, context, config)!;
+                        allDevices.Add(device);
+                    }
+                }
+
+                // Add manually registered devices via AddDevice<TDevice>()
+                if (_deviceFactories.Count > 0)
+                {
+                    var manualDevices = _deviceFactories.Select(factory => factory(context));
+                    allDevices.AddRange(manualDevices);
+                }
+
+                return new DeviceHostedService(logger, allDevices);
+            });
+        }
 
         var host = _hostBuilder.Build();
         return new WedaApplication(host, readOnlyConfigs);
@@ -291,12 +475,4 @@ public class NatsOptions
 {
     public string? Url { get; set; }
     public string? CredentialsFile { get; set; }
-}
-
-/// <summary>
-/// Device configuration options
-/// </summary>
-public class DeviceOptions
-{
-    public int DefaultPollingIntervalMs { get; set; } = 1000;
 }

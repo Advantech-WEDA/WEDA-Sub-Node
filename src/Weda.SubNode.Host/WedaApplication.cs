@@ -93,9 +93,11 @@ public class WedaApplication : IAsyncDisposable
         // Auto-scan devices from configuration
         builder.ScanDevicesFromConfiguration();
 
-        // Add default telemetry and health reporting
-        builder.AddTelemetry();
-        builder.AddHealthReporting();
+        // Enable all features by default (uplink + downlink)
+        builder.AddTelemetry();           // Uplink: Send telemetry data
+        builder.AddHealthReporting();     // Uplink: Send health status
+        builder.AddCommands();            // Downlink: Receive commands
+        builder.AddConfigUpdates();       // Downlink: Receive config updates
 
         return builder;
     }
@@ -104,11 +106,11 @@ public class WedaApplication : IAsyncDisposable
     /// Create a WedaApplicationBuilder with minimal configuration
     /// Provides a clean slate for custom configuration
     /// Automatically configures:
-    /// - Serilog logging from appsettings.json
     /// - Configuration from appsettings.json and environment variables
     /// - Default cloud service
     ///
     /// User is responsible for:
+    /// - Adding logging (call .AddLogging() to configure from appsettings.json)
     /// - Adding devices (manually or via ScanDevicesFromConfiguration)
     /// - Adding telemetry and health reporting (if needed)
     /// </summary>
@@ -125,20 +127,7 @@ public class WedaApplication : IAsyncDisposable
             .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
             .AddEnvironmentVariables();
 
-        // Configure Serilog from appsettings.json
-        Log.Logger = new LoggerConfiguration()
-            .ReadFrom.Configuration(hostBuilder.Configuration)
-            .CreateLogger();
-
-        hostBuilder.Logging.ClearProviders();
-        hostBuilder.Logging.AddSerilog(Log.Logger);
-
         var builder = new WedaApplicationBuilder(hostBuilder);
-
-        // Configure WedaFactory to use the logger factory from DI
-        var serviceProvider = hostBuilder.Services.BuildServiceProvider();
-        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
-        Core.WedaFactory.UseLoggerFactory(loggerFactory);
 
         // Add default cloud service (can be overridden with .UseMockCloud())
         builder.UseDefaultCloud();

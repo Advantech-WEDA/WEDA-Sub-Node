@@ -1,7 +1,7 @@
 namespace Weda.SubNode.Abstractions.Devices;
 
 /// <summary>
-/// Options for connection management and retry logic
+/// Options for connection management and retry logic (Communication Layer)
 /// </summary>
 public class ConnectionOptions
 {

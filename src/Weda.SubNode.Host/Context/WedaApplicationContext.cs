@@ -162,9 +162,14 @@ public class WedaApplicationContext : IWedaApplicationContext
     public ILogger<T> GetLogger<T>() => _loggerFactory.CreateLogger<T>();
 
     /// <summary>
-    /// Gets the connection options for device connection manager.
+    /// Gets the connection options for device connection manager (Communication Layer).
     /// </summary>
     public ConnectionOptions ConnectionOptions => _options.ConnectionOptions;
+
+    /// <summary>
+    /// Gets the device feature options (Application Layer).
+    /// </summary>
+    public DeviceOptions DeviceOptions => _options.DeviceOptions;
 
     /// <summary>
     /// Gets the configuration instance.

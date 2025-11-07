@@ -113,36 +113,54 @@ public class DeviceConnectionManager : IDeviceConnectionManager
         string deviceId,
         CancellationToken cancellationToken = default)
     {
+        return await SubscribeToCloudEventsAsync(deviceId, true, true, cancellationToken);
+    }
+
+    public async Task<ErrorOr<Success>> SubscribeToCloudEventsAsync(
+        string deviceId,
+        bool enableConfigUpdates,
+        bool enableCommands,
+        CancellationToken cancellationToken = default)
+    {
         if (CurrentState != CommunicationState.Connected)
         {
             return Errors.Device.NotConnected;
         }
 
-        _logger.LogDebug("Subscribing to cloud events for device {DeviceId}", deviceId);
+        _logger.LogDebug("Subscribing to cloud events for device {DeviceId} (ConfigUpdates: {ConfigUpdates}, Commands: {Commands})",
+            deviceId, enableConfigUpdates, enableCommands);
 
         try
         {
-            await _cloudService.SubscribeConfigurationUpdatesAsync(
-                deviceId,
-                async (@event) =>
-                {
-                    if (ConfigurationUpdateReceived != null)
+            if (enableConfigUpdates)
+            {
+                await _cloudService.SubscribeConfigurationUpdatesAsync(
+                    deviceId,
+                    async (@event) =>
                     {
-                        await ConfigurationUpdateReceived.Invoke(@event);
-                    }
-                },
-                cancellationToken);
+                        if (ConfigurationUpdateReceived != null)
+                        {
+                            await ConfigurationUpdateReceived.Invoke(@event);
+                        }
+                    },
+                    cancellationToken);
+                _logger.LogInformation("Subscribed to configuration updates");
+            }
 
-            await _cloudService.SubscribeCommandsAsync(
-                deviceId,
-                async (@event) =>
-                {
-                    if (CommandReceived != null)
+            if (enableCommands)
+            {
+                await _cloudService.SubscribeCommandsAsync(
+                    deviceId,
+                    async (@event) =>
                     {
-                        await CommandReceived.Invoke(@event);
-                    }
-                },
-                cancellationToken);
+                        if (CommandReceived != null)
+                        {
+                            await CommandReceived.Invoke(@event);
+                        }
+                    },
+                    cancellationToken);
+                _logger.LogInformation("Subscribed to commands");
+            }
 
             _logger.LogInformation("Successfully subscribed to cloud events");
             return Result.Success;

@@ -1,23 +1,21 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Protocols.Modbus;
 using Weda.SubNode.Host;
 using Weda.SubNode.Simulators.Modbus;
 using WedaApiC;
 
-var builder = WedaApplication.CreateBuilder(args);
+var builder = WedaApplication.CreateBuilder(args)
+    .AddLogging()
+    .AddTelemetry()
+    .AddHealthReporting()
+    .AddCommands()
+    .AddConfigUpdates()
+    .UseMockCloud();
 
-// Use Mock Cloud for testing (override default)
-builder.UseMockCloud();
-
-// Add telemetry and health reporting manually
-builder.AddTelemetry();
-builder.AddHealthReporting();
-
-// Register device manually (no auto-scan)
-var deviceConfig = ConfigureDeviceConfiguration();
+// Register custom device manually (full control pattern)
+var deviceConfig = ConfigureTcpModbusDevice();
 builder.AddDevice<MyFirstDevice>(deviceConfig);
 
 // Register Modbus simulator as hosted service (starts automatically with the app)
@@ -31,6 +29,38 @@ builder.Services.AddHostedService(sp =>
 // Build and run the application
 var app = builder.Build();
 await app.RunAsync();
+
+static TcpModbusDeviceConfiguration ConfigureTcpModbusDevice()
+{
+    // Configure Device using TcpModbusDeviceConfiguration
+    var modbusDeviceConfig = new TcpModbusDeviceConfiguration
+    {
+        DeviceName = "WedaApiC",
+        Manufacturer = "Advantech",
+        Model = "CustomDevice-v1",
+        Host = "127.0.0.1",
+        Port = 5020,
+        SlaveId = 1
+    };
+
+    // Create temperature sensor
+    var tempSensor = new ModbusSensorConfiguration
+    {
+        Name = "temperature.sensor",
+        Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",
+        RegisterAddress = 0,
+        RegisterCount = 2,
+        DataType = ModbusDataType.Float32,
+        RegisterType = ModbusRegisterType.HoldingRegister,
+        SensorGroup = SensorGroup.TEMP
+    };
+
+    // Add sensor to device
+    modbusDeviceConfig.AddSensor(tempSensor);
+
+    // Return TcpModbusDeviceConfiguration directly (no need to call ToDeviceConfiguration)
+    return modbusDeviceConfig;
+}
 
 static TcpModbusSimulatorConfiguration ConfigureTcpModbusSimulator()
 {

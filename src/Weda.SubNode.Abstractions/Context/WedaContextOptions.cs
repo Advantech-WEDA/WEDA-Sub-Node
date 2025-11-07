@@ -25,9 +25,15 @@ public class WedaContextOptions
     public ILoggerFactory? LoggerFactory { get; set; }
 
     /// <summary>
-    /// Gets or sets the connection options for DeviceConnectionManager.
+    /// Gets or sets the connection options for DeviceConnectionManager (Communication Layer).
     /// </summary>
     public ConnectionOptions ConnectionOptions { get; set; } = ConnectionOptions.Default;
+
+    /// <summary>
+    /// Gets or sets the device feature options (Application Layer).
+    /// Controls which features are enabled for devices.
+    /// </summary>
+    public DeviceOptions DeviceOptions { get; set; } = DeviceOptions.Default;
 
     /// <summary>
     /// Gets or sets the NATS connection settings.
