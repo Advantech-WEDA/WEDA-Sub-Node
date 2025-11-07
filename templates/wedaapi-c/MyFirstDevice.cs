@@ -14,6 +14,8 @@ namespace WedaApiC;
 /// - Data processing logic
 /// - Custom business rules
 /// - Alert triggering
+/// - Downlink hooks for configuration updates and commands
+/// - ExecuteCommandAsync implementation for command handling
 /// </summary>
 public class MyFirstDevice : TcpModbusDevice
 {
@@ -163,6 +165,123 @@ public class MyFirstDevice : TcpModbusDevice
             return dblValue.ToString("F2");
 
         return value.ToString() ?? "null";
+    }
+
+    // ===== Downlink Hooks =====
+
+    /// <summary>
+    /// Called before configuration update is applied
+    /// Use this to validate or prepare for configuration changes
+    /// </summary>
+    protected override async Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Device {DeviceId} about to receive configuration update with {Count} items",
+            e.DeviceId, e.Configuration.Count);
+
+        // Log each configuration item
+        foreach (var (key, value) in e.Configuration)
+        {
+            _logger.LogDebug("Config item: {Key} = {Value}", key, value);
+        }
+    }
+
+    /// <summary>
+    /// Called after configuration update is applied
+    /// Use this to reload settings, restart components, etc.
+    /// </summary>
+    protected override async Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Configuration update completed at {Timestamp}", e.Timestamp);
+
+        // Example: Reset data received counter on config update
+        _dataReceivedCount = 0;
+        _logger.LogInformation("Data received counter reset to 0");
+    }
+
+    /// <summary>
+    /// Called before command execution
+    /// Use this for logging, validation, or preparation
+    /// </summary>
+    protected override async Task OnBeforeCommandAsync(ExecuteCommandEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Device {DeviceId} about to execute command '{Command}' at {Timestamp}",
+            e.DeviceId, e.Command.DeviceCmd, e.Timestamp);
+
+        // Log command parameters
+        if (e.Command.Parameters.Count > 0)
+        {
+            _logger.LogDebug("Command parameters: {Params}",
+                string.Join(", ", e.Command.Parameters.Select(kvp => $"{kvp.Key}={kvp.Value}")));
+        }
+    }
+
+    /// <summary>
+    /// Called after command execution
+    /// Use this for cleanup, logging, or follow-up actions
+    /// </summary>
+    protected override async Task OnAfterCommandAsync(ExecuteCommandEvent e, bool success, CancellationToken ct)
+    {
+        _logger.LogInformation("Command '{Command}' execution {Result}",
+            e.Command.DeviceCmd, success ? "succeeded" : "failed");
+
+        // Example: Send notification on command failure
+        if (!success)
+        {
+            _logger.LogWarning("Command {Command} failed - consider alerting operator", e.Command.DeviceCmd);
+        }
+    }
+
+    /// <summary>
+    /// Execute command on device
+    /// This is automatically called by the framework when a command is received
+    /// </summary>
+    public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Executing command: {CommandName} with timeout {Timeout}ms",
+            command.DeviceCmd, command.Timeout);
+
+        try
+        {
+            switch (command.DeviceCmd)
+            {
+                case "Start":
+                    _logger.LogInformation("Starting device operation...");
+                    // Reset counter on start
+                    _dataReceivedCount = 0;
+                    return true;
+
+                case "Stop":
+                    _logger.LogInformation("Stopping device operation...");
+                    _logger.LogInformation("Total data batches received: {Count}", _dataReceivedCount);
+                    return true;
+
+                case "SetParameter":
+                    if (command.Parameters.TryGetValue("name", out var nameObj) &&
+                        command.Parameters.TryGetValue("value", out var valueObj))
+                    {
+                        var paramName = nameObj?.ToString() ?? "unknown";
+                        _logger.LogInformation("Setting parameter {Name} = {Value}", paramName, valueObj);
+                        return true;
+                    }
+                    _logger.LogWarning("SetParameter command missing 'name' or 'value' parameter");
+                    return false;
+
+                case "ResetCounter":
+                    var oldCount = _dataReceivedCount;
+                    _dataReceivedCount = 0;
+                    _logger.LogInformation("Data received counter reset: {Old} → 0", oldCount);
+                    return true;
+
+                default:
+                    _logger.LogWarning("Unknown command: {CommandName}", command.DeviceCmd);
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error executing command: {CommandName}", command.DeviceCmd);
+            return false;
+        }
     }
 
     ~MyFirstDevice()

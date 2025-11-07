@@ -1,7 +1,7 @@
-using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Core.Communication;
 using Weda.SubNode.Core.Devices;
 
 namespace Weda.SubNode.Devices.Generic;
@@ -40,9 +40,12 @@ public class TcpModbusDevice : ModbusDevice
         var host = configuration.Communication.TryGetValue("Host", out var h) ? h?.ToString() ?? "localhost" : "localhost";
         var port = configuration.Communication.TryGetValue("Port", out var p) ? Convert.ToInt32(p) : 502;
 
+        // Use ConnectionSettings from configuration (retry, timeout, security)
+        var connectionSettings = configuration.ConnectionSettings ?? new ConnectionSettings();
+
         // Create TCP communication directly
         // Connection will be established automatically by DeviceBase.InitializeAsync via ConnectionManager
-        var logger = context.GetLogger<Core.Communication.CommunicationBase>();
-        return new Core.Communication.TcpCommunication(host, port, null, logger);
+        var logger = context.GetLogger<CommunicationBase>();
+        return new TcpCommunication(host, port, connectionSettings, logger);
     }
 }

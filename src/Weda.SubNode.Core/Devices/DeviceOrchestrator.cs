@@ -27,9 +27,6 @@ public sealed class DeviceOrchestrator : IDisposable
     public IDeviceStateMachine StateMachine { get; }
     public DeviceHealthMonitor HealthMonitor { get; }
 
-    [Obsolete("Use OperationPipeline (Polly) instead. RetryOrchestrator will be removed in future versions.")]
-    public RetryOrchestrator RetryOrchestrator { get; }
-
     /// <summary>
     /// Polly resilience pipeline for general device operations (telemetry, commands, etc.)
     /// Replaces RetryOrchestrator with standardized retry, circuit breaker, and timeout handling.
@@ -76,13 +73,6 @@ public sealed class DeviceOrchestrator : IDisposable
             context.GetLogger<DeviceOrchestrator>());
 
         // Keep RetryOrchestrator for backward compatibility (marked as obsolete)
-#pragma warning disable CS0618 // Type or member is obsolete
-        RetryOrchestrator = new RetryOrchestrator(
-            _deviceId,
-            context.GetLogger<RetryOrchestrator>(),
-            retryPolicy: RetryPolicy.Exponential,
-            circuitBreakerPolicy: CircuitBreakerPolicy.Default);
-#pragma warning restore CS0618 // Type or member is obsolete
 
         TelemetryPipeline = new TelemetryPipeline(
             _deviceId,
@@ -134,20 +124,6 @@ public sealed class DeviceOrchestrator : IDisposable
             _logger.LogDebug("Health changed: {Previous} -> {Current}", e.PreviousStatus, e.CurrentStatus);
             HealthChanged?.Invoke(s, e);
         };
-
-#pragma warning disable CS0618 // Type or member is obsolete
-        RetryOrchestrator.RetryAttempting += (s, e) =>
-        {
-            _logger.LogDebug("Retry attempt {Attempt} for {Operation}", e.AttemptNumber, e.OperationName);
-            RetryAttempting?.Invoke(s, e);
-        };
-
-        RetryOrchestrator.CircuitBreakerStateChanged += (s, e) =>
-        {
-            _logger.LogWarning("Circuit breaker changed: {Previous} -> {Current}", e.PreviousState, e.CurrentState);
-            CircuitBreakerStateChanged?.Invoke(s, e);
-        };
-#pragma warning restore CS0618 // Type or member is obsolete
 
         TelemetryPipeline.StageExecuting += (s, e) =>
         {

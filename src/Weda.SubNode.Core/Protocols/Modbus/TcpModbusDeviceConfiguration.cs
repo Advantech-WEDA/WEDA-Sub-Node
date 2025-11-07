@@ -1,3 +1,4 @@
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Utilities;
@@ -76,6 +77,11 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// Connection settings (retry, timeout, security)
+    /// </summary>
+    public ConnectionSettings? ConnectionSettings { get; set; }
+
+    /// <summary>
     /// Custom properties for device-specific settings
     /// </summary>
     public Dictionary<string, object> Properties { get; set; } = new();
@@ -133,7 +139,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     public DeviceConfiguration ToDeviceConfiguration()
     {
         // Use device ID (will be enriched during initialization)
-        string deviceId = DeviceId ?? Guid.NewGuid().ToString();
+        string deviceId = DeviceId ?? string.Empty; 
 
         // Convert sensor configurations to Sensor objects
         var sensors = Sensors.Select(sensorConfig =>
@@ -194,6 +200,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
                 ["Port"] = Port,
                 ["SlaveId"] = SlaveId
             },
+            ConnectionSettings = ConnectionSettings,
             Periods = Periods,
             Properties = Properties
         };

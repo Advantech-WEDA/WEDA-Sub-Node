@@ -6,9 +6,9 @@ namespace Weda.SubNode.Abstractions.Communication;
 public class ConnectionSettings
 {
     /// <summary>
-    /// Maximum number of retry attempts when connection fails
+    /// Maximum number of retry attempts when connection fails, -1 for always retry.
     /// </summary>
-    public int MaxRetries { get; set; } = 3;
+    public int MaxRetries { get; set; } = -1;
 
     /// <summary>
     /// Initial delay in milliseconds before first retry

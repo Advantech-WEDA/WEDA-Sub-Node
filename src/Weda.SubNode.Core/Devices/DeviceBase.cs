@@ -174,11 +174,40 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
-    // ===== Hooks =====
+    // ===== Lifecycle Hooks =====
 
     protected virtual Task OnBeforeInitializeAsync(CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnAfterInitializeAsync(CancellationToken ct) => Task.CompletedTask;
     protected abstract Task StartBackgroundTasksAsync(CancellationToken ct);
+
+    // ===== Downlink Hooks =====
+
+    /// <summary>
+    /// Hook: Called before configuration update is applied.
+    /// Use this to validate or prepare for configuration changes.
+    /// </summary>
+    protected virtual Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook: Called after configuration update is applied.
+    /// Use this to reload settings, restart components, etc.
+    /// </summary>
+    protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook: Called before command execution.
+    /// Use this for logging, validation, or preparation.
+    /// </summary>
+    protected virtual Task OnBeforeCommandAsync(ExecuteCommandEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook: Called after command execution.
+    /// Use this for cleanup, logging, or follow-up actions.
+    /// </summary>
+    /// <param name="e">The command event</param>
+    /// <param name="success">Whether the command executed successfully</param>
+    /// <param name="ct">Cancellation token</param>
+    protected virtual Task OnAfterCommandAsync(ExecuteCommandEvent e, bool success, CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
@@ -205,21 +234,42 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     {
         _communication.StateChanged += (s, e) => ConnectionStateChanged?.Invoke(this, e);
         _orchestrator.StatusChanged += (s, e) => DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+
+        // Configuration Update: Auto-invoke Pre/Post hooks
         _orchestrator.ConnectionManager.ConfigurationUpdateReceived += async e =>
         {
-            ConfigurationUpdateReceived?.Invoke(this, e);
-            await Task.CompletedTask;
-        };
-        _orchestrator.ConnectionManager.CommandReceived += async e =>
-        {
-            // Raise event first (for observers/logging)
-            CommandReceived?.Invoke(this, e);
-
-            // Execute command on device
             try
             {
+                // Pre-hook
+                await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
+
+                // Raise event (for framework monitoring/logging)
+                ConfigurationUpdateReceived?.Invoke(this, e);
+
+                // Post-hook
+                await OnAfterConfigUpdateAsync(e, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling configuration update for device {DeviceId}", DeviceId);
+            }
+        };
+
+        // Command: Auto-invoke Pre -> Execute -> Post hooks
+        _orchestrator.ConnectionManager.CommandReceived += async e =>
+        {
+            var success = false;
+            try
+            {
+                // Pre-hook
+                await OnBeforeCommandAsync(e, CancellationToken.None);
+
+                // Raise event (for framework monitoring/logging)
+                CommandReceived?.Invoke(this, e);
+
+                // Execute command on device
                 _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
-                var success = await ExecuteCommandAsync(e.Command);
+                success = await ExecuteCommandAsync(e.Command);
                 _logger.LogInformation("Command execution {Result}: {CommandName}",
                     success ? "succeeded" : "failed",
                     e.Command.DeviceCmd);
@@ -227,6 +277,18 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
+            }
+            finally
+            {
+                // Post-hook (always called, even on failure)
+                try
+                {
+                    await OnAfterCommandAsync(e, success, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in OnAfterCommandAsync hook for command {CommandName}", e.Command.DeviceCmd);
+                }
             }
         };
     }

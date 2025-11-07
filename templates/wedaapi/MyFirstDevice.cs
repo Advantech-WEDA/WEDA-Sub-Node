@@ -10,6 +10,10 @@ namespace WedaApi;
 /// <summary>
 /// MyFirstDevice - Example Modbus TCP device implementation
 /// This demonstrates how to create a custom device by inheriting from TcpModbusDevice
+///
+/// Demonstrates:
+/// - Downlink hooks for configuration updates and commands
+/// - ExecuteCommandAsync implementation for command handling
 /// </summary>
 public class MyFirstDevice : TcpModbusDevice
 {
@@ -94,6 +98,90 @@ public class MyFirstDevice : TcpModbusDevice
             return dblValue.ToString("F2");
 
         return value.ToString() ?? "null";
+    }
+
+    // ===== Downlink Hooks =====
+
+    /// <summary>
+    /// Called before configuration update is applied
+    /// Use this to validate or prepare for configuration changes
+    /// </summary>
+    protected override async Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Device {DeviceId} about to receive configuration update with {Count} items",
+            e.DeviceId, e.Configuration.Count);
+    }
+
+    /// <summary>
+    /// Called after configuration update is applied
+    /// Use this to reload settings, restart components, etc.
+    /// </summary>
+    protected override async Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Configuration update completed at {Timestamp}", e.Timestamp);
+    }
+
+    /// <summary>
+    /// Called before command execution
+    /// Use this for logging, validation, or preparation
+    /// </summary>
+    protected override async Task OnBeforeCommandAsync(ExecuteCommandEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Device {DeviceId} about to execute command '{Command}' at {Timestamp}",
+            e.DeviceId, e.Command.DeviceCmd, e.Timestamp);
+    }
+
+    /// <summary>
+    /// Called after command execution
+    /// Use this for cleanup, logging, or follow-up actions
+    /// </summary>
+    protected override async Task OnAfterCommandAsync(ExecuteCommandEvent e, bool success, CancellationToken ct)
+    {
+        _logger.LogInformation("Command '{Command}' execution {Result}",
+            e.Command.DeviceCmd, success ? "succeeded" : "failed");
+    }
+
+    /// <summary>
+    /// Execute command on device
+    /// This is automatically called by the framework when a command is received
+    /// </summary>
+    public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Executing command: {CommandName}", command.DeviceCmd);
+
+        try
+        {
+            switch (command.DeviceCmd)
+            {
+                case "Start":
+                    _logger.LogInformation("Starting device operation...");
+                    return true;
+
+                case "Stop":
+                    _logger.LogInformation("Stopping device operation...");
+                    return true;
+
+                case "SetParameter":
+                    if (command.Parameters.TryGetValue("name", out var nameObj) &&
+                        command.Parameters.TryGetValue("value", out var valueObj))
+                    {
+                        var paramName = nameObj?.ToString() ?? "unknown";
+                        _logger.LogInformation("Setting parameter {Name} = {Value}", paramName, valueObj);
+                        return true;
+                    }
+                    _logger.LogWarning("SetParameter command missing 'name' or 'value' parameter");
+                    return false;
+
+                default:
+                    _logger.LogWarning("Unknown command: {CommandName}", command.DeviceCmd);
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error executing command: {CommandName}", command.DeviceCmd);
+            return false;
+        }
     }
 
     ~MyFirstDevice()

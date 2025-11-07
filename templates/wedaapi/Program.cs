@@ -1,84 +1,28 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using Serilog;
-using Serilog.Extensions.Logging;
-using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Host.Context;
-using Weda.SubNode.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Weda.SubNode.Host;
 using Weda.SubNode.Simulators.Modbus;
-using WedaApi;
 
-// Configuration
-var configuration = new ConfigurationBuilder()
-    .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .Build();
+// Create application with default configuration
+// - Reads devices from appsettings.json (DeviceConfigs section)
+// - Configures logging from Serilog section
+var builder = WedaApplication.CreateDefaultBuilder(args);
 
-// Logging
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(configuration)
-    .CreateLogger();
+// Use mock cloud service (no NATS connection required)
+builder.UseMockCloud();
 
-using var loggerFactory = new SerilogLoggerFactory(Log.Logger);
-
-try
+// Register Modbus simulator as hosted service (starts automatically with the app)
+builder.Services.AddHostedService(sp =>
 {
-    // Start Modbus Simulator
-    var simulatorConfig = configuration.GetSection("TcpModbusSimulatorConfiguration").Get<TcpModbusSimulatorConfiguration>()
-        ?? throw new InvalidOperationException("Simulator configuration not found");
+    var config = builder.Configuration.GetSection("TcpModbusSimulatorConfiguration")
+        .Get<TcpModbusSimulatorConfiguration>()
+        ?? throw new InvalidOperationException("TcpModbusSimulatorConfiguration not found in appsettings.json");
 
-    var simulator = new TcpModbusSimulator(simulatorConfig, logger: loggerFactory.CreateLogger<TcpModbusSimulator>());
-    await simulator.StartAsync();
+    var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TcpModbusSimulator>>();
 
-    Log.Information("Simulator started on {IP}:{Port}",
-        simulatorConfig.TcpConnection.IpAddress,
-        simulatorConfig.TcpConnection.Port);
+    return new TcpModbusSimulatorHostedService(config, logger);
+});
 
-    // Start Device
-    var deviceConfig = configuration.GetSection("DeviceConfigs:MyFirstDevice").Get<DeviceConfiguration>()
-        ?? throw new InvalidOperationException("Device configuration not found");
-
-    var context = new WedaApplicationContext(options =>
-    {
-        options.LoggerFactory = loggerFactory;
-        options.CloudService = WedaFactory.Cloud.Mock;
-    });
-
-    var device = new MyFirstDevice(context, deviceConfig);
-
-    if (!await device.InitializeAsync())
-    {
-        Log.Error("Failed to initialize device");
-        return;
-    }
-
-    await device.StartAsync();
-    Log.Information("MyFirstDevice started. Press Ctrl+C to stop...");
-
-    // Wait for cancellation
-    var cts = new CancellationTokenSource();
-    Console.CancelKeyPress += (s, e) =>
-    {
-        e.Cancel = true;
-        cts.Cancel();
-    };
-
-    await Task.Delay(Timeout.Infinite, cts.Token);
-
-    // Graceful shutdown
-    await device.StopAsync();
-    device.Dispose();
-    await simulator.StopAsync();
-}
-catch (OperationCanceledException)
-{
-    Log.Information("Application stopped");
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
-finally
-{
-    await Log.CloseAndFlushAsync();
-}
+// Build and run the application
+var app = builder.Build();
+await app.RunAsync();

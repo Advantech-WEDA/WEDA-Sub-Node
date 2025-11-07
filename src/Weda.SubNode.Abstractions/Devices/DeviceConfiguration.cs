@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -55,6 +57,13 @@ public class DeviceConfiguration
     /// e.g., Modbus: { "Host": "192.168.1.10", "Port": 502, "SlaveId": 1 }
     /// </summary>
     public Dictionary<string, object> Communication { get; set; } = [];
+
+    /// <summary>
+    /// Connection settings for retry, timeout, and security configuration
+    /// Used by communication layer (TCP, Serial, etc.)
+    /// Can be configured in appsettings.json or received from cloud
+    /// </summary>
+    public ConnectionSettings? ConnectionSettings { get; set; }
 
     /// <summary>
     /// Background task periods (not part of registration payload, for internal use)

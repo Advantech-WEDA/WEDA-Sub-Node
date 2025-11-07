@@ -7,7 +7,6 @@ using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Host.Context;
 using Weda.SubNode.Core;
 using Weda.SubNode.Core.Protocols.Modbus;
-using Weda.SubNode.Core.Transforms;
 using Weda.SubNode.Simulators.Modbus;
 using WedaSubNode;
 
@@ -104,11 +103,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
-
-    // Configure transform pipeline (execution order: 0 -> 1)
-    tempSensor
-        .AddTransform(new CalibrationTransform(scale: 0.1, offset: -40));  // [0] Calibration: raw * 0.1 - 40
-
+ 
     // Add sensor to device
     modbusDeviceConfig.AddSensor(tempSensor);
 
