@@ -1,86 +1,75 @@
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Serilog;
-using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Host.Context;
-using Weda.SubNode.Core;
+using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Protocols.Modbus;
+using Weda.SubNode.Host;
 using Weda.SubNode.Simulators.Modbus;
 using WedaApiC;
 
-// Configuration
-var configuration = new ConfigurationBuilder()
-    .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddEnvironmentVariables()
-    .Build();
+var builder = WedaApplication.CreateBuilder(args);
 
-// Logging
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(configuration)
-    .Enrich.WithProperty("Application", "WedaApiC")
-    .CreateLogger();
+// Use Mock Cloud for testing (override default)
+builder.UseMockCloud();
 
-using var loggerFactory = new SerilogLoggerFactory(Log.Logger);
+// Add telemetry and health reporting manually
+builder.AddTelemetry();
+builder.AddHealthReporting();
 
-try
+// Register device manually (no auto-scan)
+var deviceConfig = ConfigureDeviceConfiguration();
+builder.AddDevice<MyFirstDevice>(deviceConfig);
+
+// Register Modbus simulator as hosted service (starts automatically with the app)
+builder.Services.AddHostedService(sp =>
 {
-    // Start Modbus Simulator
-    var simulatorConfig = configuration.GetSection("TcpModbusSimulatorConfiguration").Get<TcpModbusSimulatorConfiguration>()
-        ?? throw new InvalidOperationException("Simulator configuration not found");
+    var config = ConfigureTcpModbusSimulator();
+    var logger = sp.GetRequiredService<ILogger<TcpModbusSimulator>>();
+    return new TcpModbusSimulatorHostedService(config, logger);
+});
 
-    var simulator = new TcpModbusSimulator(simulatorConfig, logger: loggerFactory.CreateLogger<TcpModbusSimulator>());
-    await simulator.StartAsync();
+// Build and run the application
+var app = builder.Build();
+await app.RunAsync();
 
-    Log.Information("Simulator started on {IP}:{Port}",
-        simulatorConfig.TcpConnection.IpAddress,
-        simulatorConfig.TcpConnection.Port);
-
-    // Start Device
-    var deviceConfig = configuration.GetSection("DeviceConfigs:MyFirstDevice").Get<DeviceConfiguration>()
-        ?? throw new InvalidOperationException("Device configuration not found");
-
-    using var context = new WedaApplicationContext(options =>
+static TcpModbusSimulatorConfiguration ConfigureTcpModbusSimulator()
+{
+    return new TcpModbusSimulatorConfiguration
     {
-        options.LoggerFactory = loggerFactory;
-        options.CloudService = WedaFactory.Cloud.Mock;
-    });
-
-    var device = new MyFirstDevice(context, deviceConfig);
-
-    if (!await device.InitializeAsync())
-    {
-        Log.Error("Failed to initialize device");
-        return;
-    }
-
-    await device.StartAsync();
-    Log.Information("MyFirstDevice started. Press Ctrl+C to stop...");
-
-    // Wait for cancellation
-    var cts = new CancellationTokenSource();
-    Console.CancelKeyPress += (s, e) =>
-    {
-        e.Cancel = true;
-        cts.Cancel();
+        TcpConnection = new TcpConnectionSettings
+        {
+            IpAddress = "127.0.0.1",
+            Port = 5020
+        },
+        ModbusProtocol = new ModbusProtocolSettings
+        {
+            SlaveId = 1,
+            UseModbusAddressing = false,
+            HoldingRegisterBase = 0
+        },
+        Simulation = new SimulationSettings
+        {
+            GlobalUpdateIntervalSeconds = 5,
+            EnableValueChanges = true
+        },
+        Sensors =
+        [
+            new()
+            {
+                Name = "TemperatureSensor",
+                Type = SensorType.Temperature,
+                StartAddress = 0,
+                RegisterCount = 2,
+                DataType = SimulatedDataType.Float32,
+                SimulationParams = new SensorSimulationParams
+                {
+                    MinValue = 18.0,
+                    MaxValue = 32.0,
+                    InitialValue = 25.0,
+                    ChangeRate = 0.2,
+                    NoiseLevel = 0.1
+                }
+            }
+        ]
     };
-
-    await Task.Delay(Timeout.Infinite, cts.Token);
-
-    // Graceful shutdown
-    await device.StopAsync();
-    device.Dispose();
-    await simulator.StopAsync();
-}
-catch (OperationCanceledException)
-{
-    Log.Information("Application stopped");
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
-finally
-{
-    await Log.CloseAndFlushAsync();
 }

@@ -35,8 +35,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012Example", "examples
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012ISensingExample", "examples\Wise4012ISensingExample\Wise4012ISensingExample.csproj", "{923E12BF-DA45-4BF3-985C-6B2FB4FB317E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Weda.SubNode.Templates", "templates\Weda.SubNode.Templates.csproj", "{361302AE-FE10-4BC9-9268-5EFE44942C16}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{8AC8D381-3B7A-4BFD-9CE6-A4E49A70D040}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WedaSubNode", "templates\subnode\WedaSubNode.csproj", "{EF116CA5-5725-44EB-BF91-F54D360F1AFC}"
@@ -106,10 +104,6 @@ Global
 		{923E12BF-DA45-4BF3-985C-6B2FB4FB317E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{923E12BF-DA45-4BF3-985C-6B2FB4FB317E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{923E12BF-DA45-4BF3-985C-6B2FB4FB317E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{361302AE-FE10-4BC9-9268-5EFE44942C16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{361302AE-FE10-4BC9-9268-5EFE44942C16}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{361302AE-FE10-4BC9-9268-5EFE44942C16}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{361302AE-FE10-4BC9-9268-5EFE44942C16}.Release|Any CPU.Build.0 = Release|Any CPU
 		{EF116CA5-5725-44EB-BF91-F54D360F1AFC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{EF116CA5-5725-44EB-BF91-F54D360F1AFC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EF116CA5-5725-44EB-BF91-F54D360F1AFC}.Release|Any CPU.ActiveCfg = Release|Any CPU

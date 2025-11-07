@@ -103,12 +103,14 @@ public class WedaApplication : IAsyncDisposable
     /// <summary>
     /// Create a WedaApplicationBuilder with minimal configuration
     /// Provides a clean slate for custom configuration
-    /// User is responsible for:
-    /// - Configuring logging (e.g., Serilog)
-    /// - Adding devices
-    /// - Configuring NATS, polling intervals, etc.
+    /// Automatically configures:
+    /// - Serilog logging from appsettings.json
+    /// - Configuration from appsettings.json and environment variables
+    /// - Default cloud service
     ///
-    /// Default cloud service is injected automatically (use .UseMockCloud() to override)
+    /// User is responsible for:
+    /// - Adding devices (manually or via ScanDevicesFromConfiguration)
+    /// - Adding telemetry and health reporting (if needed)
     /// </summary>
     /// <param name="args">Command-line arguments</param>
     /// <returns>A minimal WedaApplicationBuilder</returns>
@@ -116,13 +118,27 @@ public class WedaApplication : IAsyncDisposable
     {
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
-        // Minimal configuration - just load appsettings.json
+        // Configuration - load appsettings.json and environment variables
         hostBuilder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
             .AddEnvironmentVariables();
 
+        // Configure Serilog from appsettings.json
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(hostBuilder.Configuration)
+            .CreateLogger();
+
+        hostBuilder.Logging.ClearProviders();
+        hostBuilder.Logging.AddSerilog(Log.Logger);
+
         var builder = new WedaApplicationBuilder(hostBuilder);
+
+        // Configure WedaFactory to use the logger factory from DI
+        var serviceProvider = hostBuilder.Services.BuildServiceProvider();
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        Core.WedaFactory.UseLoggerFactory(loggerFactory);
 
         // Add default cloud service (can be overridden with .UseMockCloud())
         builder.UseDefaultCloud();
