@@ -371,3 +371,4 @@ FodyWeavers.xsd
 docs/.*
 docs/tickets/
 .device-registration.json/templates/Templates.sln
+docs_backup
