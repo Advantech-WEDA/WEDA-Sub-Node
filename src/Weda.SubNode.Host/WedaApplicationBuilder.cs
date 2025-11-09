@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,6 +15,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
+using Weda.SubNode.Devices.Generic;
 
 namespace Weda.SubNode.Host;
 
@@ -211,7 +214,7 @@ public class WedaApplicationBuilder
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder AddTelemetry()
     {
-        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        Services.Configure<DeviceOptions>(options =>
         {
             options.EnableTelemetry = true;
         });
@@ -285,7 +288,7 @@ public class WedaApplicationBuilder
             Services.Remove(existing);
         }
 
-        Services.AddSingleton(_ => Core.WedaFactory.Cloud.Mock);
+        Services.AddSingleton(_ => WedaFactory.Cloud.Mock);
         return this;
     }
 
@@ -439,15 +442,35 @@ public class WedaApplicationBuilder
                 var allDevices = new List<IDevice>();
 
                 // Add devices from auto-scan configurations
-                // Auto-scan creates ModbusDevice (framework built-in) using the standard constructor convention
                 if (readOnlyConfigs.Count > 0)
                 {
                     foreach (var config in readOnlyConfigs)
                     {
-                        // Use Activator to create ModbusDevice with standard constructor:
-                        // public ModbusDevice(IWedaApplicationContext context, DeviceConfiguration config)
-                        var deviceType = typeof(Core.Devices.ModbusDevice);
-                        var device = (IDevice)Activator.CreateInstance(deviceType, context, config)!;
+                        // Resolve device type from configuration
+                        Type deviceType;
+                        if (!string.IsNullOrEmpty(config.CustomDeviceTypeName))
+                        {
+                            // Use custom device type specified in configuration
+                            deviceType = Type.GetType(config.CustomDeviceTypeName)
+                                ?? throw new InvalidOperationException(
+                                    $"Custom device type '{config.CustomDeviceTypeName}' not found. " +
+                                    $"Ensure the assembly is referenced and the type name is correct.");
+                        }
+                        else
+                        {
+                            // Default to TcpModbusDevice for backward compatibility
+                            deviceType = typeof(TcpModbusDevice);
+                        }
+
+                        // Call the static Create method using reflection
+                        var createMethod = deviceType.GetMethod(nameof(IDevice.Create), BindingFlags.Public | BindingFlags.Static);
+                        if (createMethod == null)
+                        {
+                            throw new InvalidOperationException(
+                                $"Device type '{deviceType.FullName}' must implement IDevice.Create(IWedaApplicationContext, DeviceConfiguration) method.");
+                        }
+
+                        var device = (IDevice)createMethod.Invoke(null, [context, config])!;
                         allDevices.Add(device);
                     }
                 }

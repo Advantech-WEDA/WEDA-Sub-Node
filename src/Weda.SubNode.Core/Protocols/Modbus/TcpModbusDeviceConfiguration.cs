@@ -1,6 +1,8 @@
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Utilities;
 
 namespace Weda.SubNode.Core.Protocols.Modbus;
@@ -260,7 +262,7 @@ public class ModbusSensorConfiguration
     /// <summary>
     /// Fluent API: Adds a transform to this sensor's pipeline
     /// </summary>
-    public ModbusSensorConfiguration AddTransform(Abstractions.Transforms.ITelemetryTransform transform)
+    public ModbusSensorConfiguration AddTransform(ITelemetryTransform transform)
     {
         Config.AddTransform(transform);
         return this;
@@ -269,7 +271,7 @@ public class ModbusSensorConfiguration
     /// <summary>
     /// Fluent API: Adds a DSP filter to this sensor's pipeline
     /// </summary>
-    public ModbusSensorConfiguration AddDspFilter(Abstractions.Dsp.IDspFilter filter)
+    public ModbusSensorConfiguration AddDspFilter(IDspFilter filter)
     {
         Config.AddDspFilter(filter);
         return this;

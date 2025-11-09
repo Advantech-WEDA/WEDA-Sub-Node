@@ -13,6 +13,15 @@ namespace Weda.SubNode.Devices.Generic;
 public class TcpModbusDevice : ModbusDevice
 {
     /// <summary>
+    /// Factory method required by IDevice interface
+    /// Creates a TCP Modbus device from configuration
+    /// </summary>
+    public static IDevice Create(IWedaApplicationContext context, DeviceConfiguration configuration)
+    {
+        return new TcpModbusDevice(context, configuration);
+    }
+
+    /// <summary>
     /// Creates a TCP Modbus device with ApplicationContext only.
     /// Automatically retrieves configuration from context and creates TCP communication.
     /// </summary>

@@ -32,6 +32,14 @@ public class DeviceConfiguration
     public required DeviceType DeviceType { get; set; }
 
     /// <summary>
+    /// Custom device type name (fully qualified type name)
+    /// Used when DeviceType is CustomDevice to specify concrete IDevice implementation
+    /// Example: "MyCompany.IoT.Devices.MyCustomDevice, MyCompany.IoT"
+    /// If not specified, defaults to TcpModbusDevice for backward compatibility
+    /// </summary>
+    public string? CustomDeviceTypeName { get; set; }
+
+    /// <summary>
     /// Path to the DTDL JSON file (optional, for configuration).
     /// </summary>
     public string? DtdlPath { get; set; }
