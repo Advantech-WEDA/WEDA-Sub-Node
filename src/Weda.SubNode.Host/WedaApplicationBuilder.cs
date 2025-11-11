@@ -1,5 +1,3 @@
-using System.Reflection;
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,7 +13,6 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
-using Weda.SubNode.Devices.Generic;
 
 namespace Weda.SubNode.Host;
 
@@ -28,6 +25,7 @@ public class WedaApplicationBuilder
     private readonly HostApplicationBuilder _hostBuilder;
     private readonly List<DeviceConfiguration> _deviceConfigurations = new();
     private readonly List<Func<IWedaApplicationContext, IDevice>> _deviceFactories = [];
+    private IDeviceTypeNameResolver _deviceTypeNameResolver = new DefaultDeviceTypeNameResolver();
 
     internal WedaApplicationBuilder(HostApplicationBuilder hostBuilder)
     {
@@ -133,18 +131,20 @@ public class WedaApplicationBuilder
     /// Scan and add devices from appsettings.json configuration
     /// Supports two formats:
     ///
-    /// 1. Dictionary format (recommended):
+    /// 1. Dictionary format (recommended) - Key is used as DeviceTypeName if not specified:
     /// {
     ///   "DeviceConfigs": {
-    ///     "ModbusDevice": { "DeviceName": "...", "DeviceType": "...", ... },
-    ///     "OtherDevice": { ... }
+    ///     "TcpModbusDevice": { "DeviceName": "My Device", ... },
+    ///     "MyFirstDevice": { "DeviceName": "Custom Device", ... }
     ///   }
     /// }
+    /// Note: The key ("TcpModbusDevice", "MyFirstDevice") automatically becomes the DeviceTypeName
+    ///       unless explicitly overridden with a "DeviceTypeName" property.
     ///
-    /// 2. Legacy array format:
+    /// 2. Legacy array format (requires explicit DeviceTypeName):
     /// {
     ///   "Devices": [
-    ///     { "Enabled": true, "DeviceName": "...", ... }
+    ///     { "Enabled": true, "DeviceTypeName": "TcpModbusDevice", ... }
     ///   ]
     /// }
     /// </summary>
@@ -160,6 +160,12 @@ public class WedaApplicationBuilder
                 var device = deviceSection.Get<DeviceConfiguration>();
                 if (device != null && device.Enabled)
                 {
+                    // Use the config key as DeviceTypeName if not specified
+                    // e.g., "MyFirstDevice" from DeviceConfigs["MyFirstDevice"]
+                    if (string.IsNullOrEmpty(device.DeviceTypeName))
+                    {
+                        device.DeviceTypeName = deviceSection.Key;
+                    }
                     _deviceConfigurations.Add(device);
                 }
             }
@@ -204,6 +210,18 @@ public class WedaApplicationBuilder
         {
             options.DefaultPollingIntervalMs = intervalMs;
         });
+        return this;
+    }
+
+    /// <summary>
+    /// Configure custom device type name resolver
+    /// Allows custom logic for resolving device type names to Type instances
+    /// </summary>
+    /// <param name="resolver">Custom resolver implementation</param>
+    /// <returns>The builder for chaining</returns>
+    public WedaApplicationBuilder UseDeviceTypeNameResolver(IDeviceTypeNameResolver resolver)
+    {
+        _deviceTypeNameResolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         return this;
     }
 
@@ -409,7 +427,7 @@ public class WedaApplicationBuilder
         Services.AddSingleton<IReadOnlyList<DeviceConfiguration>>(readOnlyConfigs);
 
         // Register WedaApplicationContext
-        Services.AddSingleton<Abstractions.Context.IWedaApplicationContext>(sp =>
+        Services.AddSingleton<IWedaApplicationContext>(sp =>
         {
             var cloudService = sp.GetRequiredService<IWedaCloudService>();
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
@@ -446,32 +464,40 @@ public class WedaApplicationBuilder
                 {
                     foreach (var config in readOnlyConfigs)
                     {
-                        // Resolve device type from configuration
-                        Type deviceType;
-                        if (!string.IsNullOrEmpty(config.CustomDeviceTypeName))
-                        {
-                            // Use custom device type specified in configuration
-                            deviceType = Type.GetType(config.CustomDeviceTypeName)
-                                ?? throw new InvalidOperationException(
-                                    $"Custom device type '{config.CustomDeviceTypeName}' not found. " +
-                                    $"Ensure the assembly is referenced and the type name is correct.");
-                        }
-                        else
-                        {
-                            // Default to TcpModbusDevice for backward compatibility
-                            deviceType = typeof(TcpModbusDevice);
-                        }
-
-                        // Call the static Create method using reflection
-                        var createMethod = deviceType.GetMethod(nameof(IDevice.Create), BindingFlags.Public | BindingFlags.Static);
-                        if (createMethod == null)
+                        // DeviceTypeName should have been set in ScanDevicesFromConfiguration()
+                        // using the config key if not explicitly specified
+                        if (string.IsNullOrEmpty(config.DeviceTypeName))
                         {
                             throw new InvalidOperationException(
-                                $"Device type '{deviceType.FullName}' must implement IDevice.Create(IWedaApplicationContext, DeviceConfiguration) method.");
+                                $"Device '{config.DeviceName}' has no DeviceTypeName. " +
+                                $"This should have been automatically set from the DeviceConfigs key. " +
+                                $"Please check your configuration or use AddDevice<TDevice>() instead.");
                         }
 
-                        var device = (IDevice)createMethod.Invoke(null, [context, config])!;
-                        allDevices.Add(device);
+                        // Resolve device type using the configured resolver
+                        var deviceType = _deviceTypeNameResolver.Resolve(config.DeviceTypeName)
+                            ?? throw new InvalidOperationException(
+                                $"Unable to resolve device type '{config.DeviceTypeName}'. " +
+                                $"Search priority:\n" +
+                                $"  1. Fully qualified name (with assembly)\n" +
+                                $"  2. Your project assembly (PRIORITY)\n" +
+                                $"  3. SDK built-in devices (Weda.SubNode.Devices.Generic)\n" +
+                                $"  4. Other loaded assemblies\n" +
+                                $"Ensure the type exists and the assembly is referenced.");
+
+                        // Create device instance using constructor
+                        // This works for both base classes and derived classes (e.g., MyFirstDevice : TcpModbusDevice)
+                        try
+                        {
+                            var device = (IDevice)Activator.CreateInstance(deviceType, context, config)!;
+                            allDevices.Add(device);
+                        }
+                        catch (MissingMethodException)
+                        {
+                            throw new InvalidOperationException(
+                                $"Device type '{deviceType.FullName}' must have a public constructor with signature: " +
+                                $"public {deviceType.Name}(IWedaApplicationContext context, DeviceConfiguration configuration)");
+                        }
                     }
                 }
 

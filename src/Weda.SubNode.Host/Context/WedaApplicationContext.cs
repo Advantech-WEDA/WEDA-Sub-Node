@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NATS.Net;
+using Serilog;
+using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
@@ -63,11 +65,67 @@ public class WedaApplicationContext : IWedaApplicationContext
         _options = new WedaContextOptions();
         configure(_options);
 
-        // Setup logger factory
-        _loggerFactory = _options.LoggerFactory ?? NullLoggerFactory.Instance;
+        // Auto-load configuration from appsettings.json if not provided
+        if (_options.Configuration == null)
+        {
+            try
+            {
+                _configuration = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                    .Build();
+            }
+            catch
+            {
+                // If appsettings.json doesn't exist or fails to load, continue with null configuration
+                _configuration = null;
+            }
+        }
+        else
+        {
+            _configuration = _options.Configuration;
+        }
 
-        // Store configuration reference
-        _configuration = _options.Configuration;
+        // Auto-load logger factory from Configuration if not provided
+        if (_options.LoggerFactory == null && _configuration != null)
+        {
+            try
+            {
+                var logger = new LoggerConfiguration()
+                    .ReadFrom.Configuration(_configuration)
+                    .CreateLogger();
+                _loggerFactory = new SerilogLoggerFactory(logger);
+            }
+            catch
+            {
+                // If Serilog configuration fails, use NullLoggerFactory
+                _loggerFactory = NullLoggerFactory.Instance;
+            }
+        }
+        else
+        {
+            _loggerFactory = _options.LoggerFactory ?? NullLoggerFactory.Instance;
+        }
+
+        // Auto-load NATS settings from Configuration if not explicitly set
+        if (_configuration != null && _options.NatsConnectionSettings == NatsConnectionSettings.Default)
+        {
+            var natsSection = _configuration.GetSection(NatsConnectionSettings.SectionName);
+            if (natsSection.Exists())
+            {
+                _options.NatsConnectionSettings = new NatsConnectionSettings
+                {
+                    Url = natsSection["Url"] ?? "nats://localhost:4222",
+                    CredFile = natsSection["CredFile"] ?? string.Empty,
+                    Name = natsSection["Name"] ?? "default",
+                    NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
+                    {
+                        "json" => WedaNatsSerializerRegistry.Default,
+                        _ => WedaNatsSerializerRegistry.Default
+                    }
+                };
+            }
+        }
 
         // Load device configuration if Configuration is provided
         _deviceConfiguration = LoadDeviceConfiguration();
@@ -197,8 +255,6 @@ public class WedaApplicationContext : IWedaApplicationContext
 
             if (deviceConfig == null)
             {
-                _loggerFactory.CreateLogger<WedaApplicationContext>()
-                    .LogWarning("Device configuration not found at: {ConfigKey}", _options.DeviceConfigurationKey);
                 return null;
             }
 
@@ -234,8 +290,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         var natsOpts = NatsOpts.Default with
         {
             Url = settings.Url,
-            Name = settings.Name,
-            SerializerRegistry = settings.NatsSerializerRegistry,
+            Name = settings?.Name ?? "default",
+            SerializerRegistry = settings!.NatsSerializerRegistry,
             AuthOpts = !string.IsNullOrEmpty(settings.CredFile)
                 ? NatsAuthOpts.Default with { CredsFile = settings.CredFile }
                 : NatsAuthOpts.Default

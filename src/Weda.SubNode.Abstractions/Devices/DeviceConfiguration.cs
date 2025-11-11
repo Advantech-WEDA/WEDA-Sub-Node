@@ -32,12 +32,24 @@ public class DeviceConfiguration
     public required DeviceType DeviceType { get; set; }
 
     /// <summary>
-    /// Custom device type name (fully qualified type name)
-    /// Used when DeviceType is CustomDevice to specify concrete IDevice implementation
-    /// Example: "MyCompany.IoT.Devices.MyCustomDevice, MyCompany.IoT"
-    /// If not specified, defaults to TcpModbusDevice for backward compatibility
+    /// Device type name - OPTIONAL, defaults to DeviceConfigs key if not specified
+    ///
+    /// When using ScanDevicesFromConfiguration():
+    /// - If empty/null: Uses the configuration key name (e.g., "MyFirstDevice" from DeviceConfigs["MyFirstDevice"])
+    /// - If specified: Uses the provided value (supports short names and fully qualified names)
+    ///
+    /// Examples:
+    /// - Config key: "TcpModbusDevice" → Automatically resolves to TcpModbusDevice class
+    /// - Config key: "MyFirstDevice" → Searches in YOUR project first
+    /// - Explicit: "Weda.SubNode.Devices.Generic.TcpModbusDevice, Weda.SubNode.Devices" → Full qualified name
+    ///
+    /// Resolution priority:
+    /// 1. Fully qualified name (if assembly specified)
+    /// 2. Your project assembly (PRIORITY - avoids naming conflicts)
+    /// 3. SDK built-in devices (Weda.SubNode.Devices.Generic)
+    /// 4. Other dependencies
     /// </summary>
-    public string? CustomDeviceTypeName { get; set; }
+    public string? DeviceTypeName { get; set; }
 
     /// <summary>
     /// Path to the DTDL JSON file (optional, for configuration).

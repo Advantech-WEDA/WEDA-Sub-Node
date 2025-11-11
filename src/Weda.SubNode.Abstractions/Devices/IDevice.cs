@@ -11,23 +11,6 @@ namespace Weda.SubNode.Abstractions.Devices;
 /// </summary>
 public interface IDevice : IDisposable
 {
-    // ===== Factory =====
-
-    /// <summary>
-    /// Create device instance from configuration
-    /// Concrete device classes should override this method to provide their own factory logic
-    /// </summary>
-    /// <param name="context">Application context</param>
-    /// <param name="configuration">Device configuration</param>
-    /// <returns>Device instance</returns>
-    /// <exception cref="NotSupportedException">Thrown when concrete class doesn't override this method</exception>
-    static virtual IDevice Create(IWedaApplicationContext context, DeviceConfiguration configuration)
-    {
-        throw new NotSupportedException(
-            $"Device type must override IDevice.Create() method to support auto-scan. " +
-            $"Add: public static IDevice Create(IWedaApplicationContext context, DeviceConfiguration configuration) {{ return new YourDevice(context, configuration); }}");
-    }
-
     // ===== Identity =====
 
     /// <summary>

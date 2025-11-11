@@ -156,36 +156,95 @@ Weda SubNode Custom Device            subnode      [C#]      Console/IoT/Weda/Su
 
 ## 快速測試
 
-透過建立範例專案來測試安裝：
+透過建立範例專案並實際執行來測試安裝：
+
+### 步驟 1: 建立測試專案
 
 ```bash
 # 建立臨時目錄
-cd /tmp
+mkdir tmp
+cd tmp
 
-# 使用 wedaapi 模板建立專案
-dotnet new wedaapi -n QuickTest
+# 使用 subnode 模板建立專案
+dotnet new subnode -n QuickTest
 
 # 進入專案目錄
 cd QuickTest
+```
 
-# 建置專案
-dotnet build
+### 步驟 2: 執行專案
+
+```bash
+# 直接執行專案（會自動 build）
+dotnet run
+```
+
+### 步驟 3: 驗證成功
+
+**預期輸出** - 您應該會看到：
+
+```
+[12:34:54 INF] Initialized sensor TemperatureSensor (Temperature): Address=0, InitialValue=25.00 °C
+[12:34:54 INF] Starting Modbus TCP Simulator on 127.0.0.1:5020 (Slave ID: 1)
+[12:34:54 INF] Modbus TCP Simulator started successfully
+[12:34:54 INF] ────────────────────────────────────────────────────────
+[12:34:54 INF] Modbus batch optimization ENABLED for device  (1 sensors)
+[12:34:54 INF] Initializing device 
+[12:34:54 INF] Connecting to TCP at 127.0.0.1:5020
+[12:34:54 INF] Communication state changed from Disconnected to Connecting
+[12:34:54 INF] Communication state changed from Connecting to Connected
+[12:34:54 INF] Connected to TCP at 127.0.0.1:5020
+[12:34:54 INF] Physical device connected successfully
+[12:34:54 INF] Client connected from 127.0.0.1:63410
+[12:34:54 INF] Cloud service connected successfully
+[12:34:54 INF] All connections established successfully
+...
+[12:34:54 INF] Starting telemetry task with period 5000ms
+[12:34:54 INF] Optimized 1 sensors into 1 batch(es) for HoldingRegister
+[12:34:54 INF] temperature.sensor: 25
+[12:34:59 INF] Optimized 1 sensors into 1 batch(es) for HoldingRegister
+[12:34:59 INF] temperature.sensor: 25.178045
+```
+
+**成功指標** ✅：
+1. 看到 Modbus simulator 啟動訊息
+2. 看到裝置連線成功訊息
+3. **看到定時報送的 telemetry 資料**
+4. 溫度值在 18-32°C 之間變化
+
+### 步驟 4: 停止並清理
+
+按 `Ctrl+C` 停止程式，然後刪除測試專案：
+
+```bash
+# 停止程式後
+cd /tmp
+rm -rf QuickTest
+```
+
+**🎉 如果您看到定時報送的 telemetry，恭喜！您已成功建立第一個 SubNode！**
+
+---
+
+### 快速測試選項 2: 嘗試使用 wedaapi 與 wedaapi-c 模板
+
+```bash
+mkdir tmp
+cd tmp
+dotnet new wedaapi -n QuickTest
+cd QuickTest
+
+# 執行 API
+dotnet run
 ```
 
 **預期輸出**：
 ```
-Build succeeded.
-    0 Warning(s)
-    0 Error(s)
+[12:34:56 INF] Now listening on: http://localhost:5000
+[12:34:56 INF] Application started. Press Ctrl+C to shut down.
 ```
 
-如果建置成功，表示模板運作正常！✅
-
-您可以刪除測試專案：
-```bash
-cd /tmp
-rm -rf QuickTest
-```
+打開瀏覽器訪問 `http://localhost:5000` 應該會看到 API 回應。
 
 ---
 

@@ -1,7 +1,4 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Serilog;
-using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Host.Context;
@@ -10,46 +7,32 @@ using Weda.SubNode.Core.Protocols.Modbus;
 using Weda.SubNode.Simulators.Modbus;
 using WedaSubNode;
 
-// Configuration (only for Serilog)
-var configuration = new ConfigurationBuilder()
-    .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .Build();
-
-// Logging
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(configuration)
-    .CreateLogger();
-
-using var loggerFactory = new SerilogLoggerFactory(Log.Logger);
-
 try
 {
+    // create a WedaApplicationContext with system configuration
+    // SDK will automatically load appsettings.json for Configuration and LoggerFactory
+    using var context = new WedaApplicationContext(options =>
+    {
+        // remove this line to enable real cloud service
+        options.CloudService = WedaFactory.Cloud.Mock;
+    });
+
     // Configure Modbus Simulator programmatically
-    var simulator = await ConfigureTcpModbusSimulator();
+    var simulator = await ConfigureTcpModbusSimulator(context);
 
     // Configure Device programmatically
     var deviceConfig = ConfigureDeviceConfiguration();
-
-    // create a WedaApplicationContext with system configuration
-    using var context = new WedaApplicationContext(options =>
-    {
-        options.LoggerFactory = loggerFactory;
-
-        // remove thie line to enable real cloud service
-        options.CloudService = WedaFactory.Cloud.Mock; 
-    });
 
     var device = new MyFirstDevice(context, deviceConfig);
 
     if (!await device.InitializeAsync())
     {
-        Log.Error("Failed to initialize device");
+        Console.WriteLine("Failed to initialize device");
         return;
     }
 
     await device.StartAsync();
-    Log.Information("MyFirstDevice started. Press Ctrl+C to stop...");
+    Console.WriteLine("MyFirstDevice started. Press Ctrl+C to stop...");
 
     // Wait for cancellation
     var cts = new CancellationTokenSource();
@@ -68,15 +51,11 @@ try
 }
 catch (OperationCanceledException)
 {
-    Log.Information("Application stopped");
+    Console.WriteLine("Application stopped");
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
-finally
-{
-    await Log.CloseAndFlushAsync();
+    Console.WriteLine($"Application terminated unexpectedly: {ex}");
 }
 
 DeviceConfiguration ConfigureDeviceConfiguration()
@@ -111,7 +90,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     return modbusDeviceConfig.ToDeviceConfiguration();
 }
 
-async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator()
+async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContext context)
 {
     var simulatorConfig = new TcpModbusSimulatorConfiguration
     {
@@ -152,7 +131,8 @@ async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator()
         }
     };
 
-    var simulator = new TcpModbusSimulator(simulatorConfig, logger: loggerFactory.CreateLogger<TcpModbusSimulator>());
+    var logger = context.LoggerFactory.CreateLogger<TcpModbusSimulator>();
+    var simulator = new TcpModbusSimulator(simulatorConfig, logger: logger);
     await simulator.StartAsync();
     return simulator;
 }

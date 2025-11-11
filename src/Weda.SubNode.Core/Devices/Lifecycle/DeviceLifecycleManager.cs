@@ -111,8 +111,7 @@ public sealed class DeviceLifecycleManager
                 EmitLifecycleEvent(LifecycleStage.Initialize, LifecyclePhase.After, stopwatch.Elapsed);
 
                 _logger.LogInformation(
-                    "Device {DeviceId} initialized successfully in {Duration}ms",
-                    _deviceId, stopwatch.ElapsedMilliseconds);
+                    "Device initialized successfully in {Duration}ms", stopwatch.ElapsedMilliseconds);
 
                 return Result.Success;
             }

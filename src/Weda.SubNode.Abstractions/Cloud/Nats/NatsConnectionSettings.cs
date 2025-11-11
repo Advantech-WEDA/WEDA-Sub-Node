@@ -9,12 +9,14 @@ namespace Weda.SubNode.Abstractions.Cloud.Nats;
 /// </summary>
 public record NatsConnectionSettings
 {
+    public const string SectionName = "Nats";
+
     public static readonly NatsConnectionSettings Default = new();
 
     /// <summary>
     /// URL for the NATS connection
     /// </summary>
-    public string Url { get; set; } = "localhost";
+    public string Url { get; set; } = "nats://localhost:4222";
 
     /// <summary>
     /// Path to the credential file for authentication
@@ -24,7 +26,7 @@ public record NatsConnectionSettings
     /// <summary>
     /// Connection name for identification
     /// </summary>
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; set; } = "default";
 
     /// <summary>
     /// Serializer type name for JSON configuration (e.g., "json", "protobuf", "default")

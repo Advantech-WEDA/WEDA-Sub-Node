@@ -156,36 +156,98 @@ Creates a project with:
 
 ## Quick Test
 
-Test the installation by creating a sample project:
+Test the installation by creating and running a sample project:
+
+### Step 1: Create Test Project
 
 ```bash
 # Create a temporary directory
 cd /tmp
 
-# Create project using wedaapi template
-dotnet new wedaapi -n QuickTest
+# Create project using subnode template
+dotnet new subnode -n QuickTest
 
 # Navigate to project
 cd QuickTest
+```
 
-# Build project
-dotnet build
+### Step 2: Run the Project
+
+```bash
+# Run the project (automatically builds)
+dotnet run
+```
+
+### Step 3: Verify Success
+
+**Expected output** - You should see:
+
+```
+[12:34:54 INF] Initialized sensor TemperatureSensor (Temperature): Address=0, InitialValue=25.00 °C
+[12:34:54 INF] Starting Modbus TCP Simulator on 127.0.0.1:5020 (Slave ID: 1)
+[12:34:54 INF] Modbus TCP Simulator started successfully
+[12:34:54 INF] ────────────────────────────────────────────────────────
+[12:34:54 INF] Modbus batch optimization ENABLED for device  (1 sensors)
+[12:34:54 INF] Initializing device 
+[12:34:54 INF] Connecting to TCP at 127.0.0.1:5020
+[12:34:54 INF] Communication state changed from Disconnected to Connecting
+[12:34:54 INF] Communication state changed from Connecting to Connected
+[12:34:54 INF] Connected to TCP at 127.0.0.1:5020
+[12:34:54 INF] Physical device connected successfully
+[12:34:54 INF] Client connected from 127.0.0.1:63410
+[12:34:54 INF] Cloud service connected successfully
+[12:34:54 INF] All connections established successfully
+...
+[12:34:54 INF] Starting telemetry task with period 5000ms
+[12:34:54 INF] Optimized 1 sensors into 1 batch(es) for HoldingRegister
+[12:34:54 INF] temperature.sensor: 25
+[12:34:59 INF] Optimized 1 sensors into 1 batch(es) for HoldingRegister
+[12:34:59 INF] temperature.sensor: 25.178045
+```
+
+**Success indicators** ✅:
+1. Modbus simulator starts successfully
+2. Device connects successfully
+3. **Telemetry data is sent periodically** 
+4. Temperature values change between 18-32°C
+
+### Step 4: Stop and Clean Up
+
+Press `Ctrl+C` to stop the program, then delete the test project:
+
+```bash
+# After stopping
+cd /tmp
+rm -rf QuickTest
+```
+
+**🎉 If you see periodic telemetry data, congratulations! You've successfully created your first SubNode!**
+
+---
+
+### Quick Test Option 2: Using wedaapi Template
+
+If you want to test the simpler API template:
+
+```bash
+# create temporary directory
+mkdir tmp
+cd tmp
+
+# use subnode template to create project
+dotnet new subnode -n QuickTest
+
+# enter project directory
+cd QuickTest
 ```
 
 **Expected output**:
 ```
-Build succeeded.
-    0 Warning(s)
-    0 Error(s)
+[12:34:56 INF] Now listening on: http://localhost:5000
+[12:34:56 INF] Application started. Press Ctrl+C to shut down.
 ```
 
-If the build succeeds, templates are working correctly! ✅
-
-You can delete the test project:
-```bash
-cd /tmp
-rm -rf QuickTest
-```
+Open your browser and visit `http://localhost:5000` to see the API response.
 
 ---
 

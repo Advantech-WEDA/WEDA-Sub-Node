@@ -2,7 +2,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
-using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 
 namespace Weda.SubNode.Abstractions.Context;

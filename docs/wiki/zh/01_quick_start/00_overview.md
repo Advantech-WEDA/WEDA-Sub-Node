@@ -1,6 +1,6 @@
 ---
-title: "概覽 - 選擇您的模板"
-description: "比較 subnode、wedaapi 與 wedaapi-c 模板，選擇最適合您專案的模板"
+title: "概覽 - Weda SubNode SDK 簡介"
+description: "了解 Weda SubNode SDK 的核心功能與三種專案模板"
 author: "Rain Hu"
 date: "2025-11-07"
 lang: "zh"
@@ -11,292 +11,241 @@ translations:
     path: "../../en/01_quick_start/00_overview.md"
 ---
 
-# 概覽 - 選擇您的模板
+# 概覽 - Weda SubNode SDK 簡介
 
-Weda SubNode SDK 提供三種專案模板，適用於不同的使用情境。本指南協助您選擇最適合的模板。
+Weda SubNode SDK 是一個用於串連邊緣裝置與雲端平台的 .NET 框架，讓您輕鬆建立 IoT 邊緣節點，實現雲地整合。
 
 **所需時間**：5 分鐘
 **難度**：初學者
 
 ---
 
-## 三種模板快速比較
+## 什麼是 Weda SubNode？
 
-| 功能 | subnode | wedaapi | wedaapi-c |
-|------|---------|---------|-----------|
-| **命令** | `dotnet new subnode` | `dotnet new wedaapi` | `dotnet new wedaapi-c` |
-| **設定時間** | 15 分鐘 | 10 分鐘 | 15 分鐘 |
-| **程式碼需求** | 自訂類別 | 最少 | 手動設定 |
-| **設定方式** | 混合 | 純 JSON | 混合 |
-| **彈性** | 高 | 低 | 最大 |
-| **學習曲線** | 中等 | 簡單 | 進階 |
-| **自動設定** | 手動 | 是 | 手動 |
-| **自訂邏輯** | 完全控制 | 有限 | 完全控制 |
-| **DI 控制** | 無 | 無 | 完全 |
-| **最適合** | 自訂裝置 | 快速開始 | 企業應用 |
+**Weda SubNode** 是連接邊緣裝置與雲端管理平台（Weda.Core）之間的橋樑。它負責：
 
----
+- **⬆️ 上行（Data Collection）**：從邊緣裝置收集資料，處理後傳送到雲端
+- **⬇️ 下行（Device Command）**：接收雲端指令，控制邊緣裝置
 
-## 模板 1：subnode - 自訂裝置
+### 架構圖解
 
-**何時使用**：
-- 需要自訂裝置生命週期邏輯
-- 想要覆寫事件處理器
-- 實作自訂協定
-- 需要對裝置行為的最大控制
-
-**您將獲得**：
-- 繼承 `TcpModbusDevice` 基礎類別
-- 覆寫方法如 `OnDataReceived`
-- 自訂事件處理器
-- 完全的協定控制
-
-**範例結構**：
+#### (1) 資料收集（Telemetry）- 上行
 ```
-MyDevice/
-├── MyDevice.cs              # 您的自訂裝置類別
-├── Program.cs               # 應用程式入口
-├── appsettings.json         # 設定檔
-└── MyDevice.csproj
+                                                          OSI Layer
+┌────────────────────┐          ┌────────────────────────┐
+│    Edge devices    │          │      Weda.SubNode      │
+│  ┌──────────────┐  │          │  ┌──────────────────┐  │
+│  │   Device 1   │  │          │  │  ICommunication  │  │ ← Layer 4-7 (Transport/Application)
+│  └──────────────┘  │          │  └──────────────────┘  │          ┌─────────────────────────────┐
+│  ┌──────────────┐  │  IComm.  │  ┌──────────────────┐  │   NATS   │          Weda.Core          │
+│  │   Device 2   │  │ ───────▶ │  │ IProtocolParser  │  │ ───────▶ │   Device Management Agent   │
+│  └──────────────┘  │  (L4-7)  │  └──────────────────┘  │   (L7)   │                             │
+│        ...         │          │  ┌──────────────────┐  │          └─────────────────────────────┘
+│  ┌──────────────┐  │          │  │ ITransformation  │  │ ← Layer 7 (Application)
+│  │   Device N   │  │          │  └──────────────────┘  │
+│  └──────────────┘  │          │  ┌──────────────────┐  │
+│                    │          │  │   IDspFilter     │  │ ← Layer 7 (Application)
+│                    │          │  └──────────────────┘  │
+└────────────────────┘          └────────────────────────┘
+ Layer 1-4 (Physical-Transport)      Layer 4-7 (Transport-Application)
 ```
 
-**關鍵程式碼**：
-```csharp
-public class MyDevice : TcpModbusDevice
-{
-    public MyDevice(
-        IWedaApplicationContext context,
-        DeviceConfiguration configuration)
-        : base(context, configuration)
-    {
-        DataReceived += OnDataReceived;
-    }
-
-    private void OnDataReceived(object? sender, DataReceivedEvent e)
-    {
-        // 您的自訂邏輯
-        foreach (var measure in e.Data)
-        {
-            _logger.LogInformation("{Name}: {Value}",
-                measure.ResourceId, measure.Value);
-        }
-    }
-}
+#### (2) 裝置控制（Command）- 下行
 ```
-
-**優點**：
-- 清楚的物件導向架構
-- 透過繼承自然地擴充功能
-- 關注點分離，易於維護
-- 可測試的程式碼
-
-**缺點**：
-- 需要撰寫更多程式碼
-- 需要理解裝置生命週期
-- 中等學習曲線
-
----
-
-## 模板 2：wedaapi - 簡易 API
-
-**何時使用**：
-- 想要最快速的設定
-- 標準 Modbus 裝置，無需自訂邏輯
-- 偏好設定檔驅動方式
-- 只需要收集數據並傳送到雲端
-
-**您將獲得**：
-- 所有設定都在 `appsettings.json`
-- 自動裝置初始化
-- 內建日誌與錯誤處理
-- 零自訂程式碼需求
-
-**範例結構**：
-```
-MyApp/
-├── Program.cs               # 只需要 3 行程式碼！
-├── appsettings.json         # 所有設定都在這裡
-└── MyApp.csproj
-```
-
-**關鍵程式碼**：
-```csharp
-// Program.cs - 就這樣！
-var app = WedaApplication.CreateDefaultBuilder(args).Build();
-await app.RunAsync();
-```
-
-**優點**：
-- 最快的入門方式
-- 基本情境不需要寫程式碼
-- 非常適合初學者
-- 容易維護
-
-**缺點**：
-- 需要擴充功能時較不直觀
-- 預設使用框架內建的裝置類別
-- 適合標準 Modbus 使用案例
-
----
-
-## 模板 3：wedaapi-c - 進階 API
-
-**何時使用**：
-- 需要註冊自訂服務
-- 想要完全控制相依性注入
-- 需要自訂日誌或中介軟體
-- 整合現有的 .NET 基礎設施
-
-**您將獲得**：
-- 手動服務註冊
-- 完全的 builder 模式控制
-- 自訂日誌設定
-- 使用 `AddDevice<TDevice>()` 手動註冊裝置
-
-**範例結構**：
-```
-MyApp/
-├── MyCustomDevice.cs        # 您的裝置類別
-├── MyCustomService.cs       # 您的服務
-├── Program.cs               # 手動設定
-├── appsettings.json         # 設定檔
-└── MyApp.csproj
-```
-
-**關鍵程式碼**：
-```csharp
-// Program.cs
-var builder = WedaApplication.CreateBuilder(args);
-
-// 註冊自訂服務
-builder.Services.AddSingleton<IMyService, MyService>();
-
-// 自訂日誌
-builder.Logging.AddFilter("Weda.SubNode", LogLevel.Debug);
-
-// 手動加入裝置
-builder.AddDevice<MyCustomDevice>(deviceConfig);
-
-var app = builder.Build();
-await app.RunAsync();
-```
-
-**優點**：
-- 最大彈性
-- 完全控制 DI 容器
-- 容易整合現有應用程式
-- 專業架構
-
-**缺點**：
-- 需要更多設定
-- 需要進階 .NET 知識
-- 對簡單情境可能過度設計
-
----
-
-## 決策樹
-
-```
-從這裡開始
-    │
-    ├─→ 第一次使用 SDK？
-    │   └─→ 是 → 使用 wedaapi ✓
-    │
-    ├─→ 需要自訂裝置邏輯？
-    │   └─→ 是 → 使用 subnode ✓
-    │
-    ├─→ 需要自訂服務/DI？
-    │   └─→ 是 → 使用 wedaapi-c ✓
-    │
-    └─→ 只是收集數據？
-        └─→ 是 → 使用 wedaapi ✓
+                                                          OSI Layer
+┌────────────────────┐          ┌────────────────────────┐
+│    Edge devices    │          │      Weda.SubNode      │
+│  ┌──────────────┐  │          │  ┌──────────────────┐  │
+│  │   Device 1   │  │          │  │  ICommunication  │  │ ← Layer 4-7 (Transport/Application)
+│  └──────────────┘  │          │  └──────────────────┘  │          ┌─────────────────────────────┐
+│  ┌──────────────┐  │  IComm.  │  ┌──────────────────┐  │   NATS   │          Weda.Core          │
+│  │   Device 2   │  │ ◀─────── │  │ IProtocolParser  │  │ ◀─────── │   Device Management Agent   │
+│  └──────────────┘  │  (L4-7)  │  └──────────────────┘  │   (L7)   │                             │
+│        ...         │          │                        │          └─────────────────────────────┘
+│  ┌──────────────┐  │          │  ┌──────────────────┐  │
+│  │   Device N   │  │          │  │  CommandHandler  │  │ ← Layer 7 (Application)
+│  └──────────────┘  │          │  └──────────────────┘  │
+└────────────────────┘          └────────────────────────┘
+ Layer 1-4 (Physical-Transport)      Layer 4-7 (Transport-Application)
 ```
 
 ---
 
-## 所有模板都包含什麼？
+## 核心功能
 
-所有三種模板都包含：
+### 分層架構說明
 
-- **Modbus Simulator**（ModbusPal）- 無需硬體即可測試
-- **MockCloudService** - 本地開發，無需雲端連線
-- **Serilog 日誌** - 結構化日誌
-- **設定支援** - appsettings.json
-- **錯誤處理** - 重試策略與斷路器
-- **健康監控** - 裝置健康回報
+Weda SubNode 遵循 **OSI 七層模型**，清楚地分離各層職責：
 
-**預設設定**：
-- 連接到 `127.0.0.1:502`（本機 Modbus Simulator）
-- 使用 `MockCloudService`（無需雲端連線）
-- 每 3 秒輪詢裝置
-- 記錄到主控台與檔案
+```
+┌─────────────────────────────────────────────────────┐
+│ Weda.SubNode Internal - Layer 7 (Application)       │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ ITransformation - Data transformation & logic   │ │
+│ │ IDspFilter - Digital signal processing          │ │
+│ │ CommandHandler - Command processing             │ │
+│ │ IProtocolParser - Protocol data parsing         │ │
+│ └─────────────────────────────────────────────────┘ │
+│                                                     │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ ICommunication - Unified Interface (Layer 4-7)  │ │
+│ │ • Encapsulates full communication stack         │ │
+│ │ • Supports Modbus / MQTT / HTTP protocols       │ │
+│ │ • Handles TCP/UDP connections                   │ │
+│ │ • Manages sessions and reconnection             │ │
+│ └─────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│ OS Network Stack (Layer 1-4)                        │
+│ • TCP/IP Stack                                      │
+│ • Ethernet / WiFi / Serial                          │
+└─────────────────────────────────────────────────────┘
+```
 
----
-
-## 依使用案例比較
-
-### 使用案例 1：快速數據收集
-**情境**：從 Modbus 感測器讀取溫度，傳送到雲端
-**推薦**：`wedaapi`
-**原因**：零程式碼，純設定檔
-
-### 使用案例 2：需要清楚的類別架構
-**情境**：套用規則、觸發警報、儲存到資料庫
-**推薦**：`subnode`
-**原因**：物件導向設計，透過繼承清楚擴充功能
-
-### 使用案例 3：複雜的相依性注入
-**情境**：整合現有 ASP.NET Core 應用程式、多個自訂服務
-**推薦**：`wedaapi-c`
-**原因**：完全控制 DI 容器與服務註冊
-
-### 使用案例 4：多裝置閘道
-**情境**：管理 10+ 個裝置，不同設定
-**推薦**：簡單情境用 `wedaapi`，複雜情境用 `wedaapi-c`
-**原因**：容易在 JSON 設定多個裝置
-
-### 使用案例 5：強調程式碼組織
-**情境**：大型專案，需要模組化與清楚架構
-**推薦**：`subnode` 或 `wedaapi-c`
-**原因**：`subnode` 提供類別繼承架構，`wedaapi-c` 提供 DI 架構
+**關鍵概念**：
+- **SubNode 內部**主要運作在 **Layer 7（應用層）**
+- **ICommunication** 封裝了 **Layer 4-7** 的完整通訊堆疊
+- **IProtocolParser** 解析 Layer 7 協定資料，轉換為應用程式可用的格式
+- **ITransformation/IDspFilter** 處理應用層的業務邏輯
 
 ---
 
-## 重要說明
+### 📡 通訊層（ICommunication）- Layer 4-7
+**統一的通訊介面**，封裝完整的通訊堆疊（Layer 4-7）：
 
-**所有模板都可以實作自訂業務邏輯與自訂協定！**
+**支援的協定**：
+- **Modbus TCP/RTU** - 工業標準協定
+- **MQTT** - 輕量級訊息協定
+- **自訂協定** - 可擴充支援任何協定
 
-三種模板的差異在於：
-- **架構風格**：物件導向繼承 vs 設定檔驅動 vs DI 容器控制
-- **起始複雜度**：需要多少初始程式碼
-- **擴充方式**：如何加入新功能
+**封裝的功能層級**：
+- **Layer 7**: 應用層協定實作（Modbus, MQTT, HTTP）
+- **Layer 6**: 資料編碼與解碼
+- **Layer 5**: 連線管理、會話維護、自動重連
+- **Layer 4**: TCP/UDP 傳輸、流量控制
 
-選擇模板的關鍵是：**您偏好的開發風格**與**專案的架構需求**。
+**關鍵功能**：
+- 提供統一的 `ICommunication` 介面
+- 隱藏底層通訊複雜度
+- 自動處理連線生命週期
+- 支援同步與非同步操作
+
+### 🔄 協定解析（IProtocolParser）- Layer 7
+**應用層資料處理**，將協定資料轉換為應用程式可用格式：
+
+**處理的協定資料**：
+- **Modbus 資料** - Register 值、Function Code 回應
+- **MQTT 訊息** - Topic、Payload
+- **自訂格式** - 可擴充的解析器
+
+**關鍵功能**：
+- 解析協定層已傳遞上來的資料
+- 二進位轉換為結構化資料（Float, Int, Bool, String...）
+- 自動處理 Big/Little Endian
+- 型別驗證與錯誤檢測
+- 提供統一的資料模型給上層使用
+
+### 🔧 資料轉換（ITransformation）- Layer 7
+負責**應用層**業務邏輯，彈性的資料處理管線：
+- **公式轉換** - `(x * 10) + 5`
+- **單位換算** - 攝氏轉華氏
+- **資料映射** - 重新命名欄位
+- **條件邏輯** - if-then-else 規則
+
+**關鍵功能**：
+- 支援複雜數學運算
+- 動態表達式評估
+- 管線化處理（多個轉換串接）
+
+### 📊 數位濾波（IDspFilter）- Layer 7
+負責**應用層**訊號處理，內建數位訊號處理：
+- **移動平均** - 平滑雜訊資料
+- **低通濾波** - 去除高頻雜訊
+- **異常偵測** - 識別異常值
+- **資料緩衝** - 批次傳送
+
+**關鍵功能**：
+- 即時訊號處理演算法
+- 可配置濾波參數
+- 減少雲端傳輸量
+
+### ☁️ 雲端連接（NATS）- Layer 7
+負責**應用層**雲端通訊，高效能雙向通訊：
+- **輕量級** - 低延遲、低資源佔用
+- **可靠傳輸** - 自動重連與訊息確認
+- **安全連線** - TLS 加密與認證
+- **雙向通訊** - Telemetry 上傳 & Command 下發
+
+**關鍵功能**：
+- Pub/Sub 訊息模式
+- Request/Reply 同步通訊
+- JetStream 持久化儲存
+
+### ⚙️ 裝置管理
+完整的裝置生命週期管理：
+- **自動初始化** - 連線與設定檢查
+- **健康監控** - 定時回報裝置狀態
+- **錯誤重試** - 斷線自動重連
+- **斷路器模式** - 避免連續失敗
+
+---
+
+## 使用場景
+
+### 🏭 工業物聯網（IIoT）
+- 收集工廠機台資料
+- 即時監控生產線
+- 遠端控制設備
+
+### 🏢 智慧建築
+- 整合 BMS 系統
+- 能源監控與管理
+- HVAC 系統控制
+
+### 🌾 智慧農業
+- 環境感測器資料收集
+- 自動灌溉控制
+- 溫室環境監控
+
+### 🔌 能源管理
+- 電力監測與分析
+- 智慧電表整合
+- 再生能源監控
+
+---
+
+## 為什麼選擇 Weda SubNode SDK？
+
+### ✅ 快速開發
+- **3 分鐘** 建立第一個專案
+- **內建模板** 快速啟動
+- **自動化設定** 減少樣板程式碼
+
+### ✅ 工業級穩定
+- **斷線重連** 自動恢復
+- **錯誤處理** 完整的重試機制
+- **記憶體管理** 防止洩漏
+
+### ✅ 高度彈性
+- **可擴充架構** 自訂協定、處理邏輯
+- **多種模板** 適應不同開發風格
+- **配置驅動** 無需修改程式碼即可調整
+
+### ✅ 現代化技術
+- **.NET 9.0** 最新框架
+- **非同步程式設計** 高效能處理
+- **依賴注入** 易於測試與維護
 
 ---
 
 ## 下一步
 
-現在您已理解模板，讓我們開始安裝：
+準備好開始使用了嗎？讓我們從安裝開始：
 
-**[→ 安裝模板](01_install_templates.md)**
+**[→ 安裝模板並開始建置](01_install_templates.md)**
 
-安裝後，跳到您選擇的模板：
-- [subnode - 自訂裝置 →](02_subnode_basic.md)
-- [wedaapi - 簡易 API →](03_wedaapi_basic.md)
-- [wedaapi-c - 進階 API →](04_wedaapi_c_basic.md)
-
----
-
-## 總結
-
-**選擇 subnode**：如果您想要撰寫具有事件處理器的自訂裝置類別。
-
-**選擇 wedaapi**：如果您想要最快速的設定，零程式碼。
-
-**選擇 wedaapi-c**：如果您需要完全控制服務與 DI。
-
-**仍不確定？** 從 **wedaapi** 開始 - 這是最容易學習的方式！
+**建議學習路徑**：wedaapi → subnode → wedaapi-c
 
 ---
 

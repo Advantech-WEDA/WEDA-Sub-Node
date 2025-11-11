@@ -68,15 +68,14 @@ public class ModbusDevice : DeviceBase
         if (_useBatchOptimization)
         {
             _logger.LogInformation(
-                "Modbus batch optimization ENABLED for device {DeviceId} ({SensorCount} sensors)",
-                DeviceId,
+                "Modbus batch optimization ENABLED for device ({SensorCount} sensors)",
                 _sensorRegisters.Count);
         }
         else
         {
             _logger.LogInformation(
-                "Modbus batch optimization DISABLED for device {DeviceId} (using legacy single-point reading)",
-                DeviceId);
+                "Modbus batch optimization DISABLED for device (using legacy single-point reading)"
+                );
         }
     }
 
