@@ -1,0 +1,47 @@
+# Build output
+**/bin/
+**/obj/
+**/out/
+
+# IDE and editor files
+**/.vs/
+**/.vscode/
+**/.idea/
+*.swp
+*.bak
+*.tmp
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+*.snupkg
+**/.nuget/
+**/packages/
+
+# Test results
+**/TestResults/
+**/*.trx
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+**/docs/
+
+# Temporary files
+**/temp/
+**/tmp/
+
+# Node modules (if any)
+**/node_modules/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db

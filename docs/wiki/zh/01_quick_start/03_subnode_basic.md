@@ -290,6 +290,7 @@ async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContex
 - `LoadDtdl()` 會自動尋找 solution root 目錄，無需手動計算層級
 - SDK 提供標準 DTDL 定義在 `assets/dtdl/dtmi/advantech/edgesync/`
 - 只需使用簡單的相對路徑：`assets/dtdl/...`，SDK 會自動解析
+- **Dev Container 兼容**：自動檢測 `/workspace` 掛載點，在容器內也能正常工作
 
 **常見錯誤**：
 - ❌ 忘記呼叫 `LoadDtdl()` → 雲端註冊失敗

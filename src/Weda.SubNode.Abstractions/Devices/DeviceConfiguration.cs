@@ -118,19 +118,43 @@ public class DeviceConfiguration
             return;
 
         // If no basePath provided, try to find solution root directory
-        basePath ??= FindSolutionRoot() ?? AppContext.BaseDirectory;
+        basePath ??= Environment.GetEnvironmentVariable("DTDL_BASE_PATH")
+                 ?? FindSolutionRoot()
+                 ?? AppContext.BaseDirectory;
 
         var fullPath = Path.Combine(basePath, DtdlPath);
+
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException(
+                $"DTDL file not found: {fullPath}{Environment.NewLine}" +
+                $"DtdlPath: {DtdlPath}{Environment.NewLine}" +
+                $"BasePath: {basePath}{Environment.NewLine}" +
+                $"Working directory: {Directory.GetCurrentDirectory()}{Environment.NewLine}" +
+                $"App base directory: {AppContext.BaseDirectory}",
+                fullPath);
+        }
+
         Dtdl = DtdlInterface.Load(fullPath);
     }
 
     /// <summary>
     /// Finds the solution root directory by searching for .sln or .git directory.
     /// Starts from AppContext.BaseDirectory and walks up the directory tree.
+    /// Also checks common container mount points like /workspace.
     /// </summary>
     /// <returns>The solution root directory path, or null if not found.</returns>
     private static string? FindSolutionRoot()
     {
+        // Check common container mount point first (for Dev Container compatibility)
+        if (Directory.Exists("/workspace") &&
+            (Directory.GetFiles("/workspace", "*.sln").Length > 0 ||
+             Directory.Exists("/workspace/.git")))
+        {
+            return "/workspace";
+        }
+
+        // Walk up from current directory
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory != null)
@@ -146,26 +170,6 @@ public class DeviceConfiguration
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Asynchronously loads and sets the DTDL interface from the configured DtdlPath.
-    /// If DtdlPath is null or empty, this method does nothing.
-    /// </summary>
-    /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
-    /// <exception cref="JsonException">Thrown when the JSON is invalid or cannot be deserialized.</exception>
-    public async Task LoadDtdlAsync(string? basePath = null, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrEmpty(DtdlPath))
-            return;
-
-        // If no basePath provided, try to find solution root directory
-        basePath ??= FindSolutionRoot() ?? AppContext.BaseDirectory;
-
-        var fullPath = Path.Combine(basePath, DtdlPath);
-        Dtdl = await DtdlInterface.LoadAsync(fullPath, cancellationToken);
     }
 }
 
