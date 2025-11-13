@@ -53,6 +53,11 @@ public class MockApplicationContext : IWedaApplicationContext
     public ConnectionOptions ConnectionOptions { get; set; }
 
     /// <summary>
+    /// Gets the device options.
+    /// </summary>
+    public DeviceOptions DeviceOptions { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of MockApplicationContext with default mocks.
     /// </summary>
     public MockApplicationContext()
@@ -61,6 +66,7 @@ public class MockApplicationContext : IWedaApplicationContext
         MockCommunication = Substitute.For<IRequestResponseCommunication<byte[], byte[]>>();
         MockLoggerFactory = NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
+        DeviceOptions = DeviceOptions.Default;
 
         // Setup default behaviors
         SetupDefaultBehaviors();
@@ -81,6 +87,7 @@ public class MockApplicationContext : IWedaApplicationContext
         MockCommunication = communication;
         MockLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
+        DeviceOptions = DeviceOptions.Default;
     }
 
     #region IWedaApplicationContext Implementation

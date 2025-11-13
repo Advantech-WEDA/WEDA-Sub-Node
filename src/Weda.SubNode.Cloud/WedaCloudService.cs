@@ -113,13 +113,10 @@ public sealed class WedaCloudService : IWedaCloudService
         }
     }
 
-    [Obsolete("Use DeviceInitializer instead for complete registration flow with NATS topic assignments")]
     public async Task<string?> GetOrRegisterDeviceIdAsync(
         DeviceInfo info,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning(
-            "GetOrRegisterDeviceIdAsync is deprecated. Use DeviceInitializer for complete registration flow.");
         _logger.LogInformation("Getting or registering device ID: DeviceName={DeviceName}", info.DeviceName);
 
         // 1. Try to get existing registration from storage (includes NATS topics)

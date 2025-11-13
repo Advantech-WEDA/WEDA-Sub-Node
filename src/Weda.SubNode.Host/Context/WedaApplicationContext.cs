@@ -242,14 +242,22 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #region Private Methods
 
+    private const string DeviceConfigurationSectionName = "DeviceConfigs";
     private DeviceConfiguration? LoadDeviceConfiguration()
     {
         if (_configuration == null)
             return null;
 
+        var configs = _configuration.GetSection(DeviceConfigurationSectionName).GetChildren().FirstOrDefault();
+        if (configs == null)
+            return null;
+
+        _options.DeviceConfigurationKey = configs.Key;
+
         try
         {
             var deviceConfig = _configuration
+                .GetSection(DeviceConfigurationSectionName)
                 .GetSection(_options.DeviceConfigurationKey)
                 .Get<DeviceConfiguration>();
 
@@ -263,7 +271,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             {
                 try
                 {
-                    deviceConfig.LoadDtdlAsync(Directory.GetCurrentDirectory()).GetAwaiter().GetResult();
+                    deviceConfig.LoadDtdl();
                     _loggerFactory.CreateLogger<WedaApplicationContext>()
                         .LogInformation("DTDL loaded from: {DtdlPath}", deviceConfig.DtdlPath);
                 }

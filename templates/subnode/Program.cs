@@ -68,7 +68,8 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         Model = "CustomDevice-v1",
         Host = "127.0.0.1",
         Port = 5020,
-        SlaveId = 1
+        SlaveId = 1,
+        DtdlPath = "assets/dtdl/dtmi/advantech/edgesync/sample-1.json"
     };
 
     // Create temperature sensor with transform pipeline
@@ -82,12 +83,17 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
- 
+
     // Add sensor to device
     modbusDeviceConfig.AddSensor(tempSensor);
 
     // Convert to DeviceConfiguration
-    return modbusDeviceConfig.ToDeviceConfiguration();
+    var deviceConfig = modbusDeviceConfig.ToDeviceConfiguration();
+
+    // Load DTDL metadata (required for cloud registration)
+    deviceConfig.LoadDtdl();
+
+    return deviceConfig;
 }
 
 async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContext context)

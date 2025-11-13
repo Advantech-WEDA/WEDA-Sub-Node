@@ -48,15 +48,52 @@ templates:
 
 ## 目標 1: 建立並執行 subnode template
 
-### 建立專案
+### 步驟 1: 建立專案
 
 ```bash
-mkdir -p devices/MyFirstDevice
-cd devices/MyFirstDevice
-dotnet new subnode -n MyFirstDevice
+# 確保您在 solution 根目錄下
+# 切換到 devices 目錄(或其它自定目錄下)
+mkdir -p devices
+cd devices
+
+# 建立專案
+dotnet new subnode -n MyFirstSubnode
+
+# 回到 solution 根目錄
+cd ..
+
+# 加入到 solution
+dotnet sln add devices/MyFirstSubnode/MyFirstSubnode.csproj
+
+# 進入專案目錄
+cd devices/MyFirstSubnode
+
+# 還原 NuGet 套件
+dotnet restore
 ```
 
-### 執行專案
+**重要提示**：
+- 由於 template 使用 project reference，專案**必須建立在 `devices/` 目錄或其它相同深度的目錄下**
+- 這樣可以確保 project reference 正確解析到上層的 SDK 專案
+- 必須先 `cd devices` 再執行 `dotnet new`，因為 `-n` 參數不能包含路徑分隔符
+
+### 步驟 2: 查看專案結構
+
+```
+devices/MyFirstSubnode/
+├── appsettings.json        # 配置檔案（Serilog 日誌設定）
+├── MyFirstSubnode.csproj   # 專案檔（包含 project reference）
+├── MyFirstDevice.cs        # 裝置類別（繼承自 TcpModbusDevice）
+└── Program.cs              # 應用程式進入點（手動配置裝置與 Simulator）
+```
+
+**重點說明**：
+- 與 wedaapi 不同，subnode 使用 **programmatic 配置**（在 `Program.cs` 中）
+- `appsettings.json` 僅包含 Serilog 日誌設定
+- 適合需要完全控制裝置生命週期的開發場景
+- `MyFirstSubnode.csproj` 使用 project reference 參考 SDK 專案
+
+### 步驟 3: 執行專案
 
 ```bash
 dotnet run
@@ -156,7 +193,9 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         Model = "CustomDevice-v1",
         Host = "127.0.0.1",
         Port = 5020,
-        SlaveId = 1
+        SlaveId = 1,
+        // DTDL 路徑 (相對於 solution root，由 LoadDtdl 自動解析)
+        DtdlPath = "assets/dtdl/dtmi/advantech/edgesync/sample-1.json"
     };
 
     var tempSensor = new ModbusSensorConfiguration
@@ -171,7 +210,14 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     modbusDeviceConfig.AddSensor(tempSensor);
-    return modbusDeviceConfig.ToDeviceConfiguration();
+
+    // 轉換為 DeviceConfiguration
+    var deviceConfig = modbusDeviceConfig.ToDeviceConfiguration();
+
+    // 載入 DTDL metadata (雲端註冊時必須)
+    deviceConfig.LoadDtdl();
+
+    return deviceConfig;
 }
 
 // 定義模擬器的參數
@@ -230,6 +276,26 @@ async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContex
 3. 您的 `OnDataReceived` 方法被呼叫，可以處理資料
 4. SDK 自動將 telemetry 上傳到雲端服務
 
+### DTDL 的重要性
+
+**為什麼需要 LoadDtdl()？**
+
+`deviceConfig.LoadDtdl()` 是**必須的**，原因：
+1. **雲端註冊要求**：上傳 device configuration 到雲端時，必須包含 DTDL metadata
+2. **Schema Validation**：確保 sensor 定義符合 DTDL 標準
+3. **類型安全**：提供完整的 telemetry 類型資訊給雲端平台
+
+**DTDL 路徑說明**：
+- 路徑是**相對於 solution root**（包含 .sln 或 .git 的目錄）
+- `LoadDtdl()` 會自動尋找 solution root 目錄，無需手動計算層級
+- SDK 提供標準 DTDL 定義在 `assets/dtdl/dtmi/advantech/edgesync/`
+- 只需使用簡單的相對路徑：`assets/dtdl/...`，SDK 會自動解析
+
+**常見錯誤**：
+- ❌ 忘記呼叫 `LoadDtdl()` → 雲端註冊失敗
+- ❌ DTDL 路徑錯誤 → FileNotFoundException
+- ✅ 正確配置 DtdlPath 並呼叫 LoadDtdl()
+
 ---
 
 ## 目標 3: 連接真實裝置
@@ -271,44 +337,43 @@ var tempSensor = new ModbusSensorConfiguration
 };
 ```
 
-### 步驟 3: 連接真實雲端 (選擇性)
+### 步驟 3: 連接真實雲端
 
-**方法 1: 移除 Mock**
+**方法 1: 移除 Mock，並用 programmatic 的方式配置連線**
 
 ```csharp
 using var context = new WedaApplicationContext(options =>
 {
     // 移除 Mock,SDK 會自動連接 NATS
     // options.CloudService = WedaFactory.Cloud.Mock;
+
+    // 配置 NATS 連線
+    options.NatsConnectionSettings = new NatsConnectionSettings
+    {
+        Url = "nats://your-nats-server:4222",
+        CredFile = "/path/to/nats.creds"
+    };
 });
 ```
 
-**方法 2: 使用 appsettings.json**
-
-在 `appsettings.json` 加入:
-
-```json
-{
-  "Serilog": {
-    "MinimumLevel": "Information",
-    "WriteTo": [ { "Name": "Console" } ]
-  },
-  "Nats": {
-    "Url": "nats://your-nats-server:4222",
-    "CredFile": "",
-    "Name": "default",
-    "SerializerType": "json"
-  }
-}
-```
-
-然後移除 Mock:
+**方法 2: 移除 Mock，並使用 appsettings.json 配置連線**
 
 ```csharp
 using var context = new WedaApplicationContext(options =>
 {
     // SDK 會自動從 appsettings.json 讀取 NATS 設定
 });
+```
+
+在 `appsettings.json` 加入:
+
+```json
+{
+  "Nats": {
+    "Url": "nats://your-nats-server:4222",
+    "CredFile": "/path/to/nats.creds"
+  }
+}
 ```
 
 ### 執行

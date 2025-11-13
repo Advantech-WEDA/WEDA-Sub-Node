@@ -539,7 +539,7 @@ dotnet run
 |------|---------|---------|
 | **風格** | Web API | Console App |
 | **程式碼量** | 少 | 中等（需寫類別） |
-| **配置方式** | appsettings.json 或 Programmatic| Programmatic |
+| **配置方式** | appsettings.json 或 Programmatic| appsettings.json 或 Programmatic |
 | **多裝置支援** | 原生支援 | 需自行實作 |
 | **生命週期** | 自動管理 | 手動管理 |
 | **Simulator** | Hosted Service | 手動管理 |

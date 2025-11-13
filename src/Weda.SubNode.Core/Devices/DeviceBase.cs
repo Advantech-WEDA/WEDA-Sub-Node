@@ -48,6 +48,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
+        Configuration.LoadDtdl();
+
         // Single orchestrator manages all complexity
         _orchestrator = new DeviceOrchestrator(
             context,
