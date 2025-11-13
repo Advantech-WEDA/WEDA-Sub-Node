@@ -24,6 +24,7 @@ Weda SubNode SDK is a .NET framework for building industrial IoT edge applicatio
 - Collect telemetry data from sensors and equipment
 - Process data with transformations and DSP filters
 - Transmit to cloud services via NATS messaging
+- Control edge devices from cloud for remote management
 - Monitor device health and handle errors gracefully
 
 ---
@@ -38,8 +39,7 @@ Start here if you're new to Weda SubNode SDK:
 
 ### For Experienced Developers
 Jump to advanced topics:
-- [Custom Device Logic - subnode](01_quick_start/02_subnode_basic.md)
-- [Full Control - wedaapi-c](01_quick_start/04_wedaapi_c_basic.md)
+- [Console App Style - subnode](01_quick_start/02_subnode_basic.md)
 - [Use Cases](02_use_cases/)
 
 ---
@@ -48,15 +48,14 @@ Jump to advanced topics:
 
 ### Step 1: Getting Started (30 min)
 
-Choose one of three templates based on your needs:
+Choose one of two templates based on your needs:
 
 | Document | Description | Template | Time | Difficulty |
 |----------|-------------|----------|------|------------|
 | [00. Overview](01_quick_start/00_overview.md) | Compare templates and choose the right one | - | 5 min | Beginner |
 | [01. Install Templates](01_quick_start/01_install_templates.md) | Install project templates | - | 3 min | Beginner |
-| [02. subnode - Custom Device](01_quick_start/02_subnode_basic.md) | Inherit from base classes, custom logic | `subnode` | 15 min | Intermediate |
-| [03. wedaapi - Simple API](01_quick_start/03_wedaapi_basic.md) | Configuration-driven, minimal code | `wedaapi` | 10 min | Beginner |
-| [04. wedaapi-c - Advanced API](01_quick_start/04_wedaapi_c_basic.md) | Full control, manual service registration | `wedaapi-c` | 15 min | Advanced |
+| [02. subnode - Console App](01_quick_start/02_subnode_basic.md) | Console-style for single device development | `subnode` | 15 min | Intermediate |
+| [03. wedaapi - Web API](01_quick_start/03_wedaapi_basic.md) | Web API-style for production with multiple devices | `wedaapi` | 10 min | Beginner |
 
 **Default Setup**: All templates use **Modbus Simulator** + **MockCloudService** by default.
 
@@ -87,22 +86,22 @@ Choose one of three templates based on your needs:
 
 ---
 
-## Three Templates Comparison
+## Two Templates Comparison
 
-| Feature | subnode | wedaapi | wedaapi-c |
-|---------|---------|---------|-----------|
-| **Setup Time** | 15 min | 10 min | 15 min |
-| **Code Required** | Custom class | Minimal | Manual setup |
-| **Flexibility** | High | Low | Maximum |
-| **Learning Curve** | Moderate | Easy | Advanced |
-| **Auto-Config** | Manual | Yes | Manual |
-| **Custom Logic** | Full | Limited | Full |
-| **Best For** | Custom devices | Quick start | Enterprise apps |
+| Feature | subnode | wedaapi |
+|---------|---------|---------|
+| **Style** | Console App | Web API |
+| **Setup Time** | 15 min | 10 min |
+| **Code Required** | Custom class | Minimal |
+| **Flexibility** | High | Moderate |
+| **Learning Curve** | Moderate | Easy |
+| **Use Case** | Single device dev/debug | Production multi-device |
+| **Best For** | Development & debugging | Production deployment |
 
 **Recommendation**:
 - New to SDK? Start with **wedaapi**
-- Need custom logic? Use **subnode**
-- Need full control? Use **wedaapi-c**
+- Need single device dev/debug? Use **subnode**
+- Production deployment? Use **wedaapi**
 
 ---
 
@@ -157,9 +156,8 @@ docs/wiki/
 │   ├── 01_quick_start/                # Getting started guides
 │   │   ├── 00_overview.md             # Template comparison
 │   │   ├── 01_install_templates.md    # Installation
-│   │   ├── 02_subnode_basic.md        # subnode template
-│   │   ├── 03_wedaapi_basic.md        # wedaapi template
-│   │   ├── 04_wedaapi_c_basic.md      # wedaapi-c template
+│   │   ├── 02_subnode_basic.md        # subnode template (Console App)
+│   │   ├── 03_wedaapi_basic.md        # wedaapi template (Web API)
 │   │   ├── 05_connect_real_device.md  # Connect real device
 │   │   ├── 06_connect_weda_core.md    # Connect Weda.Core
 │   │   └── 07_real_device_isensing.md # iSensing devices

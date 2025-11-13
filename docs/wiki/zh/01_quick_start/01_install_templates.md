@@ -14,7 +14,7 @@ translations:
 
 # 安裝模板
 
-學習如何安裝三種 Weda SubNode SDK 專案模板。
+學習如何安裝兩種 Weda SubNode SDK 專案模板。
 
 **所需時間**：3 分鐘
 **難度**：初學者
@@ -61,19 +61,15 @@ Installing templates from: /path/to/edge_subnode/templates
 Success: Weda.SubNode.CustomDevice installed successfully
 
 → Installing template: wedaapi
-Success: Weda.SubNode.API.Simple installed successfully
-
-→ Installing template: wedaapi-c
-Success: Weda.SubNode.API.Advanced installed successfully
+Success: Weda.SubNode.WebApi installed successfully
 
 ════════════════════════════════════════════════════════════════
-✓ Successfully installed 3 templates
+✓ Successfully installed 2 templates
 ════════════════════════════════════════════════════════════════
 
 Available templates:
-- subnode    : Custom Device (inherits from ModbusDevice)
-- wedaapi    : Simple API (auto-configuration)
-- wedaapi-c  : Advanced API (full control)
+- subnode    : Console App 風格（單一裝置開發/調試）
+- wedaapi    : Web API 風格（production 多裝置）
 
 Verify installation: dotnet new list | grep -i subnode
 ```
@@ -90,9 +86,6 @@ dotnet new install ./subnode
 
 # 安裝 wedaapi 模板
 dotnet new install ./wedaapi
-
-# 安裝 wedaapi-c 模板
-dotnet new install ./wedaapi-c
 ```
 
 ---
@@ -109,12 +102,11 @@ dotnet new list | grep -i subnode
 ```
 Template Name                         Short Name   Language  Tags
 ------------------------------------  -----------  --------  -----------------------
-Weda SubNode API (Advanced)           wedaapi-c    [C#]      Weda/SubNode/IoT/Advanced
-Weda SubNode API (Simple)             wedaapi      [C#]      Weda/SubNode/IoT
-Weda SubNode Custom Device            subnode      [C#]      Console/IoT/Weda/SubNode/Custom
+Weda SubNode Console Application      subnode      [C#]      Console/IoT/Weda/SubNode
+Weda SubNode Web API Application      wedaapi      [C#]      Web/WebAPI/IoT/Weda/SubNode
 ```
 
-如果看到三個模板都列出來，表示安裝成功！✅
+如果看到兩個模板都列出來，表示安裝成功！✅
 
 ---
 
@@ -122,35 +114,28 @@ Weda SubNode Custom Device            subnode      [C#]      Console/IoT/Weda/Su
 
 安裝後，您可以使用：
 
-### 1. subnode - 自訂裝置模板
+### 1. subnode - Console 應用程式模板
 
 **簡稱**：`subnode`
 **用法**：`dotnet new subnode -n MyDevice`
+**風格**：Console App
 
 建立的專案包含：
 - 繼承自 `TcpModbusDevice` 的自訂裝置類別
 - 事件驅動架構（`OnDataReceived`）
-- 完全控制裝置行為
+- 適合單一裝置開發與調試
 
-### 2. wedaapi - 簡易 API 模板
+### 2. wedaapi - Web API 模板
 
 **簡稱**：`wedaapi`
 **用法**：`dotnet new wedaapi -n MyApp`
+**風格**：Web API
 
 建立的專案包含：
-- 最少程式碼（`Program.cs` 只有 3 行）
+- 使用 `CreateDefaultBuilder` 模式的最少程式碼
 - 設定檔驅動（`appsettings.json`）
 - 自動初始化與裝置管理
-
-### 3. wedaapi-c - 進階 API 模板
-
-**簡稱**：`wedaapi-c`
-**用法**：`dotnet new wedaapi-c -n MyApp`
-
-建立的專案包含：
-- 完整的 builder 模式控制
-- 手動服務註冊
-- 使用 `AddDevice<T>()` 手動註冊裝置
+- 適合 production 部署多裝置
 
 ---
 
@@ -299,9 +284,8 @@ dotnet: command not found
 dotnet new uninstall
 
 # 解除安裝特定模板
-dotnet new uninstall Weda.SubNode.CustomDevice
-dotnet new uninstall Weda.SubNode.API.Simple
-dotnet new uninstall Weda.SubNode.API.Advanced
+dotnet new uninstall Weda.SubNode.Console
+dotnet new uninstall Weda.SubNode.WebApi
 
 # 重新安裝
 bash scripts/install-templates.sh
@@ -333,9 +317,8 @@ bash scripts/install-templates.sh
 移除所有 Weda SubNode 模板：
 
 ```bash
-dotnet new uninstall Weda.SubNode.CustomDevice
-dotnet new uninstall Weda.SubNode.API.Simple
-dotnet new uninstall Weda.SubNode.API.Advanced
+dotnet new uninstall Weda.SubNode.Console
+dotnet new uninstall Weda.SubNode.WebApi
 ```
 
 驗證移除：
@@ -356,27 +339,20 @@ dotnet new list | grep -i subnode
 - 零程式碼需求
 - 設定檔驅動
 
-### 需要自訂邏輯
-**[→ subnode - 自訂裝置](02_subnode_basic.md)**
-- 物件導向架構
-- 事件驅動
-- 完全控制裝置行為
-
-### 進階使用者
-**[→ wedaapi-c - 進階 API](04_wedaapi_c_basic.md)**
-- 完全控制 DI
-- 手動服務註冊
-- 企業級就緒
+### 需要單一裝置開發
+**[→ subnode - Console App](02_subnode_basic.md)**
+- Console 應用程式風格
+- 事件驅動架構
+- 適合開發與調試
 
 ---
 
 ## 總結
 
-您已成功安裝三種 Weda SubNode SDK 模板：
+您已成功安裝兩種 Weda SubNode SDK 模板：
 
-- ✅ `subnode` - 自訂裝置模板
-- ✅ `wedaapi` - 簡易 API 模板
-- ✅ `wedaapi-c` - 進階 API 模板
+- ✅ `subnode` - Console App 模板（單一裝置開發/調試）
+- ✅ `wedaapi` - Web API 模板（production 多裝置）
 
 **準備好開始建置了嗎？** 從上方選擇一個模板指南，開始建立您的第一個 IoT 邊緣裝置！
 

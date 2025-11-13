@@ -39,7 +39,7 @@ internal class DeviceHostedService : IHostedService
         {
             try
             {
-                _logger.LogInformation("Initializing device: {DeviceName} ({DeviceType})",
+                _logger.LogDebug("Initializing device: {DeviceName} ({DeviceType})",
                     device.Configuration.DeviceName,
                     device.DeviceType);
 

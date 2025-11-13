@@ -24,6 +24,7 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 - 從感測器與設備收集遙測數據
 - 使用 Transformation 與 DSP 濾波器處理數據
 - 透過 NATS 訊息傳遞至雲端服務
+- 從雲端控制邊緣裝置，實現遠端控制
 - 監控裝置健康狀態並妥善處理錯誤
 
 ---
@@ -34,12 +35,11 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 如果您是第一次使用 Weda SubNode SDK，請從這裡開始：
 1. [概覽 - 選擇模板](01_quick_start/00_overview.md)（5 分鐘）
 2. [安裝模板](01_quick_start/01_install_templates.md)（3 分鐘）
-3. [您的第一個裝置 - wedaapi](01_quick_start/03_wedaapi_basic.md)（10 分鐘）
+3. [您的第一個裝置 - wedaapi](01_quick_start/02_wedaapi_basic.md)（10 分鐘）
 
 ### 進階開發者
 直接跳到進階主題：
-- [自訂裝置邏輯 - subnode](01_quick_start/02_subnode_basic.md)
-- [完全控制 - wedaapi-c](01_quick_start/04_wedaapi_c_basic.md)
+- [Console App 風格 - subnode](01_quick_start/03_subnode_basic.md)
 - [使用案例](02_use_cases/)
 
 ---
@@ -48,15 +48,14 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 
 ### 步驟 1：開始使用（30 分鐘）
 
-根據您的需求選擇三種模板之一：
+根據您的需求選擇兩種模板之一：
 
 | 文檔 | 說明 | 模板 | 時間 | 難度 |
 |------|------|------|------|------|
 | [00. 概覽](01_quick_start/00_overview.md) | 比較模板並選擇適合的 | - | 5 分鐘 | 初學者 |
 | [01. 安裝模板](01_quick_start/01_install_templates.md) | 安裝專案模板 | - | 3 分鐘 | 初學者 |
-| [02. subnode - 自訂裝置](01_quick_start/02_subnode_basic.md) | 繼承基礎類別，自訂邏輯 | `subnode` | 15 分鐘 | 中級 |
-| [03. wedaapi - 簡易 API](01_quick_start/03_wedaapi_basic.md) | 設定檔驅動，最少程式碼 | `wedaapi` | 10 分鐘 | 初學者 |
-| [04. wedaapi-c - 進階 API](01_quick_start/04_wedaapi_c_basic.md) | 完全控制，手動服務註冊 | `wedaapi-c` | 15 分鐘 | 進階 |
+| [02. wedaapi - Web API](01_quick_start/02_wedaapi_basic.md) | Web API 風格，適合 production 多裝置 | `wedaapi` | 10 分鐘 | 初學者 |
+| [03. subnode - Console App](01_quick_start/03_subnode_basic.md) | Console 風格，適合單一裝置開發 | `subnode` | 15 分鐘 | 中級 |
 
 **預設設定**：所有模板預設使用 **Modbus Simulator** + **MockCloudService**。
 
@@ -87,22 +86,22 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 
 ---
 
-## 三種模板比較
+## 兩種模板比較
 
-| 功能 | subnode | wedaapi | wedaapi-c |
-|------|---------|---------|-----------|
-| **設定時間** | 15 分鐘 | 10 分鐘 | 15 分鐘 |
-| **程式碼需求** | 自訂類別 | 最少 | 手動設定 |
-| **彈性** | 高 | 低 | 最大 |
-| **學習曲線** | 中等 | 簡單 | 進階 |
-| **自動設定** | 手動 | 是 | 手動 |
-| **自訂邏輯** | 完全 | 有限 | 完全 |
-| **最適合** | 自訂裝置 | 快速開始 | 企業應用 |
+| 功能 | subnode | wedaapi |
+|------|---------|---------|
+| **風格** | Console App | Web API |
+| **設定時間** | 15 分鐘 | 10 分鐘 |
+| **程式碼需求** | 自訂類別 | 最少 |
+| **彈性** | 高 | 中等 |
+| **學習曲線** | 中等 | 簡單 |
+| **使用情境** | 單一裝置開發/調試 | Production 多裝置 |
+| **最適合** | 開發與調試 | Production 部署 |
 
 **建議**：
 - 第一次使用 SDK？從 **wedaapi** 開始
-- 需要自訂邏輯？使用 **subnode**
-- 需要完全控制？使用 **wedaapi-c**
+- 需要單一裝置開發/調試？使用 **subnode**
+- Production 部署？使用 **wedaapi**
 
 ---
 
@@ -163,9 +162,8 @@ docs/wiki/
     ├── 01_quick_start/                # 快速開始指南
     │   ├── 00_overview.md             # 模板比較
     │   ├── 01_install_templates.md    # 安裝
-    │   ├── 02_subnode_basic.md        # subnode 模板
-    │   ├── 03_wedaapi_basic.md        # wedaapi 模板
-    │   ├── 04_wedaapi_c_basic.md      # wedaapi-c 模板
+    │   ├── 02_wedaapi_basic.md        # wedaapi 模板 (Web API)
+    │   ├── 03_subnode_basic.md        # subnode 模板 (Console App)
     │   ├── 05_connect_real_device.md  # 連接真實裝置
     │   ├── 06_connect_weda_core.md    # 連接 Weda.Core
     │   └── 07_real_device_isensing.md # iSensing 裝置

@@ -8,25 +8,6 @@ A comprehensive .NET SDK for IoT edge devices, providing device connectivity, da
 
 **[Read Full Documentation](docs/wiki/en/README.md)**
 
-- [Introduction](docs/wiki/en/introduction.md) - SDK overview and features
-- [How to Start](docs/wiki/en/how_to_start.md) - Quick start guide
-- [Modbus Scanner](docs/wiki/en/modbus/ModbusScanner.md) - Auto-discover device configuration
-- [Telemetry Transform](docs/wiki/en/transform/TelemetryTransform.md) - Data processing pipeline
-
-## Quick Start
-
-```bash
-# Install template
-dotnet new install Weda.SubNode.Templates
-
-# Create project
-dotnet new wedaapi -n MyIoTApp
-cd MyIoTApp
-
-# Run
-dotnet run
-```
-
 ## Features
 
 - **Multi-Protocol Support** - Modbus TCP/RTU, MQTT

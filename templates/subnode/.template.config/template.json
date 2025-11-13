@@ -1,11 +1,11 @@
 {
   "$schema": "http://json.schemastore.org/template",
   "author": "Advantech",
-  "classifications": ["Console", "IoT", "Weda", "SubNode", "Custom"],
-  "identity": "Weda.SubNode.CustomDevice",
-  "name": "Weda SubNode Custom Device",
+  "classifications": ["Console", "IoT", "Weda", "SubNode"],
+  "identity": "Weda.SubNode.Console",
+  "name": "Weda SubNode Console Application",
   "shortName": "subnode",
-  "description": "Creates a custom SubNode by inheriting from ModbusDevice (MyFirstDevice pattern)",
+  "description": "Creates a console-style SubNode application for single device development and debugging (similar to Console App)",
   "tags": {
     "language": "C#",
     "type": "project"

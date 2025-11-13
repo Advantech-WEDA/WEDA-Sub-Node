@@ -58,7 +58,7 @@ public class ModbusBatchReader
             // Create batches for this register type
             var batches = CreateOptimizedBatches(typeGroup.ToList());
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Optimized {SensorCount} sensors into {BatchCount} batch(es) for {RegisterType}",
                 typeGroup.Count(),
                 batches.Count,

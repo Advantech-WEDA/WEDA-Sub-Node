@@ -14,7 +14,7 @@ translations:
 
 # Install Templates
 
-Learn how to install the three Weda SubNode SDK project templates.
+Learn how to install the two Weda SubNode SDK project templates.
 
 **Time**: 3 minutes
 **Difficulty**: Beginner
@@ -61,19 +61,15 @@ Installing templates from: /path/to/edge_subnode/templates
 Success: Weda.SubNode.CustomDevice installed successfully
 
 → Installing template: wedaapi
-Success: Weda.SubNode.API.Simple installed successfully
-
-→ Installing template: wedaapi-c
-Success: Weda.SubNode.API.Advanced installed successfully
+Success: Weda.SubNode.WebApi installed successfully
 
 ════════════════════════════════════════════════════════════════
-✓ Successfully installed 3 templates
+✓ Successfully installed 2 templates
 ════════════════════════════════════════════════════════════════
 
 Available templates:
-- subnode    : Custom Device (inherits from ModbusDevice)
-- wedaapi    : Simple API (auto-configuration)
-- wedaapi-c  : Advanced API (full control)
+- subnode    : Console App style (single device dev/debug)
+- wedaapi    : Web API style (production multi-device)
 
 Verify installation: dotnet new list | grep -i subnode
 ```
@@ -90,9 +86,6 @@ dotnet new install ./subnode
 
 # Install wedaapi template
 dotnet new install ./wedaapi
-
-# Install wedaapi-c template
-dotnet new install ./wedaapi-c
 ```
 
 ---
@@ -109,12 +102,11 @@ dotnet new list | grep -i subnode
 ```
 Template Name                         Short Name   Language  Tags
 ------------------------------------  -----------  --------  -----------------------
-Weda SubNode API (Advanced)           wedaapi-c    [C#]      Weda/SubNode/IoT/Advanced
-Weda SubNode API (Simple)             wedaapi      [C#]      Weda/SubNode/IoT
-Weda SubNode Custom Device            subnode      [C#]      Console/IoT/Weda/SubNode/Custom
+Weda SubNode Console Application      subnode      [C#]      Console/IoT/Weda/SubNode
+Weda SubNode Web API Application      wedaapi      [C#]      Web/WebAPI/IoT/Weda/SubNode
 ```
 
-If you see all three templates listed, installation was successful! ✅
+If you see both templates listed, installation was successful! ✅
 
 ---
 
@@ -122,35 +114,28 @@ If you see all three templates listed, installation was successful! ✅
 
 After installation, you have access to:
 
-### 1. subnode - Custom Device Template
+### 1. subnode - Console Application Template
 
 **Short name**: `subnode`
 **Usage**: `dotnet new subnode -n MyDevice`
+**Style**: Console App
 
 Creates a project with:
 - Custom device class inheriting from `TcpModbusDevice`
 - Event-driven architecture (`OnDataReceived`)
-- Full control over device behavior
+- Ideal for single device development and debugging
 
-### 2. wedaapi - Simple API Template
+### 2. wedaapi - Web API Template
 
 **Short name**: `wedaapi`
 **Usage**: `dotnet new wedaapi -n MyApp`
+**Style**: Web API
 
 Creates a project with:
-- Minimal code (3 lines in `Program.cs`)
+- Minimal code using `CreateDefaultBuilder` pattern
 - Configuration-driven (`appsettings.json`)
 - Auto-initialization and device management
-
-### 3. wedaapi-c - Advanced API Template
-
-**Short name**: `wedaapi-c`
-**Usage**: `dotnet new wedaapi-c -n MyApp`
-
-Creates a project with:
-- Full builder pattern control
-- Manual service registration
-- Manual device registration with `AddDevice<T>()`
+- Ideal for production deployment with multiple devices
 
 ---
 
@@ -302,9 +287,8 @@ Uninstall old templates first:
 dotnet new uninstall
 
 # Uninstall specific template
-dotnet new uninstall Weda.SubNode.CustomDevice
-dotnet new uninstall Weda.SubNode.API.Simple
-dotnet new uninstall Weda.SubNode.API.Advanced
+dotnet new uninstall Weda.SubNode.Console
+dotnet new uninstall Weda.SubNode.WebApi
 
 # Reinstall
 bash scripts/install-templates.sh
@@ -336,9 +320,8 @@ The install script automatically handles template updates.
 To remove all Weda SubNode templates:
 
 ```bash
-dotnet new uninstall Weda.SubNode.CustomDevice
-dotnet new uninstall Weda.SubNode.API.Simple
-dotnet new uninstall Weda.SubNode.API.Advanced
+dotnet new uninstall Weda.SubNode.Console
+dotnet new uninstall Weda.SubNode.WebApi
 ```
 
 Verify removal:
@@ -359,27 +342,20 @@ Now that templates are installed, choose your path:
 - Zero code required
 - Configuration-driven
 
-### For Custom Logic
-**[→ subnode - Custom Device](02_subnode_basic.md)**
-- Object-oriented architecture
-- Event-driven
-- Full control over device behavior
-
-### For Advanced Users
-**[→ wedaapi-c - Advanced API](04_wedaapi_c_basic.md)**
-- Complete control over DI
-- Manual service registration
-- Enterprise-ready
+### For Single Device Development
+**[→ subnode - Console App](02_subnode_basic.md)**
+- Console application style
+- Event-driven architecture
+- Ideal for development and debugging
 
 ---
 
 ## Summary
 
-You've successfully installed three Weda SubNode SDK templates:
+You've successfully installed two Weda SubNode SDK templates:
 
-- ✅ `subnode` - Custom Device template
-- ✅ `wedaapi` - Simple API template
-- ✅ `wedaapi-c` - Advanced API template
+- ✅ `subnode` - Console App template (single device dev/debug)
+- ✅ `wedaapi` - Web API template (production multi-device)
 
 **Ready to build?** Pick a template guide above and start building your first IoT edge device!
 

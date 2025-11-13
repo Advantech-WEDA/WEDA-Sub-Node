@@ -25,43 +25,54 @@ NC='\033[0m' # No Color
 
 # Check if templates directory exists
 if [ ! -d "$TEMPLATES_DIR" ]; then
-    echo "❌ Error: Templates directory not found at $TEMPLATES_DIR"
+    echo "Error: Templates directory not found at $TEMPLATES_DIR"
     exit 1
 fi
 
-echo -e "${BLUE}📦 Installing templates from: $TEMPLATES_DIR${NC}"
+echo -e "${BLUE}Installing templates from: $TEMPLATES_DIR${NC}"
 echo ""
 
-# Uninstall existing templates first (to avoid conflicts)
-echo -e "${YELLOW}🗑️  Uninstalling existing templates...${NC}"
+# Step 1: Uninstall ALL old Weda SubNode templates (including NuGet packages)
+echo -e "${YELLOW}️Cleaning up old templates...${NC}"
+echo ""
+
+# Uninstall known old package names
+OLD_PACKAGE="Weda.SubNode.Templates"
+
+echo "Removing old package: $OLD_PACKAGE"
+dotnet new uninstall "$OLD_PACKAGE" 2>/dev/null || true
+
+# Also uninstall local templates directory (if previously installed)
 dotnet new uninstall "$TEMPLATES_DIR" 2>/dev/null || true
 echo ""
 
-# Install templates
-echo -e "${BLUE}📥 Installing new templates...${NC}"
+# Step 2: Install fresh templates from local directory
+echo -e "${BLUE}Installing fresh templates...${NC}"
 dotnet new install "$TEMPLATES_DIR"
 
 echo ""
-echo -e "${GREEN}✅ Template installation completed!${NC}"
+echo -e "${GREEN}Template installation completed!${NC}"
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo " Available Templates:"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
-echo "  subnode   - Custom SubNode (inherits from ModbusDevice)"
-echo "  wedaapi     - Simple Weda SubNode API"
-echo "  wedaapi-c   - Advanced Weda SubNode API (CreateBuilder pattern)"
+echo "  subnode   - Console App style (single device dev/debug)"
+echo "  wedaapi   - Web API style (production multi-device)"
 echo ""
 echo "────────────────────────────────────────────────────────────────"
 echo " Usage Examples:"
 echo "────────────────────────────────────────────────────────────────"
 echo ""
-echo "  # Create custom device"
+echo "  # Create console app for single device"
 echo "  dotnet new subnode -n MyDevice"
 echo ""
-echo "  # Create simple API application"
+echo "  # Create web API for production"
 echo "  dotnet new wedaapi -n MyApp"
 echo ""
-echo "  # Create advanced API application"
-echo "  dotnet new wedaapi-c -n MyAdvancedApp"
+echo "────────────────────────────────────────────────────────────────"
+echo " Verify Installation:"
+echo "────────────────────────────────────────────────────────────────"
+echo ""
+echo "  dotnet new list | grep -i subnode"
 echo ""

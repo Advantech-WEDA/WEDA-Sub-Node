@@ -1,11 +1,11 @@
 {
   "$schema": "http://json.schemastore.org/template",
   "author": "Advantech",
-  "classifications": ["Weda", "SubNode", "IoT"],
-  "identity": "Weda.SubNode.Api",
-  "name": "Weda SubNode Service (Simple)",
+  "classifications": ["Web", "WebAPI", "IoT", "Weda", "SubNode"],
+  "identity": "Weda.SubNode.WebApi",
+  "name": "Weda SubNode Web API Application",
   "shortName": "wedaapi",
-  "description": "Creates a Weda SubNode application using CreateDefaultBuilder pattern (automatic configuration)",
+  "description": "Creates a web API-style SubNode application for production with multiple devices (similar to ASP.NET Web API)",
   "tags": {
     "language": "C#",
     "type": "project"

@@ -97,7 +97,7 @@ public abstract class CommunicationBase : ICommunication
 
     protected virtual void OnStateChanged(CommunicationState previousState, CommunicationState currentState, string? reason = null)
     {
-        _logger.LogInformation("Communication state changed from {PreviousState} to {CurrentState}", previousState, currentState);
+        _logger.LogDebug("Communication state changed from {PreviousState} to {CurrentState}", previousState, currentState);
 
         var @event = new ConnectionStateChangedEvent(
             DeviceId: "Unknown", // Will be set by device

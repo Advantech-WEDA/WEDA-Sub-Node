@@ -1,8 +1,8 @@
 ---
 title: "Build Custom Device with subnode Template"
-description: "Create your first custom device using object-oriented architecture inheriting from ModbusDevice"
+description: "Create a console-style SubNode application for single device development"
 author: "Rain Hu"
-date: "2025-11-09"
+date: "2025-11-12"
 lang: "en"
 parent: "README"
 prev: "01_install_templates"
@@ -18,30 +18,16 @@ templates:
 
 # Build Custom Device with subnode Template
 
-Learn how to create a custom IoT device using the `subnode` template with object-oriented inheritance architecture.
+Learn how to create an IoT device application using the `subnode` template. `subnode` is a **console-style template**, ideal for single device development and debugging.
+
+## Template Analogy
+
+- **subnode** ↔ **Console App**: Ideal for single device development and debugging
+- **wedaapi** ↔ **Web API**: Production-ready for managing multiple devices at once
 
 **Time Required**: 15 minutes
 **Difficulty**: Intermediate
 **Target Audience**: Developers familiar with OOP
-
----
-
-## What is the subnode Template?
-
-The `subnode` template creates an **object-oriented** project where you can:
-
-- ✅ **Inherit** from `TcpModbusDevice` base class
-- ✅ **Override** event handlers (`OnDataReceived`, `OnBeforeCommandAsync`, etc.)
-- ✅ **Full control** over device behavior and business logic
-- ✅ **Test locally** with built-in Simulator
-
-### When to Use subnode Template?
-
-Choose the subnode template when you need:
-- 📌 Custom business logic implementation
-- 📌 Event interception and handling
-- 📌 Full control over data flow
-- 📌 Object-oriented design patterns
 
 ---
 
@@ -1568,17 +1554,11 @@ dotnet build
 
 You've mastered the subnode template! Explore other options:
 
-### Want simpler approach?
-**[→ wedaapi - Simple API](03_wedaapi_basic.md)**
-- Zero code
-- Configuration-driven
-- Rapid prototyping
-
-### Need full control?
-**[→ wedaapi-c - Advanced API](04_wedaapi_c_basic.md)**
-- Full DI container control
-- Manual service registration
-- Enterprise-ready
+### Want production-ready multi-device management?
+**[→ wedaapi - Web API Template](03_wedaapi_basic.md)**
+- Hosted service pattern
+- Multiple device management
+- Production deployment
 
 ### Deep dive
 **[→ Use Cases](../../02_use_cases/README.md)**
@@ -1604,5 +1584,5 @@ In this tutorial, you learned:
 ---
 
 **Version**: 1.0.0
-**Last Updated**: 2025-11-09
+**Last Updated**: 2025-11-12
 **Maintainer**: Rain Hu

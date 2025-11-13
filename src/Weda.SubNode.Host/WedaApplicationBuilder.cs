@@ -98,6 +98,85 @@ public class WedaApplicationBuilder
     }
 
     /// <summary>
+    /// Add a device by type, automatically loading configuration from appsettings.json.
+    /// The device configuration will be read from DeviceConfigs section using the type name as key.
+    ///
+    /// Example for AddDevice&lt;MyCustomDevice&gt;():
+    /// {
+    ///   "DeviceConfigs": {
+    ///     "MyCustomDevice": {  // Uses typeof(TDevice).Name as key
+    ///       "Enabled": true,
+    ///       "DeviceName": "My Device",
+    ///       "Communication": { "Host": "192.168.1.100", "Port": 502 },
+    ///       ...
+    ///     }
+    ///   }
+    /// }
+    /// </summary>
+    /// <typeparam name="TDevice">The custom device type (e.g., MyFirstDevice : TcpModbusDevice)</typeparam>
+    /// <returns>The builder for chaining</returns>
+    public WedaApplicationBuilder AddDevice<TDevice>()
+        where TDevice : IDevice
+    {
+        return AddDevice<TDevice>(typeof(TDevice).Name);
+    }
+
+    /// <summary>
+    /// Add a device by type with explicit configuration section name.
+    /// The device configuration will be read from DeviceConfigs section using the specified section name.
+    ///
+    /// Example for AddDevice&lt;MyCustomDevice&gt;("MyFirstDevice"):
+    /// {
+    ///   "DeviceConfigs": {
+    ///     "MyFirstDevice": {  // Uses the specified sectionName as key
+    ///       "Enabled": true,
+    ///       "DeviceName": "Another Device",
+    ///       "Communication": { "Host": "127.0.0.1", "Port": 5020 },
+    ///       ...
+    ///     }
+    ///   }
+    /// }
+    /// </summary>
+    /// <typeparam name="TDevice">The custom device type (e.g., MyFirstDevice : TcpModbusDevice)</typeparam>
+    /// <param name="sectionName">The configuration section name in DeviceConfigs</param>
+    /// <returns>The builder for chaining</returns>
+    public WedaApplicationBuilder AddDevice<TDevice>(string sectionName)
+        where TDevice : IDevice
+    {
+        if (string.IsNullOrWhiteSpace(sectionName))
+        {
+            throw new ArgumentException("Section name cannot be null or whitespace", nameof(sectionName));
+        }
+
+        // Load configuration from appsettings.json using the specified section name
+        var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
+        if (!deviceConfigSection.Exists())
+        {
+            throw new InvalidOperationException(
+                $"Device configuration section 'DeviceConfigs:{sectionName}' not found in appsettings.json. " +
+                $"Please ensure the configuration exists.");
+        }
+
+        var config = deviceConfigSection.Get<DeviceConfiguration>();
+        if (config == null)
+        {
+            throw new InvalidOperationException(
+                $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
+                $"Please check your appsettings.json format.");
+        }
+
+        // Ensure DeviceTypeName is set for factory resolution
+        if (string.IsNullOrEmpty(config.DeviceTypeName))
+        {
+            config.DeviceTypeName = typeof(TDevice).Name;
+        }
+
+        // Create factory that will instantiate the device with the loaded configuration
+        return AddDevice<TDevice>(context =>
+            (TDevice)Activator.CreateInstance(typeof(TDevice), context, config)!);
+    }
+
+    /// <summary>
     /// Add a custom device with a factory function that creates the device instance.
     /// Use this overload when your device needs custom construction logic beyond the standard convention.
     ///

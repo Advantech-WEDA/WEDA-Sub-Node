@@ -67,13 +67,13 @@ public class ModbusDevice : DeviceBase
 
         if (_useBatchOptimization)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Modbus batch optimization ENABLED for device ({SensorCount} sensors)",
                 _sensorRegisters.Count);
         }
         else
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Modbus batch optimization DISABLED for device (using legacy single-point reading)"
                 );
         }
@@ -303,7 +303,7 @@ public class ModbusDevice : DeviceBase
         _telemetryTask = Task.Run(async () =>
         {
             var period = Configuration.Periods.ReadTelemetry;
-            _logger.LogInformation("Starting telemetry task with period {Period}ms", period);
+            _logger.LogDebug("Starting telemetry task with period {Period}ms", period);
 
             while (!cts.IsCancellationRequested)
             {
@@ -367,7 +367,7 @@ public class ModbusDevice : DeviceBase
         _healthTask = Task.Run(async () =>
         {
             var period = Configuration.Periods.ReportHealth;
-            _logger.LogInformation("Starting health reporting task with period {Period}ms", period);
+            _logger.LogDebug("Starting health reporting task with period {Period}ms", period);
 
             while (!cts.IsCancellationRequested)
             {

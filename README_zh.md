@@ -8,11 +8,6 @@
 
 **[閱讀完整文件](docs/wiki/zh/README.md)**
 
-- [簡介](docs/wiki/zh/introduction.md) - SDK 概述與功能
-- [如何開始](docs/wiki/zh/how_to_start.md) - 快速入門指南
-- [Modbus 掃描器](docs/wiki/zh/modbus/modbus_scanner.md) - 自動探測設備配置
-- [Telemetry 轉換](docs/wiki/zh/transform/telemetry_transform.md) - 資料處理管道
-
 ## 快速開始
 
 ```bash
