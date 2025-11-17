@@ -119,9 +119,8 @@ public record ConfigUpdateReportDto(
             return null;
         }
 
-        // Use first enabled DSP filter
+        // Use first enabled DSP filter (order is array index, no sorting needed)
         var firstFilter = config.DspPipeline
-            .OrderBy(f => f.Order)
             .FirstOrDefault(f => f.Enabled);
 
         if (firstFilter == null)

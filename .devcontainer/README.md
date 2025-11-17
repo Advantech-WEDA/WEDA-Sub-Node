@@ -41,7 +41,7 @@ This development container provides a fully configured environment for developin
 - **dotnet-outdated-tool** - Check for outdated packages
 - **Git** - Version control
 - **GitHub CLI** - GitHub command-line tool
-- **Weda SubNode Templates** - Pre-installed project templates (wedaapi, subnode)
+- **Weda SubNode Templates** - Pre-installed project templates (wedabuilder, subnode)
 
 > **Note**: `dotnet-ef` is not pre-installed due to package issues, but can be installed manually if needed: `dotnet tool install --global dotnet-ef`
 
@@ -75,7 +75,7 @@ Templates are pre-installed in the dev container, so you can create projects imm
 # Create a new Web API style project (recommended for production)
 mkdir devices
 cd devices
-dotnet new wedaapi -n MyNewDevice
+dotnet new wedabuilder -n MyNewDevice
 cd ..
 dotnet sln add devices/MyNewDevice/MyNewDevice.csproj
 

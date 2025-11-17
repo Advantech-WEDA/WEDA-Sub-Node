@@ -10,6 +10,7 @@ public static class DspFilterFactory
 {
     /// <summary>
     /// Creates a list of DSP filters from configuration
+    /// Execution order is determined by the array index in the configuration (not by Order property)
     /// </summary>
     /// <param name="configs">DSP filter configurations</param>
     /// <returns>List of instantiated filters</returns>
@@ -20,13 +21,9 @@ public static class DspFilterFactory
 
         var filters = new List<IDspFilter>();
 
-        // Sort by Order property
-        var sortedConfigs = configs
-            .Where(c => c.Enabled)
-            .OrderBy(c => c.Order)
-            .ToList();
-
-        foreach (var config in sortedConfigs)
+        // Process in array order (index 0, 1, 2, ...) - no sorting
+        // Only filter out disabled filters
+        foreach (var config in configs.Where(c => c.Enabled))
         {
             var filter = CreateFilter(config);
             if (filter != null)

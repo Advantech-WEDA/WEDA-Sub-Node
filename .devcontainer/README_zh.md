@@ -41,7 +41,7 @@
 - **dotnet-outdated-tool** - 檢查過期套件
 - **Git** - 版本控制
 - **GitHub CLI** - GitHub 命令列工具
-- **Weda SubNode Templates** - 預先安裝的專案範本（wedaapi、subnode）
+- **Weda SubNode Templates** - 預先安裝的專案範本（wedabuilder、subnode）
 
 > **注意**：由於套件問題，`dotnet-ef` 未預先安裝，但如需要可手動安裝：`dotnet tool install --global dotnet-ef`
 
@@ -75,7 +75,7 @@ dotnet test
 # 建立 Web API 風格專案（生產環境推薦）
 mkdir devices
 cd devices
-dotnet new wedaapi -n MyNewDevice
+dotnet new wedabuilder -n MyNewDevice
 cd ..
 dotnet sln add devices/MyNewDevice/MyNewDevice.csproj
 

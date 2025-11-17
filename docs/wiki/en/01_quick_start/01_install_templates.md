@@ -60,7 +60,7 @@ Installing templates from: /path/to/edge_subnode/templates
 → Installing template: subnode
 Success: Weda.SubNode.CustomDevice installed successfully
 
-→ Installing template: wedaapi
+→ Installing template: wedabuilder
 Success: Weda.SubNode.WebApi installed successfully
 
 ════════════════════════════════════════════════════════════════
@@ -69,7 +69,7 @@ Success: Weda.SubNode.WebApi installed successfully
 
 Available templates:
 - subnode    : Console App style (single device dev/debug)
-- wedaapi    : Web API style (production multi-device)
+- wedabuilder    : Web API style (production multi-device)
 
 Verify installation: dotnet new list | grep -i subnode
 ```
@@ -84,8 +84,8 @@ cd /path/to/edge_subnode/templates
 # Install subnode template
 dotnet new install ./subnode
 
-# Install wedaapi template
-dotnet new install ./wedaapi
+# Install wedabuilder template
+dotnet new install ./wedabuilder
 ```
 
 ---
@@ -103,7 +103,7 @@ dotnet new list | grep -i subnode
 Template Name                         Short Name   Language  Tags
 ------------------------------------  -----------  --------  -----------------------
 Weda SubNode Console Application      subnode      [C#]      Console/IoT/Weda/SubNode
-Weda SubNode Web API Application      wedaapi      [C#]      Web/WebAPI/IoT/Weda/SubNode
+Weda SubNode Web API Application      wedabuilder      [C#]      Web/WebAPI/IoT/Weda/SubNode
 ```
 
 If you see both templates listed, installation was successful! ✅
@@ -125,10 +125,10 @@ Creates a project with:
 - Event-driven architecture (`OnDataReceived`)
 - Ideal for single device development and debugging
 
-### 2. wedaapi - Web API Template
+### 2. wedabuilder - Web API Template
 
-**Short name**: `wedaapi`
-**Usage**: `dotnet new wedaapi -n MyApp`
+**Short name**: `wedabuilder`
+**Usage**: `dotnet new wedabuilder -n MyApp`
 **Style**: Web API
 
 Creates a project with:
@@ -210,7 +210,7 @@ rm -rf QuickTest
 
 ---
 
-### Quick Test Option 2: Using wedaapi Template
+### Quick Test Option 2: Using wedabuilder Template
 
 If you want to test the simpler API template:
 
@@ -337,7 +337,7 @@ dotnet new list | grep -i subnode
 Now that templates are installed, choose your path:
 
 ### Recommended for Beginners
-**[→ wedaapi - Simple API](03_wedaapi_basic.md)**
+**[→ wedabuilder - Simple API](03_wedabuilder_basic.md)**
 - Fastest way to get started
 - Zero code required
 - Configuration-driven
@@ -355,7 +355,7 @@ Now that templates are installed, choose your path:
 You've successfully installed two Weda SubNode SDK templates:
 
 - ✅ `subnode` - Console App template (single device dev/debug)
-- ✅ `wedaapi` - Web API template (production multi-device)
+- ✅ `wedabuilder` - Web API template (production multi-device)
 
 **Ready to build?** Pick a template guide above and start building your first IoT edge device!
 

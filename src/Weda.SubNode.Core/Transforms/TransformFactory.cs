@@ -10,6 +10,7 @@ public static class TransformFactory
 {
     /// <summary>
     /// Creates a list of transforms from configuration
+    /// Execution order is determined by the array index in the configuration (not by Order property)
     /// </summary>
     /// <param name="configs">Transform configurations</param>
     /// <returns>List of instantiated transforms</returns>
@@ -20,13 +21,9 @@ public static class TransformFactory
 
         var transforms = new List<ITelemetryTransform>();
 
-        // Sort by Order property
-        var sortedConfigs = configs
-            .Where(c => c.Enabled)
-            .OrderBy(c => c.Order)
-            .ToList();
-
-        foreach (var config in sortedConfigs)
+        // Process in array order (index 0, 1, 2, ...) - no sorting
+        // Only filter out disabled transforms
+        foreach (var config in configs.Where(c => c.Enabled))
         {
             var transform = CreateTransform(config);
             if (transform != null)

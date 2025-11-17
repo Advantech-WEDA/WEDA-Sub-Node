@@ -1,5 +1,5 @@
 ---
-title: "使用 wedaapi 模板快速開始"
+title: "使用 wedabuilder 模板快速開始"
 description: "使用 Web API 風格的模板建立 production 就緒的 SubNode 應用程式"
 author: "Rain Hu"
 date: "2025-11-12"
@@ -9,20 +9,20 @@ prev: "01_install_templates"
 next: "03_subnode_basic"
 translations:
   - lang: "en"
-    path: "../../en/01_quick_start/02_wedaapi_basic.md"
+    path: "../../en/01_quick_start/02_wedabuilder_basic.md"
 examples:
   - "examples/basic-modbus"
 templates:
-  - "wedaapi"
+  - "wedabuilder"
 ---
 
-# 使用 wedaapi 模板快速開始
+# 使用 wedabuilder 模板快速開始
 
-學習如何使用 `wedaapi` 模板建立 IoT 裝置應用程式。`wedaapi` 是一個 **Web API 風格的模板**，適合 production 環境的多裝置管理。
+學習如何使用 `wedabuilder` 模板建立 IoT 裝置應用程式。`wedabuilder` 是一個 **Web API 風格的模板**，適合 production 環境的多裝置管理。
 
 ## 模板類比
 
-- **wedaapi** ↔ **Web API**：production 時，用於 multi device 一次建立
+- **wedabuilder** ↔ **Web API**：production 時，用於 multi device 一次建立
 - **subnode** ↔ **Console App**：方便用於單一 device 的開發、調試
 
 **所需時間**: 10 分鐘
@@ -33,7 +33,7 @@ templates:
 
 完成本教學後，您將學會:
 
-1. 使用 `dotnet new wedaapi` 建立專案並執行
+1. 使用 `dotnet new wedabuilder` 建立專案並執行
 2. 理解 `CreateDefaultBuilder` 模式的自動化配置
 3. 透過 `appsettings.json` 設定裝置與雲端連接
 
@@ -46,7 +46,7 @@ templates:
 
 ---
 
-## 目標 1: 建立並執行 wedaapi 專案
+## 目標 1: 建立並執行 wedabuilder 專案
 
 ### 步驟 1: 建立專案
 
@@ -57,7 +57,7 @@ mkdir devices
 cd devices
 
 # 建立專案
-dotnet new wedaapi -n MyFirstApi
+dotnet new wedabuilder -n MyFirstApi
 
 # 回到 solution 根目錄
 cd ..
@@ -124,7 +124,7 @@ dotnet run
 
 ---
 
-## 目標 2: 理解 wedaapi 架構
+## 目標 2: 理解 wedabuilder 架構
 
 ### Program.cs - 簡潔的進入點
 
@@ -533,9 +533,9 @@ dotnet run
 
 ---
 
-## wedaapi vs subnode 比較
+## wedabuilder vs subnode 比較
 
-| 特性 | wedaapi | subnode |
+| 特性 | wedabuilder | subnode |
 |------|---------|---------|
 | **風格** | Web API | Console App |
 | **程式碼量** | 少 | 中等（需寫類別） |
@@ -550,7 +550,7 @@ dotnet run
 
 ## 總結
 
-1. **建立專案**: `dotnet new wedaapi` 快速建立 Web API 風格專案
+1. **建立專案**: `dotnet new wedabuilder` 快速建立 Web API 風格專案
 2. **簡潔程式碼**: 使用 `CreateDefaultBuilder` 自動化配置
 3. **配置驅動**: 所有設定都在 `appsettings.json` 的 `DeviceConfigs`
 4. **多裝置管理**: 在 JSON 新增配置區塊即可加入新裝置

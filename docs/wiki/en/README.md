@@ -35,7 +35,7 @@ Weda SubNode SDK is a .NET framework for building industrial IoT edge applicatio
 Start here if you're new to Weda SubNode SDK:
 1. [Overview - Choose Your Template](01_quick_start/00_overview.md) (5 min)
 2. [Install Templates](01_quick_start/01_install_templates.md) (3 min)
-3. [Your First Device - wedaapi](01_quick_start/03_wedaapi_basic.md) (10 min)
+3. [Your First Device - wedabuilder](01_quick_start/03_wedabuilder_basic.md) (10 min)
 
 ### For Experienced Developers
 Jump to advanced topics:
@@ -55,7 +55,7 @@ Choose one of two templates based on your needs:
 | [00. Overview](01_quick_start/00_overview.md) | Compare templates and choose the right one | - | 5 min | Beginner |
 | [01. Install Templates](01_quick_start/01_install_templates.md) | Install project templates | - | 3 min | Beginner |
 | [02. subnode - Console App](01_quick_start/02_subnode_basic.md) | Console-style for single device development | `subnode` | 15 min | Intermediate |
-| [03. wedaapi - Web API](01_quick_start/03_wedaapi_basic.md) | Web API-style for production with multiple devices | `wedaapi` | 10 min | Beginner |
+| [03. wedabuilder - Web API](01_quick_start/03_wedabuilder_basic.md) | Web API-style for production with multiple devices | `wedabuilder` | 10 min | Beginner |
 
 **Default Setup**: All templates use **Modbus Simulator** + **MockCloudService** by default.
 
@@ -88,7 +88,7 @@ Choose one of two templates based on your needs:
 
 ## Two Templates Comparison
 
-| Feature | subnode | wedaapi |
+| Feature | subnode | wedabuilder |
 |---------|---------|---------|
 | **Style** | Console App | Web API |
 | **Setup Time** | 15 min | 10 min |
@@ -99,9 +99,9 @@ Choose one of two templates based on your needs:
 | **Best For** | Development & debugging | Production deployment |
 
 **Recommendation**:
-- New to SDK? Start with **wedaapi**
+- New to SDK? Start with **wedabuilder**
 - Need single device dev/debug? Use **subnode**
-- Production deployment? Use **wedaapi**
+- Production deployment? Use **wedabuilder**
 
 ---
 
@@ -138,7 +138,7 @@ Before you begin:
 Explore working examples in the repository:
 
 ### Open Source Examples
-- [examples/basic-modbus](../../examples/basic-modbus) - Basic Modbus device with wedaapi
+- [examples/basic-modbus](../../examples/basic-modbus) - Basic Modbus device with wedabuilder
 - [examples/simulator-demo](../../examples/simulator-demo) - Complete simulator setup
 
 ### Internal Examples (Internal branch only)
@@ -157,7 +157,7 @@ docs/wiki/
 │   │   ├── 00_overview.md             # Template comparison
 │   │   ├── 01_install_templates.md    # Installation
 │   │   ├── 02_subnode_basic.md        # subnode template (Console App)
-│   │   ├── 03_wedaapi_basic.md        # wedaapi template (Web API)
+│   │   ├── 03_wedabuilder_basic.md        # wedabuilder template (Web API)
 │   │   ├── 05_connect_real_device.md  # Connect real device
 │   │   ├── 06_connect_weda_core.md    # Connect Weda.Core
 │   │   └── 07_real_device_isensing.md # iSensing devices
@@ -207,7 +207,7 @@ When adding new documentation:
 
 1. [Overview - Choose Your Template →](01_quick_start/00_overview.md)
 2. [Install Templates →](01_quick_start/01_install_templates.md)
-3. [Build Your First Device →](01_quick_start/03_wedaapi_basic.md)
+3. [Build Your First Device →](01_quick_start/03_wedabuilder_basic.md)
 
 ---
 

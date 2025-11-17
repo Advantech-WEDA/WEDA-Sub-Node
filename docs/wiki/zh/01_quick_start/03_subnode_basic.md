@@ -5,7 +5,7 @@ author: "Rain Hu"
 date: "2025-11-12"
 lang: "zh"
 parent: "README"
-prev: "02_wedaapi_basic"
+prev: "02_wedabuilder_basic"
 next: "04_configuration"
 translations:
   - lang: "en"
@@ -23,7 +23,7 @@ templates:
 ## 模板類比
 
 - **subnode** ↔ **Console App**：方便用於單一 device 的開發、調試
-- **wedaapi** ↔ **Web API**：production 時，用於 multi device 一次建立
+- **wedabuilder** ↔ **Web API**：production 時，用於 multi device 一次建立
 
 **所需時間**: 15 分鐘
 
@@ -88,7 +88,7 @@ devices/MyFirstSubnode/
 ```
 
 **重點說明**：
-- 與 wedaapi 不同，subnode 使用 **programmatic 配置**（在 `Program.cs` 中）
+- 與 wedabuilder 不同，subnode 使用 **programmatic 配置**（在 `Program.cs` 中）
 - `appsettings.json` 僅包含 Serilog 日誌設定
 - 適合需要完全控制裝置生命週期的開發場景
 - `MyFirstSubnode.csproj` 使用 project reference 參考 SDK 專案

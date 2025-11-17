@@ -15,6 +15,6 @@ dotnet new install ./templates
 echo "✓ Weda SubNode Templates installed successfully"
 echo ""
 echo "Available templates:"
-dotnet new list | grep -i weda || echo "  - wedaapi: Web API style template"
+dotnet new list | grep -i weda || echo "  - wedabuilder: Web API style template"
 echo "  - subnode: Console style template"
 echo ""

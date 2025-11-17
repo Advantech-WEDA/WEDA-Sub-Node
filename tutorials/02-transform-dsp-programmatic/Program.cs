@@ -3,8 +3,17 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Host;
 using Weda.SubNode.Simulators.Modbus;
 
-var builder = WedaApplication.CreateDefaultBuilder(args)
-    .UseMockCloud();
+using TransformDspProgrammatic;
+
+var builder = WedaApplication.CreateBuilder(args)
+    .AddLogging()
+    .AddTelemetry()        // uplink
+    .AddHealthReporting()  // uplink
+    .AddCommands()         // downlink
+    .AddConfigUpdates()    // downlink
+    .UseMockCloud();       // use a mock server instead of Weda.Core
+
+builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");
 
 // Register Modbus simulator as hosted service (starts automatically with the app)
 builder.Services.AddHostedService(sp =>

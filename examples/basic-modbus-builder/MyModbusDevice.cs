@@ -4,15 +4,15 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Devices.Generic;
 
-namespace WedaApi;
+namespace BasicModbusBuilderExample;
 
 /// <summary>
-/// MyFirstDevice - A simple custom device implementation
-/// Inherits from TcpModbusDevice to get Modbus TCP protocol support
+/// Custom Modbus device implementation using Builder pattern
+/// Demonstrates basic event handling and telemetry processing
 /// </summary>
-public class MyFirstDevice : TcpModbusDevice
+public class MyModbusDevice : TcpModbusDevice
 {
-    public MyFirstDevice(
+    public MyModbusDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
         : base(context, configuration)
@@ -34,9 +34,10 @@ public class MyFirstDevice : TcpModbusDevice
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
             if (measure?.Value != null)
             {
-                _logger.LogInformation("{SensorName}: {Value}",
+                _logger.LogInformation("{SensorName}: {Value} {Unit}",
                     sensor.Name,
-                    measure.Value);
+                    measure.Value,
+                    sensor.Config.Unit ?? "");
             }
         }
 
@@ -44,10 +45,11 @@ public class MyFirstDevice : TcpModbusDevice
         // - Apply business rules
         // - Trigger alerts based on thresholds
         // - Store data to local database
+        // - Send commands to device
         // - etc.
     }
 
-    ~MyFirstDevice()
+    ~MyModbusDevice()
     {
         // Unsubscribe from events
         DataReceived -= OnDataReceived;

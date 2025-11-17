@@ -6,7 +6,7 @@ date: "2025-11-12"
 lang: "en"
 parent: "README"
 prev: "01_install_templates"
-next: "03_wedaapi_basic"
+next: "03_wedabuilder_basic"
 translations:
   - lang: "zh"
     path: "../../zh/01_quick_start/02_subnode_basic.md"
@@ -23,7 +23,7 @@ Learn how to create an IoT device application using the `subnode` template. `sub
 ## Template Analogy
 
 - **subnode** ↔ **Console App**: Ideal for single device development and debugging
-- **wedaapi** ↔ **Web API**: Production-ready for managing multiple devices at once
+- **wedabuilder** ↔ **Web API**: Production-ready for managing multiple devices at once
 
 **Time Required**: 15 minutes
 **Difficulty**: Intermediate
@@ -547,13 +547,13 @@ using var context = new WedaApplicationContext(options =>
 });
 ```
 
-##### Scenario 3: Switch to HostedService pattern (like wedaapi)
+##### Scenario 3: Switch to HostedService pattern (like wedabuilder)
 
-If you want more automated lifecycle management, switch to `wedaapi` or `wedaapi-c` templates.
+If you want more automated lifecycle management, switch to `wedabuilder` or `wedabuilder-c` templates.
 
-**subnode vs wedaapi comparison:**
+**subnode vs wedabuilder comparison:**
 
-| Feature | subnode | wedaapi |
+| Feature | subnode | wedabuilder |
 |---------|---------|---------|
 | Lifecycle | Manual management | Auto-managed (HostedService) |
 | Control | ✅ Full control over each step | 🟡 Less control |
@@ -1058,7 +1058,7 @@ Need to connect to cloud?
 - `DeviceOptions` and `ConnectionOptions` are **two different layers** of configuration
   - `DeviceOptions`: Application layer (controls business features)
   - `ConnectionOptions`: Communication layer (controls low-level connections)
-- In the `wedaapi` template, these can be configured via Builder:
+- In the `wedabuilder` template, these can be configured via Builder:
   ```csharp
   builder.AddTelemetry();           // Equivalent to EnableTelemetry = true
   builder.AddCommands();            // Equivalent to EnableCommands = true
@@ -1374,7 +1374,7 @@ using var context = new WedaApplicationContext(options =>
   - NATS URL: `nats://localhost:4222`
 - **No need** to manually create `ConfigurationBuilder`, `IConfiguration`, or `LoggerFactory`
 - **Optional Override**: Manually set `options.LoggerFactory` or `options.NatsConnectionSettings` will take precedence
-- This makes usage more concise and consistent with wedaapi template behavior
+- This makes usage more concise and consistent with wedabuilder template behavior
 
 ### Set Environment Variables (Optional)
 
@@ -1555,7 +1555,7 @@ dotnet build
 You've mastered the subnode template! Explore other options:
 
 ### Want production-ready multi-device management?
-**[→ wedaapi - Web API Template](03_wedaapi_basic.md)**
+**[→ wedabuilder - Web API Template](03_wedabuilder_basic.md)**
 - Hosted service pattern
 - Multiple device management
 - Production deployment

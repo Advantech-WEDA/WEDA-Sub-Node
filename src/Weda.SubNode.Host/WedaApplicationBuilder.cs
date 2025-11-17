@@ -325,7 +325,7 @@ public class WedaApplicationBuilder
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder AddHealthReporting()
     {
-        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        Services.Configure<DeviceOptions>(options =>
         {
             options.EnableHealthReporting = true;
         });
@@ -339,7 +339,7 @@ public class WedaApplicationBuilder
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder AddCommands()
     {
-        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        Services.Configure<DeviceOptions>(options =>
         {
             options.EnableCommands = true;
         });
@@ -353,7 +353,7 @@ public class WedaApplicationBuilder
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder AddConfigUpdates()
     {
-        Services.Configure<Abstractions.Devices.DeviceOptions>(options =>
+        Services.Configure<DeviceOptions>(options =>
         {
             options.EnableConfigUpdates = true;
         });

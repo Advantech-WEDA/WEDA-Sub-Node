@@ -26,10 +26,8 @@ public class TransformConfig
     /// </summary>
     public Dictionary<string, object> Parameters { get; set; } = [];
 
-    /// <summary>
-    /// Order/priority in the pipeline (lower number = earlier in pipeline)
-    /// </summary>
-    public int Order { get; set; }
+    // Order parameter removed - execution order is determined by array index in JSON
+    // For programmatic usage, execution order is determined by Add() call order
 }
 
 /// <summary>
@@ -165,7 +163,22 @@ public class SensorConfig
     // ===== Transform Pipeline Methods (Thread-Safe) =====
 
     /// <summary>
+    /// Configures the transform pipeline using a builder pattern
+    /// This is the recommended way to add transforms as it provides clear separation from DSP filters
+    /// </summary>
+    /// <param name="configure">Action to configure transforms</param>
+    /// <returns>The SensorConfig for method chaining</returns>
+    public SensorConfig ConfigureTransforms(Action<TransformPipelineBuilder> configure)
+    {
+        var builder = new TransformPipelineBuilder(this);
+        configure(builder);
+        return this;
+    }
+
+    /// <summary>
     /// Adds a transform to the end of the transform pipeline (thread-safe)
+    /// WARNING: Do not mix AddTransform() and AddDspFilter() calls - transforms are always executed before DSP filters
+    /// regardless of call order. Use ConfigureTransforms() and ConfigureDspFilters() for clearer intent.
     /// </summary>
     public SensorConfig AddTransform(ITelemetryTransform transform)
     {
@@ -241,7 +254,22 @@ public class SensorConfig
     // ===== DSP Filter Pipeline Methods (Thread-Safe) =====
 
     /// <summary>
+    /// Configures the DSP filter pipeline using a builder pattern
+    /// This is the recommended way to add DSP filters as it provides clear separation from transforms
+    /// </summary>
+    /// <param name="configure">Action to configure DSP filters</param>
+    /// <returns>The SensorConfig for method chaining</returns>
+    public SensorConfig ConfigureDspFilters(Action<DspFilterPipelineBuilder> configure)
+    {
+        var builder = new DspFilterPipelineBuilder(this);
+        configure(builder);
+        return this;
+    }
+
+    /// <summary>
     /// Adds a DSP filter to the end of the DSP filter pipeline (thread-safe)
+    /// WARNING: Do not mix AddTransform() and AddDspFilter() calls - transforms are always executed before DSP filters
+    /// regardless of call order. Use ConfigureTransforms() and ConfigureDspFilters() for clearer intent.
     /// </summary>
     public SensorConfig AddDspFilter(IDspFilter filter)
     {
@@ -335,10 +363,8 @@ public class DspFilterConfig
     /// </summary>
     public Dictionary<string, object> Parameters { get; set; } = [];
 
-    /// <summary>
-    /// Order/priority in the pipeline (lower number = earlier in pipeline)
-    /// </summary>
-    public int Order { get; set; }
+    // Order parameter removed - execution order is determined by array index in JSON
+    // For programmatic usage, execution order is determined by Add() call order
 }
 
 /// <summary>
@@ -397,4 +423,94 @@ public enum ThresholdLevel
     UpperWarning,
     LowerCritical,
     UpperCritical
+}
+
+/// <summary>
+/// Builder for configuring transform pipeline
+/// Provides fluent API for adding transforms in a clear, sequential manner
+/// </summary>
+public class TransformPipelineBuilder
+{
+    private readonly SensorConfig _config;
+
+    internal TransformPipelineBuilder(SensorConfig config)
+    {
+        _config = config;
+    }
+
+    /// <summary>
+    /// Adds a transform to the pipeline
+    /// Transforms are executed in the order they are added
+    /// </summary>
+    public TransformPipelineBuilder Add(ITelemetryTransform transform)
+    {
+        _config.AddTransform(transform);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds multiple transforms to the pipeline
+    /// </summary>
+    public TransformPipelineBuilder Add(params ITelemetryTransform[] transforms)
+    {
+        foreach (var transform in transforms)
+        {
+            _config.AddTransform(transform);
+        }
+        return this;
+    }
+
+    /// <summary>
+    /// Clears all existing transforms
+    /// </summary>
+    public TransformPipelineBuilder Clear()
+    {
+        _config.ClearTransforms();
+        return this;
+    }
+}
+
+/// <summary>
+/// Builder for configuring DSP filter pipeline
+/// Provides fluent API for adding DSP filters in a clear, sequential manner
+/// </summary>
+public class DspFilterPipelineBuilder
+{
+    private readonly SensorConfig _config;
+
+    internal DspFilterPipelineBuilder(SensorConfig config)
+    {
+        _config = config;
+    }
+
+    /// <summary>
+    /// Adds a DSP filter to the pipeline
+    /// Filters are executed in the order they are added
+    /// </summary>
+    public DspFilterPipelineBuilder Add(IDspFilter filter)
+    {
+        _config.AddDspFilter(filter);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds multiple DSP filters to the pipeline
+    /// </summary>
+    public DspFilterPipelineBuilder Add(params IDspFilter[] filters)
+    {
+        foreach (var filter in filters)
+        {
+            _config.AddDspFilter(filter);
+        }
+        return this;
+    }
+
+    /// <summary>
+    /// Clears all existing DSP filters
+    /// </summary>
+    public DspFilterPipelineBuilder Clear()
+    {
+        _config.ClearDspFilters();
+        return this;
+    }
 }

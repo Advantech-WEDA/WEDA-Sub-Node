@@ -247,7 +247,7 @@ Ready to get started? Let's begin with installation:
 **[→ Install Templates and Start Building](01_install_templates.md)**
 
 **Recommended Learning Path**:
-- **Beginners**: Start with wedaapi (Web API style)
+- **Beginners**: Start with wedabuilder (Web API style)
 - **Single device dev/debug**: Use subnode (Console App style)
 
 ---

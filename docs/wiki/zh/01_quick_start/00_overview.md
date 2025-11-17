@@ -246,7 +246,7 @@ Weda SubNode 遵循 **OSI 七層模型**，清楚地分離各層職責：
 **[→ 安裝模板並開始建置](01_install_templates.md)**
 
 **建議學習路徑**：
-- **初學者**：從 wedaapi 開始（Web API 風格）
+- **初學者**：從 wedabuilder 開始（Web API 風格）
 - **單一裝置開發/調試**：使用 subnode（Console App 風格）
 
 ---

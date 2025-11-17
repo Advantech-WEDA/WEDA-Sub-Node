@@ -60,7 +60,7 @@ Installing templates from: /path/to/edge_subnode/templates
 → Installing template: subnode
 Success: Weda.SubNode.CustomDevice installed successfully
 
-→ Installing template: wedaapi
+→ Installing template: wedabuilder
 Success: Weda.SubNode.WebApi installed successfully
 
 ════════════════════════════════════════════════════════════════
@@ -69,7 +69,7 @@ Success: Weda.SubNode.WebApi installed successfully
 
 Available templates:
 - subnode    : Console App 風格（單一裝置開發/調試）
-- wedaapi    : Web API 風格（production 多裝置）
+- wedabuilder    : Web API 風格（production 多裝置）
 
 Verify installation: dotnet new list | grep -i subnode
 ```
@@ -84,8 +84,8 @@ cd /path/to/edge_subnode/templates
 # 安裝 subnode 模板
 dotnet new install ./subnode
 
-# 安裝 wedaapi 模板
-dotnet new install ./wedaapi
+# 安裝 wedabuilder 模板
+dotnet new install ./wedabuilder
 ```
 
 ---
@@ -103,7 +103,7 @@ dotnet new list | grep -i subnode
 Template Name                         Short Name   Language  Tags
 ------------------------------------  -----------  --------  -----------------------
 Weda SubNode Console Application      subnode      [C#]      Console/IoT/Weda/SubNode
-Weda SubNode Web API Application      wedaapi      [C#]      Web/WebAPI/IoT/Weda/SubNode
+Weda SubNode Web API Application      wedabuilder      [C#]      Web/WebAPI/IoT/Weda/SubNode
 ```
 
 如果看到兩個模板都列出來，表示安裝成功！✅
@@ -125,10 +125,10 @@ Weda SubNode Web API Application      wedaapi      [C#]      Web/WebAPI/IoT/Weda
 - 事件驅動架構（`OnDataReceived`）
 - 適合單一裝置開發與調試
 
-### 2. wedaapi - Web API 模板
+### 2. wedabuilder - Web API 模板
 
-**簡稱**：`wedaapi`
-**用法**：`dotnet new wedaapi -n MyApp`
+**簡稱**：`wedabuilder`
+**用法**：`dotnet new wedabuilder -n MyApp`
 **風格**：Web API
 
 建立的專案包含：
@@ -211,12 +211,12 @@ rm -rf QuickTest
 
 ---
 
-### 快速測試選項 2: 嘗試使用 wedaapi 與 wedaapi-c 模板
+### 快速測試選項 2: 嘗試使用 wedabuilder 與 wedabuilder-c 模板
 
 ```bash
 mkdir tmp
 cd tmp
-dotnet new wedaapi -n QuickTest
+dotnet new wedabuilder -n QuickTest
 cd QuickTest
 
 # 執行 API
@@ -334,7 +334,7 @@ dotnet new list | grep -i subnode
 模板已安裝，選擇您的路徑：
 
 ### 推薦給初學者
-**[→ wedaapi - 簡易 API](03_wedaapi_basic.md)**
+**[→ wedabuilder - 簡易 API](03_wedabuilder_basic.md)**
 - 最快速的入門方式
 - 零程式碼需求
 - 設定檔驅動
@@ -352,7 +352,7 @@ dotnet new list | grep -i subnode
 您已成功安裝兩種 Weda SubNode SDK 模板：
 
 - ✅ `subnode` - Console App 模板（單一裝置開發/調試）
-- ✅ `wedaapi` - Web API 模板（production 多裝置）
+- ✅ `wedabuilder` - Web API 模板（production 多裝置）
 
 **準備好開始建置了嗎？** 從上方選擇一個模板指南，開始建立您的第一個 IoT 邊緣裝置！
 

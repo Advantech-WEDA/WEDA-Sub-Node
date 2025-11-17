@@ -35,7 +35,7 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 如果您是第一次使用 Weda SubNode SDK，請從這裡開始：
 1. [概覽 - 選擇模板](01_quick_start/00_overview.md)（5 分鐘）
 2. [安裝模板](01_quick_start/01_install_templates.md)（3 分鐘）
-3. [您的第一個裝置 - wedaapi](01_quick_start/02_wedaapi_basic.md)（10 分鐘）
+3. [您的第一個裝置 - wedabuilder](01_quick_start/02_wedabuilder_basic.md)（10 分鐘）
 
 ### 進階開發者
 直接跳到進階主題：
@@ -54,7 +54,7 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 |------|------|------|------|------|
 | [00. 概覽](01_quick_start/00_overview.md) | 比較模板並選擇適合的 | - | 5 分鐘 | 初學者 |
 | [01. 安裝模板](01_quick_start/01_install_templates.md) | 安裝專案模板 | - | 3 分鐘 | 初學者 |
-| [02. wedaapi - Web API](01_quick_start/02_wedaapi_basic.md) | Web API 風格，適合 production 多裝置 | `wedaapi` | 10 分鐘 | 初學者 |
+| [02. wedabuilder - Web API](01_quick_start/02_wedabuilder_basic.md) | Web API 風格，適合 production 多裝置 | `wedabuilder` | 10 分鐘 | 初學者 |
 | [03. subnode - Console App](01_quick_start/03_subnode_basic.md) | Console 風格，適合單一裝置開發 | `subnode` | 15 分鐘 | 中級 |
 
 **預設設定**：所有模板預設使用 **Modbus Simulator** + **MockCloudService**。
@@ -88,7 +88,7 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 
 ## 兩種模板比較
 
-| 功能 | subnode | wedaapi |
+| 功能 | subnode | wedabuilder |
 |------|---------|---------|
 | **風格** | Console App | Web API |
 | **設定時間** | 15 分鐘 | 10 分鐘 |
@@ -99,9 +99,9 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 | **最適合** | 開發與調試 | Production 部署 |
 
 **建議**：
-- 第一次使用 SDK？從 **wedaapi** 開始
+- 第一次使用 SDK？從 **wedabuilder** 開始
 - 需要單一裝置開發/調試？使用 **subnode**
-- Production 部署？使用 **wedaapi**
+- Production 部署？使用 **wedabuilder**
 
 ---
 
@@ -138,7 +138,7 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 探索儲存庫中的可運作範例：
 
 ### 開源範例
-- [examples/basic-modbus](../../examples/basic-modbus) - 使用 wedaapi 的基礎 Modbus 裝置
+- [examples/basic-modbus](../../examples/basic-modbus) - 使用 wedabuilder 的基礎 Modbus 裝置
 - [examples/simulator-demo](../../examples/simulator-demo) - 完整的模擬器設定
 
 ### 內部範例（僅限內部分支）
@@ -162,7 +162,7 @@ docs/wiki/
     ├── 01_quick_start/                # 快速開始指南
     │   ├── 00_overview.md             # 模板比較
     │   ├── 01_install_templates.md    # 安裝
-    │   ├── 02_wedaapi_basic.md        # wedaapi 模板 (Web API)
+    │   ├── 02_wedabuilder_basic.md        # wedabuilder 模板 (Web API)
     │   ├── 03_subnode_basic.md        # subnode 模板 (Console App)
     │   ├── 05_connect_real_device.md  # 連接真實裝置
     │   ├── 06_connect_weda_core.md    # 連接 Weda.Core
@@ -207,7 +207,7 @@ docs/wiki/
 
 1. [概覽 - 選擇模板 →](01_quick_start/00_overview.md)
 2. [安裝模板 →](01_quick_start/01_install_templates.md)
-3. [建立您的第一個裝置 →](01_quick_start/03_wedaapi_basic.md)
+3. [建立您的第一個裝置 →](01_quick_start/03_wedabuilder_basic.md)
 
 ---
 
