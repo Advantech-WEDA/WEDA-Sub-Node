@@ -2,11 +2,14 @@ using System.Diagnostics;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices.Health;
+using Weda.SubNode.Core.Dsp;
+using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Telemetry;
 
@@ -17,6 +20,7 @@ namespace Weda.SubNode.Core.Telemetry;
 public sealed class TelemetryPipeline : ITelemetryPipeline
 {
     private string _deviceId;
+    private readonly DeviceConfiguration? _configuration;
     private readonly ILogger<TelemetryPipeline> _logger;
     private readonly IWedaCloudService _cloudService;
     private readonly IDeviceHealthMonitor? _healthMonitor;
@@ -40,11 +44,13 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     /// </summary>
     public TelemetryPipeline(
         string deviceId,
+        DeviceConfiguration? configuration,
         IWedaCloudService cloudService,
         ILogger<TelemetryPipeline> logger,
         IDeviceHealthMonitor? healthMonitor = null)
     {
         _deviceId = deviceId ?? throw new ArgumentNullException(nameof(deviceId));
+        _configuration = configuration;
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _healthMonitor = healthMonitor;
@@ -221,52 +227,94 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
         List<TelemetryMeasure> measures,
         CancellationToken cancellationToken)
     {
-        if (_transforms.Count == 0)
-        {
-            return measures;
-        }
-
         var stopwatch = Stopwatch.StartNew();
         EmitStageEvent(PipelineStage.Transform, "Transforms", measures.Count, StagePhase.Before);
 
-        var current = measures;
         string? errorMessage = null;
 
         try
         {
-            foreach (var transform in _transforms)
+            var result = new List<TelemetryMeasure>();
+
+            // Group measures by ResourceId for sensor-level processing
+            var groupedMeasures = measures.GroupBy(m => m.ResourceId).ToList();
+
+            foreach (var group in groupedMeasures)
             {
-                _logger.LogTrace(
-                    "Executing transform '{TransformName}' for device {DeviceId}",
-                    transform.Name, _deviceId);
+                var resourceId = group.Key;
+                var resourceMeasures = group.ToList();
 
-                // Create transformation context
-                var context = new TelemetryTransformContext
+                // Find sensor configuration
+                var sensor = _configuration?.Sensors.FirstOrDefault(s => s.ResourceId == resourceId);
+
+                List<ITelemetryTransform> transformsToApply = new();
+
+                // Merge sensor-level runtime and config-based transforms
+                if (sensor?.Config != null)
                 {
-                    DeviceId = _deviceId,
-                    Timestamp = DateTimeOffset.UtcNow
-                };
+                    // Priority 1: Add sensor-level runtime transforms (from code) - thread-safe
+                    if (sensor.Config.RuntimeTransforms.Count > 0)
+                    {
+                        transformsToApply.AddRange(sensor.Config.RuntimeTransforms);
+                        _logger.LogTrace(
+                            "Added {Count} sensor-level runtime transforms for ResourceId {ResourceId}",
+                            sensor.Config.RuntimeTransforms.Count, resourceId);
+                    }
 
-                // Call transform without ErrorOr
-                var result = await transform.TransformAsync(current, context, cancellationToken);
-
-                current = result;
-
-                if (current.Count == 0)
-                {
-                    _logger.LogWarning(
-                        "Transform '{TransformName}' returned empty result for device {DeviceId}",
-                        transform.Name, _deviceId);
-                    break;
+                    // Priority 2: Add sensor-level config transforms (from appsettings.json or cloud)
+                    if (sensor.Config.TransformPipeline.Count > 0)
+                    {
+                        var configBasedTransforms = TransformFactory.CreateFromConfigs(sensor.Config.TransformPipeline);
+                        transformsToApply.AddRange(configBasedTransforms);
+                        _logger.LogTrace(
+                            "Added {Count} sensor-level config transforms for ResourceId {ResourceId}",
+                            configBasedTransforms.Count, resourceId);
+                    }
                 }
+
+                // Priority 3: If no sensor-level transforms, use device-level transforms
+                if (transformsToApply.Count == 0)
+                {
+                    transformsToApply = _transforms;
+                    _logger.LogTrace(
+                        "Using {Count} device-level transforms for ResourceId {ResourceId}",
+                        transformsToApply.Count, resourceId);
+                }
+
+                // Apply transforms
+                var current = resourceMeasures;
+                foreach (var transform in transformsToApply)
+                {
+                    _logger.LogTrace(
+                        "Executing transform '{TransformName}' for ResourceId {ResourceId}",
+                        transform.Name, resourceId);
+
+                    var context = new TelemetryTransformContext
+                    {
+                        DeviceId = _deviceId,
+                        Timestamp = DateTimeOffset.UtcNow
+                    };
+
+                    current = await transform.TransformAsync(current, context, cancellationToken);
+
+                    if (current.Count == 0)
+                    {
+                        _logger.LogWarning(
+                            "Transform '{TransformName}' filtered out all measures for ResourceId {ResourceId}",
+                            transform.Name, resourceId);
+                        break;
+                    }
+                }
+
+                result.AddRange(current);
             }
 
             stopwatch.Stop();
             RecordDuration(_transformDurations, stopwatch.Elapsed);
             EmitStageEvent(PipelineStage.Transform, "Transforms", measures.Count, StagePhase.After,
-                current.Count, stopwatch.Elapsed);
+                result.Count, stopwatch.Elapsed);
 
-            return current;
+            return result;
         }
         catch (Exception ex)
         {
@@ -289,11 +337,6 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
         List<TelemetryMeasure> measures,
         CancellationToken cancellationToken)
     {
-        if (_filters.Count == 0)
-        {
-            return measures;
-        }
-
         var stopwatch = Stopwatch.StartNew();
         EmitStageEvent(PipelineStage.Filter, "Filters", measures.Count, StagePhase.Before);
 
@@ -301,21 +344,75 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
 
         try
         {
-            // Convert List to IAsyncEnumerable
-            IAsyncEnumerable<TelemetryMeasure> current = ToAsyncEnumerable(measures);
+            var result = new List<TelemetryMeasure>();
 
-            foreach (var filter in _filters)
+            // Group measures by ResourceId for sensor-level processing
+            var groupedMeasures = measures.GroupBy(m => m.ResourceId).ToList();
+
+            foreach (var group in groupedMeasures)
             {
-                _logger.LogTrace(
-                    "Executing filter for device {DeviceId}",
-                    _deviceId);
+                var resourceId = group.Key;
+                var resourceMeasures = group.ToList();
 
-                // Call filter with IAsyncEnumerable
-                current = filter.ApplyAsync(current, cancellationToken);
+                // Find sensor configuration
+                var sensor = _configuration?.Sensors.FirstOrDefault(s => s.ResourceId == resourceId);
+
+                List<IDspFilter> filtersToApply = new();
+
+                // Merge sensor-level runtime and config-based DSP filters
+                if (sensor?.Config != null)
+                {
+                    // Priority 1: Add sensor-level runtime DSP filters (from code) - thread-safe
+                    if (sensor.Config.RuntimeDspFilters.Count > 0)
+                    {
+                        filtersToApply.AddRange(sensor.Config.RuntimeDspFilters);
+                        _logger.LogTrace(
+                            "Added {Count} sensor-level runtime DSP filters for ResourceId {ResourceId}",
+                            sensor.Config.RuntimeDspFilters.Count, resourceId);
+                    }
+
+                    // Priority 2: Add sensor-level config DSP filters (from appsettings.json or cloud)
+                    if (sensor.Config.DspPipeline.Count > 0)
+                    {
+                        var configBasedFilters = DspFilterFactory.CreateFromConfigs(sensor.Config.DspPipeline);
+                        filtersToApply.AddRange(configBasedFilters);
+                        _logger.LogTrace(
+                            "Added {Count} sensor-level config DSP filters for ResourceId {ResourceId}",
+                            configBasedFilters.Count, resourceId);
+                    }
+                }
+
+                // Priority 3: If no sensor-level filters, use device-level filters
+                if (filtersToApply.Count == 0)
+                {
+                    filtersToApply = _filters;
+                    _logger.LogTrace(
+                        "Using {Count} device-level DSP filters for ResourceId {ResourceId}",
+                        filtersToApply.Count, resourceId);
+                }
+
+                // Apply filters
+                IAsyncEnumerable<TelemetryMeasure> current = ToAsyncEnumerable(resourceMeasures);
+                foreach (var filter in filtersToApply)
+                {
+                    _logger.LogTrace(
+                        "Executing DSP filter for ResourceId {ResourceId}",
+                        resourceId);
+
+                    current = filter.ApplyAsync(current, cancellationToken);
+                }
+
+                var filtered = await ToListAsync(current, cancellationToken);
+
+                if (filtered.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "DSP filters filtered out all measures for ResourceId {ResourceId}",
+                        resourceId);
+                }
+
+                result.AddRange(filtered);
             }
-
-            // Convert result back to List
-            var result = await ToListAsync(current, cancellationToken);
 
             stopwatch.Stop();
             RecordDuration(_filterDurations, stopwatch.Elapsed);

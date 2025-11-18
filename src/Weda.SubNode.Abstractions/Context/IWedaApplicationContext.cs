@@ -22,9 +22,14 @@ public interface IWedaApplicationContext : IDisposable
     ILoggerFactory LoggerFactory { get; }
 
     /// <summary>
-    /// Gets the connection options for device connection manager.
+    /// Gets the connection options for device connection manager (Communication Layer).
     /// </summary>
     ConnectionOptions ConnectionOptions { get; }
+
+    /// <summary>
+    /// Gets the device feature options (Application Layer).
+    /// </summary>
+    DeviceOptions DeviceOptions { get; }
 
     /// <summary>
     /// Gets the configuration instance.

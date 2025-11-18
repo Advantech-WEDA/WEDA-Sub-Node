@@ -1,0 +1,73 @@
+using Microsoft.Extensions.Logging;
+using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Devices.Generic;
+
+namespace Wise4012ISensingExample;
+
+/// <summary>
+/// MyFirstISensingDevice - A custom ISensing device implementation
+/// Inherits from MqttISensingDevice to get MQTT + ISensing protocol support with automatic communication setup
+/// </summary>
+public class MyFirstISensingDevice : MqttISensingDevice
+{
+    /// <summary>
+    /// Creates MyFirstISensingDevice using ApplicationContext.
+    /// Configuration is automatically retrieved from context.
+    /// MQTT connection and ISensing protocol are automatically configured.
+    /// </summary>
+    public MyFirstISensingDevice(IWedaApplicationContext context)
+        : base(context)
+    {
+        // Subscribe to DataReceived event to process telemetry
+        DataReceived += OnDataReceived;
+
+        // Subscribe to ConnectionStateChanged event to monitor MQTT connection
+        ConnectionStateChanged += OnConnectionStateChanged;
+    }
+
+    /// <summary>
+    /// Event handler for telemetry data received from device
+    /// Prints all sensor values from ISensing JSON messages
+    /// </summary>
+    private void OnDataReceived(object? sender, DataReceivedEvent e)
+    {
+        _logger.LogDebug("MyFirstISensingDevice: Data received, Count={Count}", e.Data.Count);
+
+        // Print all sensor values based on configuration
+        foreach (var sensor in Configuration.Sensors)
+        {
+            var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
+            if (measure?.Value != null)
+            {
+                _logger.LogInformation("{SensorName}: {Value} (Timestamp: {Timestamp})",
+                    sensor.Name,
+                    measure.Value,
+                    measure.Timestamp);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Event handler for MQTT connection state changes
+    /// Logs connection/disconnection events
+    /// </summary>
+    private void OnConnectionStateChanged(object? sender, ConnectionStateChangedEvent e)
+    {
+        _logger.LogInformation("MQTT Connection: {PreviousState} -> {CurrentState}",
+            e.PreviousState,
+            e.CurrentState);
+
+        if (!string.IsNullOrEmpty(e.Reason))
+        {
+            _logger.LogInformation("  Reason: {Reason}", e.Reason);
+        }
+    }
+
+    ~MyFirstISensingDevice()
+    {
+        // Unsubscribe from events
+        DataReceived -= OnDataReceived;
+        ConnectionStateChanged -= OnConnectionStateChanged;
+    }
+}

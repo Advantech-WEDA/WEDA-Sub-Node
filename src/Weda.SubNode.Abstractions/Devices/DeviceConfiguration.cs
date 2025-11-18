@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -30,6 +32,26 @@ public class DeviceConfiguration
     public required DeviceType DeviceType { get; set; }
 
     /// <summary>
+    /// Device type name - OPTIONAL, defaults to DeviceConfigs key if not specified
+    ///
+    /// When using ScanDevicesFromConfiguration():
+    /// - If empty/null: Uses the configuration key name (e.g., "MyFirstDevice" from DeviceConfigs["MyFirstDevice"])
+    /// - If specified: Uses the provided value (supports short names and fully qualified names)
+    ///
+    /// Examples:
+    /// - Config key: "TcpModbusDevice" → Automatically resolves to TcpModbusDevice class
+    /// - Config key: "MyFirstDevice" → Searches in YOUR project first
+    /// - Explicit: "Weda.SubNode.Devices.Generic.TcpModbusDevice, Weda.SubNode.Devices" → Full qualified name
+    ///
+    /// Resolution priority:
+    /// 1. Fully qualified name (if assembly specified)
+    /// 2. Your project assembly (PRIORITY - avoids naming conflicts)
+    /// 3. SDK built-in devices (Weda.SubNode.Devices.Generic)
+    /// 4. Other dependencies
+    /// </summary>
+    public string? DeviceTypeName { get; set; }
+
+    /// <summary>
     /// Path to the DTDL JSON file (optional, for configuration).
     /// </summary>
     public string? DtdlPath { get; set; }
@@ -57,6 +79,13 @@ public class DeviceConfiguration
     public Dictionary<string, object> Communication { get; set; } = [];
 
     /// <summary>
+    /// Connection settings for retry, timeout, and security configuration
+    /// Used by communication layer (TCP, Serial, etc.)
+    /// Can be configured in appsettings.json or received from cloud
+    /// </summary>
+    public ConnectionSettings? ConnectionSettings { get; set; }
+
+    /// <summary>
     /// Background task periods (not part of registration payload, for internal use)
     /// </summary>
     public BackgroundTaskPeriods Periods { get; set; } = new();
@@ -69,6 +98,7 @@ public class DeviceConfiguration
     [JsonIgnore]
     public DeviceInfo DeviceInfo => new DeviceInfo
     {
+        DeviceId = DeviceId,
         DeviceName = DeviceName,
         DeviceType = DeviceType,
         Manufacturer = DeviceCapabilities.Manufacturer,
@@ -79,7 +109,7 @@ public class DeviceConfiguration
     /// Loads and sets the DTDL interface from the configured DtdlPath.
     /// If DtdlPath is null or empty, this method does nothing.
     /// </summary>
-    /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, DtdlPath is used as-is.</param>
+    /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
     /// <exception cref="JsonException">Thrown when the JSON is invalid or cannot be deserialized.</exception>
     public void LoadDtdl(string? basePath = null)
@@ -87,25 +117,59 @@ public class DeviceConfiguration
         if (string.IsNullOrEmpty(DtdlPath))
             return;
 
-        var fullPath = basePath != null ? Path.Combine(basePath, DtdlPath) : DtdlPath;
+        // If no basePath provided, try to find solution root directory
+        basePath ??= Environment.GetEnvironmentVariable("DTDL_BASE_PATH")
+                 ?? FindSolutionRoot()
+                 ?? AppContext.BaseDirectory;
+
+        var fullPath = Path.Combine(basePath, DtdlPath);
+
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException(
+                $"DTDL file not found: {fullPath}{Environment.NewLine}" +
+                $"DtdlPath: {DtdlPath}{Environment.NewLine}" +
+                $"BasePath: {basePath}{Environment.NewLine}" +
+                $"Working directory: {Directory.GetCurrentDirectory()}{Environment.NewLine}" +
+                $"App base directory: {AppContext.BaseDirectory}",
+                fullPath);
+        }
+
         Dtdl = DtdlInterface.Load(fullPath);
     }
 
     /// <summary>
-    /// Asynchronously loads and sets the DTDL interface from the configured DtdlPath.
-    /// If DtdlPath is null or empty, this method does nothing.
+    /// Finds the solution root directory by searching for .sln or .git directory.
+    /// Starts from AppContext.BaseDirectory and walks up the directory tree.
+    /// Also checks common container mount points like /workspace.
     /// </summary>
-    /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, DtdlPath is used as-is.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
-    /// <exception cref="JsonException">Thrown when the JSON is invalid or cannot be deserialized.</exception>
-    public async Task LoadDtdlAsync(string? basePath = null, CancellationToken cancellationToken = default)
+    /// <returns>The solution root directory path, or null if not found.</returns>
+    private static string? FindSolutionRoot()
     {
-        if (string.IsNullOrEmpty(DtdlPath))
-            return;
+        // Check common container mount point first (for Dev Container compatibility)
+        if (Directory.Exists("/workspace") &&
+            (Directory.GetFiles("/workspace", "*.sln").Length > 0 ||
+             Directory.Exists("/workspace/.git")))
+        {
+            return "/workspace";
+        }
 
-        var fullPath = basePath != null ? Path.Combine(basePath, DtdlPath) : DtdlPath;
-        Dtdl = await DtdlInterface.LoadAsync(fullPath, cancellationToken);
+        // Walk up from current directory
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory != null)
+        {
+            // Check for .sln file or .git directory (common indicators of solution root)
+            if (directory.GetFiles("*.sln").Length > 0 ||
+                directory.GetDirectories(".git").Length > 0)
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
     }
 }
 

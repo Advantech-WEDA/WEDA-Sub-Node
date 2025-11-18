@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Polly;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -8,6 +9,7 @@ using Weda.SubNode.Core.Devices.Lifecycle;
 using Weda.SubNode.Core.Devices.Retry;
 using Weda.SubNode.Core.Devices.StateMachine;
 using Weda.SubNode.Core.Managers;
+using Weda.SubNode.Core.Policies;
 using Weda.SubNode.Core.Telemetry;
 
 namespace Weda.SubNode.Core.Devices;
@@ -24,7 +26,13 @@ public sealed class DeviceOrchestrator : IDisposable
     // All managers in one place
     public IDeviceStateMachine StateMachine { get; }
     public DeviceHealthMonitor HealthMonitor { get; }
-    public RetryOrchestrator RetryOrchestrator { get; }
+
+    /// <summary>
+    /// Polly resilience pipeline for general device operations (telemetry, commands, etc.)
+    /// Replaces RetryOrchestrator with standardized retry, circuit breaker, and timeout handling.
+    /// </summary>
+    public ResiliencePipeline OperationPipeline { get; }
+
     public ITelemetryPipeline TelemetryPipeline { get; }
     public DeviceLifecycleManager LifecycleManager { get; }
     public IDeviceConnectionManager ConnectionManager { get; }
@@ -43,6 +51,7 @@ public sealed class DeviceOrchestrator : IDisposable
         IWedaApplicationContext context,
         ICommunication communication,
         ILifecycleHooks lifecycleHooks,
+        DeviceConfiguration? configuration = null,
         string? deviceId = null)
     {
         _logger = context.GetLogger<DeviceOrchestrator>();
@@ -59,14 +68,15 @@ public sealed class DeviceOrchestrator : IDisposable
             communication: communication,
             thresholds: null);
 
-        RetryOrchestrator = new RetryOrchestrator(
-            _deviceId,
-            context.GetLogger<RetryOrchestrator>(),
-            retryPolicy: RetryPolicy.Exponential,
-            circuitBreakerPolicy: CircuitBreakerPolicy.Default);
+        // Create Polly operation pipeline for general device operations
+        OperationPipeline = ConnectionPolicies.CreateGeneralOperationPipeline(
+            context.GetLogger<DeviceOrchestrator>());
+
+        // Keep RetryOrchestrator for backward compatibility (marked as obsolete)
 
         TelemetryPipeline = new TelemetryPipeline(
             _deviceId,
+            configuration,
             context.CloudService,
             context.GetLogger<TelemetryPipeline>(),
             healthMonitor: HealthMonitor);
@@ -80,7 +90,6 @@ public sealed class DeviceOrchestrator : IDisposable
         ConnectionManager = new DeviceConnectionManager(
             communication,
             context.CloudService,
-            context.ConnectionOptions,
             context.GetLogger<DeviceConnectionManager>());
 
         // Wire up all events
@@ -114,18 +123,6 @@ public sealed class DeviceOrchestrator : IDisposable
         {
             _logger.LogDebug("Health changed: {Previous} -> {Current}", e.PreviousStatus, e.CurrentStatus);
             HealthChanged?.Invoke(s, e);
-        };
-
-        RetryOrchestrator.RetryAttempting += (s, e) =>
-        {
-            _logger.LogDebug("Retry attempt {Attempt} for {Operation}", e.AttemptNumber, e.OperationName);
-            RetryAttempting?.Invoke(s, e);
-        };
-
-        RetryOrchestrator.CircuitBreakerStateChanged += (s, e) =>
-        {
-            _logger.LogWarning("Circuit breaker changed: {Previous} -> {Current}", e.PreviousState, e.CurrentState);
-            CircuitBreakerStateChanged?.Invoke(s, e);
         };
 
         TelemetryPipeline.StageExecuting += (s, e) =>

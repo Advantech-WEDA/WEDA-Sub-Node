@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Advantech",
+  "classifications": ["IoT", "Weda", "SubNode", "Builder"],
+  "identity": "Weda.SubNode.Builder",
+  "name": "Weda SubNode Builder Application",
+  "shortName": "wedabuilder",
+  "description": "Creates a SubNode application using Builder pattern (similar to ASP.NET Core WebApplication.CreateBuilder) for production with multiple devices",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "WedaBuilder",
+  "preferNameDirectory": true,
+  "postActions": [
+    {
+      "condition": "(!skipRestore)",
+      "description": "Restore NuGet packages required by this project.",
+      "manualInstructions": [
+        {
+          "text": "Run 'dotnet restore'"
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    }
+  ]
+}

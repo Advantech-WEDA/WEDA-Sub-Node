@@ -1,11 +1,7 @@
-using System.Text.Json;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
-
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
@@ -196,7 +192,7 @@ public class TelemetryClient : ITelemetryClient
         var message = HealthReportMessage.Create(health);
 
         _logger.LogInformation(
-            "Reporting health: DeviceId={DeviceId}, IsHealthy={IsHealthy}, CpuUsage={CpuUsage}%, MemoryUsage={MemoryUsage}%, Topic={Topic}, ReqSeqId={ReqSeqId}",
+            "Reporting health: DeviceId={DeviceId}, IsHealthy={IsHealthy}, CpuUsage={CpuUsage:F2}%, MemoryUsage={MemoryUsage:F2}%, Topic={Topic}, ReqSeqId={ReqSeqId}",
             deviceId,
             health.IsHealthy,
             health.CpuUsage,

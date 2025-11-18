@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NATS.Net;
+using Serilog;
+using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
@@ -63,11 +65,67 @@ public class WedaApplicationContext : IWedaApplicationContext
         _options = new WedaContextOptions();
         configure(_options);
 
-        // Setup logger factory
-        _loggerFactory = _options.LoggerFactory ?? NullLoggerFactory.Instance;
+        // Auto-load configuration from appsettings.json if not provided
+        if (_options.Configuration == null)
+        {
+            try
+            {
+                _configuration = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                    .Build();
+            }
+            catch
+            {
+                // If appsettings.json doesn't exist or fails to load, continue with null configuration
+                _configuration = null;
+            }
+        }
+        else
+        {
+            _configuration = _options.Configuration;
+        }
 
-        // Store configuration reference
-        _configuration = _options.Configuration;
+        // Auto-load logger factory from Configuration if not provided
+        if (_options.LoggerFactory == null && _configuration != null)
+        {
+            try
+            {
+                var logger = new LoggerConfiguration()
+                    .ReadFrom.Configuration(_configuration)
+                    .CreateLogger();
+                _loggerFactory = new SerilogLoggerFactory(logger);
+            }
+            catch
+            {
+                // If Serilog configuration fails, use NullLoggerFactory
+                _loggerFactory = NullLoggerFactory.Instance;
+            }
+        }
+        else
+        {
+            _loggerFactory = _options.LoggerFactory ?? NullLoggerFactory.Instance;
+        }
+
+        // Auto-load NATS settings from Configuration if not explicitly set
+        if (_configuration != null && _options.NatsConnectionSettings == NatsConnectionSettings.Default)
+        {
+            var natsSection = _configuration.GetSection(NatsConnectionSettings.SectionName);
+            if (natsSection.Exists())
+            {
+                _options.NatsConnectionSettings = new NatsConnectionSettings
+                {
+                    Url = natsSection["Url"] ?? "nats://localhost:4222",
+                    CredFile = natsSection["CredFile"] ?? string.Empty,
+                    Name = natsSection["Name"] ?? "default",
+                    NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
+                    {
+                        "json" => WedaNatsSerializerRegistry.Default,
+                        _ => WedaNatsSerializerRegistry.Default
+                    }
+                };
+            }
+        }
 
         // Load device configuration if Configuration is provided
         _deviceConfiguration = LoadDeviceConfiguration();
@@ -87,19 +145,50 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext using IConfiguration.
     /// Reads configuration from "Nats" section and loads device configuration.
+    ///
+    /// Device configuration selection:
+    /// - If deviceConfigKey is empty (default): Automatically selects the first device configuration found under "DeviceConfigs" section
+    /// - If deviceConfigKey is specified (e.g., "MyFirstDevice"): Uses "DeviceConfigs:{deviceConfigKey}" path
     /// </summary>
     /// <param name="configuration">Configuration instance.</param>
+    /// <param name="deviceConfigKey">
+    /// Device configuration key name (without "DeviceConfigs:" prefix).
+    /// If empty (default), auto-selects the first device configuration found.
+    /// If specified (e.g., "MyFirstDevice"), uses "DeviceConfigs:MyFirstDevice" path.
+    /// </param>
     /// <param name="loggerFactory">Optional logger factory.</param>
-    /// <param name="deviceConfigKey">Device configuration key (default: "DeviceConfigs:MyFirstDevice").</param>
     public WedaApplicationContext(
         IConfiguration configuration,
         ILoggerFactory? loggerFactory = null,
-        string deviceConfigKey = "DeviceConfigs:MyFirstDevice")
+        string deviceConfigKey = "")
         : this(options =>
         {
             options.Configuration = configuration;
             options.LoggerFactory = loggerFactory;
-            options.DeviceConfigurationKey = deviceConfigKey;
+
+            // Determine the actual device configuration key
+            string actualConfigKey;
+            if (string.IsNullOrEmpty(deviceConfigKey))
+            {
+                // Auto-select first device config under DeviceConfigs
+                var deviceConfigsSection = configuration.GetSection("DeviceConfigs");
+                var firstKey = deviceConfigsSection.GetChildren().FirstOrDefault()?.Key;
+
+                if (firstKey == null)
+                {
+                    throw new InvalidOperationException(
+                        "No device configurations found under 'DeviceConfigs' section in appsettings.json");
+                }
+
+                actualConfigKey = $"DeviceConfigs:{firstKey}";
+            }
+            else
+            {
+                // Use specified key with DeviceConfigs prefix
+                actualConfigKey = $"DeviceConfigs:{deviceConfigKey}";
+            }
+
+            options.DeviceConfigurationKey = actualConfigKey;
 
             // Bind NATS configuration from "Nats" section
             var natsSection = configuration.GetSection("Nats");
@@ -131,9 +220,14 @@ public class WedaApplicationContext : IWedaApplicationContext
     public ILogger<T> GetLogger<T>() => _loggerFactory.CreateLogger<T>();
 
     /// <summary>
-    /// Gets the connection options for device connection manager.
+    /// Gets the connection options for device connection manager (Communication Layer).
     /// </summary>
     public ConnectionOptions ConnectionOptions => _options.ConnectionOptions;
+
+    /// <summary>
+    /// Gets the device feature options (Application Layer).
+    /// </summary>
+    public DeviceOptions DeviceOptions => _options.DeviceOptions;
 
     /// <summary>
     /// Gets the configuration instance.
@@ -148,21 +242,27 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #region Private Methods
 
+    private const string DeviceConfigurationSectionName = "DeviceConfigs";
     private DeviceConfiguration? LoadDeviceConfiguration()
     {
         if (_configuration == null)
             return null;
 
+        var configs = _configuration.GetSection(DeviceConfigurationSectionName).GetChildren().FirstOrDefault();
+        if (configs == null)
+            return null;
+
+        _options.DeviceConfigurationKey = configs.Key;
+
         try
         {
             var deviceConfig = _configuration
+                .GetSection(DeviceConfigurationSectionName)
                 .GetSection(_options.DeviceConfigurationKey)
                 .Get<DeviceConfiguration>();
 
             if (deviceConfig == null)
             {
-                _loggerFactory.CreateLogger<WedaApplicationContext>()
-                    .LogWarning("Device configuration not found at: {ConfigKey}", _options.DeviceConfigurationKey);
                 return null;
             }
 
@@ -171,7 +271,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             {
                 try
                 {
-                    deviceConfig.LoadDtdlAsync(Directory.GetCurrentDirectory()).GetAwaiter().GetResult();
+                    deviceConfig.LoadDtdl();
                     _loggerFactory.CreateLogger<WedaApplicationContext>()
                         .LogInformation("DTDL loaded from: {DtdlPath}", deviceConfig.DtdlPath);
                 }
@@ -198,8 +298,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         var natsOpts = NatsOpts.Default with
         {
             Url = settings.Url,
-            Name = settings.Name,
-            SerializerRegistry = settings.NatsSerializerRegistry,
+            Name = settings?.Name ?? "default",
+            SerializerRegistry = settings!.NatsSerializerRegistry,
             AuthOpts = !string.IsNullOrEmpty(settings.CredFile)
                 ? NatsAuthOpts.Default with { CredsFile = settings.CredFile }
                 : NatsAuthOpts.Default

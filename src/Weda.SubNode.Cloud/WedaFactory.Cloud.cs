@@ -40,7 +40,7 @@ public static partial class WedaFactory
         /// Mock cloud service for testing without real cloud connection.
         /// Note: Logger will be null. Use UseDefaultCloud() in WedaApplicationBuilder for DI-based logger.
         /// </summary>
-        public static IWedaCloudService Mock => new NullCloudService(logger: null);
+        public static IWedaCloudService Mock => new MockCloudService(logger: null);
 
         /// <summary>
         /// Get cloud service from dependency injection container.

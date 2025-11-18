@@ -93,9 +93,11 @@ public class WedaApplication : IAsyncDisposable
         // Auto-scan devices from configuration
         builder.ScanDevicesFromConfiguration();
 
-        // Add default telemetry and health reporting
-        builder.AddTelemetry();
-        builder.AddHealthReporting();
+        // Enable all features by default (uplink + downlink)
+        builder.AddTelemetry();           // Uplink: Send telemetry data
+        builder.AddHealthReporting();     // Uplink: Send health status
+        builder.AddCommands();            // Downlink: Receive commands
+        builder.AddConfigUpdates();       // Downlink: Receive config updates
 
         return builder;
     }
@@ -103,12 +105,14 @@ public class WedaApplication : IAsyncDisposable
     /// <summary>
     /// Create a WedaApplicationBuilder with minimal configuration
     /// Provides a clean slate for custom configuration
-    /// User is responsible for:
-    /// - Configuring logging (e.g., Serilog)
-    /// - Adding devices
-    /// - Configuring NATS, polling intervals, etc.
+    /// Automatically configures:
+    /// - Configuration from appsettings.json and environment variables
+    /// - Default cloud service
     ///
-    /// Default cloud service is injected automatically (use .UseMockCloud() to override)
+    /// User is responsible for:
+    /// - Adding logging (call .AddLogging() to configure from appsettings.json)
+    /// - Adding devices (manually or via ScanDevicesFromConfiguration)
+    /// - Adding telemetry and health reporting (if needed)
     /// </summary>
     /// <param name="args">Command-line arguments</param>
     /// <returns>A minimal WedaApplicationBuilder</returns>
@@ -116,10 +120,11 @@ public class WedaApplication : IAsyncDisposable
     {
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
-        // Minimal configuration - just load appsettings.json
+        // Configuration - load appsettings.json and environment variables
         hostBuilder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
             .AddEnvironmentVariables();
 
         var builder = new WedaApplicationBuilder(hostBuilder);

@@ -12,8 +12,8 @@
 
     <!-- Assembly Information -->
     <Company>Advantech</Company>
-    <Product>Weda SubDevice SDK</Product>
-    <Copyright>Copyright © Advantech 2024-2025</Copyright>
+    <Product>Weda SubNode SDK</Product>
+    <Copyright>Copyright © Advantech 2025</Copyright>
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>

@@ -38,8 +38,9 @@ public class MockApplicationContext : IWedaApplicationContext
     /// <summary>
     /// Gets the mock communication.
     /// Use this to setup mock behaviors for device communication.
+    /// For Modbus devices, this is IRequestResponseCommunication&lt;byte[], byte[]&gt;.
     /// </summary>
-    public ICommunication MockCommunication { get; }
+    public IRequestResponseCommunication<byte[], byte[]> MockCommunication { get; }
 
     /// <summary>
     /// Gets the mock logger factory.
@@ -52,14 +53,20 @@ public class MockApplicationContext : IWedaApplicationContext
     public ConnectionOptions ConnectionOptions { get; set; }
 
     /// <summary>
+    /// Gets the device options.
+    /// </summary>
+    public DeviceOptions DeviceOptions { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of MockApplicationContext with default mocks.
     /// </summary>
     public MockApplicationContext()
     {
         MockCloudService = Substitute.For<IWedaCloudService>();
-        MockCommunication = Substitute.For<ICommunication>();
+        MockCommunication = Substitute.For<IRequestResponseCommunication<byte[], byte[]>>();
         MockLoggerFactory = NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
+        DeviceOptions = DeviceOptions.Default;
 
         // Setup default behaviors
         SetupDefaultBehaviors();
@@ -73,13 +80,14 @@ public class MockApplicationContext : IWedaApplicationContext
     /// <param name="loggerFactory">Optional logger factory.</param>
     public MockApplicationContext(
         IWedaCloudService cloudService,
-        ICommunication communication,
+        IRequestResponseCommunication<byte[], byte[]> communication,
         ILoggerFactory? loggerFactory = null)
     {
         MockCloudService = cloudService;
         MockCommunication = communication;
         MockLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
+        DeviceOptions = DeviceOptions.Default;
     }
 
     #region IWedaApplicationContext Implementation
@@ -107,7 +115,7 @@ public class MockApplicationContext : IWedaApplicationContext
     /// Creates a mock communication instance.
     /// This is called by DeviceBase.CreateCommunication().
     /// </summary>
-    public ICommunication CreateTcpCommunication(string host, int port)
+    public IRequestResponseCommunication<byte[], byte[]> CreateTcpCommunication(string host, int port)
     {
         return MockCommunication;
     }

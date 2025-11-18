@@ -1,0 +1,153 @@
+{
+    "@id": "dtmi:advantech:EdgeSync:Sample;1",
+    "@type": "Interface",
+    "displayName": "EdgySync Device Measurement Definitions",
+    "contents": [
+        {
+            "@id": "dtmi:advantech:EdgeSync:AI;1",
+            "@type": "Telemetry",
+            "name": "AI",
+            "displayName": "Analog Input",
+            "schema": "double",
+            "unit": "volt",
+            "description": "This is Analog Input field"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:DI;1",
+            "@type": "Telemetry",
+            "name": "DI",
+            "displayName": "Digital Input",
+            "schema": "boolean",
+            "description": "This is Digital Input field"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:DO;1",
+            "@type": "Telemetry",
+            "name": "DO",
+            "displayName": "Digital Output",
+            "schema": "boolean",
+            "writable": true,
+            "description": "This is Digital Output field"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Voltage;1",
+            "@type": "Telemetry",
+            "name": "voltage",
+            "displayName": "Voltage",
+            "schema": "double",
+            "unit": "volt",
+            "description": "Voltage measurement"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Temperature;1",
+            "@type": "Telemetry",
+            "name": "temperature",
+            "displayName": "Temperature",
+            "schema": "double",
+            "unit": "degreeCelsius",
+            "description": "Temperature measurement"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:TemperatureFloat;1",
+            "@type": "Telemetry",
+            "name": "temp",
+            "displayName": "Temperature (Float)",
+            "schema": "float",
+            "unit": "degreeCelsius",
+            "description": "Temperature measurement in floating point format"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:TemperatureInt;1",
+            "@type": "Telemetry",
+            "name": "tempint",
+            "displayName": "Temperature (Integer)",
+            "schema": "integer",
+            "unit": "degreeCelsius",
+            "description": "Temperature measurement in integer format (scaled by 100)",
+            "scaleFactor": 100
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:AccelerationX;1",
+            "@type": "Telemetry",
+            "name": "accel_x",
+            "displayName": "Acceleration X-axis",
+            "schema": "double",
+            "unit": "metrePerSecondSquared",
+            "description": "X-axis acceleration measurement"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:AccelerationY;1",
+            "@type": "Telemetry",
+            "name": "accel_y",
+            "displayName": "Acceleration Y-axis",
+            "schema": "double",
+            "unit": "metrePerSecondSquared",
+            "description": "Y-axis acceleration measurement"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:AccelerationZ;1",
+            "@type": "Telemetry",
+            "name": "accel_z",
+            "displayName": "Acceleration Z-axis",
+            "schema": "double",
+            "unit": "metrePerSecondSquared",
+            "description": "Z-axis acceleration measurement"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Latitude;1",
+            "@type": "Telemetry",
+            "name": "geoloc_lat",
+            "displayName": "Latitude",
+            "schema": "double",
+            "unit": "degree",
+            "description": "Geographic latitude coordinate"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Longitude;1",
+            "@type": "Telemetry",
+            "name": "geoloc_lon",
+            "displayName": "Longitude",
+            "schema": "double",
+            "unit": "degree",
+            "description": "Geographic longitude coordinate"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Altitude;1",
+            "@type": "Telemetry",
+            "name": "geoloc_alt",
+            "displayName": "Altitude",
+            "schema": "double",
+            "unit": "metre",
+            "description": "Geographic altitude above sea level"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:BatteryVoltage;1",
+            "@type": "Telemetry",
+            "name": "vbatt",
+            "displayName": "Battery Voltage",
+            "schema": "double",
+            "unit": "volt",
+            "description": "Battery voltage measurement"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:RelativeHumidity;1",
+            "@type": "Telemetry",
+            "name": "rh",
+            "displayName": "Relative Humidity (Float)",
+            "schema": "float",
+            "unit": "percent",
+            "description": "Relative humidity measurement in floating point format"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:RelativeHumidityInt;1",
+            "@type": "Telemetry",
+            "name": "rhint",
+            "displayName": "Relative Humidity (Integer)",
+            "schema": "integer",
+            "unit": "percent",
+            "description": "Relative humidity measurement in integer format (scaled by 100)",
+            "scaleFactor": 100
+        }
+    ],
+    "@context": "dtmi:dtdl:context;2"
+}

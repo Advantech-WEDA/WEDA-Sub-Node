@@ -21,6 +21,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly ILogger<DeviceBase> _logger;
     protected readonly IWedaCloudService _cloudService;
     protected readonly ICommunication _communication;
+    protected readonly IWedaApplicationContext _context;
     protected readonly DeviceOrchestrator _orchestrator;
     protected readonly DeviceInitializer _initializer;
 
@@ -43,14 +44,18 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
+
+        Configuration.LoadDtdl();
 
         // Single orchestrator manages all complexity
         _orchestrator = new DeviceOrchestrator(
             context,
             _communication,
             this, // ILifecycleHooks
+            configuration, // Pass full configuration for sensor-level transform/filter support
             configuration.DeviceId); // Pass deviceId from configuration
 
         // Single initializer handles registration
@@ -98,7 +103,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Set the device ID after registration
         _orchestrator.SetDeviceId(deviceId);
 
-        var subResult = await _orchestrator.ConnectionManager.SubscribeToCloudEventsAsync(deviceId, ct);
+        // Subscribe to cloud events based on DeviceOptions (Application Layer)
+        var deviceOptions = _context.DeviceOptions;
+        var subResult = await _orchestrator.ConnectionManager.SubscribeToCloudEventsAsync(
+            deviceId,
+            deviceOptions.EnableConfigUpdates,
+            deviceOptions.EnableCommands,
+            ct);
         if (subResult.IsError) return subResult.Errors;
 
         await OnAfterInitializeAsync(ct);
@@ -136,10 +147,20 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<bool> SendTelemetryAsync(List<TelemetryMeasure> measures, CancellationToken ct = default)
     {
-        var result = await _orchestrator.RetryOrchestrator.ExecuteAsync<ErrorOr<Success>>(
-            async c => await _orchestrator.TelemetryPipeline.ProcessAsync(measures, c),
-            "SendTelemetry", ct);
-        return !result.IsError;
+        try
+        {
+            // Use Polly pipeline for resilient telemetry sending
+            var result = await _orchestrator.OperationPipeline.ExecuteAsync(
+                async c => await _orchestrator.TelemetryPipeline.ProcessAsync(measures, c),
+                ct);
+
+            return !result.IsError;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send telemetry for device {DeviceId} after all retries", DeviceId);
+            return false;
+        }
     }
 
     public async Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken ct = default, params IDspFilter[] filters)
@@ -163,11 +184,40 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
-    // ===== Hooks =====
+    // ===== Lifecycle Hooks =====
 
     protected virtual Task OnBeforeInitializeAsync(CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnAfterInitializeAsync(CancellationToken ct) => Task.CompletedTask;
     protected abstract Task StartBackgroundTasksAsync(CancellationToken ct);
+
+    // ===== Downlink Hooks =====
+
+    /// <summary>
+    /// Hook: Called before configuration update is applied.
+    /// Use this to validate or prepare for configuration changes.
+    /// </summary>
+    protected virtual Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook: Called after configuration update is applied.
+    /// Use this to reload settings, restart components, etc.
+    /// </summary>
+    protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook: Called before command execution.
+    /// Use this for logging, validation, or preparation.
+    /// </summary>
+    protected virtual Task OnBeforeCommandAsync(ExecuteCommandEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook: Called after command execution.
+    /// Use this for cleanup, logging, or follow-up actions.
+    /// </summary>
+    /// <param name="e">The command event</param>
+    /// <param name="success">Whether the command executed successfully</param>
+    /// <param name="ct">Cancellation token</param>
+    protected virtual Task OnAfterCommandAsync(ExecuteCommandEvent e, bool success, CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
@@ -194,15 +244,62 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     {
         _communication.StateChanged += (s, e) => ConnectionStateChanged?.Invoke(this, e);
         _orchestrator.StatusChanged += (s, e) => DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+
+        // Configuration Update: Auto-invoke Pre/Post hooks
         _orchestrator.ConnectionManager.ConfigurationUpdateReceived += async e =>
         {
-            ConfigurationUpdateReceived?.Invoke(this, e);
-            await Task.CompletedTask;
+            try
+            {
+                // Pre-hook
+                await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
+
+                // Raise event (for framework monitoring/logging)
+                ConfigurationUpdateReceived?.Invoke(this, e);
+
+                // Post-hook
+                await OnAfterConfigUpdateAsync(e, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling configuration update for device {DeviceId}", DeviceId);
+            }
         };
+
+        // Command: Auto-invoke Pre -> Execute -> Post hooks
         _orchestrator.ConnectionManager.CommandReceived += async e =>
         {
-            CommandReceived?.Invoke(this, e);
-            await Task.CompletedTask;
+            var success = false;
+            try
+            {
+                // Pre-hook
+                await OnBeforeCommandAsync(e, CancellationToken.None);
+
+                // Raise event (for framework monitoring/logging)
+                CommandReceived?.Invoke(this, e);
+
+                // Execute command on device
+                _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
+                success = await ExecuteCommandAsync(e.Command);
+                _logger.LogInformation("Command execution {Result}: {CommandName}",
+                    success ? "succeeded" : "failed",
+                    e.Command.DeviceCmd);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
+            }
+            finally
+            {
+                // Post-hook (always called, even on failure)
+                try
+                {
+                    await OnAfterCommandAsync(e, success, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in OnAfterCommandAsync hook for command {CommandName}", e.Command.DeviceCmd);
+                }
+            }
         };
     }
 

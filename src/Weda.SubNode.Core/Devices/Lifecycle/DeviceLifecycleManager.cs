@@ -79,7 +79,7 @@ public sealed class DeviceLifecycleManager
             var stopwatch = Stopwatch.StartNew();
             EmitLifecycleEvent(LifecycleStage.Initialize, LifecyclePhase.Before);
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Initializing device {DeviceId}",
                 _deviceId);
 
@@ -111,8 +111,7 @@ public sealed class DeviceLifecycleManager
                 EmitLifecycleEvent(LifecycleStage.Initialize, LifecyclePhase.After, stopwatch.Elapsed);
 
                 _logger.LogInformation(
-                    "Device {DeviceId} initialized successfully in {Duration}ms",
-                    _deviceId, stopwatch.ElapsedMilliseconds);
+                    "Device initialized successfully in {Duration}ms", stopwatch.ElapsedMilliseconds);
 
                 return Result.Success;
             }
@@ -159,7 +158,7 @@ public sealed class DeviceLifecycleManager
             var stopwatch = Stopwatch.StartNew();
             EmitLifecycleEvent(LifecycleStage.Start, LifecyclePhase.Before);
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Starting device {DeviceId}",
                 _deviceId);
 
@@ -190,7 +189,7 @@ public sealed class DeviceLifecycleManager
                 RecordDuration(_startDurations, stopwatch.Elapsed);
                 EmitLifecycleEvent(LifecycleStage.Start, LifecyclePhase.After, stopwatch.Elapsed);
 
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Device {DeviceId} started successfully in {Duration}ms",
                     _deviceId, stopwatch.ElapsedMilliseconds);
 

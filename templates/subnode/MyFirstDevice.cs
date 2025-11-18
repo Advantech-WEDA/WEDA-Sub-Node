@@ -7,8 +7,8 @@ using Weda.SubNode.Devices.Generic;
 namespace WedaSubNode;
 
 /// <summary>
-/// MyFirstDevice - A custom device implementation
-/// Inherits from TcpModbusDevice to get Modbus TCP protocol support with automatic communication setup
+/// MyFirstDevice - A simple custom device implementation
+/// Inherits from TcpModbusDevice to get Modbus TCP protocol support
 /// </summary>
 public class MyFirstDevice : TcpModbusDevice
 {
@@ -23,26 +23,22 @@ public class MyFirstDevice : TcpModbusDevice
 
     /// <summary>
     /// Event handler for telemetry data received from device
-    /// Prints all sensor values from configuration
     /// </summary>
     private void OnDataReceived(object? sender, DataReceivedEvent e)
     {
-        _logger.LogDebug("MyFirstDevice: Data received, Count={Count}", e.Data.Count);
+        _logger.LogDebug("Data received from device, Count={Count}", e.Data.Count);
 
-        // Print all sensor values based on configuration
+        // Print all sensor values
         foreach (var sensor in Configuration.Sensors)
         {
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
-            if (measure?.ValueObject != null)
+            if (measure?.Value != null)
             {
                 _logger.LogInformation("{SensorName}: {Value}",
                     sensor.Name,
-                    measure.ValueObject);
+                    measure.Value);
             }
         }
-
-        // Add your custom logic here
-        // Example: Apply business rules, trigger alerts, etc.
     }
 
     ~MyFirstDevice()

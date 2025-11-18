@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Weda.SubNode.Abstractions.Cloud;
+using Polly;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication;
-using Weda.SubNode.Core.Devices;
+using Weda.SubNode.Core.Policies;
 using Weda.SubNode.Core.Protocols.Modbus;
 
 namespace Weda.SubNode.Core.Devices;
@@ -18,7 +18,10 @@ public class ModbusDevice : DeviceBase
 {
     private readonly byte _slaveId;
     private readonly List<ModbusSensorRegister> _sensorRegisters;
-    private readonly ModbusProtocolParserFactory _parserFactory;
+    private readonly IRequestResponseCommunication<byte[], byte[]> _tcpCommunication;
+    private readonly ResiliencePipeline<bool> _reconnectionPipeline;
+    private readonly ModbusBatchReader _batchReader;
+    private readonly bool _useBatchOptimization;
     private CancellationTokenSource? _backgroundTasksCts;
     private Task? _telemetryTask;
     private Task? _healthTask;
@@ -26,16 +29,24 @@ public class ModbusDevice : DeviceBase
 
     /// <summary>
     /// Initializes a new instance of ModbusDevice with ApplicationContext.
+    /// ModbusDevice directly manages Modbus TCP communication using request-response pattern.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing Modbus settings.</param>
-    /// <param name="communication">Communication instance for Modbus protocol.</param>
+    /// <param name="communication">TCP communication instance for Modbus protocol.</param>
+    /// <param name="useBatchOptimization">Enable batch reading optimization (default: true)</param>
+    /// <param name="batchOptions">Batch optimization options (optional)</param>
     public ModbusDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        ICommunication communication)
+        IRequestResponseCommunication<byte[], byte[]> communication,
+        bool useBatchOptimization = true,
+        ModbusBatchOptimizationOptions? batchOptions = null)
         : base(context, configuration, communication)
     {
+        _tcpCommunication = communication ?? throw new ArgumentNullException(nameof(communication));
+        _useBatchOptimization = useBatchOptimization;
+
         // Extract Modbus protocol settings (SlaveId)
         _slaveId = configuration.GetModbusSlaveId();
 
@@ -44,76 +55,134 @@ public class ModbusDevice : DeviceBase
             .Select(s => s.ToModbusRegister())
             .ToList();
 
-        // Initialize parser factory
-        _parserFactory = new ModbusProtocolParserFactory();
+        // Create batch reader for optimized multi-sensor reading
+        _batchReader = new ModbusBatchReader(
+            _tcpCommunication,
+            _slaveId,
+            _logger,
+            batchOptions);
+
+        // Create Polly reconnection pipeline for background task resilience
+        _reconnectionPipeline = ConnectionPolicies.CreateReconnectionPipeline(_logger);
+
+        if (_useBatchOptimization)
+        {
+            _logger.LogDebug(
+                "Modbus batch optimization ENABLED for device ({SensorCount} sensors)",
+                _sensorRegisters.Count);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "Modbus batch optimization DISABLED for device (using legacy single-point reading)"
+                );
+        }
     }
 
     public override async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         var measures = new List<TelemetryMeasure>();
 
-        foreach (var register in _sensorRegisters)
+        // Filter enabled sensors
+        var enabledSensors = _sensorRegisters
+            .Where(r => Configuration.Sensors.First(s => s.Name == r.Name).Config.Enabled)
+            .ToList();
+
+        if (enabledSensors.Count == 0)
         {
-            try
-            {
-                // Get sensor configuration
-                var sensor = Configuration.Sensors.First(s => s.Name == register.Name);
+            _logger.LogTrace("No enabled sensors to read");
+            return measures;
+        }
 
-                // Skip if sensor is disabled
-                if (!sensor.Config.Enabled)
+        if (_useBatchOptimization)
+        {
+            // Use batch reader for optimized multi-sensor reading
+            var results = await _batchReader.ReadSensorsAsync(enabledSensors, cancellationToken);
+
+            foreach (var (sensorName, result) in results)
+            {
+                if (result.Success && result.Value != null)
                 {
-                    _logger.LogTrace("Sensor {SensorName} is disabled, skipping", sensor.Name);
-                    continue;
+                    var sensor = Configuration.Sensors.First(s => s.Name == sensorName);
+                    var measure = new TelemetryMeasure
+                    {
+                        ResourceId = sensor.ResourceId,
+                        Value = result.Value,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    };
+
+                    measures.Add(measure);
+
+                    _logger.LogDebug(
+                        "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
+                        sensorName,
+                        result.Value,
+                        sensor.ResourceId,
+                        result.RawRegisters != null ? string.Join(",", result.RawRegisters) : "N/A");
                 }
-
-                _logger.LogDebug(
-                    "Reading Modbus register: Address={Address}, Count={Count}, Type={Type}",
-                    register.RegisterAddress,
-                    register.RegisterCount,
-                    register.RegisterType);
-
-                // Step 1: Read raw data from hardware via communication
-                var rawData = await ReadModbusRegistersAsync(
-                    register.RegisterType,
-                    register.RegisterAddress,
-                    register.RegisterCount,
-                    cancellationToken);
-
-                // Step 2: Protocol parser - convert registers to C# type
-                var parser = _parserFactory.CreateParser(register);
-                var parsedValue = parser.Parse(rawData);
-
-                // Step 3: Apply DSP filter pipeline (transforms and calibration are applied later in TelemetryPipeline)
-                var finalValue = await ApplyDspPipelineAsync(sensor, Convert.ToDouble(parsedValue), cancellationToken);
-
-                // Step 4: Create telemetry measure (transforms will be applied by TelemetryPipeline)
-                var measure = new TelemetryMeasure
+                else
                 {
-                    ResourceId = sensor.ResourceId,
-                    Value = finalValue,
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                };
-
-                measures.Add(measure);
-
-                // Detailed debug log with all stages of data processing
-                _logger.LogDebug(
-                    "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}, Parsed={Parsed}, AfterDsp={AfterDsp}",
-                    register.Name,
-                    finalValue,
-                    register.ResourceId,
-                    string.Join(",", rawData),
-                    parsedValue,
-                    finalValue);
+                    _logger.LogError(
+                        "Failed to read sensor {SensorName}: {Error}",
+                        sensorName,
+                        result.ErrorMessage ?? "Unknown error");
+                }
             }
-            catch (Exception ex)
+        }
+        else
+        {
+            // Legacy single-point reading mode
+            foreach (var register in enabledSensors)
             {
-                _logger.LogError(ex,
-                    "Error reading sensor {SensorName} at address {Address} from device {DeviceId}",
-                    register.Name,
-                    register.RegisterAddress,
-                    DeviceId);
-                // Continue reading other sensors even if one fails
+                try
+                {
+                    var sensor = Configuration.Sensors.First(s => s.Name == register.Name);
+
+                    _logger.LogDebug(
+                        "Reading Modbus register: Address={Address}, Count={Count}, Type={Type}",
+                        register.RegisterAddress,
+                        register.RegisterCount,
+                        register.RegisterType);
+
+                    // Step 1: Read raw data from hardware via communication
+                    var rawData = await ReadModbusRegistersAsync(
+                        register.RegisterType,
+                        register.RegisterAddress,
+                        register.RegisterCount,
+                        cancellationToken);
+
+                    // Step 2: Protocol parser - convert registers to C# type
+                    var parser = new ModbusProtocolParser(register.DataType);
+                    var parsedValue = parser.Parse(rawData);
+
+                    // Step 3: Create telemetry measure with raw parsed value
+                    // Transforms and DSP filters will be applied by TelemetryPipeline
+                    var measure = new TelemetryMeasure
+                    {
+                        ResourceId = sensor.ResourceId,
+                        Value = parsedValue,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    };
+
+                    measures.Add(measure);
+
+                    // Detailed debug log
+                    _logger.LogDebug(
+                        "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
+                        register.Name,
+                        parsedValue,
+                        register.ResourceId,
+                        string.Join(",", rawData));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Error reading sensor {SensorName} at address {Address} from device {DeviceId}",
+                        register.Name,
+                        register.RegisterAddress,
+                        DeviceId);
+                    // Continue reading other sensors even if one fails
+                }
             }
         }
 
@@ -132,9 +201,7 @@ public class ModbusDevice : DeviceBase
         CancellationToken cancellationToken)
     {
         var request = BuildModbusRequest(0x03, startAddress, count);
-        await _communication.WriteAsync(request, cancellationToken);
-
-        var response = await _communication.ReadAsync(cancellationToken);
+        var response = await _tcpCommunication.RequestAsync(request, cancellationToken);
         return ParseModbusResponse(response, count);
     }
 
@@ -175,29 +242,6 @@ public class ModbusDevice : DeviceBase
         return registers;
     }
 
-    /// <summary>
-    /// Apply sensor-specific DSP filter pipeline
-    /// Filters are applied in order based on their Order property
-    /// </summary>
-    private async Task<double> ApplyDspPipelineAsync(Sensor sensor, double value, CancellationToken cancellationToken)
-    {
-        // Get enabled filters sorted by order
-        var enabledFilters = sensor.Config.DspPipeline
-            .Where(f => f.Enabled)
-            .OrderBy(f => f.Order)
-            .ToList();
-
-        if (enabledFilters.Count == 0)
-            return value; // No filters, return calibrated value as-is
-
-        // TODO: Implement actual DSP filter application
-        // For now, just return the calibrated value
-        // In future, instantiate filters based on Type and Parameters
-        _logger.LogDebug("Sensor {SensorName}: {FilterCount} DSP filters configured", sensor.Name, enabledFilters.Count);
-
-        return await Task.FromResult(value);
-    }
-
     public override Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing command {CommandName} on Modbus device {DeviceId}", command.DeviceCmd, DeviceId);
@@ -213,7 +257,7 @@ public class ModbusDevice : DeviceBase
     {
         _logger.LogInformation("Starting Modbus register scan for device {DeviceId}", DeviceId);
 
-        var scanner = new ModbusScanner(_communication, _slaveId, _logger);
+        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
         var results = await scanner.ScanHoldingRegistersAsync(config, cancellationToken);
 
         // Print results to console
@@ -227,7 +271,7 @@ public class ModbusDevice : DeviceBase
     /// </summary>
     public List<SensorSuggestion> GenerateSensorSuggestions(List<ModbusScanResult> scanResults)
     {
-        var scanner = new ModbusScanner(_communication, _slaveId, _logger);
+        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
         return scanner.GenerateSensorSuggestions(scanResults);
     }
 
@@ -239,7 +283,7 @@ public class ModbusDevice : DeviceBase
     /// <returns>Markdown formatted report</returns>
     public string GenerateScanReport(List<ModbusScanResult> scanResults, ModbusScanConfig config)
     {
-        var scanner = new ModbusScanner(_communication, _slaveId, _logger);
+        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
 
         // Build device info from configuration
         var deviceInfo = new Dictionary<string, object>
@@ -259,29 +303,37 @@ public class ModbusDevice : DeviceBase
         _telemetryTask = Task.Run(async () =>
         {
             var period = Configuration.Periods.ReadTelemetry;
-            _logger.LogInformation("Starting telemetry task with period {Period}ms", period);
+            _logger.LogDebug("Starting telemetry task with period {Period}ms", period);
 
             while (!cts.IsCancellationRequested)
             {
                 try
                 {
-                    // Check if communication is in error state, attempt reconnection
+                    // Check if communication is in error state, attempt reconnection using Polly
                     if (ConnectionState == CommunicationState.Error ||
                         ConnectionState == CommunicationState.Disconnected)
                     {
-                        _logger.LogWarning("Device {DeviceId} communication in {State} state, attempting reconnection...",
+                        _logger.LogWarning("Device {DeviceId} communication in {State} state, attempting reconnection with Polly pipeline...",
                             DeviceId, ConnectionState);
 
                         if (_communication is CommunicationBase commBase)
                         {
-                            var reconnected = await commBase.ReconnectAsync(cts);
-                            if (!reconnected)
+                            // Use Polly reconnection pipeline (unlimited retries with exponential backoff)
+                            var reconnected = await _reconnectionPipeline.ExecuteAsync(
+                                async ct => await commBase.ReconnectAsync(ct),
+                                cts);
+
+                            if (reconnected)
                             {
-                                _logger.LogError("Failed to reconnect device {DeviceId}", DeviceId);
+                                _logger.LogInformation("Device {DeviceId} reconnected successfully via Polly pipeline", DeviceId);
+                            }
+                            else
+                            {
+                                // This should rarely happen since pipeline has unlimited retries
+                                _logger.LogError("Failed to reconnect device {DeviceId} even after Polly retries", DeviceId);
                                 await Task.Delay(period, cts);
                                 continue;
                             }
-                            _logger.LogInformation("Device {DeviceId} reconnected successfully", DeviceId);
                         }
                     }
 
@@ -296,13 +348,12 @@ public class ModbusDevice : DeviceBase
                     if (measures.Count > 0)
                     {
                         await SendTelemetryAsync(ToAsyncEnumerable(measures), cts);
-
-                        // Reset reconnection counter on successful operation
-                        if (_communication is CommunicationBase commBase)
-                        {
-                            commBase.ResetReconnectAttempts();
-                        }
                     }
+                }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                {
+                    _logger.LogInformation("Telemetry task cancelled for device {DeviceId}", DeviceId);
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -316,7 +367,7 @@ public class ModbusDevice : DeviceBase
         _healthTask = Task.Run(async () =>
         {
             var period = Configuration.Periods.ReportHealth;
-            _logger.LogInformation("Starting health reporting task with period {Period}ms", period);
+            _logger.LogDebug("Starting health reporting task with period {Period}ms", period);
 
             while (!cts.IsCancellationRequested)
             {

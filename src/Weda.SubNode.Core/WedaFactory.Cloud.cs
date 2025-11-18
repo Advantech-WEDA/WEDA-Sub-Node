@@ -13,27 +13,22 @@ public static partial class WedaFactory
     {
         /// <summary>
         /// Default cloud service instance.
-        /// In Core project, this returns Null cloud service.
+        /// In Core project, this returns Mock cloud service.
         /// The Weda.SubNode.Cloud project extends this with a real NATS cloud service.
         /// </summary>
-        public static IWedaCloudService Default => Null;
+        public static IWedaCloudService Default => Mock;
 
         /// <summary>
-        /// Null cloud service for testing and offline scenarios.
+        /// Mock cloud service for testing and offline scenarios.
         /// Does not connect to any cloud, generates mock deviceId locally.
         /// </summary>
-        public static IWedaCloudService Null
+        public static IWedaCloudService Mock
         {
             get
             {
-                var logger = _loggerFactory?.CreateLogger<NullCloudService>();
-                return new NullCloudService(logger);
+                var logger = _loggerFactory?.CreateLogger<MockCloudService>();
+                return new MockCloudService(logger);
             }
         }
-
-        /// <summary>
-        /// Alias for Null - mock cloud service for testing.
-        /// </summary>
-        public static IWedaCloudService Mock => Null;
     }
 }

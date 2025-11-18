@@ -1,63 +1,38 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Serilog;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Host.Context;
+using Weda.SubNode.Core;
+using Weda.SubNode.Core.Protocols.Modbus;
+using Weda.SubNode.Simulators.Modbus;
 using WedaSubNode;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SubNode Template - MyFirstDevice Pattern
-// ═══════════════════════════════════════════════════════════════════════════
-// This template demonstrates how to create a custom device by inheriting
-// from TcpModbusDevice. Communication is automatically created from configuration.
-// Dependencies: Weda.SubNode.Host, Weda.SubNode.Devices, Weda.SubNode.Cloud
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Configuration & Logging Setup
-var configuration = new ConfigurationBuilder()
-    .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .Build();
-
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(configuration)
-    .CreateLogger();
-
-using var loggerFactory = LoggerFactory.Create(builder => builder.AddSerilog(Log.Logger));
 
 try
 {
-    Log.Information("Starting MyFirstDevice application...");
-
-    // Load device configuration
-    var config = configuration.GetSection("DeviceConfigs:MyFirstDevice").Get<DeviceConfiguration>()
-        ?? throw new InvalidOperationException("Device configuration not found");
-
-    // Load NATS configuration
-    var natsUrl = configuration["Nats:Url"] ?? "nats://localhost:4222";
-
-    // Create ApplicationContext with logging
+    // create a WedaApplicationContext with system configuration
+    // SDK will automatically load appsettings.json for Configuration and LoggerFactory
     using var context = new WedaApplicationContext(options =>
     {
-        options.LoggerFactory = loggerFactory;
-        options.NatsUrl = natsUrl;
+        // remove this line to enable real cloud service
+        options.CloudService = WedaFactory.Cloud.Mock;
     });
 
-    Log.Information("NATS URL configured: {NatsUrl}", natsUrl);
+    // Configure Modbus Simulator programmatically
+    var simulator = await ConfigureTcpModbusSimulator(context);
 
-    // Create your custom device instance - Simple API!
-    var device = new MyFirstDevice(context, config);
+    // Configure Device programmatically
+    var deviceConfig = ConfigureDeviceConfiguration();
 
-    // Initialize and start the device
-    var initialized = await device.InitializeAsync();
-    if (!initialized)
+    var device = new MyFirstDevice(context, deviceConfig);
+
+    if (!await device.InitializeAsync())
     {
-        Log.Error("Failed to initialize device");
+        Console.WriteLine("Failed to initialize device");
         return;
     }
 
     await device.StartAsync();
-    Log.Information("Device started successfully. Press Ctrl+C to stop...");
+    Console.WriteLine("MyFirstDevice started. Press Ctrl+C to stop...");
 
     // Wait for cancellation
     var cts = new CancellationTokenSource();
@@ -72,16 +47,98 @@ try
     // Graceful shutdown
     await device.StopAsync();
     device.Dispose();
+    await simulator.StopAsync();
 }
 catch (OperationCanceledException)
 {
-    Log.Information("Application cancelled");
+    Console.WriteLine("Application stopped");
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
+    Console.WriteLine($"Application terminated unexpectedly: {ex}");
 }
-finally
+
+DeviceConfiguration ConfigureDeviceConfiguration()
 {
-    await Log.CloseAndFlushAsync();
+    // Configure Device using TcpModbusDeviceConfiguration
+    var modbusDeviceConfig = new TcpModbusDeviceConfiguration
+    {
+        DeviceName = "MySubNode",
+        Manufacturer = "Advantech",
+        Model = "CustomDevice-v1",
+        Host = "127.0.0.1",
+        Port = 5020,
+        SlaveId = 1,
+        DtdlPath = "assets/dtdl/dtmi/advantech/edgesync/sample-1.json"
+    };
+
+    // Create temperature sensor with transform pipeline
+    var tempSensor = new ModbusSensorConfiguration
+    {
+        Name = "temperature.sensor",
+        Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",
+        RegisterAddress = 0,
+        RegisterCount = 2,
+        DataType = ModbusDataType.Float32,
+        RegisterType = ModbusRegisterType.HoldingRegister,
+        SensorGroup = SensorGroup.TEMP
+    };
+
+    // Add sensor to device
+    modbusDeviceConfig.AddSensor(tempSensor);
+
+    // Convert to DeviceConfiguration
+    var deviceConfig = modbusDeviceConfig.ToDeviceConfiguration();
+
+    // Load DTDL metadata (required for cloud registration)
+    deviceConfig.LoadDtdl();
+
+    return deviceConfig;
+}
+
+async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContext context)
+{
+    var simulatorConfig = new TcpModbusSimulatorConfiguration
+    {
+        TcpConnection = new TcpConnectionSettings
+        {
+            IpAddress = "127.0.0.1",
+            Port = 5020
+        },
+        ModbusProtocol = new ModbusProtocolSettings
+        {
+            SlaveId = 1,
+            UseModbusAddressing = false,
+            HoldingRegisterBase = 0
+        },
+        Simulation = new SimulationSettings
+        {
+            GlobalUpdateIntervalSeconds = 5,
+            EnableValueChanges = true
+        },
+        Sensors = new List<SimulatedSensor>
+        {
+            new SimulatedSensor
+            {
+                Name = "TemperatureSensor",
+                Type = SensorType.Temperature,
+                StartAddress = 0,
+                RegisterCount = 2,
+                DataType = SimulatedDataType.Float32,
+                SimulationParams = new SensorSimulationParams
+                {
+                    MinValue = 18.0,
+                    MaxValue = 32.0,
+                    InitialValue = 25.0,
+                    ChangeRate = 0.2,
+                    NoiseLevel = 0.1
+                }
+            }
+        }
+    };
+
+    var logger = context.LoggerFactory.CreateLogger<TcpModbusSimulator>();
+    var simulator = new TcpModbusSimulator(simulatorConfig, logger: logger);
+    await simulator.StartAsync();
+    return simulator;
 }

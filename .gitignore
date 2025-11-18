@@ -370,3 +370,8 @@ FodyWeavers.xsd
 # docs
 docs/.*
 docs/tickets/
+.device-registration.json/templates/Templates.sln
+docs_backup
+
+# cache file
+**/.device-registration.json

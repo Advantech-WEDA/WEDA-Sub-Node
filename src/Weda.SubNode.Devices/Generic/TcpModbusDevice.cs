@@ -1,6 +1,7 @@
-using Microsoft.Extensions.Logging;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Core.Communication;
 using Weda.SubNode.Core.Devices;
 
 namespace Weda.SubNode.Devices.Generic;
@@ -32,29 +33,19 @@ public class TcpModbusDevice : ModbusDevice
     {
     }
 
-    private static Abstractions.Communication.ICommunication CreateTcpCommunication(
+    private static IRequestResponseCommunication<byte[], byte[]> CreateTcpCommunication(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
     {
         var host = configuration.Communication.TryGetValue("Host", out var h) ? h?.ToString() ?? "localhost" : "localhost";
         var port = configuration.Communication.TryGetValue("Port", out var p) ? Convert.ToInt32(p) : 502;
 
-        // Try to use context's factory method if available
-        var contextType = context.GetType();
-        var createMethod = contextType.GetMethod("CreateTcpCommunication", new[] { typeof(string), typeof(int) });
-        if (createMethod != null)
-        {
-            try
-            {
-                var result = createMethod.Invoke(context, [host, port]);
-                if (result is Abstractions.Communication.ICommunication communication)
-                    return communication;
-            }
-            catch { }
-        }
+        // Use ConnectionSettings from configuration (retry, timeout, security)
+        var connectionSettings = configuration.ConnectionSettings ?? new ConnectionSettings();
 
-        // Fallback: create directly
-        var logger = context.GetLogger<Core.Communication.CommunicationBase>();
-        return new Core.Communication.TcpCommunication(host, port, null, logger);
+        // Create TCP communication directly
+        // Connection will be established automatically by DeviceBase.InitializeAsync via ConnectionManager
+        var logger = context.GetLogger<CommunicationBase>();
+        return new TcpCommunication(host, port, connectionSettings, logger);
     }
 }

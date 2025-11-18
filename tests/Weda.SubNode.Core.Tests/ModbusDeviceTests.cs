@@ -19,7 +19,7 @@ public class ModbusDeviceTests : IDisposable
 {
     private readonly MockApplicationContext _context;
     private readonly IWedaCloudService _mockCloudService;
-    private readonly ICommunication _mockCommunication;
+    private readonly IRequestResponseCommunication<byte[], byte[]> _mockCommunication;
 
     public ModbusDeviceTests()
     {
@@ -113,7 +113,7 @@ public class ModbusDeviceTests : IDisposable
             0x41, 0xC8, 0x00, 0x00  // Float32: 25.0 (IEEE 754)
         };
 
-        _mockCommunication.ReadAsync(Arg.Any<CancellationToken>())
+        _mockCommunication.RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(mockResponse);
 
         // Act
@@ -125,8 +125,7 @@ public class ModbusDeviceTests : IDisposable
         measures[0].ResourceId.ShouldBe("temp-001");
 
         // Verify communication was called
-        await _mockCommunication.Received(1).WriteAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
-        await _mockCommunication.Received(1).ReadAsync(Arg.Any<CancellationToken>());
+        await _mockCommunication.Received(1).RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -167,7 +166,7 @@ public class ModbusDeviceTests : IDisposable
 
         // Assert
         measures.ShouldBeEmpty();
-        await _mockCommunication.DidNotReceive().WriteAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
+        await _mockCommunication.DidNotReceive().RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -178,7 +177,7 @@ public class ModbusDeviceTests : IDisposable
         var device = new ModbusDevice(_context, config, _mockCommunication);
 
         // First sensor fails, second succeeds
-        _mockCommunication.ReadAsync(Arg.Any<CancellationToken>())
+        _mockCommunication.RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(
                 x => throw new InvalidOperationException("Read timeout"),
                 x => CreateModbusResponse(25.0f));
@@ -190,7 +189,7 @@ public class ModbusDeviceTests : IDisposable
         // Should have 1 measure from the second sensor (first failed)
         measures.ShouldNotBeNull();
         // Even though first sensor failed, the method continues
-        await _mockCommunication.Received(2).WriteAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
+        await _mockCommunication.Received(2).RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -206,7 +205,7 @@ public class ModbusDeviceTests : IDisposable
             dataReceivedEventRaised = true;
         };
 
-        _mockCommunication.ReadAsync(Arg.Any<CancellationToken>())
+        _mockCommunication.RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(CreateModbusResponse(25.0f));
 
         // Act
@@ -228,8 +227,7 @@ public class ModbusDeviceTests : IDisposable
         var device = new ModbusDevice(_context, config, _mockCommunication);
 
         byte[]? capturedRequest = null;
-        await _mockCommunication.WriteAsync(Arg.Do<byte[]>(x => capturedRequest = x), Arg.Any<CancellationToken>());
-        _mockCommunication.ReadAsync(Arg.Any<CancellationToken>())
+        _mockCommunication.RequestAsync(Arg.Do<byte[]>(x => capturedRequest = x), Arg.Any<CancellationToken>())
             .Returns(CreateModbusResponse(25.0f));
 
         // Act

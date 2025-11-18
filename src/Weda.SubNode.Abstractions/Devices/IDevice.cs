@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -133,12 +134,14 @@ public interface IDevice : IDisposable
 
     /// <summary>
     /// Event: Configuration update received from cloud (Cloud → SubNode)
+    /// NOTE: For internal framework use only. Use OnBeforeConfigUpdateAsync/OnAfterConfigUpdateAsync hooks instead.
     /// </summary>
     event EventHandler<UpdateConfigurationEvent>? ConfigurationUpdateReceived;
 
     /// <summary>
     /// Event: Command received from cloud (Cloud → SubNode)
-    /// User should subscribe to this event and call ExecuteCommandAsync
+    /// NOTE: For internal framework use only. Command execution is automatic.
+    /// Use OnBeforeCommandAsync/OnAfterCommandAsync hooks for custom logic.
     /// </summary>
     event EventHandler<ExecuteCommandEvent>? CommandReceived;
 }

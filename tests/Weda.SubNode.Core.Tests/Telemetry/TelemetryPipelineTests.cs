@@ -27,6 +27,7 @@ public sealed class TelemetryPipelineTests
         _mockCloudService = Substitute.For<IWedaCloudService>();
         _pipeline = new TelemetryPipeline(
             TestDeviceId,
+            configuration: null,
             _mockCloudService,
             NullLogger<TelemetryPipeline>.Instance);
     }
@@ -293,13 +294,29 @@ public sealed class TelemetryPipelineTests
         await _pipeline.ProcessAsync(measures);
 
         // Assert
-        // Should have Before and After events for Send stage (no transforms/filters)
-        events.Count.ShouldBe(2);
-        events[0].Stage.ShouldBe(PipelineStage.Send);
+        // Should have Before and After events for all 3 stages: Transform, Filter, Send
+        events.Count.ShouldBe(6); // 3 stages × 2 events (Before/After) = 6
+
+        // Transform stage
+        events[0].Stage.ShouldBe(PipelineStage.Transform);
         events[0].Phase.ShouldBe(StagePhase.Before);
-        events[1].Stage.ShouldBe(PipelineStage.Send);
+        events[1].Stage.ShouldBe(PipelineStage.Transform);
         events[1].Phase.ShouldBe(StagePhase.After);
         events[1].Duration.ShouldNotBeNull();
+
+        // Filter stage
+        events[2].Stage.ShouldBe(PipelineStage.Filter);
+        events[2].Phase.ShouldBe(StagePhase.Before);
+        events[3].Stage.ShouldBe(PipelineStage.Filter);
+        events[3].Phase.ShouldBe(StagePhase.After);
+        events[3].Duration.ShouldNotBeNull();
+
+        // Send stage
+        events[4].Stage.ShouldBe(PipelineStage.Send);
+        events[4].Phase.ShouldBe(StagePhase.Before);
+        events[5].Stage.ShouldBe(PipelineStage.Send);
+        events[5].Phase.ShouldBe(StagePhase.After);
+        events[5].Duration.ShouldNotBeNull();
     }
 
     [Fact]

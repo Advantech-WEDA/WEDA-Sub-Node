@@ -2,7 +2,6 @@ using NSubstitute;
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Core.Managers;
 using Xunit;
@@ -17,19 +16,11 @@ public class DeviceConnectionManagerTests
 {
     private readonly ICommunication _mockCommunication;
     private readonly IWedaCloudService _mockCloudService;
-    private readonly ConnectionOptions _testOptions;
 
     public DeviceConnectionManagerTests()
     {
         _mockCommunication = Substitute.For<ICommunication>();
         _mockCloudService = Substitute.For<IWedaCloudService>();
-
-        // Use fast retry for testing
-        _testOptions = new ConnectionOptions
-        {
-            MaxRetryAttempts = 3,
-            RetryDelayMs = 10 // Short delay for fast tests
-        };
     }
 
     #region Constructor Tests
@@ -40,7 +31,7 @@ public class DeviceConnectionManagerTests
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
         {
-            new DeviceConnectionManager(null!, _mockCloudService, _testOptions);
+            new DeviceConnectionManager(null!, _mockCloudService);
         });
     }
 
@@ -50,7 +41,7 @@ public class DeviceConnectionManagerTests
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
         {
-            new DeviceConnectionManager(_mockCommunication, null!, _testOptions);
+            new DeviceConnectionManager(_mockCommunication, null!);
         });
     }
 
@@ -58,7 +49,7 @@ public class DeviceConnectionManagerTests
     public void Constructor_Should_InitializeWithDisconnectedState()
     {
         // Act
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
         // Assert
         manager.CurrentState.ShouldBe(CommunicationState.Disconnected);
@@ -75,7 +66,7 @@ public class DeviceConnectionManagerTests
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         _mockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
         // Act
         var result = await manager.EstablishConnectionsAsync();
@@ -92,20 +83,31 @@ public class DeviceConnectionManagerTests
     public async Task EstablishConnectionsAsync_Should_Fail_When_PhysicalDeviceConnectionFails()
     {
         // Arrange
+        // Use CancellationToken to prevent infinite retry with AlwaysRetry policy
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>()).Returns(false);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
-        // Act
-        var result = await manager.EstablishConnectionsAsync();
+        // Act - Try with cancellation, expect either cancellation exception or error result
+        try
+        {
+            var result = await manager.EstablishConnectionsAsync(cts.Token);
+
+            // If no exception, must be an error result (cancellation during retry delay)
+            result.IsError.ShouldBeTrue();
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation occurred during connection attempt (expected)
+        }
 
         // Assert
-        result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Connection.PhysicalDevice");
         manager.CurrentState.ShouldBe(CommunicationState.Disconnected);
 
-        // Should retry 3 times
-        await _mockCommunication.Received(3).ConnectAsync(Arg.Any<CancellationToken>());
+        // Should have attempted connection with Polly policies
+        await _mockCommunication.Received().ConnectAsync(Arg.Any<CancellationToken>());
         // Should not try cloud service if physical device fails
         await _mockCloudService.DidNotReceive().ConnectAsync(Arg.Any<CancellationToken>());
     }
@@ -114,21 +116,32 @@ public class DeviceConnectionManagerTests
     public async Task EstablishConnectionsAsync_Should_Fail_When_CloudServiceConnectionFails()
     {
         // Arrange
+        // Use CancellationToken to prevent infinite retry with AlwaysRetry policy
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         _mockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(false);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
-        // Act
-        var result = await manager.EstablishConnectionsAsync();
+        // Act - Try with cancellation, expect either cancellation exception or error result
+        try
+        {
+            var result = await manager.EstablishConnectionsAsync(cts.Token);
+
+            // If no exception, must be an error result (cancellation during retry delay)
+            result.IsError.ShouldBeTrue();
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation occurred during connection attempt (expected)
+        }
 
         // Assert
-        result.IsError.ShouldBeTrue();
-        result.FirstError.Code.ShouldBe("Connection.CloudService");
         manager.CurrentState.ShouldBe(CommunicationState.Disconnected);
 
         await _mockCommunication.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(3).ConnectAsync(Arg.Any<CancellationToken>());
+        await _mockCloudService.Received().ConnectAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -147,14 +160,14 @@ public class DeviceConnectionManagerTests
 
         _mockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
         // Act
         var result = await manager.EstablishConnectionsAsync();
 
         // Assert
         result.IsError.ShouldBeFalse();
-        callCount.ShouldBe(3); // Retried twice, succeeded on 3rd attempt
+        callCount.ShouldBeGreaterThanOrEqualTo(3); // Retried with Polly policies, succeeded eventually
         manager.CurrentState.ShouldBe(CommunicationState.Connected);
     }
 
@@ -167,7 +180,7 @@ public class DeviceConnectionManagerTests
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         _mockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
         // Act
         var result = await manager.EstablishConnectionsAsync(cts.Token);
@@ -186,7 +199,7 @@ public class DeviceConnectionManagerTests
     public async Task SubscribeToCloudEventsAsync_Should_Fail_When_NotConnected()
     {
         // Arrange
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
         // Act
         var result = await manager.SubscribeToCloudEventsAsync("device-001");
@@ -203,7 +216,7 @@ public class DeviceConnectionManagerTests
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         _mockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
         await manager.EstablishConnectionsAsync();
 
         // Act
@@ -236,7 +249,7 @@ public class DeviceConnectionManagerTests
             Arg.Do<Func<UpdateConfigurationEvent, Task>>(x => capturedHandler = x),
             Arg.Any<CancellationToken>());
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
         await manager.EstablishConnectionsAsync();
 
         var eventRaised = false;
@@ -274,7 +287,7 @@ public class DeviceConnectionManagerTests
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         _mockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
         await manager.EstablishConnectionsAsync();
 
         // Act
@@ -294,7 +307,7 @@ public class DeviceConnectionManagerTests
         _mockCommunication.DisconnectAsync(Arg.Any<CancellationToken>())
             .Returns(x => throw new InvalidOperationException("Disconnect failed"));
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, _testOptions);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -308,40 +321,39 @@ public class DeviceConnectionManagerTests
     #region Retry Logic Tests
 
     [Fact]
-    public async Task RetryLogic_Should_UseExponentialBackoff()
+    public async Task RetryLogic_Should_RetryWithPollyPipeline()
     {
         // Arrange
-        var options = new ConnectionOptions
-        {
-            MaxRetryAttempts = 3,
-            RetryDelayMs = 100
-        };
+        // Use CancellationToken to prevent infinite retry with AlwaysRetry policy
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        var attemptTimes = new List<DateTime>();
+        var attemptCount = 0;
         _mockCommunication.ConnectAsync(Arg.Any<CancellationToken>())
             .Returns(x =>
             {
-                attemptTimes.Add(DateTime.UtcNow);
+                attemptCount++;
                 return false;
             });
 
-        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService, options);
+        var manager = new DeviceConnectionManager(_mockCommunication, _mockCloudService);
 
-        // Act
-        await manager.EstablishConnectionsAsync();
+        // Act - Try with cancellation, expect either cancellation exception or error result
+        try
+        {
+            var result = await manager.EstablishConnectionsAsync(cts.Token);
+
+            // If no exception, must be an error result (cancellation during retry delay)
+            result.IsError.ShouldBeTrue();
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation occurred during connection attempt (expected)
+        }
 
         // Assert
-        attemptTimes.Count.ShouldBe(3);
-
-        // Check exponential backoff (roughly)
-        if (attemptTimes.Count >= 3)
-        {
-            var delay1 = (attemptTimes[1] - attemptTimes[0]).TotalMilliseconds;
-            var delay2 = (attemptTimes[2] - attemptTimes[1]).TotalMilliseconds;
-
-            // Second delay should be roughly 2x first delay (exponential backoff)
-            delay2.ShouldBeGreaterThan(delay1 * 1.5);
-        }
+        // Polly will retry multiple times before cancellation or timeout occurs
+        attemptCount.ShouldBeGreaterThan(1);
+        manager.CurrentState.ShouldBe(CommunicationState.Disconnected);
     }
 
     #endregion

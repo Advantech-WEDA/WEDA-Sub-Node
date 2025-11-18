@@ -12,23 +12,15 @@
     <ProjectReference Include="../../src/Weda.SubNode.Host/Weda.SubNode.Host.csproj" />
     <ProjectReference Include="../../src/Weda.SubNode.Devices/Weda.SubNode.Devices.csproj" />
     <ProjectReference Include="../../src/Weda.SubNode.Cloud/Weda.SubNode.Cloud.csproj" />
+    <ProjectReference Include="../../src/Weda.SubNode.Simulators/Weda.SubNode.Simulators.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Configuration -->
-    <PackageReference Include="Microsoft.Extensions.Configuration" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
-
     <!-- Logging -->
     <PackageReference Include="Serilog" />
-    <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Extensions.Logging" />
-    <PackageReference Include="Serilog.Sinks.Console" />
-    <PackageReference Include="Serilog.Sinks.File" />
-    <PackageReference Include="Serilog.Sinks.Debug" />
     <PackageReference Include="Serilog.Settings.Configuration" />
-    <PackageReference Include="Serilog.Enrichers.Thread" />
-    <PackageReference Include="Serilog.Enrichers.Environment" />
+    <PackageReference Include="Serilog.Sinks.Console" />
   </ItemGroup>
 
   <ItemGroup>
