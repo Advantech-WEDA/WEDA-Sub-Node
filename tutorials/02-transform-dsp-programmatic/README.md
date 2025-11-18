@@ -1,14 +1,22 @@
+---
+title: "Transform & DSP Filter - Programmatic Approach"
+description: "Learn how to apply Transform and DSP Filter using code configuration"
+version: "0.0.1"
+author: "Rain Hu"
+date: "2025-11-18"
+lang: "en"
+---
 # Transform & DSP Filter Example - Programmatic Approach
 
 This example demonstrates how to apply **Transform** (UnitConversion) and **DSP Filter** (MovingAverage) programmatically using the `wedabuilder` template.
 
 ## What This Example Shows
 
-- ✅ **Programmatic configuration**: Add transforms and filters in code
-- ✅ **CalibrationTransform**: Scale and offset calibration
-- ✅ **UnitConversionTransform**: Convert Celsius to Fahrenheit
-- ✅ **MovingAverageFilter**: Smooth sensor data with window size 5
-- ✅ **Execution order**: Transform → DSP Filter
+-  **Programmatic configuration**: Add transforms and filters in code
+-  **CalibrationTransform**: Scale and offset calibration
+-  **UnitConversionTransform**: Convert Celsius to Fahrenheit
+-  **MovingAverageFilter**: Smooth sensor data with window size 5
+-  **Execution order**: Transform → DSP Filter
 
 ## Pipeline Configuration
 
@@ -153,10 +161,10 @@ tempSensor2.Config
 
 ## Advantages of Programmatic Approach
 
-✅ **Full control**: Different sensors can have different pipelines  
-✅ **Dynamic configuration**: Can change based on runtime conditions  
-✅ **Type safety**: Compile-time checking  
-✅ **Complex logic**: Conditional transforms based on sensor properties  
+ **Full control**: Different sensors can have different pipelines  
+ **Dynamic configuration**: Can change based on runtime conditions  
+ **Type safety**: Compile-time checking  
+ **Complex logic**: Conditional transforms based on sensor properties  
 
 ## Related Examples
 

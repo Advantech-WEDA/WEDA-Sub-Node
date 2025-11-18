@@ -14,13 +14,13 @@ namespace Weda.SubNode.Devices.Advantech;
 /// - Temperature and humidity monitoring
 /// - Pub/Sub architecture for real-time data
 /// </summary>
-public class Wise4012SeDevice : MqttISensingDevice
+public class Wise4000Device : MqttISensingDevice
 {
     /// <summary>
     /// Creates a WISE-4012SE device with ApplicationContext only.
     /// Automatically retrieves configuration from context.
     /// </summary>
-    public Wise4012SeDevice(IWedaApplicationContext context)
+    public Wise4000Device(IWedaApplicationContext context)
         : base(context)
     {
     }
@@ -28,7 +28,7 @@ public class Wise4012SeDevice : MqttISensingDevice
     /// <summary>
     /// Creates a WISE-4012SE device with ApplicationContext and explicit configuration.
     /// </summary>
-    public Wise4012SeDevice(
+    public Wise4000Device(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
         : base(context, configuration)

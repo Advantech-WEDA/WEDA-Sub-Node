@@ -8,6 +8,7 @@ var builder = WedaApplication.CreateBuilder(args)
     .AddCommands()         // downlink
     .AddConfigUpdates();   // downlink
 
+// It will reference to DeviceConfigs:MyFirstDeviceConfig in appsettings.json
 builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");
 
 // Build and run the application

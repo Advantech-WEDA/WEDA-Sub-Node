@@ -40,7 +40,7 @@ All tutorials will:
 3. Use Mock Cloud (no internet connection required)
 4. Display output with explanations
 
-## 📖 Learning Path
+##  Learning Path
 
 We recommend following tutorials in this order:
 

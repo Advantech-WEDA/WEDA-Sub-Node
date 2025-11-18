@@ -1,15 +1,23 @@
+---
+title: "Transform & DSP Filter - Configuration Approach"
+description: "Learn how to apply Transform and DSP Filter using appsettings.json configuration"
+version: "0.0.1"
+author: "Rain Hu"
+date: "2025-11-18"
+lang: "en"
+---
 # Transform & DSP Filter Example - Configuration Approach
 
 This example demonstrates how to apply **Transform** (UnitConversion) and **DSP Filter** (MovingAverage) using `appsettings.json` configuration with the `wedabuilder` template.
 
 ## What This Example Shows
 
-- ✅ **Configuration-based setup**: All transforms and filters defined in `appsettings.json`
-- ✅ **Zero code changes**: No programmatic configuration needed
-- ✅ **CalibrationTransform**: Scale and offset calibration
-- ✅ **UnitConversionTransform**: Convert Celsius to Fahrenheit
-- ✅ **MovingAverageFilter**: Smooth sensor data with window size 5
-- ✅ **Order parameter**: Control execution sequence via config
+-  **Configuration-based setup**: All transforms and filters defined in `appsettings.json`
+-  **Zero code changes**: No programmatic configuration needed
+-  **CalibrationTransform**: Scale and offset calibration
+-  **UnitConversionTransform**: Convert Celsius to Fahrenheit
+-  **MovingAverageFilter**: Smooth sensor data with window size 5
+-  **Order parameter**: Control execution sequence via config
 
 ## Pipeline Configuration
 
@@ -233,11 +241,11 @@ All customization is done in `appsettings.json` - no code changes needed!
 
 ## Advantages of Configuration Approach
 
-✅ **No code changes**: Update pipelines without recompiling  
-✅ **Easy deployment**: Change config per environment  
-✅ **Cloud synchronization**: Can be updated from Weda.Core  
-✅ **Version control friendly**: Track config changes separately  
-✅ **Non-developers can modify**: No programming knowledge needed  
+ **No code changes**: Update pipelines without recompiling  
+ **Easy deployment**: Change config per environment  
+ **Cloud synchronization**: Can be updated from Weda.Core  
+ **Version control friendly**: Track config changes separately  
+ **Non-developers can modify**: No programming knowledge needed  
 
 ## Configuration Reference
 
@@ -261,10 +269,10 @@ All customization is done in `appsettings.json` - no code changes needed!
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `Type` | string | ✅ | Transform/Filter type name |
-| `Enabled` | boolean | ❌ | Enable/disable (default: true) |
-| `Order` | number | ❌ | Execution order (default: 0) |
-| `Parameters` | object | ✅ | Type-specific parameters |
+| `Type` | string |  | Transform/Filter type name |
+| `Enabled` | boolean |  | Enable/disable (default: true) |
+| `Order` | number |  | Execution order (default: 0) |
+| `Parameters` | object |  | Type-specific parameters |
 
 ## Related Examples
 

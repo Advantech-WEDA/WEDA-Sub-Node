@@ -211,7 +211,7 @@ rm -rf QuickTest
 
 ---
 
-### 快速測試選項 2: 嘗試使用 wedabuilder 與 wedabuilder-c 模板
+### 快速測試選項 2: 嘗試使用 wedabuilder
 
 ```bash
 mkdir tmp
