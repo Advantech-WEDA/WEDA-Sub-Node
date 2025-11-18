@@ -4,15 +4,15 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Devices.Generic;
 
-namespace BasicModbusBuilderExample;
+namespace Wise4012Builder;
 
 /// <summary>
-/// Custom Modbus device implementation using Builder pattern
-/// Demonstrates basic event handling and telemetry processing
+/// MyFirstDevice - A simple custom device implementation
+/// Inherits from TcpModbusDevice to get Modbus TCP protocol support
 /// </summary>
-public class MyModbusDevice : TcpModbusDevice
+public class MyFirstDevice : TcpModbusDevice
 {
-    public MyModbusDevice(
+    public MyFirstDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
         : base(context, configuration)
@@ -34,10 +34,9 @@ public class MyModbusDevice : TcpModbusDevice
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
             if (measure?.Value != null)
             {
-                _logger.LogInformation("{SensorName}: {Value} {Unit}",
+                _logger.LogInformation("{SensorName}: {Value}",
                     sensor.Name,
-                    measure.Value,
-                    sensor.Config.Unit ?? "");
+                    measure.Value);
             }
         }
 
@@ -45,11 +44,10 @@ public class MyModbusDevice : TcpModbusDevice
         // - Apply business rules
         // - Trigger alerts based on thresholds
         // - Store data to local database
-        // - Send commands to device
         // - etc.
     }
 
-    ~MyModbusDevice()
+    ~MyFirstDevice()
     {
         // Unsubscribe from events
         DataReceived -= OnDataReceived;

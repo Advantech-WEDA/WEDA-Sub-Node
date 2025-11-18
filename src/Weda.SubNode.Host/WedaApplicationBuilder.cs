@@ -9,6 +9,7 @@ using Serilog;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
+using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Cloud;
@@ -272,7 +273,7 @@ public class WedaApplicationBuilder
     /// </summary>
     /// <param name="configureAction">Action to configure NATS settings</param>
     /// <returns>The builder for chaining</returns>
-    public WedaApplicationBuilder ConfigureNats(Action<NatsOptions> configureAction)
+    public WedaApplicationBuilder ConfigureNats(Action<NatsConnectionSettings> configureAction)
     {
         Services.Configure(configureAction);
         return this;
@@ -403,18 +404,23 @@ public class WedaApplicationBuilder
             Services.Remove(existing);
         }
 
+        Services.Configure<NatsConnectionSettings>(_hostBuilder.Configuration.GetSection("Nats"));
+
         // Register NatsClient as singleton
         Services.AddSingleton(sp =>
         {
-            var natsOptions = sp.GetService<IOptions<NatsOptions>>()?.Value;
+            var natsOptions = sp.GetService<IOptions<NatsConnectionSettings>>()?.Value;
             var url = natsOptions?.Url ?? "nats://localhost:4222";
-            var natsOpts = NatsOpts.Default with { Url = url, SerializerRegistry = NatsClientDefaultSerializerRegistry.Default };
-
-            // TODO: Add credentials support
-            // if (!string.IsNullOrEmpty(natsOptions?.CredentialsFile))
-            // {
-            //     natsOpts = natsOpts with { CredentialsFile = natsOptions.CredentialsFile };
-            // }
+            var credsFile = natsOptions?.CredFile;
+            var natsOpts = NatsOpts.Default with 
+            { 
+                Url = url, 
+                SerializerRegistry = NatsClientDefaultSerializerRegistry.Default,   
+                AuthOpts = NatsAuthOpts.Default with
+                {
+                    CredsFile = credsFile
+                } 
+            };
 
             return new NatsClient(natsOpts);
         });
@@ -513,8 +519,8 @@ public class WedaApplicationBuilder
             var configuration = sp.GetService<IConfiguration>();
 
             // Get DeviceOptions from DI (configured by AddTelemetry, AddCommands, etc.)
-            var deviceOptions = sp.GetService<Microsoft.Extensions.Options.IOptions<Abstractions.Devices.DeviceOptions>>()?.Value
-                ?? Abstractions.Devices.DeviceOptions.Default;
+            var deviceOptions = sp.GetService<IOptions<DeviceOptions>>()?.Value
+                ?? DeviceOptions.Default;
 
             return new Context.WedaApplicationContext(options =>
             {
@@ -594,13 +600,4 @@ public class WedaApplicationBuilder
         var host = _hostBuilder.Build();
         return new WedaApplication(host, readOnlyConfigs);
     }
-}
-
-/// <summary>
-/// NATS configuration options
-/// </summary>
-public class NatsOptions
-{
-    public string? Url { get; set; }
-    public string? CredentialsFile { get; set; }
 }

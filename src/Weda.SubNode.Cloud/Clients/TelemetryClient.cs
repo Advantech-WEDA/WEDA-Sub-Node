@@ -192,7 +192,7 @@ public class TelemetryClient : ITelemetryClient
         var message = HealthReportMessage.Create(health);
 
         _logger.LogInformation(
-            "Reporting health: DeviceId={DeviceId}, IsHealthy={IsHealthy}, CpuUsage={CpuUsage}%, MemoryUsage={MemoryUsage}%, Topic={Topic}, ReqSeqId={ReqSeqId}",
+            "Reporting health: DeviceId={DeviceId}, IsHealthy={IsHealthy}, CpuUsage={CpuUsage:F2}%, MemoryUsage={MemoryUsage:F2}%, Topic={Topic}, ReqSeqId={ReqSeqId}",
             deviceId,
             health.IsHealthy,
             health.CpuUsage,
