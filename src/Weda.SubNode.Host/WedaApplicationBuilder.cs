@@ -280,20 +280,6 @@ public class WedaApplicationBuilder
     }
 
     /// <summary>
-    /// Configure telemetry polling interval (in milliseconds)
-    /// </summary>
-    /// <param name="intervalMs">Polling interval in milliseconds</param>
-    /// <returns>The builder for chaining</returns>
-    public WedaApplicationBuilder ConfigurePollingInterval(int intervalMs)
-    {
-        Services.Configure<DeviceOptions>(options =>
-        {
-            options.DefaultPollingIntervalMs = intervalMs;
-        });
-        return this;
-    }
-
-    /// <summary>
     /// Configure custom device type name resolver
     /// Allows custom logic for resolving device type names to Type instances
     /// </summary>
@@ -358,6 +344,29 @@ public class WedaApplicationBuilder
         {
             options.EnableConfigUpdates = true;
         });
+        return this;
+    }
+
+    /// <summary>
+    /// Configure connection retry policy for device and cloud connections.
+    /// Controls how the SDK handles connection failures and reconnection attempts.
+    /// </summary>
+    /// <param name="configureAction">Action to configure connection options</param>
+    /// <returns>The builder for chaining</returns>
+    /// <example>
+    /// <code>
+    /// builder.ConfigureConnectionPolicy(options =>
+    /// {
+    ///     options.MaxRetryAttempts = 5;           // Limit to 5 retries (-1 for unlimited)
+    ///     options.RetryDelayMs = 2000;            // Start with 2 second delay
+    ///     options.MaxRetryDelayMs = 30000;        // Cap delay at 30 seconds
+    ///     options.ConnectionTimeoutMs = 60000;   // 60 second timeout per attempt
+    /// });
+    /// </code>
+    /// </example>
+    public WedaApplicationBuilder ConfigureConnectionPolicy(Action<ConnectionOptions> configureAction)
+    {
+        Services.Configure(configureAction);
         return this;
     }
 
@@ -522,12 +531,17 @@ public class WedaApplicationBuilder
             var deviceOptions = sp.GetService<IOptions<DeviceOptions>>()?.Value
                 ?? DeviceOptions.Default;
 
+            // Get ConnectionOptions from DI (configured by ConfigureConnectionPolicy)
+            var connectionOptions = sp.GetService<IOptions<ConnectionOptions>>()?.Value
+                ?? ConnectionOptions.Default;
+
             return new Context.WedaApplicationContext(options =>
             {
                 options.CloudService = cloudService;
                 options.LoggerFactory = loggerFactory;
                 options.Configuration = configuration;
                 options.DeviceOptions = deviceOptions;
+                options.ConnectionOptions = connectionOptions;
             });
         });
 

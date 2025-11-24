@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.CircuitBreaker;
 using Polly.Timeout;
+using Weda.SubNode.Abstractions.Devices;
 
 namespace Weda.SubNode.Core.Policies;
 
@@ -215,4 +216,29 @@ public sealed class ConnectionPolicyOptions
     /// Alias for Default. All connection types now use the same policy.
     /// </summary>
     public static ConnectionPolicyOptions CloudDefault => Default;
+
+    /// <summary>
+    /// Creates ConnectionPolicyOptions from the simplified ConnectionOptions.
+    /// This bridges the developer-friendly ConnectionOptions to the internal Polly configuration.
+    /// </summary>
+    /// <param name="options">The simplified connection options</param>
+    /// <returns>Fully configured ConnectionPolicyOptions for Polly pipelines</returns>
+    public static ConnectionPolicyOptions FromConnectionOptions(ConnectionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        return new ConnectionPolicyOptions
+        {
+            // Map MaxRetryAttempts: -1 means unlimited (int.MaxValue)
+            MaxRetryAttempts = options.MaxRetryAttempts < 0 ? int.MaxValue : options.MaxRetryAttempts,
+            InitialDelay = TimeSpan.FromMilliseconds(options.RetryDelayMs),
+            MaxDelay = TimeSpan.FromMilliseconds(options.MaxRetryDelayMs),
+            Timeout = TimeSpan.FromMilliseconds(options.ConnectionTimeoutMs),
+            // Use sensible defaults for circuit breaker (not exposed in simplified options)
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
+            CircuitBreakerMinThroughput = 4,
+            CircuitBreakerBreakDuration = TimeSpan.FromSeconds(20)
+        };
+    }
 }
