@@ -375,3 +375,6 @@ docs_backup
 
 # cache file
 **/.device-registration.json
+
+# reports
+reports/
