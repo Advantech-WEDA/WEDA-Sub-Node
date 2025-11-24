@@ -46,58 +46,104 @@ public class ISensingProtocolParserTests
     #region Parse Tests
 
     [Fact]
-    public void ParseSensorData_WithValidPayload_ShouldThrowNotImplemented()
+    public void ParseSensorData_WithValidPayload_ShouldParseMeasures()
     {
         // Arrange
         var payload = "{\"s\":6,\"t\":1617455339,\"q\":192,\"c\":0,\"ai1\":2559.090,\"ai2\":5718.928}";
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.ParseSensorData(payload, _defaultMapping));
+        // Act
+        var result = _parser.ParseSensorData(payload, _defaultMapping);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, m => m.ResourceId == "AnalogInput1" && Math.Abs((double)m.Value - 2559.090) < 0.001);
+        Assert.Contains(result, m => m.ResourceId == "AnalogInput2" && Math.Abs((double)m.Value - 5718.928) < 0.001);
     }
 
     [Fact]
-    public void ParseSensorData_ByteArray_ShouldThrowNotImplemented()
+    public void ParseSensorData_ByteArray_ShouldParseMeasures()
     {
         // Arrange
         var payload = Encoding.UTF8.GetBytes("{\"s\":1,\"t\":1617455339,\"q\":192,\"c\":0,\"ai1\":100}");
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.ParseSensorData(payload, _defaultMapping));
+        // Act
+        var result = _parser.ParseSensorData(payload, _defaultMapping);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Single(result);
+        Assert.Equal("AnalogInput1", result[0].ResourceId);
+        Assert.Equal(100.0, result[0].Value);
     }
 
     [Fact]
-    public void ParseConnectionStatus_WithValidPayload_ShouldThrowNotImplemented()
+    public void ParseConnectionStatus_WithValidPayload_ShouldParseStatus()
     {
         // Arrange
         var payload = "{\"status\":\"connect\",\"name\":\"WISE-4012SE\",\"macid\":\"00D0C9FAC80E\",\"ipaddr\":\"192.168.50.239\"}";
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.ParseConnectionStatus(payload));
+        // Act
+        var result = _parser.ParseConnectionStatus(payload);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("connect", result.Status);
+        Assert.Equal("WISE-4012SE", result.DeviceName);
+        Assert.Equal("00D0C9FAC80E", result.MacAddress);
+        Assert.Equal("192.168.50.239", result.IpAddress);
     }
 
     [Fact]
-    public void IsConnectionMessage_ShouldThrowNotImplemented()
+    public void IsConnectionMessage_ShouldReturnTrue()
     {
         // Arrange
         var payload = "{\"status\":\"connect\",\"name\":\"WISE-4012SE\",\"macid\":\"00D0C9FAC80E\"}";
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.IsConnectionMessage(payload));
+        // Act
+        var result = _parser.IsConnectionMessage(payload);
+
+        // Assert
+        Assert.True(result);
     }
 
     [Fact]
-    public void IsSensorDataMessage_ShouldThrowNotImplemented()
+    public void IsConnectionMessage_WithSensorData_ShouldReturnFalse()
     {
         // Arrange
         var payload = "{\"s\":1,\"t\":1617455339,\"q\":192,\"c\":0,\"ai1\":100}";
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.IsSensorDataMessage(payload));
+        // Act
+        var result = _parser.IsConnectionMessage(payload);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void IsSensorDataMessage_ShouldReturnTrue()
+    {
+        // Arrange
+        var payload = "{\"s\":1,\"t\":1617455339,\"q\":192,\"c\":0,\"ai1\":100}";
+
+        // Act
+        var result = _parser.IsSensorDataMessage(payload);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsSensorDataMessage_WithConnectionMessage_ShouldReturnFalse()
+    {
+        // Arrange
+        var payload = "{\"status\":\"connect\",\"name\":\"WISE-4012SE\",\"macid\":\"00D0C9FAC80E\"}";
+
+        // Act
+        var result = _parser.IsSensorDataMessage(payload);
+
+        // Assert
+        Assert.False(result);
     }
 
     #endregion
@@ -105,7 +151,7 @@ public class ISensingProtocolParserTests
     #region Encode Tests
 
     [Fact]
-    public void EncodeSensorData_ShouldThrowNotImplemented()
+    public void EncodeSensorData_ShouldEncodeToJson()
     {
         // Arrange
         var measures = new List<Abstractions.Telemetry.TelemetryMeasure>
@@ -113,48 +159,86 @@ public class ISensingProtocolParserTests
             new() { ResourceId = "AnalogInput1", Value = 2559.090, Timestamp = 1617455339000 }
         };
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.EncodeSensorData(measures));
+        // Act
+        var result = _parser.EncodeSensorData(measures);
+
+        // Assert
+        Assert.NotNull(result);
+        var json = Encoding.UTF8.GetString(result);
+        Assert.Contains("AnalogInput1", json);
+        Assert.Contains("2559.09", json);
     }
 
     [Fact]
-    public void EncodeCommand_ShouldThrowNotImplemented()
+    public void EncodeCommand_SetDigitalOutput_ShouldEncodeCorrectly()
     {
         // Arrange
         var command = new DeviceCommand
         {
             DeviceCmd = "SetDigitalOutput",
-            Parameters = new Dictionary<string, object> { ["do1"] = true }
+            Parameters = new Dictionary<string, object> { ["outputName"] = "do1", ["state"] = true }
         };
 
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.EncodeCommand(command));
+        // Act
+        var result = _parser.EncodeCommand(command);
+
+        // Assert
+        Assert.NotNull(result);
+        var json = Encoding.UTF8.GetString(result);
+        Assert.Contains("\"cmd\"", json);
+        Assert.Contains("\"do\"", json); // "do" is the JSON property name
+        Assert.Contains("do1", json);    // "do1" is the value
     }
 
     [Fact]
-    public void EncodeDigitalOutputCommand_ShouldThrowNotImplemented()
+    public void EncodeDigitalOutputCommand_ShouldEncodeCorrectly()
     {
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.EncodeDigitalOutputCommand("do1", true));
+        // Act
+        var result = _parser.EncodeDigitalOutputCommand("do1", true);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("SetDO", result);
+        Assert.Contains("do1", result);
+        Assert.Contains("true", result);
     }
 
     [Fact]
-    public void EncodeAnalogOutputCommand_ShouldThrowNotImplemented()
+    public void EncodeAnalogOutputCommand_ShouldEncodeCorrectly()
     {
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.EncodeAnalogOutputCommand("ao1", 5.5));
+        // Act
+        var result = _parser.EncodeAnalogOutputCommand("ao1", 5.5);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("SetAO", result);
+        Assert.Contains("ao1", result);
+        Assert.Contains("5.5", result);
     }
 
     [Fact]
-    public void EncodeConfigurationRequest_ShouldThrowNotImplemented()
+    public void EncodeConfigurationRequest_GET_ShouldEncodeCorrectly()
     {
-        // Act & Assert
-        Assert.Throws<NotImplementedException>(() =>
-            _parser.EncodeConfigurationRequest("GET", "ai1"));
+        // Act
+        var result = _parser.EncodeConfigurationRequest("GET", "ai1");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("GetConfig", result);
+    }
+
+    [Fact]
+    public void EncodeConfigurationRequest_SET_ShouldEncodeCorrectly()
+    {
+        // Arrange
+        var config = new Dictionary<string, object> { ["key"] = "value" };
+
+        // Act
+        var result = _parser.EncodeConfigurationRequest("SET", "ai1", config);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("SetConfig", result);
     }
 
     #endregion
