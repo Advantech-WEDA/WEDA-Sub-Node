@@ -219,6 +219,42 @@ public class MockCloudService : IWedaCloudService
         return Task.FromResult<IDisposable>(new NoOpDisposable());
     }
 
+    public Task<bool> PublishConfigurationReportAsync(
+        SubNodeConfigurationUpdateMessage report,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Publish configuration report (simulated): DeviceId={DeviceId}, Status={Status}",
+            report.DeviceId,
+            report.Data?.Cfg?.Reported?.Status ?? "unknown");
+
+        if (report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs != null)
+        {
+            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
+            {
+                _logger.LogDebug(
+                    "  Desired config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
+                    deviceKey,
+                    deviceConfig.DeviceName,
+                    deviceConfig.Sensors?.Count ?? 0);
+            }
+        }
+
+        if (report.Data?.Cfg?.Reported?.SubNodeDeviceConfig?.DeviceConfigs != null)
+        {
+            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.SubNodeDeviceConfig.DeviceConfigs)
+            {
+                _logger.LogDebug(
+                    "  Reported config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
+                    deviceKey,
+                    deviceConfig.DeviceName,
+                    deviceConfig.Sensors?.Count ?? 0);
+            }
+        }
+
+        return Task.FromResult(true);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;

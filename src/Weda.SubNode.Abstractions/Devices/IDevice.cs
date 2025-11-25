@@ -1,5 +1,4 @@
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -144,4 +143,36 @@ public interface IDevice : IDisposable
     /// Use OnBeforeCommandAsync/OnAfterCommandAsync hooks for custom logic.
     /// </summary>
     event EventHandler<ExecuteCommandEvent>? CommandReceived;
+
+    // ===== Sensor Access =====
+
+    /// <summary>
+    /// Gets a sensor by name. Throws if not found.
+    /// </summary>
+    /// <param name="sensorName">The sensor name to search for</param>
+    /// <returns>The sensor instance</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when sensor is not found</exception>
+    Sensor GetSensor(string sensorName);
+
+    /// <summary>
+    /// Finds a sensor by name. Returns null if not found.
+    /// </summary>
+    /// <param name="sensorName">The sensor name to search for</param>
+    /// <returns>The sensor instance or null</returns>
+    Sensor? FindSensor(string sensorName);
+
+    /// <summary>
+    /// Gets a sensor by ResourceId. Throws if not found.
+    /// </summary>
+    /// <param name="resourceId">The sensor ResourceId to search for</param>
+    /// <returns>The sensor instance</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when sensor is not found</exception>
+    Sensor GetSensorByResourceId(string resourceId);
+
+    /// <summary>
+    /// Finds a sensor by ResourceId. Returns null if not found.
+    /// </summary>
+    /// <param name="resourceId">The sensor ResourceId to search for</param>
+    /// <returns>The sensor instance or null</returns>
+    Sensor? FindSensorByResourceId(string resourceId);
 }

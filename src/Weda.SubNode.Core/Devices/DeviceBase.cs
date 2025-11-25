@@ -1,12 +1,14 @@
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
 
 namespace Weda.SubNode.Core.Devices;
@@ -72,6 +74,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         // Wire events
         WireEvents();
+
+        // Register device with context's device registry
+        _context.DeviceRegistry.Register(this);
     }
 
     // ===== IDevice Lifecycle =====
@@ -199,8 +204,91 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected virtual Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
+    /// Applies base DeviceConfiguration updates from cloud and persists to cache.
+    /// This handles standard configuration fields (sensors, periods, etc.) at the framework level.
+    /// Derived classes should use OnAfterConfigUpdateAsync for custom configuration handling.
+    /// </summary>
+    private async Task ApplyBaseConfigurationUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        try
+        {
+            // Extract the SubNodeConfigurationUpdateMessage from the event
+            if (!e.Configuration.TryGetValue("message", out var messageObj) ||
+                messageObj is not SubNodeConfigurationUpdateMessage message)
+            {
+                _logger.LogDebug("Configuration update event does not contain SubNodeConfigurationUpdateMessage, skipping base update");
+                return;
+            }
+
+            // Find the device config for this device (try by DeviceName first, then by DeviceTypeName)
+            var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+            if (deviceConfigs == null)
+            {
+                _logger.LogDebug("No device configurations in desired state");
+                return;
+            }
+
+            // Try to find matching device config
+            SubNodeDeviceConfigDto? desiredConfig = null;
+
+            // Try exact match by DeviceName
+            foreach (var (key, config) in deviceConfigs)
+            {
+                if (string.Equals(config.DeviceName, Configuration.DeviceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    desiredConfig = config;
+                    break;
+                }
+            }
+
+            if (desiredConfig == null)
+            {
+                _logger.LogDebug("No matching device configuration found for device: {DeviceName}", Configuration.DeviceName);
+                return;
+            }
+
+            _logger.LogInformation("Applying base configuration update for device: {DeviceName}", Configuration.DeviceName);
+
+            // Apply sensor configuration updates
+            var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
+                Configuration, desiredConfig.Sensors);
+
+            if (updatedSensors.Count > 0)
+            {
+                _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
+                    updatedSensors.Count,
+                    string.Join(", ", updatedSensors));
+            }
+
+            // Apply background task periods if provided
+            if (desiredConfig.Periods != null)
+            {
+                if (desiredConfig.Periods.ReadTelemetry > 0)
+                    Configuration.Periods.ReadTelemetry = desiredConfig.Periods.ReadTelemetry;
+                if (desiredConfig.Periods.SendTelemetry > 0)
+                    Configuration.Periods.SendTelemetry = desiredConfig.Periods.SendTelemetry;
+                if (desiredConfig.Periods.ReportHealth > 0)
+                    Configuration.Periods.ReportHealth = desiredConfig.Periods.ReportHealth;
+
+                _logger.LogInformation("Updated background task periods");
+            }
+
+            // Persist configuration to cache for restart persistence
+            await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
+            _logger.LogInformation("Configuration cached to: {CachePath}",
+                _context.ConfigurationCache.CacheFilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying base configuration update");
+            // Don't rethrow - allow OnAfterConfigUpdateAsync to still execute
+        }
+    }
+
+    /// <summary>
     /// Hook: Called after configuration update is applied.
-    /// Use this to reload settings, restart components, etc.
+    /// Use this to handle custom/device-specific configuration changes.
+    /// Base configuration (sensors, periods) is already applied and cached by the framework.
     /// </summary>
     protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
@@ -250,13 +338,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         {
             try
             {
-                // Pre-hook
+                // Pre-hook (for derived class validation/preparation)
                 await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
 
                 // Raise event (for framework monitoring/logging)
                 ConfigurationUpdateReceived?.Invoke(this, e);
 
-                // Post-hook
+                // Apply base DeviceConfiguration updates from cloud
+                await ApplyBaseConfigurationUpdateAsync(e, CancellationToken.None);
+
+                // Post-hook (for derived class custom configuration handling)
                 await OnAfterConfigUpdateAsync(e, CancellationToken.None);
             }
             catch (Exception ex)
@@ -303,8 +394,47 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         };
     }
 
+    // ===== Sensor Access =====
+
+    /// <inheritdoc />
+    public Sensor GetSensor(string sensorName)
+    {
+        return FindSensor(sensorName)
+            ?? throw new KeyNotFoundException($"Sensor '{sensorName}' not found in device '{DeviceName}'");
+    }
+
+    /// <inheritdoc />
+    public Sensor? FindSensor(string sensorName)
+    {
+        if (string.IsNullOrWhiteSpace(sensorName))
+            return null;
+
+        return Configuration.Sensors.FirstOrDefault(s =>
+            string.Equals(s.Name, sensorName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <inheritdoc />
+    public Sensor GetSensorByResourceId(string resourceId)
+    {
+        return FindSensorByResourceId(resourceId)
+            ?? throw new KeyNotFoundException($"Sensor with ResourceId '{resourceId}' not found in device '{DeviceName}'");
+    }
+
+    /// <inheritdoc />
+    public Sensor? FindSensorByResourceId(string resourceId)
+    {
+        if (string.IsNullOrWhiteSpace(resourceId))
+            return null;
+
+        return Configuration.Sensors.FirstOrDefault(s =>
+            string.Equals(s.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
+    }
+
     public void Dispose()
     {
+        // Unregister device from context's device registry
+        _context.DeviceRegistry.Unregister(this);
+
         _orchestrator.Dispose();
         GC.SuppressFinalize(this);
     }
