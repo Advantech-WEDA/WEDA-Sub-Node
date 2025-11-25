@@ -312,7 +312,7 @@ public sealed class WedaCloudService : IWedaCloudService
                             ["seqId"] = msg.Data.SeqId,
                             ["reqSeqId"] = msg.Data.ReqSeqId,
                             ["timestamp"] = msg.Data.Timestamp,
-                            ["message"] = msg.Data
+                            ["data"] = msg.Data
                         };
 
                         // Create UpdateConfigurationEvent

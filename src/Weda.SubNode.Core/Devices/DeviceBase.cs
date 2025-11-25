@@ -28,6 +28,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly DeviceInitializer _initializer;
 
     private CancellationTokenSource? _runningCts;
+    private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
 
     public DeviceConfiguration Configuration { get; }
     public string DeviceId => _orchestrator.DeviceId;
@@ -206,82 +207,159 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <summary>
     /// Applies base DeviceConfiguration updates from cloud and persists to cache.
     /// This handles standard configuration fields (sensors, periods, etc.) at the framework level.
+    /// Implements proper validation, acknowledgment, update, and response workflow.
     /// Derived classes should use OnAfterConfigUpdateAsync for custom configuration handling.
     /// </summary>
     private async Task ApplyBaseConfigurationUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
+        // Use semaphore for thread-safe configuration updates
+        await _configUpdateLock.WaitAsync(ct);
+
         try
         {
             // Extract the SubNodeConfigurationUpdateMessage from the event
-            if (!e.Configuration.TryGetValue("message", out var messageObj) ||
-                messageObj is not SubNodeConfigurationUpdateMessage message)
+            // Note: WedaCloudService stores the entire message object in the "data" field
+            if (!e.Configuration.TryGetValue("data", out var dataObj) ||
+                dataObj is not SubNodeConfigurationUpdateMessage message ||
+                message.Data?.Cfg?.Desired == null)
             {
-                _logger.LogDebug("Configuration update event does not contain SubNodeConfigurationUpdateMessage, skipping base update");
+                _logger.LogDebug("Configuration update event does not contain valid SubNodeConfigurationUpdateMessage, skipping base update");
                 return;
             }
 
-            // Find the device config for this device (try by DeviceName first, then by DeviceTypeName)
-            var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
-            if (deviceConfigs == null)
+            // Determine device type name for reporting (use DeviceTypeName or DeviceType.ToString())
+            var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+
+            // Step 1: Validate the configuration update
+            _logger.LogInformation("Validating configuration update for device: {DeviceName}", Configuration.DeviceName);
+
+            if (!ConfigurationUpdateHelper.ValidateDeviceConfigurationUpdate(message, Configuration, out var validationError))
             {
-                _logger.LogDebug("No device configurations in desired state");
+                _logger.LogWarning("Configuration update validation failed: {Error}", validationError);
+
+                // Send invalid status response
+                var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
+                    message, Configuration, deviceTypeName, validationError ?? "Unknown validation error");
+                await _cloudService.PublishConfigurationReportAsync(invalidReport, ct);
+
                 return;
             }
 
-            // Try to find matching device config
-            SubNodeDeviceConfigDto? desiredConfig = null;
+            _logger.LogInformation("Configuration update validation passed");
 
-            // Try exact match by DeviceName
-            foreach (var (key, config) in deviceConfigs)
+            // Step 2: Send "message received" acknowledgment (updating status)
+            _logger.LogInformation("Sending 'message received' acknowledgment for device: {DeviceName}", Configuration.DeviceName);
+            var updatingReport = ConfigurationUpdateHelper.CreateUpdatingReport(
+                message, Configuration, deviceTypeName);
+            await _cloudService.PublishConfigurationReportAsync(updatingReport, ct);
+
+            // Step 3: Create backup before applying changes
+            var backup = ConfigurationUpdateHelper.CreateBackup(Configuration);
+            _logger.LogDebug("Configuration backup created");
+
+            // Step 4: Apply configuration updates
+            try
             {
-                if (string.Equals(config.DeviceName, Configuration.DeviceName, StringComparison.OrdinalIgnoreCase))
+                // Find the device config for this device
+                var deviceConfigs = message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs;
+                if (deviceConfigs == null)
                 {
-                    desiredConfig = config;
-                    break;
+                    _logger.LogDebug("No device configurations in desired state");
+                    return;
                 }
-            }
 
-            if (desiredConfig == null)
+                // Find matching device config by DeviceName
+                SubNodeDeviceConfigDto? desiredConfig = null;
+                foreach (var (key, config) in deviceConfigs)
+                {
+                    if (string.Equals(config.DeviceName, Configuration.DeviceName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        desiredConfig = config;
+                        break;
+                    }
+                }
+
+                if (desiredConfig == null)
+                {
+                    _logger.LogDebug("No matching device configuration found for device: {DeviceName}", Configuration.DeviceName);
+                    return;
+                }
+
+                _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
+
+                // Apply sensor configuration updates (PATCH semantics - only update provided fields)
+                var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
+                    Configuration, desiredConfig.Sensors);
+
+                if (updatedSensors.Count > 0)
+                {
+                    _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
+                        updatedSensors.Count,
+                        string.Join(", ", updatedSensors));
+                }
+
+                // Apply background task periods if provided (PATCH semantics)
+                if (desiredConfig.Periods != null)
+                {
+                    if (desiredConfig.Periods.ReadTelemetry > 0)
+                    {
+                        _logger.LogDebug("Updating ReadTelemetry period: {Old} -> {New}",
+                            Configuration.Periods.ReadTelemetry, desiredConfig.Periods.ReadTelemetry);
+                        Configuration.Periods.ReadTelemetry = desiredConfig.Periods.ReadTelemetry;
+                    }
+                    if (desiredConfig.Periods.SendTelemetry > 0)
+                    {
+                        _logger.LogDebug("Updating SendTelemetry period: {Old} -> {New}",
+                            Configuration.Periods.SendTelemetry, desiredConfig.Periods.SendTelemetry);
+                        Configuration.Periods.SendTelemetry = desiredConfig.Periods.SendTelemetry;
+                    }
+                    if (desiredConfig.Periods.ReportHealth > 0)
+                    {
+                        _logger.LogDebug("Updating ReportHealth period: {Old} -> {New}",
+                            Configuration.Periods.ReportHealth, desiredConfig.Periods.ReportHealth);
+                        Configuration.Periods.ReportHealth = desiredConfig.Periods.ReportHealth;
+                    }
+
+                    _logger.LogInformation("Updated background task periods");
+                }
+
+                // Step 5: Persist configuration to cache for restart persistence
+                await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
+                _logger.LogInformation("Configuration cached to: {CachePath}",
+                    _context.ConfigurationCache.CacheFilePath);
+
+                // Step 6: Send success response with updated configuration
+                _logger.LogInformation("Configuration update successful, sending success response");
+                var successReport = ConfigurationUpdateHelper.CreateSuccessReport(
+                    message, Configuration, deviceTypeName);
+                await _cloudService.PublishConfigurationReportAsync(successReport, ct);
+
+                _logger.LogInformation("Configuration update completed successfully for device: {DeviceName}", Configuration.DeviceName);
+            }
+            catch (Exception updateEx)
             {
-                _logger.LogDebug("No matching device configuration found for device: {DeviceName}", Configuration.DeviceName);
-                return;
+                _logger.LogError(updateEx, "Error applying configuration update, rolling back changes");
+
+                // Step 7: Rollback on failure
+                ConfigurationUpdateHelper.RestoreBackup(Configuration, backup);
+                _logger.LogInformation("Configuration rolled back to previous state");
+
+                // Send failure response
+                var failureReport = ConfigurationUpdateHelper.CreateFailedReport(
+                    message, Configuration, deviceTypeName, updateEx.Message);
+                await _cloudService.PublishConfigurationReportAsync(failureReport, ct);
+
+                throw; // Re-throw to let OnAfterConfigUpdateAsync know there was an error
             }
-
-            _logger.LogInformation("Applying base configuration update for device: {DeviceName}", Configuration.DeviceName);
-
-            // Apply sensor configuration updates
-            var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
-                Configuration, desiredConfig.Sensors);
-
-            if (updatedSensors.Count > 0)
-            {
-                _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
-                    updatedSensors.Count,
-                    string.Join(", ", updatedSensors));
-            }
-
-            // Apply background task periods if provided
-            if (desiredConfig.Periods != null)
-            {
-                if (desiredConfig.Periods.ReadTelemetry > 0)
-                    Configuration.Periods.ReadTelemetry = desiredConfig.Periods.ReadTelemetry;
-                if (desiredConfig.Periods.SendTelemetry > 0)
-                    Configuration.Periods.SendTelemetry = desiredConfig.Periods.SendTelemetry;
-                if (desiredConfig.Periods.ReportHealth > 0)
-                    Configuration.Periods.ReportHealth = desiredConfig.Periods.ReportHealth;
-
-                _logger.LogInformation("Updated background task periods");
-            }
-
-            // Persist configuration to cache for restart persistence
-            await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
-            _logger.LogInformation("Configuration cached to: {CachePath}",
-                _context.ConfigurationCache.CacheFilePath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error applying base configuration update");
+            _logger.LogError(ex, "Error in configuration update workflow for device {DeviceId}", DeviceId);
             // Don't rethrow - allow OnAfterConfigUpdateAsync to still execute
+        }
+        finally
+        {
+            _configUpdateLock.Release();
         }
     }
 
@@ -436,6 +514,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _context.DeviceRegistry.Unregister(this);
 
         _orchestrator.Dispose();
+        _configUpdateLock.Dispose();
         GC.SuppressFinalize(this);
     }
 }

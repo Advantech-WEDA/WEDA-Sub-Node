@@ -14,6 +14,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
+using Weda.SubNode.Cloud.Serialization;
 
 namespace Weda.SubNode.Host;
 
@@ -421,14 +422,14 @@ public class WedaApplicationBuilder
             var natsOptions = sp.GetService<IOptions<NatsConnectionSettings>>()?.Value;
             var url = natsOptions?.Url ?? "nats://localhost:4222";
             var credsFile = natsOptions?.CredFile;
-            var natsOpts = NatsOpts.Default with 
-            { 
-                Url = url, 
-                SerializerRegistry = NatsClientDefaultSerializerRegistry.Default,   
+            var natsOpts = NatsOpts.Default with
+            {
+                Url = url,
+                SerializerRegistry = WedaNatsSerializerRegistry.Default,
                 AuthOpts = NatsAuthOpts.Default with
                 {
                     CredsFile = credsFile
-                } 
+                }
             };
 
             return new NatsClient(natsOpts);

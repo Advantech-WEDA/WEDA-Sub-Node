@@ -35,7 +35,7 @@ public class JsonConfigurationCache : IConfigurationCache
     /// </summary>
     /// <param name="filePath">
     /// Path to cache file.
-    /// Default: .device-config-cache.json in current directory.
+    /// Default: .device-config-cache.json in project root directory.
     /// </param>
     /// <param name="logger">Logger instance</param>
     public JsonConfigurationCache(
@@ -43,7 +43,7 @@ public class JsonConfigurationCache : IConfigurationCache
         ILogger<JsonConfigurationCache>? logger = null)
     {
         _filePath = filePath ?? Path.Combine(
-            Directory.GetCurrentDirectory(),
+            FindProjectRoot() ?? Directory.GetCurrentDirectory(),
             DefaultFileName);
 
         _logger = logger ?? NullLoggerFactory.Instance
@@ -219,5 +219,31 @@ public class JsonConfigurationCache : IConfigurationCache
         {
             _lock.Release();
         }
+    }
+
+    /// <summary>
+    /// Finds the project root directory by looking for .csproj file.
+    /// This ensures runtime-generated files are stored in the project directory (where Program.cs is),
+    /// not in bin/Debug/net9.0/ during development.
+    /// </summary>
+    /// <returns>The project root directory path, or null if not found.</returns>
+    private static string? FindProjectRoot()
+    {
+        // Start from the current directory (which may be bin/Debug/net9.0/)
+        var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+
+        while (directory != null)
+        {
+            // Only check for .csproj file - this uniquely identifies the project root
+            // (appsettings.json gets copied to bin/Debug/net9.0/, so we can't rely on it)
+            if (directory.GetFiles("*.csproj").Length > 0)
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
     }
 }
