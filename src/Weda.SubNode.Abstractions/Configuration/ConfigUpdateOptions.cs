@@ -1,0 +1,91 @@
+namespace Weda.SubNode.Abstractions.Configuration;
+
+/// <summary>
+/// Defines the update mode for configuration updates.
+/// </summary>
+public enum ConfigUpdateMode
+{
+    /// <summary>
+    /// REPLACE mode (default): Replace the entire configuration with the provided payload.
+    /// Requires complete payload - all devices and sensors must be present.
+    /// This mode is used for Shadow-based systems that store complete state.
+    /// </summary>
+    Replace,
+
+    /// <summary>
+    /// PATCH mode: Only update fields that are explicitly provided.
+    /// Missing fields retain their current values.
+    /// Use this mode when you want to allow partial configuration updates.
+    /// </summary>
+    Patch
+}
+
+/// <summary>
+/// Options for controlling configuration update validation behavior.
+/// Use this to enable/disable specific validation checks based on device requirements.
+/// </summary>
+public record ConfigUpdateOptions
+{
+    /// <summary>
+    /// Default options for REPLACE mode (Shadow-compatible).
+    /// Requires complete payload with all devices and sensors.
+    /// </summary>
+    public static ConfigUpdateOptions Default => new();
+
+    /// <summary>
+    /// Relaxed options for PATCH mode.
+    /// Allows partial updates - only provided fields are updated.
+    /// Unknown sensors are ignored, partial sensor updates are allowed.
+    /// </summary>
+    public static ConfigUpdateOptions Relaxed => new()
+    {
+        UpdateMode = ConfigUpdateMode.Patch,
+        RejectUnknownSensors = false,
+        RequireAllSensors = false
+    };
+
+    /// <summary>
+    /// The update mode: Replace (complete payload) or Patch (partial updates).
+    /// Default: Replace
+    /// </summary>
+    public ConfigUpdateMode UpdateMode { get; init; } = ConfigUpdateMode.Replace;
+
+    /// <summary>
+    /// Validates that DeviceName in the update matches the current device.
+    /// Default: true
+    /// </summary>
+    public bool ValidateDeviceName { get; init; } = true;
+
+    /// <summary>
+    /// Validates that period values (ReadTelemetry, SendTelemetry, ReportHealth) are non-negative.
+    /// Default: true
+    /// </summary>
+    public bool ValidatePeriods { get; init; } = true;
+
+    /// <summary>
+    /// Validates sensor configurations (name not empty, interval non-negative).
+    /// Default: true
+    /// </summary>
+    public bool ValidateSensors { get; init; } = true;
+
+    /// <summary>
+    /// Validates threshold consistency (UpperCritical >= UpperWarning >= LowerWarning >= LowerCritical).
+    /// Default: true
+    /// </summary>
+    public bool ValidateThresholds { get; init; } = true;
+
+    /// <summary>
+    /// Rejects configuration updates that contain sensors not in the current configuration.
+    /// When false, unknown sensors are silently ignored during apply.
+    /// When true, unknown sensors will cause validation to fail.
+    /// Default: true (Replace mode requires known sensors only)
+    /// </summary>
+    public bool RejectUnknownSensors { get; init; } = true;
+
+    /// <summary>
+    /// Requires that all existing sensors must be present in the update.
+    /// When true, partial updates (only some sensors) will fail validation.
+    /// Default: true (Replace mode requires complete payload)
+    /// </summary>
+    public bool RequireAllSensors { get; init; } = true;
+}

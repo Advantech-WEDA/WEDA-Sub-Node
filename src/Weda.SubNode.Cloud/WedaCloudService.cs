@@ -303,22 +303,10 @@ public sealed class WedaCloudService : IWedaCloudService
                             msg.Data.Cmd,
                             msg.Data.SeqId);
 
-                        // Convert to dictionary for the event
-                        var configDict = new Dictionary<string, object>
-                        {
-                            ["deviceId"] = msg.Data.DeviceId,
-                            ["groupId"] = msg.Data.GroupId,
-                            ["cmd"] = msg.Data.Cmd,
-                            ["seqId"] = msg.Data.SeqId,
-                            ["reqSeqId"] = msg.Data.ReqSeqId,
-                            ["timestamp"] = msg.Data.Timestamp,
-                            ["data"] = msg.Data
-                        };
-
-                        // Create UpdateConfigurationEvent
+                        // Create UpdateConfigurationEvent with strongly-typed message
                         var configEvent = new UpdateConfigurationEvent(
                             DeviceId: deviceId,
-                            Configuration: configDict,
+                            Message: msg.Data,
                             Timestamp: DateTimeOffset.UtcNow);
 
                         // Invoke handler

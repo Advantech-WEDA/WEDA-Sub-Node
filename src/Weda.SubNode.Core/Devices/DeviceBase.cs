@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
@@ -205,6 +206,52 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected virtual Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
+    /// Gets the configuration update validation options.
+    /// Override this property to customize which validations are enabled for this device.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // Disable threshold validation for custom device
+    /// protected override ConfigUpdateOptions ConfigUpdateOptions => ConfigUpdateOptions.Default with
+    /// {
+    ///     ValidateThresholds = false
+    /// };
+    /// </code>
+    /// </example>
+    protected virtual ConfigUpdateOptions ConfigUpdateOptions => ConfigUpdateOptions.Default;
+
+    /// <summary>
+    /// Validates the configuration update message.
+    /// Override this method to implement custom validation logic for your device.
+    /// </summary>
+    /// <param name="message">The configuration update message to validate</param>
+    /// <returns>Validation result indicating success or failure with error message</returns>
+    /// <example>
+    /// <code>
+    /// protected override ConfigurationValidationResult ValidateConfigurationUpdate(
+    ///     SubNodeConfigurationUpdateMessage message)
+    /// {
+    ///     // Call base validation first
+    ///     var baseResult = base.ValidateConfigurationUpdate(message);
+    ///     if (!baseResult.IsValid)
+    ///         return baseResult;
+    ///
+    ///     // Add custom validation
+    ///     var desiredConfig = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs?.Values.FirstOrDefault();
+    ///     if (desiredConfig?.Communication?.ContainsKey("CustomField") == false)
+    ///         return ConfigurationValidationResult.Failure("CustomField is required");
+    ///
+    ///     return ConfigurationValidationResult.Success;
+    /// }
+    /// </code>
+    /// </example>
+    protected virtual ConfigurationValidationResult ValidateConfigurationUpdate(
+        SubNodeConfigurationUpdateMessage message)
+    {
+        return ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, Configuration, ConfigUpdateOptions);
+    }
+
+    /// <summary>
     /// Applies base DeviceConfiguration updates from cloud and persists to cache.
     /// This handles standard configuration fields (sensors, periods, etc.) at the framework level.
     /// Implements proper validation, acknowledgment, update, and response workflow.
@@ -217,29 +264,28 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         try
         {
-            // Extract the SubNodeConfigurationUpdateMessage from the event
-            // Note: WedaCloudService stores the entire message object in the "data" field
-            if (!e.Configuration.TryGetValue("data", out var dataObj) ||
-                dataObj is not SubNodeConfigurationUpdateMessage message ||
-                message.Data?.Cfg?.Desired == null)
+            // Get the strongly-typed message from the event
+            var message = e.Message;
+            if (message?.Data?.Cfg?.Desired == null)
             {
-                _logger.LogDebug("Configuration update event does not contain valid SubNodeConfigurationUpdateMessage, skipping base update");
+                _logger.LogDebug("Configuration update event does not contain valid desired configuration, skipping base update");
                 return;
             }
 
             // Determine device type name for reporting (use DeviceTypeName or DeviceType.ToString())
             var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
 
-            // Step 1: Validate the configuration update
+            // Step 1: Validate the configuration update using virtual method
             _logger.LogInformation("Validating configuration update for device: {DeviceName}", Configuration.DeviceName);
 
-            if (!ConfigurationUpdateHelper.ValidateDeviceConfigurationUpdate(message, Configuration, out var validationError))
+            var validationResult = ValidateConfigurationUpdate(message);
+            if (!validationResult.IsValid)
             {
-                _logger.LogWarning("Configuration update validation failed: {Error}", validationError);
+                _logger.LogWarning("Configuration update validation failed: {Error}", validationResult.ErrorMessage);
 
                 // Send invalid status response
                 var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
-                    message, Configuration, deviceTypeName, validationError ?? "Unknown validation error");
+                    message, Configuration, deviceTypeName, validationResult.ErrorMessage ?? "Unknown validation error");
                 await _cloudService.PublishConfigurationReportAsync(invalidReport, ct);
 
                 return;

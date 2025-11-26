@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Events;
-using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Devices.Generic;
 
 namespace Wise4012Example;
@@ -23,8 +21,6 @@ namespace Wise4012Example;
 /// </summary>
 public class MyFirstDevice : TcpModbusDevice
 {
-    private readonly string _deviceTypeName;
-
     /// <summary>
     /// Creates MyFirstDevice using ApplicationContext.
     /// Configuration is automatically retrieved from context.
@@ -32,9 +28,6 @@ public class MyFirstDevice : TcpModbusDevice
     public MyFirstDevice(IWedaApplicationContext context)
         : base(context)
     {
-        // Store device type name for configuration reports
-        _deviceTypeName = "myFirstDevice";
-
         // Subscribe to DataReceived event to process telemetry
         DataReceived += OnDataReceived;
     }
@@ -65,66 +58,32 @@ public class MyFirstDevice : TcpModbusDevice
     /// UC9868: Handle configuration update from cloud.
     ///
     /// Note: Base configuration (sensors, periods) is already applied and cached
-    /// by the framework before this hook is called.
+    /// by the framework before this hook is called. The framework also handles
+    /// validation, "updating" status, and "success/failed" status reports.
     ///
-    /// This hook is used to:
-    /// 1. Report status back to cloud (updating/success/failed)
-    /// 2. Handle any device-specific custom configuration
+    /// This hook is used for:
+    /// - Handle any device-specific custom configuration that the framework doesn't know about
     /// </summary>
-    protected override async Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    protected override Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
-        _logger.LogInformation("Configuration update received for device: {DeviceId}", DeviceId);
+        _logger.LogInformation("Configuration update applied for device: {DeviceId}", DeviceId);
 
-        // Extract the SubNodeConfigurationUpdateMessage from the event
-        if (!e.Configuration.TryGetValue("message", out var messageObj) ||
-            messageObj is not SubNodeConfigurationUpdateMessage message)
+        // Get the strongly-typed message from the event
+        var message = e.Message;
+        if (message?.Data?.Cfg?.Desired == null)
         {
-            _logger.LogWarning("Configuration update event does not contain a valid message");
-            return;
+            _logger.LogWarning("Configuration update event does not contain valid desired configuration");
+            return Task.CompletedTask;
         }
 
-        // Step 1: Validate the configuration
-        if (!ConfigurationUpdateHelper.ValidateConfigurationUpdate(message, out var validationError))
-        {
-            _logger.LogWarning("Configuration update validation failed: {Error}", validationError);
+        // Handle device-specific custom configuration here
+        // Base sensors and periods are already applied by the framework
+        // Example: Apply custom properties specific to this device type
+        // var customConfig = message.Data?.Cfg?.Desired?.CustomProperties;
+        // ApplyCustomConfiguration(customConfig);
 
-            // Publish invalid report back to cloud
-            var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
-                message, Configuration, _deviceTypeName, validationError!);
-            await _context.CloudService.PublishConfigurationReportAsync(invalidReport, ct);
-            return;
-        }
-
-        // Step 2: Publish "updating" status (desired + current reported state)
-        var updatingReport = ConfigurationUpdateHelper.CreateUpdatingReport(
-            message, Configuration, _deviceTypeName);
-        await _context.CloudService.PublishConfigurationReportAsync(updatingReport, ct);
-        _logger.LogInformation("Published 'updating' status report");
-
-        try
-        {
-            // Step 3: Handle device-specific custom configuration here
-            // Base sensors and periods are already applied by framework
-            // Example: Apply custom properties specific to this device type
-            // var customConfig = message.Data?.Cfg?.Desired?.CustomProperties;
-            // ApplyCustomConfiguration(customConfig);
-
-            // Step 4: Publish "success" status (desired + updated reported state)
-            var successReport = ConfigurationUpdateHelper.CreateSuccessReport(
-                message, Configuration, _deviceTypeName);
-            await _context.CloudService.PublishConfigurationReportAsync(successReport, ct);
-
-            _logger.LogInformation("Configuration update completed successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to apply custom configuration update");
-
-            // Publish failure report back to cloud
-            var failedReport = ConfigurationUpdateHelper.CreateFailedReport(
-                message, Configuration, _deviceTypeName, ex.Message);
-            await _context.CloudService.PublishConfigurationReportAsync(failedReport, ct);
-        }
+        _logger.LogInformation("Custom configuration processing completed");
+        return Task.CompletedTask;
     }
 
     ~MyFirstDevice()

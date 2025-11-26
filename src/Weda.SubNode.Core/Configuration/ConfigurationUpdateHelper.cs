@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -11,77 +12,59 @@ namespace Weda.SubNode.Core.Configuration;
 public static class ConfigurationUpdateHelper
 {
     /// <summary>
-    /// Validates the configuration update message.
+    /// Validates the configuration update message structure.
     /// </summary>
     /// <param name="message">The configuration update message to validate</param>
-    /// <param name="errorMessage">Error message if validation fails</param>
-    /// <returns>True if valid, false otherwise</returns>
-    public static bool ValidateConfigurationUpdate(
+    /// <param name="options">Validation options (uses Default if null)</param>
+    /// <returns>Validation result</returns>
+    public static ConfigurationValidationResult ValidateMessage(
         SubNodeConfigurationUpdateMessage message,
-        out string? errorMessage)
+        ConfigUpdateOptions? options = null)
     {
-        errorMessage = null;
-
         if (message == null)
-        {
-            errorMessage = "Configuration update message is null";
-            return false;
-        }
+            return ConfigurationValidationResult.Failure("Configuration update message is null");
 
         if (message.Data?.Cfg?.Desired == null)
-        {
-            errorMessage = "Missing desired configuration in update message";
-            return false;
-        }
+            return ConfigurationValidationResult.Failure("Missing desired configuration in update message");
 
         if (message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs == null ||
             message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs.Count == 0)
-        {
-            errorMessage = "Missing device configurations in desired state";
-            return false;
-        }
+            return ConfigurationValidationResult.Failure("Missing device configurations in desired state");
 
         // Validate each device config
         foreach (var (deviceKey, deviceConfig) in message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
         {
             if (string.IsNullOrEmpty(deviceConfig.DeviceName))
-            {
-                errorMessage = $"Device '{deviceKey}' is missing DeviceName";
-                return false;
-            }
+                return ConfigurationValidationResult.Failure($"Device '{deviceKey}' is missing DeviceName");
         }
 
-        return true;
+        return ConfigurationValidationResult.Success;
     }
 
     /// <summary>
     /// Validates the configuration update for a specific device.
-    /// Checks if the DeviceName matches and validates update parameters.
+    /// Checks if the DeviceName matches and validates update parameters based on options.
     /// </summary>
     /// <param name="message">The configuration update message</param>
     /// <param name="currentConfig">The current device configuration</param>
-    /// <param name="errorMessage">Error message if validation fails</param>
-    /// <returns>True if valid, false otherwise</returns>
-    public static bool ValidateDeviceConfigurationUpdate(
+    /// <param name="options">Validation options controlling which checks are enabled (uses Default if null)</param>
+    /// <returns>Validation result</returns>
+    public static ConfigurationValidationResult ValidateDeviceConfiguration(
         SubNodeConfigurationUpdateMessage message,
         DeviceConfiguration currentConfig,
-        out string? errorMessage)
+        ConfigUpdateOptions? options = null)
     {
-        errorMessage = null;
+        options ??= ConfigUpdateOptions.Default;
 
         // First validate the message structure
-        if (!ValidateConfigurationUpdate(message, out errorMessage))
-        {
-            return false;
-        }
+        var messageResult = ValidateMessage(message, options);
+        if (!messageResult.IsValid)
+            return messageResult;
 
         // Find the device config for this device
         var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
         if (deviceConfigs == null)
-        {
-            errorMessage = "No device configurations in desired state";
-            return false;
-        }
+            return ConfigurationValidationResult.Failure("No device configurations in desired state");
 
         // Try to find matching device config by DeviceName
         SubNodeDeviceConfigDto? desiredConfig = null;
@@ -95,36 +78,25 @@ public static class ConfigurationUpdateHelper
         }
 
         if (desiredConfig == null)
+            return ConfigurationValidationResult.Failure($"No matching configuration found for device '{currentConfig.DeviceName}'");
+
+        // Validate DeviceName consistency (if enabled)
+        if (options.ValidateDeviceName)
         {
-            errorMessage = $"No matching configuration found for device '{currentConfig.DeviceName}'";
-            return false;
+            if (!string.Equals(desiredConfig.DeviceName, currentConfig.DeviceName, StringComparison.OrdinalIgnoreCase))
+                return ConfigurationValidationResult.Failure(
+                    $"DeviceName mismatch: expected '{currentConfig.DeviceName}', got '{desiredConfig.DeviceName}'");
         }
 
-        // Validate DeviceName consistency
-        if (!string.Equals(desiredConfig.DeviceName, currentConfig.DeviceName, StringComparison.OrdinalIgnoreCase))
-        {
-            errorMessage = $"DeviceName mismatch: expected '{currentConfig.DeviceName}', got '{desiredConfig.DeviceName}'";
-            return false;
-        }
-
-        // Validate periods if provided
-        if (desiredConfig.Periods != null)
+        // Validate periods if provided (if enabled)
+        if (options.ValidatePeriods && desiredConfig.Periods != null)
         {
             if (desiredConfig.Periods.ReadTelemetry < 0)
-            {
-                errorMessage = "ReadTelemetry period cannot be negative";
-                return false;
-            }
+                return ConfigurationValidationResult.Failure("ReadTelemetry period cannot be negative");
             if (desiredConfig.Periods.SendTelemetry < 0)
-            {
-                errorMessage = "SendTelemetry period cannot be negative";
-                return false;
-            }
+                return ConfigurationValidationResult.Failure("SendTelemetry period cannot be negative");
             if (desiredConfig.Periods.ReportHealth < 0)
-            {
-                errorMessage = "ReportHealth period cannot be negative";
-                return false;
-            }
+                return ConfigurationValidationResult.Failure("ReportHealth period cannot be negative");
         }
 
         // Validate sensor configurations if provided
@@ -132,48 +104,96 @@ public static class ConfigurationUpdateHelper
         {
             foreach (var sensor in desiredConfig.Sensors)
             {
-                if (string.IsNullOrEmpty(sensor.Name))
+                // Validate sensor name (if enabled)
+                if (options.ValidateSensors && string.IsNullOrEmpty(sensor.Name))
+                    return ConfigurationValidationResult.Failure("Sensor name cannot be empty");
+
+                // Check for unknown sensors (if enabled)
+                if (options.RejectUnknownSensors)
                 {
-                    errorMessage = "Sensor name cannot be empty";
-                    return false;
+                    var existingSensor = currentConfig.Sensors.FirstOrDefault(s =>
+                        s.Name.Equals(sensor.Name, StringComparison.OrdinalIgnoreCase));
+                    if (existingSensor == null)
+                        return ConfigurationValidationResult.Failure($"Unknown sensor '{sensor.Name}' in configuration update");
                 }
 
-                if (sensor.Config != null)
+                if (options.ValidateSensors && sensor.Config != null)
                 {
                     if (sensor.Config.Interval < 0)
-                    {
-                        errorMessage = $"Sensor '{sensor.Name}' interval cannot be negative";
-                        return false;
-                    }
+                        return ConfigurationValidationResult.Failure($"Sensor '{sensor.Name}' interval cannot be negative");
 
-                    // Validate thresholds if provided
-                    if (sensor.Config.Thresholds != null)
+                    // Validate thresholds if provided (if enabled)
+                    if (options.ValidateThresholds && sensor.Config.Thresholds != null)
                     {
                         var t = sensor.Config.Thresholds;
                         if (t.UpperCritical.HasValue && t.UpperWarning.HasValue &&
                             t.UpperCritical < t.UpperWarning)
-                        {
-                            errorMessage = $"Sensor '{sensor.Name}': UpperCritical must be >= UpperWarning";
-                            return false;
-                        }
+                            return ConfigurationValidationResult.Failure(
+                                $"Sensor '{sensor.Name}': UpperCritical must be >= UpperWarning");
+
                         if (t.LowerWarning.HasValue && t.LowerCritical.HasValue &&
                             t.LowerWarning < t.LowerCritical)
-                        {
-                            errorMessage = $"Sensor '{sensor.Name}': LowerWarning must be >= LowerCritical";
-                            return false;
-                        }
+                            return ConfigurationValidationResult.Failure(
+                                $"Sensor '{sensor.Name}': LowerWarning must be >= LowerCritical");
+
                         if (t.UpperWarning.HasValue && t.LowerWarning.HasValue &&
                             t.UpperWarning < t.LowerWarning)
-                        {
-                            errorMessage = $"Sensor '{sensor.Name}': UpperWarning must be >= LowerWarning";
-                            return false;
-                        }
+                            return ConfigurationValidationResult.Failure(
+                                $"Sensor '{sensor.Name}': UpperWarning must be >= LowerWarning");
                     }
                 }
             }
         }
 
-        return true;
+        // Check if all sensors are required (if enabled)
+        if (options.RequireAllSensors && desiredConfig.Sensors != null)
+        {
+            foreach (var existingSensor in currentConfig.Sensors)
+            {
+                var found = desiredConfig.Sensors.Any(s =>
+                    s.Name.Equals(existingSensor.Name, StringComparison.OrdinalIgnoreCase));
+                if (!found)
+                    return ConfigurationValidationResult.Failure(
+                        $"Missing sensor '{existingSensor.Name}' in configuration update (RequireAllSensors is enabled)");
+            }
+        }
+
+        return ConfigurationValidationResult.Success;
+    }
+
+    /// <summary>
+    /// Validates the configuration update message.
+    /// </summary>
+    /// <param name="message">The configuration update message to validate</param>
+    /// <param name="errorMessage">Error message if validation fails</param>
+    /// <returns>True if valid, false otherwise</returns>
+    [Obsolete("Use ValidateMessage() instead which returns ConfigurationValidationResult")]
+    public static bool ValidateConfigurationUpdate(
+        SubNodeConfigurationUpdateMessage message,
+        out string? errorMessage)
+    {
+        var result = ValidateMessage(message);
+        errorMessage = result.ErrorMessage;
+        return result.IsValid;
+    }
+
+    /// <summary>
+    /// Validates the configuration update for a specific device.
+    /// Checks if the DeviceName matches and validates update parameters.
+    /// </summary>
+    /// <param name="message">The configuration update message</param>
+    /// <param name="currentConfig">The current device configuration</param>
+    /// <param name="errorMessage">Error message if validation fails</param>
+    /// <returns>True if valid, false otherwise</returns>
+    [Obsolete("Use ValidateDeviceConfiguration() instead which returns ConfigurationValidationResult and accepts ConfigUpdateOptions")]
+    public static bool ValidateDeviceConfigurationUpdate(
+        SubNodeConfigurationUpdateMessage message,
+        DeviceConfiguration currentConfig,
+        out string? errorMessage)
+    {
+        var result = ValidateDeviceConfiguration(message, currentConfig);
+        errorMessage = result.ErrorMessage;
+        return result.IsValid;
     }
 
     /// <summary>
