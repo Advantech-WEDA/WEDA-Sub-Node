@@ -1,22 +1,17 @@
 namespace Weda.SubNode.Core.Transforms;
 
-using System.Text.RegularExpressions;
 using ErrorOr;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 
 /// <summary>
 /// Unit conversion transform (e.g., Celsius to Fahrenheit)
-/// Supports wildcard pattern matching for targetResourceId:
-/// - '*' matches any sequence of characters
-/// - '?' matches any single character
+/// Converts all numeric values in the measure list.
 /// </summary>
 public class UnitConversionTransform : ITelemetryTransform
 {
-    private string _targetResourceId;
     private string _fromUnit;
     private string _toUnit;
-    private Regex? _resourceIdPattern;
 
     public string Name => "UnitConversionTransform";
 
@@ -26,15 +21,12 @@ public class UnitConversionTransform : ITelemetryTransform
     /// <summary>
     /// Creates unit conversion transform
     /// </summary>
-    /// <param name="targetResourceId">Target resource ID (supports wildcards: '*' for multi-char, '?' for single-char)</param>
     /// <param name="fromUnit">Source unit (C/celsius, F/fahrenheit, K/kelvin)</param>
     /// <param name="toUnit">Target unit (C/celsius, F/fahrenheit, K/kelvin)</param>
-    public UnitConversionTransform(string targetResourceId, string fromUnit, string toUnit)
+    public UnitConversionTransform(string fromUnit, string toUnit)
     {
-        _targetResourceId = targetResourceId ?? throw new ArgumentNullException(nameof(targetResourceId));
         _fromUnit = NormalizeUnit(fromUnit ?? throw new ArgumentNullException(nameof(fromUnit)));
         _toUnit = NormalizeUnit(toUnit ?? throw new ArgumentNullException(nameof(toUnit)));
-        _resourceIdPattern = BuildWildcardPattern(_targetResourceId);
     }
 
     /// <inheritdoc/>
@@ -60,18 +52,11 @@ public class UnitConversionTransform : ITelemetryTransform
     /// <inheritdoc/>
     public void UpdateParameters(Dictionary<string, object> parameters)
     {
-        if (parameters.TryGetValue("TargetResourceId", out var rid))
-            _targetResourceId = rid?.ToString() ?? _targetResourceId;
-
         if (parameters.TryGetValue("FromUnit", out var from))
             _fromUnit = NormalizeUnit(from?.ToString() ?? _fromUnit);
 
         if (parameters.TryGetValue("ToUnit", out var to))
             _toUnit = NormalizeUnit(to?.ToString() ?? _toUnit);
-
-        // Rebuild pattern if targetResourceId changed
-        if (parameters.ContainsKey("TargetResourceId"))
-            _resourceIdPattern = BuildWildcardPattern(_targetResourceId);
     }
 
     public Task<List<TelemetryMeasure>> TransformAsync(
@@ -85,9 +70,6 @@ public class UnitConversionTransform : ITelemetryTransform
 
         var transformed = measures.Select(measure =>
         {
-            if (!MatchesResourceId(measure.ResourceId))
-                return measure;
-
             if (measure.Value is not double and not int and not float)
                 return measure;
 
@@ -98,44 +80,6 @@ public class UnitConversionTransform : ITelemetryTransform
         }).ToList();
 
         return Task.FromResult(transformed);
-    }
-
-    /// <summary>
-    /// Checks if a resource ID matches the target pattern
-    /// </summary>
-    private bool MatchesResourceId(string resourceId)
-    {
-        // Match all if pattern is "*"
-        if (_targetResourceId == "*")
-            return true;
-
-        // Use regex pattern for wildcard matching
-        if (_resourceIdPattern != null)
-            return _resourceIdPattern.IsMatch(resourceId);
-
-        // Fallback to exact match
-        return resourceId.Equals(_targetResourceId, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Builds a regex pattern from a wildcard string
-    /// '*' matches any sequence of characters
-    /// '?' matches any single character
-    /// </summary>
-    private static Regex? BuildWildcardPattern(string pattern)
-    {
-        // No wildcards, no need for regex
-        if (!pattern.Contains('*') && !pattern.Contains('?'))
-            return null;
-
-        // Escape special regex characters except * and ?
-        var escaped = Regex.Escape(pattern);
-        // Convert wildcards to regex equivalents
-        var regexPattern = escaped
-            .Replace("\\*", ".*")  // * -> .*
-            .Replace("\\?", ".");  // ? -> .
-
-        return new Regex($"^{regexPattern}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     }
 
     /// <summary>

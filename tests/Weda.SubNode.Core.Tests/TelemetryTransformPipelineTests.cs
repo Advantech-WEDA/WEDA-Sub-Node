@@ -82,7 +82,7 @@ public class TelemetryTransformPipelineTests
         // Arrange
         var pipeline = TelemetryTransformPipeline.Create()
             .Add(new CalibrationTransform(scale: 2.0, offset: 10.0))  // (25 * 2) + 10 = 60
-            .Add(new UnitConversionTransform("temp", "C", "F")); // 60 * 9/5 + 32 = 140
+            .Add(new UnitConversionTransform("C", "F")); // 60 * 9/5 + 32 = 140
 
         var measures = new List<TelemetryMeasure>
         {
@@ -220,7 +220,7 @@ public class TelemetryTransformPipelineTests
     public async Task UnitConversionTransform_Should_ConvertCelsiusToFahrenheit()
     {
         // Arrange
-        var transform = new UnitConversionTransform("temp-001", "C", "F");
+        var transform = new UnitConversionTransform("C", "F");
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "temp-001", Value = 0.0 },
@@ -239,7 +239,7 @@ public class TelemetryTransformPipelineTests
     public async Task UnitConversionTransform_Should_ConvertFahrenheitToCelsius()
     {
         // Arrange
-        var transform = new UnitConversionTransform("temp-001", "F", "C");
+        var transform = new UnitConversionTransform("F", "C");
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "temp-001", Value = 32.0 },
@@ -258,7 +258,7 @@ public class TelemetryTransformPipelineTests
     public async Task UnitConversionTransform_Should_ConvertCelsiusToKelvin()
     {
         // Arrange
-        var transform = new UnitConversionTransform("temp-001", "C", "K");
+        var transform = new UnitConversionTransform("C", "K");
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "temp-001", Value = 0.0 },
@@ -277,7 +277,7 @@ public class TelemetryTransformPipelineTests
     public async Task UnitConversionTransform_Should_ConvertKelvinToCelsius()
     {
         // Arrange
-        var transform = new UnitConversionTransform("temp-001", "K", "C");
+        var transform = new UnitConversionTransform("K", "C");
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "temp-001", Value = 273.15 },
@@ -293,10 +293,10 @@ public class TelemetryTransformPipelineTests
     }
 
     [Fact]
-    public async Task UnitConversionTransform_Should_OnlyApplyToTargetResource()
+    public async Task UnitConversionTransform_Should_ConvertAllMeasures()
     {
-        // Arrange
-        var transform = new UnitConversionTransform("temp-001", "C", "F");
+        // Arrange - Now converts all measures (no TargetResourceId filtering)
+        var transform = new UnitConversionTransform("C", "F");
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "temp-001", Value = 0.0 },
@@ -306,16 +306,16 @@ public class TelemetryTransformPipelineTests
         // Act
         var result = await transform.TransformAsync(measures, _testContext);
 
-        // Assert
+        // Assert - Both should be converted
         ((double)result[0].Value).ShouldBe(32.0, 0.001); // Converted
-        ((double)result[1].Value).ShouldBe(0.0); // Not converted
+        ((double)result[1].Value).ShouldBe(32.0, 0.001); // Converted
     }
 
     [Fact]
     public async Task UnitConversionTransform_Should_SkipNonNumericValues()
     {
         // Arrange
-        var transform = new UnitConversionTransform("sensor-001", "C", "F");
+        var transform = new UnitConversionTransform("C", "F");
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "sensor-001", Value = "text" },
@@ -380,7 +380,7 @@ public class TelemetryTransformPipelineTests
         // Arrange
         var pipeline = TelemetryTransformPipeline.Create()
             .Add(new CalibrationTransform(scale: 1.1, offset: -5.0))
-            .Add(new UnitConversionTransform("sensor", "C", "F"));
+            .Add(new UnitConversionTransform("C", "F"));
 
         // Generate 10,000 measures
         var measures = Enumerable.Range(1, 10000)
@@ -434,7 +434,7 @@ public class TelemetryTransformPipelineTests
         // Arrange
         var pipeline = TelemetryTransformPipeline.Create()
             .Add(new CalibrationTransform(scale: 1.05, offset: -2.0))
-            .Add(new UnitConversionTransform("temp", "C", "F"));
+            .Add(new UnitConversionTransform("C", "F"));
 
         var measures = new List<TelemetryMeasure>
         {
@@ -449,18 +449,21 @@ public class TelemetryTransformPipelineTests
         // Assert
         result.Count.ShouldBe(3);
 
+        // All measures go through both Calibration and UnitConversion:
         // Temperature:
         // Step 1 (Calibration): (20 * 1.05) + (-2) = 21 - 2 = 19
-        // Step 2 (UnitConversion for "temp"): 19 * 9/5 + 32 = 34.2 + 32 = 66.2°F
+        // Step 2 (UnitConversion): 19 * 9/5 + 32 = 34.2 + 32 = 66.2°F
         ((double)result[0].Value).ShouldBe(66.2, 0.1);
 
-        // Pressure (only Calibration applied, no UnitConversion):
+        // Pressure:
         // Step 1 (Calibration): (0 * 1.05) + (-2) = -2.0
-        ((double)result[1].Value).ShouldBe(-2.0, 0.001);
+        // Step 2 (UnitConversion): -2 * 9/5 + 32 = 28.4°F
+        ((double)result[1].Value).ShouldBe(28.4, 0.1);
 
-        // Humidity (only Calibration applied, no UnitConversion):
+        // Humidity:
         // Step 1 (Calibration): (65 * 1.05) + (-2) = 68.25 - 2 = 66.25
-        ((double)result[2].Value).ShouldBe(66.25, 0.001);
+        // Step 2 (UnitConversion): 66.25 * 9/5 + 32 = 151.25°F
+        ((double)result[2].Value).ShouldBe(151.25, 0.1);
     }
 
     #endregion

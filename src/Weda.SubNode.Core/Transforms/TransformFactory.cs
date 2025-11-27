@@ -73,14 +73,13 @@ public static class TransformFactory
 
     private static ITelemetryTransform CreateUnitConversionTransform(Dictionary<string, object> parameters)
     {
-        var targetResourceId = GetStringParameter(parameters, "TargetResourceId", "*");
         var fromUnit = GetStringParameter(parameters, "FromUnit", string.Empty);
         var toUnit = GetStringParameter(parameters, "ToUnit", string.Empty);
 
         if (string.IsNullOrEmpty(fromUnit) || string.IsNullOrEmpty(toUnit))
             throw new ArgumentException("UnitConversion requires FromUnit and ToUnit parameters");
 
-        return new UnitConversionTransform(targetResourceId, fromUnit, toUnit);
+        return new UnitConversionTransform(fromUnit, toUnit);
     }
 
     private static List<CalibrationPoint> ParseCalibrationCurve(object curveObj)
