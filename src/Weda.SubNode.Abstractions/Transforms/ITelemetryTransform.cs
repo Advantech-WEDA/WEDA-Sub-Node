@@ -1,5 +1,6 @@
 namespace Weda.SubNode.Abstractions.Transforms;
 
+using ErrorOr;
 using Weda.SubNode.Abstractions.Telemetry;
 
 /// <summary>
@@ -12,6 +13,25 @@ public interface ITelemetryTransform
     /// Transform name/identifier
     /// </summary>
     string Name { get; }
+
+    /// <summary>
+    /// Whether this transform is enabled. When disabled, input passes through unchanged.
+    /// </summary>
+    bool Enabled { get; set; }
+
+    /// <summary>
+    /// Validates the parameters before applying them.
+    /// </summary>
+    /// <param name="parameters">Parameters to validate</param>
+    /// <returns>Success or validation error</returns>
+    ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters);
+
+    /// <summary>
+    /// Updates transform parameters at runtime. State is preserved.
+    /// Call ValidateParameters before this method.
+    /// </summary>
+    /// <param name="parameters">New parameters to apply</param>
+    void UpdateParameters(Dictionary<string, object> parameters);
 
     /// <summary>
     /// Applies transformation to telemetry measurements

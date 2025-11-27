@@ -59,6 +59,12 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     /// <inheritdoc/>
     public event EventHandler<TelemetryPipelineStageEvent>? StageExecuting;
 
+    /// <inheritdoc/>
+    public event EventHandler<TelemetryValueChangedEvent>? ValueChanged;
+
+    /// <inheritdoc/>
+    public bool EnableValueChangeTracking { get; set; }
+
     /// <summary>
     /// Updates the device ID. Should be called after device registration.
     /// </summary>
@@ -283,6 +289,7 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
 
                 // Apply transforms
                 var current = resourceMeasures;
+                var transformIndex = 0;
                 foreach (var transform in transformsToApply)
                 {
                     _logger.LogTrace(
@@ -295,7 +302,26 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                         Timestamp = DateTimeOffset.UtcNow
                     };
 
+                    var inputSnapshot = EnableValueChangeTracking ? current.ToList() : null;
+                    var transformStopwatch = EnableValueChangeTracking ? Stopwatch.StartNew() : null;
+
                     current = await transform.TransformAsync(current, context, cancellationToken);
+
+                    // Emit value change event if tracking is enabled
+                    if (EnableValueChangeTracking)
+                    {
+                        transformStopwatch!.Stop();
+                        EmitValueChangedEvent(
+                            resourceId: resourceId,
+                            stageName: transform.Name,
+                            stage: ValueChangeStage.Transform,
+                            stageIndex: transformIndex,
+                            inputValues: inputSnapshot!,
+                            outputValues: current,
+                            duration: transformStopwatch.Elapsed);
+                    }
+
+                    transformIndex++;
 
                     if (current.Count == 0)
                     {
@@ -392,17 +418,48 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 }
 
                 // Apply filters
-                IAsyncEnumerable<TelemetryMeasure> current = ToAsyncEnumerable(resourceMeasures);
+                var currentList = resourceMeasures;
+                var filterIndex = 0;
                 foreach (var filter in filtersToApply)
                 {
                     _logger.LogTrace(
                         "Executing DSP filter for ResourceId {ResourceId}",
                         resourceId);
 
-                    current = filter.ApplyAsync(current, cancellationToken);
+                    var inputSnapshot = EnableValueChangeTracking ? currentList.ToList() : null;
+                    var filterStopwatch = EnableValueChangeTracking ? Stopwatch.StartNew() : null;
+                    var filterName = filter.GetType().Name;
+
+                    var asyncInput = ToAsyncEnumerable(currentList);
+                    var asyncOutput = filter.ApplyAsync(asyncInput, cancellationToken);
+                    currentList = await ToListAsync(asyncOutput, cancellationToken);
+
+                    // Emit value change event if tracking is enabled
+                    if (EnableValueChangeTracking)
+                    {
+                        filterStopwatch!.Stop();
+                        EmitValueChangedEvent(
+                            resourceId: resourceId,
+                            stageName: filterName,
+                            stage: ValueChangeStage.Filter,
+                            stageIndex: filterIndex,
+                            inputValues: inputSnapshot!,
+                            outputValues: currentList,
+                            duration: filterStopwatch.Elapsed);
+                    }
+
+                    filterIndex++;
+
+                    if (currentList.Count == 0)
+                    {
+                        _logger.LogWarning(
+                            "DSP filter '{FilterName}' filtered out all measures for ResourceId {ResourceId}",
+                            filterName, resourceId);
+                        break;
+                    }
                 }
 
-                var filtered = await ToListAsync(current, cancellationToken);
+                var filtered = currentList;
 
                 if (filtered.Count == 0)
                 {
@@ -515,6 +572,31 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
             OutputCount = outputCount,
             Duration = duration,
             Error = error
+        });
+    }
+
+    private void EmitValueChangedEvent(
+        string resourceId,
+        string stageName,
+        ValueChangeStage stage,
+        int stageIndex,
+        List<TelemetryMeasure> inputValues,
+        List<TelemetryMeasure> outputValues,
+        TimeSpan? duration = null,
+        string? error = null)
+    {
+        ValueChanged?.Invoke(this, new TelemetryValueChangedEvent(
+            DeviceId: _deviceId,
+            ResourceId: resourceId,
+            StageName: stageName,
+            Stage: stage,
+            Timestamp: DateTimeOffset.UtcNow)
+        {
+            InputValues = inputValues,
+            OutputValues = outputValues,
+            Duration = duration,
+            Error = error,
+            StageIndex = stageIndex
         });
     }
 

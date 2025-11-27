@@ -1,3 +1,4 @@
+using ErrorOr;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 
@@ -25,11 +26,14 @@ public record CalibrationPoint
 /// </summary>
 public class CalibrationTransform : ITelemetryTransform
 {
-    private readonly double _scale;
-    private readonly double _offset;
+    private double _scale;
+    private double _offset;
     private readonly IReadOnlyList<CalibrationPoint>? _calibrationCurve;
 
     public string Name => nameof(CalibrationTransform);
+
+    /// <inheritdoc/>
+    public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Creates linear calibration transform
@@ -57,11 +61,38 @@ public class CalibrationTransform : ITelemetryTransform
         _offset = 0.0;
     }
 
+    /// <inheritdoc/>
+    public ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("Scale", out var s))
+        {
+            var scale = Convert.ToDouble(s);
+            if (scale == 0)
+                return Error.Validation("CalibrationTransform.Scale", "Scale cannot be 0");
+        }
+
+        return Result.Success;
+    }
+
+    /// <inheritdoc/>
+    public void UpdateParameters(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("Scale", out var s))
+            _scale = Convert.ToDouble(s);
+
+        if (parameters.TryGetValue("Offset", out var o))
+            _offset = Convert.ToDouble(o);
+    }
+
     public Task<List<TelemetryMeasure>> TransformAsync(
         List<TelemetryMeasure> measures,
         TelemetryTransformContext context,
         CancellationToken cancellationToken = default)
     {
+        // Pass through if disabled
+        if (!Enabled)
+            return Task.FromResult(measures);
+
         var transformed = measures.Select(measure =>
         {
             // Skip non-numeric values

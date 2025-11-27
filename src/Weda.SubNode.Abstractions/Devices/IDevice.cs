@@ -42,13 +42,6 @@ public interface IDevice : IDisposable
     /// </summary>
     CommunicationState ConnectionState { get; }
 
-    // ===== DSP Filters =====
-
-    /// <summary>
-    /// DSP filters applied to telemetry data
-    /// </summary>
-    List<IDspFilter>? DspFilters { get; set; }
-
     // ===== Lifecycle =====
 
     /// <summary>
@@ -109,40 +102,98 @@ public interface IDevice : IDisposable
     /// </summary>
     Task ReportHealthAsync(CancellationToken cancellationToken = default);
 
-    // ===== Events =====
+    // ===== Events & Tracking Flags =====
+    // All tracking flags default to false for better performance.
+    // Enable only the events you need to monitor.
 
     /// <summary>
-    /// Event: Telemetry data received from device (Device → SubNode)
+    /// Event: Telemetry data received from device (Device → SubNode).
+    /// Only fires when EnableDataReceivedTracking is true.
     /// </summary>
     event EventHandler<DataReceivedEvent>? DataReceived;
 
     /// <summary>
-    /// Event: Connection state changed (Device → SubNode)
+    /// Gets or sets whether DataReceived events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableDataReceivedTracking { get; set; }
+
+    /// <summary>
+    /// Event: Connection state changed (Device → SubNode).
+    /// Only fires when EnableConnectionStateTracking is true.
     /// </summary>
     event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
 
     /// <summary>
-    /// Event: Device status changed (Device → SubNode)
+    /// Gets or sets whether ConnectionStateChanged events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableConnectionStateTracking { get; set; }
+
+    /// <summary>
+    /// Event: Device status changed (Device → SubNode).
+    /// Only fires when EnableDeviceStatusTracking is true.
     /// </summary>
     event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged;
 
     /// <summary>
-    /// Event: Telemetry sent to cloud (SubNode internal)
+    /// Gets or sets whether DeviceStatusChanged events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableDeviceStatusTracking { get; set; }
+
+    /// <summary>
+    /// Event: Telemetry sent to cloud (SubNode internal).
+    /// Only fires when EnableTelemetrySentTracking is true.
     /// </summary>
     event EventHandler<TelemetrySentEvent>? TelemetrySent;
 
     /// <summary>
-    /// Event: Configuration update received from cloud (Cloud → SubNode)
+    /// Gets or sets whether TelemetrySent events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableTelemetrySentTracking { get; set; }
+
+    /// <summary>
+    /// Event: Configuration update received from cloud (Cloud → SubNode).
+    /// Only fires when EnableConfigurationUpdateTracking is true.
     /// NOTE: For internal framework use only. Use OnBeforeConfigUpdateAsync/OnAfterConfigUpdateAsync hooks instead.
     /// </summary>
     event EventHandler<UpdateConfigurationEvent>? ConfigurationUpdateReceived;
 
     /// <summary>
-    /// Event: Command received from cloud (Cloud → SubNode)
+    /// Gets or sets whether ConfigurationUpdateReceived events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableConfigurationUpdateTracking { get; set; }
+
+    /// <summary>
+    /// Event: Command received from cloud (Cloud → SubNode).
+    /// Only fires when EnableCommandReceivedTracking is true.
     /// NOTE: For internal framework use only. Command execution is automatic.
     /// Use OnBeforeCommandAsync/OnAfterCommandAsync hooks for custom logic.
     /// </summary>
     event EventHandler<ExecuteCommandEvent>? CommandReceived;
+
+    /// <summary>
+    /// Gets or sets whether CommandReceived events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableCommandReceivedTracking { get; set; }
+
+    /// <summary>
+    /// Event: Telemetry values changed through transform or filter pipeline.
+    /// Provides detailed value-level monitoring including input/output values.
+    /// Only fires when EnableValueChangeTracking is true.
+    /// </summary>
+    event EventHandler<TelemetryValueChangedEvent>? ValueChanged;
+
+    /// <summary>
+    /// Gets or sets whether ValueChanged events are emitted.
+    /// When enabled, events are emitted for each transform and filter stage.
+    /// Default is false.
+    /// </summary>
+    bool EnableValueChangeTracking { get; set; }
 
     // ===== Sensor Access =====
 

@@ -17,9 +17,15 @@ public class MyFirstDevice : TcpModbusDevice
         DeviceConfiguration configuration)
         : base(context, configuration)
     {
-        // Subscribe to DataReceived event to process telemetry
+        // Enable and subscribe to DataReceived event
+        EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;
+
+        // Enable value change tracking for debugging transform/filter pipeline
+        EnableValueChangeTracking = true;
+        ValueChanged += OnValueChanged;
     }
+
 
     /// <summary>
     /// Event handler for telemetry data received from device
@@ -47,9 +53,47 @@ public class MyFirstDevice : TcpModbusDevice
         // - etc.
     }
 
+    /// <summary>
+    /// Event handler for value changes through transform/filter pipeline
+    /// </summary>
+    private void OnValueChanged(object? sender, TelemetryValueChangedEvent e)
+    {
+        var stageType = e.Stage == ValueChangeStage.Transform ? "Transform" : "Filter";
+
+        _logger.LogDebug(
+            "[{StageType}] {StageName} (#{StageIndex}) for {ResourceId}: {InputCount} -> {OutputCount} values ({Duration:F2}ms)",
+            stageType,
+            e.StageName,
+            e.StageIndex,
+            e.ResourceId,
+            e.InputValues.Count,
+            e.OutputValues.Count,
+            e.Duration?.TotalMilliseconds ?? 0);
+
+        // Log detailed value changes if values were modified
+        if (e.ValuesChanged)
+        {
+            for (int i = 0; i < Math.Max(e.InputValues.Count, e.OutputValues.Count); i++)
+            {
+                var inputVal = i < e.InputValues.Count ? e.InputValues[i].Value?.ToString() : "(none)";
+                var outputVal = i < e.OutputValues.Count ? e.OutputValues[i].Value?.ToString() : "(filtered)";
+
+                if (inputVal != outputVal)
+                {
+                    _logger.LogInformation(
+                        "  [{Index}] {Input} -> {Output}",
+                        i,
+                        inputVal,
+                        outputVal);
+                }
+            }
+        }
+    }
+
     ~MyFirstDevice()
     {
         // Unsubscribe from events
         DataReceived -= OnDataReceived;
+        ValueChanged -= OnValueChanged;
     }
 }

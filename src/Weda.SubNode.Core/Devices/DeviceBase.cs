@@ -39,7 +39,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public IReadOnlyDictionary<string, object> Properties => Configuration.Properties;
     public DeviceStatus Status => _orchestrator.StateMachine.CurrentStatus;
     public CommunicationState ConnectionState => _communication.State;
-    public virtual List<IDspFilter>? DspFilters { get; set; }
 
     protected DeviceBase(
         IWedaApplicationContext context,
@@ -66,13 +65,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _initializer = new DeviceInitializer(
             context.CloudService,
             context.GetLogger<DeviceInitializer>());
-
-        // Configure DSP filters
-        if (DspFilters != null)
-        {
-            foreach (var filter in DspFilters)
-                _orchestrator.TelemetryPipeline.AddFilter(filter);
-        }
 
         // Wire events
         WireEvents();
@@ -344,6 +336,45 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         string.Join(", ", updatedSensors));
                 }
 
+                // Apply pipeline updates (Transform and DSP filters)
+                var pipelineUpdateResult = ConfigurationUpdateHelper.ApplyAllPipelineUpdates(
+                    Configuration, desiredConfig.Sensors);
+
+                if (pipelineUpdateResult.IsError)
+                {
+                    var error = pipelineUpdateResult.FirstError;
+                    _logger.LogError("Pipeline update validation failed: {Error}", error.Description);
+                    throw new InvalidOperationException($"Pipeline update failed: {error.Description}");
+                }
+
+                var pipelineSummary = pipelineUpdateResult.Value;
+                if (pipelineSummary.TotalDspSensorsUpdated > 0 || pipelineSummary.TotalTransformSensorsUpdated > 0)
+                {
+                    _logger.LogInformation(
+                        "Updated pipelines - DSP: {DspCount} sensors, Transform: {TransformCount} sensors",
+                        pipelineSummary.TotalDspSensorsUpdated,
+                        pipelineSummary.TotalTransformSensorsUpdated);
+
+                    // Log detailed results
+                    foreach (var (sensorName, dspResult) in pipelineSummary.DspResults)
+                    {
+                        if (dspResult.TotalUpdated > 0)
+                        {
+                            _logger.LogDebug("Sensor '{Sensor}' DSP updates: {Updated} filters updated",
+                                sensorName, dspResult.TotalUpdated);
+                        }
+                    }
+
+                    foreach (var (sensorName, transformResult) in pipelineSummary.TransformResults)
+                    {
+                        if (transformResult.TotalUpdated > 0)
+                        {
+                            _logger.LogDebug("Sensor '{Sensor}' Transform updates: {Updated} transforms updated",
+                                sensorName, transformResult.TotalUpdated);
+                        }
+                    }
+                }
+
                 // Apply background task periods if provided (PATCH semantics)
                 if (desiredConfig.Periods != null)
                 {
@@ -433,9 +464,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
+    /// Only fires if EnableDataReceivedTracking is true.
     /// </summary>
     protected void RaiseDataReceived(List<TelemetryMeasure> measures)
     {
+        if (!EnableDataReceivedTracking) return;
+
         DataReceived?.Invoke(this, new DataReceivedEvent(
             DeviceId: DeviceId ?? "unknown",
             DeviceType: DeviceType,
@@ -443,7 +477,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             Timestamp: DateTimeOffset.UtcNow));
     }
 
-    // ===== Events =====
+    // ===== Events & Tracking Flags =====
 
     public event EventHandler<DataReceivedEvent>? DataReceived;
     public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
@@ -451,11 +485,51 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;
     public event EventHandler<UpdateConfigurationEvent>? ConfigurationUpdateReceived;
     public event EventHandler<ExecuteCommandEvent>? CommandReceived;
+    public event EventHandler<TelemetryValueChangedEvent>? ValueChanged;
+
+    /// <inheritdoc />
+    public bool EnableDataReceivedTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableConnectionStateTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableDeviceStatusTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableTelemetrySentTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableConfigurationUpdateTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableCommandReceivedTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableValueChangeTracking
+    {
+        get => _orchestrator.TelemetryPipeline.EnableValueChangeTracking;
+        set => _orchestrator.TelemetryPipeline.EnableValueChangeTracking = value;
+    }
 
     private void WireEvents()
     {
-        _communication.StateChanged += (s, e) => ConnectionStateChanged?.Invoke(this, e);
-        _orchestrator.StatusChanged += (s, e) => DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+        // Connection state changes
+        _communication.StateChanged += (s, e) =>
+        {
+            if (EnableConnectionStateTracking)
+                ConnectionStateChanged?.Invoke(this, e);
+        };
+
+        // Device status changes
+        _orchestrator.StatusChanged += (s, e) =>
+        {
+            if (EnableDeviceStatusTracking)
+                DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+        };
+
+        // Forward pipeline value change events to device level
+        _orchestrator.TelemetryPipeline.ValueChanged += (s, e) => ValueChanged?.Invoke(this, e);
 
         // Configuration Update: Auto-invoke Pre/Post hooks
         _orchestrator.ConnectionManager.ConfigurationUpdateReceived += async e =>
@@ -466,7 +540,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
 
                 // Raise event (for framework monitoring/logging)
-                ConfigurationUpdateReceived?.Invoke(this, e);
+                if (EnableConfigurationUpdateTracking)
+                    ConfigurationUpdateReceived?.Invoke(this, e);
 
                 // Apply base DeviceConfiguration updates from cloud
                 await ApplyBaseConfigurationUpdateAsync(e, CancellationToken.None);
@@ -490,7 +565,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 await OnBeforeCommandAsync(e, CancellationToken.None);
 
                 // Raise event (for framework monitoring/logging)
-                CommandReceived?.Invoke(this, e);
+                if (EnableCommandReceivedTracking)
+                    CommandReceived?.Invoke(this, e);
 
                 // Execute command on device
                 _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);

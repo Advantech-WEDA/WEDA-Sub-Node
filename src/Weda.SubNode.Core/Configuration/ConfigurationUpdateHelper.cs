@@ -1,7 +1,12 @@
+using ErrorOr;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Abstractions.Transforms;
+using Weda.SubNode.Core.Dsp;
+using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Configuration;
 
@@ -28,7 +33,7 @@ public static class ConfigurationUpdateHelper
             return ConfigurationValidationResult.Failure("Missing desired configuration in update message");
 
         if (message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs == null ||
-            message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs.Count == 0)
+            message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs?.Count == 0)
             return ConfigurationValidationResult.Failure("Missing device configurations in desired state");
 
         // Validate each device config
@@ -376,6 +381,221 @@ public static class ConfigurationUpdateHelper
     }
 
     /// <summary>
+    /// Applies DSP filter pipeline updates for a specific sensor.
+    /// Updates existing filters' Enabled state and parameters without recreating instances.
+    /// </summary>
+    /// <param name="sensorConfig">The sensor configuration containing the runtime DSP filters</param>
+    /// <param name="desiredDspPipeline">The desired DSP filter configurations from cloud</param>
+    /// <returns>Result indicating success or validation errors</returns>
+    public static ErrorOr<DspPipelineUpdateResult> ApplyDspPipelineUpdates(
+        SensorConfig sensorConfig,
+        IReadOnlyList<SubNodeDspFilterConfigDto>? desiredDspPipeline)
+    {
+        var result = new DspPipelineUpdateResult();
+
+        if (desiredDspPipeline == null || desiredDspPipeline.Count == 0)
+            return result;
+
+        var runtimeFilters = sensorConfig.RuntimeDspFilters;
+        var configFilters = sensorConfig.DspPipeline;
+
+        // Strategy: Match filters by index (same position = same filter)
+        // For config-based filters, update the config directly
+        // For runtime filters, use UpdateParameters
+
+        // Update config-based DSP pipeline
+        for (int i = 0; i < desiredDspPipeline.Count; i++)
+        {
+            var desired = desiredDspPipeline[i];
+
+            // Update config-based filters (DspPipeline)
+            if (i < configFilters.Count)
+            {
+                var configFilter = configFilters[i];
+
+                // Type mismatch means structural change - skip for now (would require rebuild)
+                if (!string.Equals(configFilter.Type, desired.Type, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.SkippedFilters.Add($"Config filter at index {i}: type mismatch ({configFilter.Type} vs {desired.Type})");
+                    continue;
+                }
+
+                // Update enabled state
+                configFilter.Enabled = desired.Enabled;
+
+                // Update parameters
+                if (desired.Parameters != null)
+                {
+                    configFilter.Parameters = new Dictionary<string, object>(desired.Parameters);
+                }
+
+                result.UpdatedConfigFilters.Add($"{configFilter.Type}[{i}]");
+            }
+
+            // Also update runtime filters if they exist at this index
+            if (i < runtimeFilters.Count)
+            {
+                var runtimeFilter = runtimeFilters[i];
+
+                // Validate parameters before applying
+                var parameters = desired.Parameters ?? new Dictionary<string, object>();
+                var validationResult = runtimeFilter.ValidateParameters(parameters);
+                if (validationResult.IsError)
+                {
+                    return Error.Validation(
+                        code: "DspPipeline.ValidationFailed",
+                        description: $"DSP filter at index {i}: {validationResult.FirstError.Description}");
+                }
+
+                // Update enabled state
+                runtimeFilter.Enabled = desired.Enabled;
+
+                // Update parameters (preserves internal state)
+                runtimeFilter.UpdateParameters(parameters);
+
+                result.UpdatedRuntimeFilters.Add($"RuntimeFilter[{i}]");
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Applies transform pipeline updates for a specific sensor.
+    /// Updates existing transforms' Enabled state and parameters without recreating instances.
+    /// </summary>
+    /// <param name="sensorConfig">The sensor configuration containing the runtime transforms</param>
+    /// <param name="desiredTransformPipeline">The desired transform configurations from cloud</param>
+    /// <returns>Result indicating success or validation errors</returns>
+    public static ErrorOr<TransformPipelineUpdateResult> ApplyTransformPipelineUpdates(
+        SensorConfig sensorConfig,
+        IReadOnlyList<SubNodeTransformConfigDto>? desiredTransformPipeline)
+    {
+        var result = new TransformPipelineUpdateResult();
+
+        if (desiredTransformPipeline == null || desiredTransformPipeline.Count == 0)
+            return result;
+
+        var runtimeTransforms = sensorConfig.RuntimeTransforms;
+        var configTransforms = sensorConfig.TransformPipeline;
+
+        // Strategy: Match transforms by index (same position = same transform)
+        // For config-based transforms, update the config directly
+        // For runtime transforms, use UpdateParameters
+
+        // Update config-based transform pipeline
+        for (int i = 0; i < desiredTransformPipeline.Count; i++)
+        {
+            var desired = desiredTransformPipeline[i];
+
+            // Update config-based transforms (TransformPipeline)
+            if (i < configTransforms.Count)
+            {
+                var configTransform = configTransforms[i];
+
+                // Type mismatch means structural change - skip for now (would require rebuild)
+                if (!string.Equals(configTransform.Type, desired.Type, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.SkippedTransforms.Add($"Config transform at index {i}: type mismatch ({configTransform.Type} vs {desired.Type})");
+                    continue;
+                }
+
+                // Update enabled state
+                configTransform.Enabled = desired.Enabled;
+
+                // Update parameters
+                if (desired.Parameters != null)
+                {
+                    configTransform.Parameters = new Dictionary<string, object>(desired.Parameters);
+                }
+
+                result.UpdatedConfigTransforms.Add($"{configTransform.Type}[{i}]");
+            }
+
+            // Also update runtime transforms if they exist at this index
+            if (i < runtimeTransforms.Count)
+            {
+                var runtimeTransform = runtimeTransforms[i];
+
+                // Validate parameters before applying
+                var parameters = desired.Parameters ?? new Dictionary<string, object>();
+                var validationResult = runtimeTransform.ValidateParameters(parameters);
+                if (validationResult.IsError)
+                {
+                    return Error.Validation(
+                        code: "TransformPipeline.ValidationFailed",
+                        description: $"Transform at index {i}: {validationResult.FirstError.Description}");
+                }
+
+                // Update enabled state
+                runtimeTransform.Enabled = desired.Enabled;
+
+                // Update parameters (preserves internal state where applicable)
+                runtimeTransform.UpdateParameters(parameters);
+
+                result.UpdatedRuntimeTransforms.Add($"{runtimeTransform.Name}[{i}]");
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Applies all DSP and Transform pipeline updates for sensors in a device configuration.
+    /// This is a convenience method that combines ApplyDspPipelineUpdates and ApplyTransformPipelineUpdates.
+    /// </summary>
+    /// <param name="deviceConfig">The device configuration to update</param>
+    /// <param name="desiredSensors">The desired sensor configurations from cloud</param>
+    /// <returns>Result indicating success or validation errors</returns>
+    public static ErrorOr<PipelineUpdateSummary> ApplyAllPipelineUpdates(
+        DeviceConfiguration deviceConfig,
+        IReadOnlyList<SubNodeSensorConfigDto>? desiredSensors)
+    {
+        var summary = new PipelineUpdateSummary();
+
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return summary;
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            // Find matching sensor by name
+            var sensor = deviceConfig.Sensors.FirstOrDefault(s =>
+                s.Name.Equals(desiredSensor.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (sensor == null)
+                continue;
+
+            // Apply DSP pipeline updates
+            if (desiredSensor.Config?.DspPipeline != null)
+            {
+                var dspResult = ApplyDspPipelineUpdates(sensor.Config, desiredSensor.Config.DspPipeline);
+                if (dspResult.IsError)
+                {
+                    return Error.Validation(
+                        code: "PipelineUpdate.DspFailed",
+                        description: $"Sensor '{sensor.Name}': {dspResult.FirstError.Description}");
+                }
+                summary.DspResults[sensor.Name] = dspResult.Value;
+            }
+
+            // Apply Transform pipeline updates
+            if (desiredSensor.Config?.TransformPipeline != null)
+            {
+                var transformResult = ApplyTransformPipelineUpdates(sensor.Config, desiredSensor.Config.TransformPipeline);
+                if (transformResult.IsError)
+                {
+                    return Error.Validation(
+                        code: "PipelineUpdate.TransformFailed",
+                        description: $"Sensor '{sensor.Name}': {transformResult.FirstError.Description}");
+                }
+                summary.TransformResults[sensor.Name] = transformResult.Value;
+            }
+        }
+
+        return summary;
+    }
+
+    /// <summary>
     /// Converts a DeviceConfiguration to SubNodeDeviceConfigDto for reporting.
     /// </summary>
     public static SubNodeDeviceConfigDto ToSubNodeDeviceConfigDto(
@@ -484,4 +704,82 @@ public class SensorConfigBackup
     public double Interval { get; set; }
     public string? Unit { get; set; }
     public ThresholdConfig? Thresholds { get; set; }
+}
+
+/// <summary>
+/// Result of applying DSP pipeline updates.
+/// </summary>
+public class DspPipelineUpdateResult
+{
+    /// <summary>
+    /// List of config-based filters that were updated.
+    /// </summary>
+    public List<string> UpdatedConfigFilters { get; } = [];
+
+    /// <summary>
+    /// List of runtime filters that were updated.
+    /// </summary>
+    public List<string> UpdatedRuntimeFilters { get; } = [];
+
+    /// <summary>
+    /// List of filters that were skipped (e.g., due to type mismatch).
+    /// </summary>
+    public List<string> SkippedFilters { get; } = [];
+
+    /// <summary>
+    /// Total count of updated filters.
+    /// </summary>
+    public int TotalUpdated => UpdatedConfigFilters.Count + UpdatedRuntimeFilters.Count;
+}
+
+/// <summary>
+/// Result of applying transform pipeline updates.
+/// </summary>
+public class TransformPipelineUpdateResult
+{
+    /// <summary>
+    /// List of config-based transforms that were updated.
+    /// </summary>
+    public List<string> UpdatedConfigTransforms { get; } = [];
+
+    /// <summary>
+    /// List of runtime transforms that were updated.
+    /// </summary>
+    public List<string> UpdatedRuntimeTransforms { get; } = [];
+
+    /// <summary>
+    /// List of transforms that were skipped (e.g., due to type mismatch).
+    /// </summary>
+    public List<string> SkippedTransforms { get; } = [];
+
+    /// <summary>
+    /// Total count of updated transforms.
+    /// </summary>
+    public int TotalUpdated => UpdatedConfigTransforms.Count + UpdatedRuntimeTransforms.Count;
+}
+
+/// <summary>
+/// Summary of all pipeline updates applied to a device configuration.
+/// </summary>
+public class PipelineUpdateSummary
+{
+    /// <summary>
+    /// DSP pipeline update results by sensor name.
+    /// </summary>
+    public Dictionary<string, DspPipelineUpdateResult> DspResults { get; } = [];
+
+    /// <summary>
+    /// Transform pipeline update results by sensor name.
+    /// </summary>
+    public Dictionary<string, TransformPipelineUpdateResult> TransformResults { get; } = [];
+
+    /// <summary>
+    /// Total count of sensors that had DSP updates.
+    /// </summary>
+    public int TotalDspSensorsUpdated => DspResults.Count;
+
+    /// <summary>
+    /// Total count of sensors that had transform updates.
+    /// </summary>
+    public int TotalTransformSensorsUpdated => TransformResults.Count;
 }
