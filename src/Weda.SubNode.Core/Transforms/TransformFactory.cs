@@ -1,23 +1,122 @@
+using System.Reflection;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 
 namespace Weda.SubNode.Core.Transforms;
 
 /// <summary>
-/// Factory for creating ITelemetryTransform instances from TransformConfig
+/// Transform factory delegate type.
+/// </summary>
+public delegate ITelemetryTransform TransformFactoryDelegate(Dictionary<string, object> parameters);
+
+/// <summary>
+/// Factory for creating ITelemetryTransform instances from TransformConfig.
+/// Automatically discovers and registers all ITelemetryTransform implementations
+/// using static abstract interface members.
 /// </summary>
 public static class TransformFactory
 {
     /// <summary>
-    /// Creates a list of transforms from configuration
-    /// Execution order is determined by the array index in the configuration (not by Order property)
+    /// Lazy-initialized registry of transform factories keyed by type name (case-insensitive).
+    /// </summary>
+    private static readonly Lazy<Dictionary<string, TransformFactoryDelegate>> _registry
+        = new(BuildRegistry);
+
+    /// <summary>
+    /// Gets the registered transform type names (for diagnostics/debugging).
+    /// </summary>
+    public static IReadOnlyCollection<string> RegisteredTypes => _registry.Value.Keys;
+
+    /// <summary>
+    /// Builds the registry by scanning assemblies for ITelemetryTransform implementations.
+    /// </summary>
+    private static Dictionary<string, TransformFactoryDelegate> BuildRegistry()
+    {
+        var registry = new Dictionary<string, TransformFactoryDelegate>(StringComparer.OrdinalIgnoreCase);
+
+        // Scan assemblies for ITelemetryTransform implementations
+        var assemblies = new[]
+        {
+            typeof(TransformFactory).Assembly, // Weda.SubNode.Core
+        };
+
+        foreach (var assembly in assemblies)
+        {
+            ScanAssembly(assembly, registry);
+        }
+
+        return registry;
+    }
+
+    /// <summary>
+    /// Scans an assembly for IConfigurableTransform implementations and registers them.
+    /// </summary>
+    private static void ScanAssembly(Assembly assembly, Dictionary<string, TransformFactoryDelegate> registry)
+    {
+        var configurableInterface = typeof(IConfigurableTransform<>);
+
+        foreach (var type in assembly.GetTypes())
+        {
+            // Skip abstract classes and interfaces
+            if (type.IsAbstract || type.IsInterface)
+                continue;
+
+            // Check if implements IConfigurableTransform<TSelf>
+            var implementsConfigurable = type.GetInterfaces()
+                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == configurableInterface);
+
+            if (!implementsConfigurable)
+                continue;
+
+            // Get static TypeName property
+            var typeNameProp = type.GetProperty("TypeName",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+            if (typeNameProp == null)
+                continue;
+
+            var typeName = (string?)typeNameProp.GetValue(null);
+            if (string.IsNullOrEmpty(typeName))
+                continue;
+
+            // Get static Create method
+            var createMethod = type.GetMethod("Create",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy,
+                [typeof(Dictionary<string, object>)]);
+            if (createMethod == null)
+                continue;
+
+            // Register factory delegate
+            registry[typeName] = parameters =>
+                (ITelemetryTransform)createMethod.Invoke(null, [parameters])!;
+        }
+    }
+
+    /// <summary>
+    /// Registers additional assemblies for transform discovery.
+    /// Call this before first use of CreateTransform/CreateFromConfigs.
+    /// </summary>
+    /// <param name="assemblies">Assemblies to scan for transforms</param>
+    public static void RegisterAssemblies(params Assembly[] assemblies)
+    {
+        // Force initialization if not already done
+        var registry = _registry.Value;
+
+        foreach (var assembly in assemblies)
+        {
+            ScanAssembly(assembly, registry);
+        }
+    }
+
+    /// <summary>
+    /// Creates a list of transforms from configuration.
+    /// Execution order is determined by the array index in the configuration.
     /// </summary>
     /// <param name="configs">Transform configurations</param>
     /// <returns>List of instantiated transforms</returns>
     public static List<ITelemetryTransform> CreateFromConfigs(List<TransformConfig> configs)
     {
         if (configs == null || configs.Count == 0)
-            return new List<ITelemetryTransform>();
+            return [];
 
         var transforms = new List<ITelemetryTransform>();
 
@@ -36,96 +135,25 @@ public static class TransformFactory
     }
 
     /// <summary>
-    /// Creates a single transform from configuration
+    /// Creates a single transform from configuration.
     /// </summary>
     /// <param name="config">Transform configuration</param>
-    /// <returns>Transform instance or null if type is not recognized</returns>
+    /// <returns>Transform instance or null if disabled</returns>
+    /// <exception cref="NotSupportedException">Thrown when transform type is not registered</exception>
     public static ITelemetryTransform? CreateTransform(TransformConfig config)
     {
         if (!config.Enabled)
             return null;
 
-        return config.Type.ToLowerInvariant() switch
+        var typeName = config.Type;
+
+        if (_registry.Value.TryGetValue(typeName, out var factory))
         {
-            "calibration" => CreateCalibrationTransform(config.Parameters),
-            "unitconversion" => CreateUnitConversionTransform(config.Parameters),
-            _ => throw new NotSupportedException($"Transform type '{config.Type}' is not supported")
-        };
-    }
-
-    private static ITelemetryTransform CreateCalibrationTransform(Dictionary<string, object> parameters)
-    {
-        // Support both linear and curve-based calibration
-        if (parameters.TryGetValue("CalibrationCurve", out var curveObj))
-        {
-            // Curve-based calibration
-            var curvePoints = ParseCalibrationCurve(curveObj);
-            return new CalibrationTransform(curvePoints);
-        }
-        else
-        {
-            // Linear calibration (Scale and Offset)
-            var scale = GetDoubleParameter(parameters, "Scale", 1.0);
-            var offset = GetDoubleParameter(parameters, "Offset", 0.0);
-            return new CalibrationTransform(scale, offset);
-        }
-    }
-
-    private static ITelemetryTransform CreateUnitConversionTransform(Dictionary<string, object> parameters)
-    {
-        var fromUnit = GetStringParameter(parameters, "FromUnit", string.Empty);
-        var toUnit = GetStringParameter(parameters, "ToUnit", string.Empty);
-
-        if (string.IsNullOrEmpty(fromUnit) || string.IsNullOrEmpty(toUnit))
-            throw new ArgumentException("UnitConversion requires FromUnit and ToUnit parameters");
-
-        return new UnitConversionTransform(fromUnit, toUnit);
-    }
-
-    private static List<CalibrationPoint> ParseCalibrationCurve(object curveObj)
-    {
-        // Handle different curve object types
-        if (curveObj is not System.Collections.IEnumerable enumerable)
-            throw new ArgumentException("CalibrationCurve must be an enumerable collection");
-
-        var points = new List<CalibrationPoint>();
-
-        foreach (var item in enumerable)
-        {
-            if (item is Dictionary<string, object> dict)
-            {
-                var rawValue = GetDoubleParameter(dict, "RawValue", 0);
-                var calibratedValue = GetDoubleParameter(dict, "CalibratedValue", 0);
-
-                points.Add(new CalibrationPoint
-                {
-                    RawValue = rawValue,
-                    CalibratedValue = calibratedValue
-                });
-            }
+            return factory(config.Parameters);
         }
 
-        if (points.Count == 0)
-            throw new ArgumentException("CalibrationCurve must contain at least one point");
-
-        return points;
-    }
-
-    private static double GetDoubleParameter(Dictionary<string, object> parameters, string key, double defaultValue)
-    {
-        if (parameters.TryGetValue(key, out var value))
-        {
-            return Convert.ToDouble(value);
-        }
-        return defaultValue;
-    }
-
-    private static string GetStringParameter(Dictionary<string, object> parameters, string key, string defaultValue)
-    {
-        if (parameters.TryGetValue(key, out var value))
-        {
-            return value?.ToString() ?? defaultValue;
-        }
-        return defaultValue;
+        throw new NotSupportedException(
+            $"Transform type '{config.Type}' is not supported. " +
+            $"Registered types: [{string.Join(", ", _registry.Value.Keys)}]");
     }
 }

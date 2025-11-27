@@ -8,11 +8,33 @@ namespace Weda.SubNode.Core.Dsp;
 /// <summary>
 /// Simple 1D Kalman filter for telemetry data
 /// </summary>
-public class KalmanFilter : IDspFilter
+public class KalmanFilter : IDspFilter, IConfigurableDspFilter<KalmanFilter>
 {
     private double _processNoise;
     private double _measurementNoise;
     private readonly Dictionary<string, KalmanState> _states = new();
+
+    // === Static Abstract Implementation (Self-Registration) ===
+
+    /// <inheritdoc/>
+    public static string TypeName => "kalman";
+
+    /// <inheritdoc/>
+    public static KalmanFilter Create(Dictionary<string, object> parameters)
+    {
+        var processNoise = GetDoubleParameter(parameters, "ProcessNoise", 0.01);
+        var measurementNoise = GetDoubleParameter(parameters, "MeasurementNoise", 0.1);
+        return new KalmanFilter(processNoise, measurementNoise);
+    }
+
+    private static double GetDoubleParameter(Dictionary<string, object> parameters, string key, double defaultValue)
+    {
+        if (parameters.TryGetValue(key, out var value))
+            return Convert.ToDouble(value);
+        return defaultValue;
+    }
+
+    // === Instance Members ===
 
     public KalmanFilter(double processNoise = 0.01, double measurementNoise = 0.1)
     {

@@ -24,11 +24,69 @@ public record CalibrationPoint
 /// Calibration transform that applies linear or curve-based calibration
 /// Formula: calibrated_value = (raw_value * Scale) + Offset
 /// </summary>
-public class CalibrationTransform : ITelemetryTransform
+public class CalibrationTransform : ITelemetryTransform, IConfigurableTransform<CalibrationTransform>
 {
     private double _scale;
     private double _offset;
     private readonly IReadOnlyList<CalibrationPoint>? _calibrationCurve;
+
+    // === Static Abstract Implementation (Self-Registration) ===
+
+    /// <inheritdoc/>
+    public static string TypeName => "calibration";
+
+    /// <inheritdoc/>
+    public static CalibrationTransform Create(Dictionary<string, object> parameters)
+    {
+        // Support both linear and curve-based calibration
+        if (parameters.TryGetValue("CalibrationCurve", out var curveObj))
+        {
+            var curvePoints = ParseCalibrationCurve(curveObj);
+            return new CalibrationTransform(curvePoints);
+        }
+
+        // Linear calibration (Scale and Offset)
+        var scale = GetDoubleParameter(parameters, "Scale", 1.0);
+        var offset = GetDoubleParameter(parameters, "Offset", 0.0);
+        return new CalibrationTransform(scale, offset);
+    }
+
+    private static List<CalibrationPoint> ParseCalibrationCurve(object curveObj)
+    {
+        if (curveObj is not System.Collections.IEnumerable enumerable)
+            throw new ArgumentException("CalibrationCurve must be an enumerable collection");
+
+        var points = new List<CalibrationPoint>();
+
+        foreach (var item in enumerable)
+        {
+            if (item is Dictionary<string, object> dict)
+            {
+                var rawValue = GetDoubleParameter(dict, "RawValue", 0);
+                var calibratedValue = GetDoubleParameter(dict, "CalibratedValue", 0);
+
+                points.Add(new CalibrationPoint
+                {
+                    RawValue = rawValue,
+                    CalibratedValue = calibratedValue
+                });
+            }
+        }
+
+        if (points.Count == 0)
+            throw new ArgumentException("CalibrationCurve must contain at least one point");
+
+        return points;
+    }
+
+    private static double GetDoubleParameter(Dictionary<string, object> parameters, string key, double defaultValue)
+    {
+        if (parameters.TryGetValue(key, out var value))
+            return Convert.ToDouble(value);
+        return defaultValue;
+    }
+
+    // === Instance Members ===
 
     public string Name => nameof(CalibrationTransform);
 

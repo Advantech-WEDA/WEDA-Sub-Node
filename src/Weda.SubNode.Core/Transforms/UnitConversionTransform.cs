@@ -8,10 +8,36 @@ using Weda.SubNode.Abstractions.Transforms;
 /// Unit conversion transform (e.g., Celsius to Fahrenheit)
 /// Converts all numeric values in the measure list.
 /// </summary>
-public class UnitConversionTransform : ITelemetryTransform
+public class UnitConversionTransform : ITelemetryTransform, IConfigurableTransform<UnitConversionTransform>
 {
     private string _fromUnit;
     private string _toUnit;
+
+    // === Static Abstract Implementation (Self-Registration) ===
+
+    /// <inheritdoc/>
+    public static string TypeName => "unitconversion";
+
+    /// <inheritdoc/>
+    public static UnitConversionTransform Create(Dictionary<string, object> parameters)
+    {
+        var fromUnit = GetStringParameter(parameters, "FromUnit", string.Empty);
+        var toUnit = GetStringParameter(parameters, "ToUnit", string.Empty);
+
+        if (string.IsNullOrEmpty(fromUnit) || string.IsNullOrEmpty(toUnit))
+            throw new ArgumentException("UnitConversion requires FromUnit and ToUnit parameters");
+
+        return new UnitConversionTransform(fromUnit, toUnit);
+    }
+
+    private static string GetStringParameter(Dictionary<string, object> parameters, string key, string defaultValue)
+    {
+        if (parameters.TryGetValue(key, out var value))
+            return value?.ToString() ?? defaultValue;
+        return defaultValue;
+    }
+
+    // === Instance Members ===
 
     public string Name => "UnitConversionTransform";
 

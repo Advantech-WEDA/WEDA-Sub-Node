@@ -8,10 +8,35 @@ namespace Weda.SubNode.Core.Dsp;
 /// <summary>
 /// Moving average DSP filter with O(1) time complexity using circular buffer
 /// </summary>
-public class MovingAverageFilter : IDspFilter
+public class MovingAverageFilter : IDspFilter, IConfigurableDspFilter<MovingAverageFilter>
 {
     private int _window;
     private Dictionary<string, CircularBuffer> _buffers = new();
+
+    // === Static Abstract Implementation (Self-Registration) ===
+
+    /// <inheritdoc/>
+    public static string TypeName => "movingaverage";
+
+    /// <inheritdoc/>
+    public static MovingAverageFilter Create(Dictionary<string, object> parameters)
+    {
+        var window = GetIntParameter(parameters, "Window", 5);
+
+        if (window <= 0)
+            throw new ArgumentException("MovingAverage Window parameter must be greater than 0");
+
+        return new MovingAverageFilter(window);
+    }
+
+    private static int GetIntParameter(Dictionary<string, object> parameters, string key, int defaultValue)
+    {
+        if (parameters.TryGetValue(key, out var value))
+            return Convert.ToInt32(value);
+        return defaultValue;
+    }
+
+    // === Instance Members ===
 
     public MovingAverageFilter(int window)
     {

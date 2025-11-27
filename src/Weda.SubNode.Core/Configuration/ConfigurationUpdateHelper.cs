@@ -489,22 +489,25 @@ public static class ConfigurationUpdateHelper
             if (i < runtimeFilters.Count)
             {
                 var runtimeFilter = runtimeFilters[i];
-
-                // Validate parameters before applying
                 var parameters = desired.Parameters ?? new Dictionary<string, object>();
-                var validationResult = runtimeFilter.ValidateParameters(parameters);
-                if (validationResult.IsError)
+
+                // Try to validate and update parameters if the filter implements IConfigurableDspFilter
+                if (TryGetConfigurableDspFilter(runtimeFilter, out var validateParams, out var updateParams))
                 {
-                    return Error.Validation(
-                        code: "DspPipeline.ValidationFailed",
-                        description: $"DSP filter at index {i}: {validationResult.FirstError.Description}");
+                    var validationResult = validateParams(parameters);
+                    if (validationResult.IsError)
+                    {
+                        return Error.Validation(
+                            code: "DspPipeline.ValidationFailed",
+                            description: $"DSP filter at index {i}: {validationResult.FirstError.Description}");
+                    }
+
+                    // Update parameters (preserves internal state)
+                    updateParams(parameters);
                 }
 
                 // Update enabled state
                 runtimeFilter.Enabled = desired.Enabled;
-
-                // Update parameters (preserves internal state)
-                runtimeFilter.UpdateParameters(parameters);
 
                 result.UpdatedRuntimeFilters.Add($"RuntimeFilter[{i}]");
             }
@@ -569,22 +572,25 @@ public static class ConfigurationUpdateHelper
             if (i < runtimeTransforms.Count)
             {
                 var runtimeTransform = runtimeTransforms[i];
-
-                // Validate parameters before applying
                 var parameters = desired.Parameters ?? new Dictionary<string, object>();
-                var validationResult = runtimeTransform.ValidateParameters(parameters);
-                if (validationResult.IsError)
+
+                // Try to validate and update parameters if the transform implements IConfigurableTransform
+                if (TryGetConfigurableTransform(runtimeTransform, out var validateParams, out var updateParams))
                 {
-                    return Error.Validation(
-                        code: "TransformPipeline.ValidationFailed",
-                        description: $"Transform at index {i}: {validationResult.FirstError.Description}");
+                    var validationResult = validateParams(parameters);
+                    if (validationResult.IsError)
+                    {
+                        return Error.Validation(
+                            code: "TransformPipeline.ValidationFailed",
+                            description: $"Transform at index {i}: {validationResult.FirstError.Description}");
+                    }
+
+                    // Update parameters (preserves internal state where applicable)
+                    updateParams(parameters);
                 }
 
                 // Update enabled state
                 runtimeTransform.Enabled = desired.Enabled;
-
-                // Update parameters (preserves internal state where applicable)
-                runtimeTransform.UpdateParameters(parameters);
 
                 result.UpdatedRuntimeTransforms.Add($"{runtimeTransform.Name}[{i}]");
             }
@@ -740,6 +746,82 @@ public static class ConfigurationUpdateHelper
                 }
             }
         };
+    }
+
+    /// <summary>
+    /// Tries to get ValidateParameters and UpdateParameters methods from a DSP filter
+    /// that implements IConfigurableDspFilter.
+    /// </summary>
+    private static bool TryGetConfigurableDspFilter(
+        IDspFilter filter,
+        out Func<Dictionary<string, object>, ErrorOr<Success>> validateParams,
+        out Action<Dictionary<string, object>> updateParams)
+    {
+        // Check if the filter type implements IConfigurableDspFilter<T>
+        var filterType = filter.GetType();
+        var configurableInterface = filterType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType &&
+                                 i.GetGenericTypeDefinition() == typeof(IConfigurableDspFilter<>));
+
+        if (configurableInterface != null)
+        {
+            // Get the methods via reflection
+            var validateMethod = filterType.GetMethod("ValidateParameters",
+                [typeof(Dictionary<string, object>)]);
+            var updateMethod = filterType.GetMethod("UpdateParameters",
+                [typeof(Dictionary<string, object>)]);
+
+            if (validateMethod != null && updateMethod != null)
+            {
+                validateParams = parameters =>
+                    (ErrorOr<Success>)validateMethod.Invoke(filter, [parameters])!;
+                updateParams = parameters =>
+                    updateMethod.Invoke(filter, [parameters]);
+                return true;
+            }
+        }
+
+        validateParams = null!;
+        updateParams = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get ValidateParameters and UpdateParameters methods from a transform
+    /// that implements IConfigurableTransform.
+    /// </summary>
+    private static bool TryGetConfigurableTransform(
+        ITelemetryTransform transform,
+        out Func<Dictionary<string, object>, ErrorOr<Success>> validateParams,
+        out Action<Dictionary<string, object>> updateParams)
+    {
+        // Check if the transform type implements IConfigurableTransform<T>
+        var transformType = transform.GetType();
+        var configurableInterface = transformType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType &&
+                                 i.GetGenericTypeDefinition() == typeof(IConfigurableTransform<>));
+
+        if (configurableInterface != null)
+        {
+            // Get the methods via reflection
+            var validateMethod = transformType.GetMethod("ValidateParameters",
+                [typeof(Dictionary<string, object>)]);
+            var updateMethod = transformType.GetMethod("UpdateParameters",
+                [typeof(Dictionary<string, object>)]);
+
+            if (validateMethod != null && updateMethod != null)
+            {
+                validateParams = parameters =>
+                    (ErrorOr<Success>)validateMethod.Invoke(transform, [parameters])!;
+                updateParams = parameters =>
+                    updateMethod.Invoke(transform, [parameters]);
+                return true;
+            }
+        }
+
+        validateParams = null!;
+        updateParams = null!;
+        return false;
     }
 }
 
