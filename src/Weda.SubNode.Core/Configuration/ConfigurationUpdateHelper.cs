@@ -265,6 +265,57 @@ public static class ConfigurationUpdateHelper
     }
 
     /// <summary>
+    /// Creates a periodic configuration report message for routine sync.
+    /// Used when periodically reporting device configuration to cloud
+    /// to ensure reported state is synchronized even if update response fails.
+    /// </summary>
+    /// <param name="deviceId">Device ID for the report</param>
+    /// <param name="groupId">Group ID for multi-tenant scenarios</param>
+    /// <param name="currentConfig">Current device configuration</param>
+    /// <param name="deviceTypeName">Device type name for the report</param>
+    /// <returns>Configuration report message with current reported state</returns>
+    public static SubNodeConfigurationUpdateMessage CreatePeriodicReport(
+        string deviceId,
+        string groupId,
+        DeviceConfiguration currentConfig,
+        string deviceTypeName)
+    {
+        var reportedDeviceConfig = ToSubNodeDeviceConfigDto(currentConfig);
+
+        return new SubNodeConfigurationUpdateMessage
+        {
+            DeviceId = deviceId,
+            GroupId = groupId,
+            Cmd = "configReport",
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = string.Empty,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    // No desired state for periodic report (this is a device-initiated report)
+                    Desired = null,
+                    // Include the current reported state
+                    Reported = new SubNodeReportedConfig
+                    {
+                        SubNodeDeviceConfig = new SubNodeDeviceConfigWrapper
+                        {
+                            DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
+                            {
+                                [deviceTypeName] = reportedDeviceConfig
+                            }
+                        },
+                        Status = ConfigUpdateStatus.Success,
+                        ErrorMessage = null,
+                        LastUpdateTime = DateTimeOffset.UtcNow
+                    }
+                }
+            }
+        };
+    }
+
+    /// <summary>
     /// Creates a backup snapshot of device configuration for rollback purposes.
     /// </summary>
     public static DeviceConfigurationBackup CreateBackup(DeviceConfiguration config)
@@ -274,6 +325,7 @@ public static class ConfigurationUpdateHelper
             ReadTelemetryPeriod = config.Periods.ReadTelemetry,
             SendTelemetryPeriod = config.Periods.SendTelemetry,
             ReportHealthPeriod = config.Periods.ReportHealth,
+            ReportConfigurationPeriod = config.Periods.ReportConfiguration,
             SensorBackups = config.Sensors.Select(s => new SensorConfigBackup
             {
                 Name = s.Name,
@@ -302,6 +354,7 @@ public static class ConfigurationUpdateHelper
         config.Periods.ReadTelemetry = backup.ReadTelemetryPeriod;
         config.Periods.SendTelemetry = backup.SendTelemetryPeriod;
         config.Periods.ReportHealth = backup.ReportHealthPeriod;
+        config.Periods.ReportConfiguration = backup.ReportConfigurationPeriod;
 
         // Restore sensor configurations
         foreach (var sensorBackup in backup.SensorBackups)
@@ -395,6 +448,13 @@ public static class ConfigurationUpdateHelper
                 DeviceInfo = config.DeviceCapabilities.DeviceInfo
             },
             Communication = config.Communication,
+            Periods = new SubNodePeriodsDto
+            {
+                ReadTelemetry = config.Periods.ReadTelemetry,
+                SendTelemetry = config.Periods.SendTelemetry,
+                ReportHealth = config.Periods.ReportHealth,
+                ReportConfiguration = config.Periods.ReportConfiguration
+            },
             Sensors = config.Sensors.Select(s => new SubNodeSensorConfigDto
             {
                 Name = s.Name,
@@ -471,6 +531,7 @@ public class DeviceConfigurationBackup
     public int ReadTelemetryPeriod { get; set; }
     public int SendTelemetryPeriod { get; set; }
     public int ReportHealthPeriod { get; set; }
+    public int ReportConfigurationPeriod { get; set; }
     public List<SensorConfigBackup> SensorBackups { get; set; } = [];
 }
 
