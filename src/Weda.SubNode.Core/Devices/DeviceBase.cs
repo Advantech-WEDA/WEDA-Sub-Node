@@ -29,6 +29,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly DeviceInitializer _initializer;
 
     private CancellationTokenSource? _runningCts;
+    private Task? _configSyncTask;
     private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
 
     public DeviceConfiguration Configuration { get; }
@@ -118,7 +119,45 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStartAsync(CancellationToken ct)
     {
         _runningCts = new CancellationTokenSource();
-        _ = StartBackgroundTasksAsync(_runningCts.Token);
+        var cts = _runningCts.Token;
+
+        // Start device-specific background tasks
+        _ = StartBackgroundTasksAsync(cts);
+
+        // Start config sync task (core functionality in DeviceBase)
+        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
+        if (configSyncPeriod > 0)
+        {
+            _configSyncTask = Task.Run(async () =>
+            {
+                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
+
+                while (!cts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await ReportConfigurationAsync(cts);
+                        _logger.LogDebug("Configuration sync completed for device {DeviceId}", DeviceId);
+                    }
+                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                    {
+                        _logger.LogInformation("Configuration sync task cancelled for device {DeviceId}", DeviceId);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in configuration sync task for device {DeviceId}", DeviceId);
+                    }
+
+                    await Task.Delay(configSyncPeriod, cts);
+                }
+            }, cts);
+        }
+        else
+        {
+            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
+        }
+
         return await Task.FromResult(Result.Success);
     }
 
@@ -180,6 +219,31 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<DeviceConfiguration?> GetCurrentConfigurationAsync(CancellationToken ct = default)
         => await _cloudService.GetDeviceConfigurationAsync(DeviceId ?? "unknown", ct);
+
+    /// <summary>
+    /// Reports current device configuration to cloud.
+    /// Used for periodic sync to ensure reported state is synchronized
+    /// even if update response fails due to disconnection.
+    /// </summary>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>True if report was successfully published</returns>
+    public async Task<bool> ReportConfigurationAsync(CancellationToken ct = default)
+    {
+        var deviceId = DeviceId ?? "unknown";
+        var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+
+        // Use default groupId for periodic reports (groupId is mainly for multi-tenant scenarios)
+        var groupId = "default";
+
+        var report = ConfigurationUpdateHelper.CreatePeriodicReport(
+            deviceId,
+            groupId,
+            Configuration,
+            deviceTypeName);
+
+        _logger.LogDebug("Reporting configuration for device {DeviceId}", deviceId);
+        return await _cloudService.PublishConfigurationReportAsync(report, ct);
+    }
 
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
@@ -395,6 +459,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         _logger.LogDebug("Updating ReportHealth period: {Old} -> {New}",
                             Configuration.Periods.ReportHealth, desiredConfig.Periods.ReportHealth);
                         Configuration.Periods.ReportHealth = desiredConfig.Periods.ReportHealth;
+                    }
+                    // ReportConfiguration can be 0 (disabled) or > 0 (enabled), so always update if provided
+                    if (desiredConfig.Periods.ReportConfiguration >= 0)
+                    {
+                        _logger.LogDebug("Updating ReportConfiguration period: {Old} -> {New}",
+                            Configuration.Periods.ReportConfiguration, desiredConfig.Periods.ReportConfiguration);
+                        Configuration.Periods.ReportConfiguration = desiredConfig.Periods.ReportConfiguration;
                     }
 
                     _logger.LogInformation("Updated background task periods");

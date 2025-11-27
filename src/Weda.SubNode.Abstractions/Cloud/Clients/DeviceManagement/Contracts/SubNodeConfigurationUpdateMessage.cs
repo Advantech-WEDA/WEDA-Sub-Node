@@ -211,6 +211,13 @@ public class SubNodePeriodsDto
     /// </summary>
     [JsonPropertyName("reportHealth")]
     public int ReportHealth { get; set; }
+
+    /// <summary>
+    /// Configuration sync/report period (ms).
+    /// When enabled (> 0), periodically reports device configuration to cloud.
+    /// </summary>
+    [JsonPropertyName("reportConfiguration")]
+    public int ReportConfiguration { get; set; }
 }
 
 /// <summary>
