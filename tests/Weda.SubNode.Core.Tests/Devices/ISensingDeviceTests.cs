@@ -54,6 +54,15 @@ public class ISensingDeviceTests : IDisposable
                         Enabled = true,
                         Unit = "mA"
                     }
+                },
+                new()
+                {
+                    Name = "do1",
+                    ResourceId = "do1",
+                    Dtmi = "dtmi:advantech:EdgeSync:DO;1",
+                    DeviceResourceId = "test-mqtt-device",
+                    SensorGroup = SensorGroup.DO,
+                    Config = new SensorConfig { Enabled = true }
                 }
             }
         };
@@ -127,21 +136,24 @@ public class ISensingDeviceTests : IDisposable
     [Fact]
     public async Task ExecuteCommandAsync_ShouldReturnTrue()
     {
-        // ISensingDevice ExecuteCommandAsync is now implemented (returns true)
-        // TODO: Will publish command to MQTT topics when command protocol is defined
+        // ISensingDevice ExecuteCommandAsync validates sensor exists, encodes command, and publishes to MQTT
 
         // Arrange
         var command = new DeviceCommand
         {
             DeviceCmd = "SetDigitalOutput",
-            Parameters = new Dictionary<string, object> { ["do1"] = true }
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = "do1",  // Sensor name must exist in configuration
+                ["state"] = true
+            }
         };
 
         // Act
         var result = await _device.ExecuteCommandAsync(command);
 
         // Assert
-        Assert.True(result); // Currently returns true (stub implementation)
+        Assert.True(result); // Should succeed if sensor exists and validation passes
     }
 
     [Fact]

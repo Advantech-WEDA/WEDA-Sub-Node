@@ -262,18 +262,20 @@ public class ISensingProtocolParser : IProtocolParser
         {
             "SetDigitalOutput" or "SetDO" => new DigitalOutputCommand
             {
-                OutputName = command.Parameters.GetValueOrDefault("outputName")?.ToString()
+                OutputName = command.Parameters.GetValueOrDefault("name")?.ToString()
+                    ?? command.Parameters.GetValueOrDefault("outputName")?.ToString()
                     ?? command.Parameters.GetValueOrDefault("do")?.ToString()
-                    ?? throw new ArgumentException("Missing 'outputName' or 'do' parameter"),
+                    ?? throw new ArgumentException("Missing 'name', 'outputName', or 'do' parameter"),
                 State = Convert.ToBoolean(command.Parameters.GetValueOrDefault("state")
                     ?? throw new ArgumentException("Missing 'state' parameter"))
             },
 
             "SetAnalogOutput" or "SetAO" => new AnalogOutputCommand
             {
-                OutputName = command.Parameters.GetValueOrDefault("outputName")?.ToString()
+                OutputName = command.Parameters.GetValueOrDefault("name")?.ToString()
+                    ?? command.Parameters.GetValueOrDefault("outputName")?.ToString()
                     ?? command.Parameters.GetValueOrDefault("ao")?.ToString()
-                    ?? throw new ArgumentException("Missing 'outputName' or 'ao' parameter"),
+                    ?? throw new ArgumentException("Missing 'name', 'outputName', or 'ao' parameter"),
                 Value = Convert.ToDouble(command.Parameters.GetValueOrDefault("value")
                     ?? throw new ArgumentException("Missing 'value' parameter"))
             },

@@ -462,6 +462,46 @@ public sealed class WedaCloudService : IWedaCloudService
         }
     }
 
+    public async Task<bool> SendCommandResponseAsync(
+        string responseTopic,
+        CommandResponse response,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+
+        if (string.IsNullOrEmpty(responseTopic))
+        {
+            _logger.LogWarning(
+                "Command response topic is empty, skipping response: DeviceId={DeviceId}, Command={Command}, Status={Status}",
+                response.DeviceId, response.Command, response.Status);
+            return false;
+        }
+
+        _logger.LogInformation(
+            "Sending command response: DeviceId={DeviceId}, Command={Command}, Status={Status}, Topic={Topic}",
+            response.DeviceId, response.Command, response.Status, responseTopic);
+
+        try
+        {
+            await _client.PublishAsync(
+                subject: responseTopic,
+                data: response,
+                cancellationToken: cancellationToken);
+
+            _logger.LogDebug(
+                "Command response sent successfully: DeviceId={DeviceId}, Command={Command}, Status={Status}",
+                response.DeviceId, response.Command, response.Status);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send command response: DeviceId={DeviceId}, Command={Command}",
+                response.DeviceId, response.Command);
+            return false;
+        }
+    }
+
     /// <summary>
     /// Simple disposable wrapper for NATS subscription
     /// </summary>

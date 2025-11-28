@@ -338,6 +338,7 @@ public class DeviceBaseLifecycleTests : IDisposable
         SetupSuccessfulRegistration("test-device-001");
 
         var device = CreateTestDevice();
+        device.EnableDeviceStatusTracking = true; // Enable tracking to receive events
         var statusChanges = new List<(DeviceStatus Previous, DeviceStatus Current)>();
 
         device.DeviceStatusChanged += (sender, args) =>
@@ -362,6 +363,7 @@ public class DeviceBaseLifecycleTests : IDisposable
         SetupSuccessfulRegistration("test-device-001");
 
         var device = CreateTestDevice();
+        device.EnableDeviceStatusTracking = true; // Enable tracking to receive events
         await device.InitializeAsync();
 
         var statusChanges = new List<(DeviceStatus Previous, DeviceStatus Current)>();
@@ -471,6 +473,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     {
         // Arrange
         var device = CreateTestDevice();
+        device.EnableConnectionStateTracking = true; // Enable tracking to receive events
         var eventRaised = false;
         ConnectionStateChangedEvent? receivedEvent = null;
 
@@ -647,6 +650,7 @@ public class DeviceBaseLifecycleTests : IDisposable
         SetupSuccessfulRegistration("test-device-001");
 
         var device = CreateTestDevice();
+        device.EnableDataReceivedTracking = true; // Enable tracking to receive events
         var eventRaised = false;
         DataReceivedEvent? receivedEvent = null;
 

@@ -21,9 +21,10 @@ namespace Weda.SubNode.Core.Devices;
 public class ISensingDevice : DeviceBase, ISensorControl
 {
     private readonly IMessageBroker _messageBroker;
-    private readonly IProtocolParser _protocolParser;
+    private readonly ISensingProtocolParser _protocolParser;
     private readonly string _dataTopic;
     private readonly string _statusTopic;
+    private readonly string _commandTopic;
 
     // Cache for latest telemetry data by ResourceId
     private readonly ConcurrentDictionary<string, TelemetryMeasure> _latestData = new();
@@ -49,7 +50,7 @@ public class ISensingDevice : DeviceBase, ISensorControl
         _protocolParser = new ISensingProtocolParser(messageBroker);
 
         // Extract MQTT topics from configuration
-        // Expected format: "Advantech/{MacAddress}/data" and "Advantech/{MacAddress}/status"
+        // Expected format: "Advantech/{MacAddress}/data", "Advantech/{MacAddress}/status", "Advantech/{MacAddress}/cmd"
         var macAddress = configuration.Communication.TryGetValue("MacAddress", out var mac)
             ? mac?.ToString() ?? throw new InvalidOperationException("MacAddress not found in communication configuration")
             : throw new InvalidOperationException("MacAddress not found in communication configuration");
@@ -60,6 +61,7 @@ public class ISensingDevice : DeviceBase, ISensorControl
 
         _dataTopic = $"{manufacturer}/{macAddress}/data";
         _statusTopic = $"{manufacturer}/{macAddress}/status";
+        _commandTopic = $"{manufacturer}/{macAddress}/cmd";
     }
 
     /// <summary>
@@ -81,12 +83,109 @@ public class ISensingDevice : DeviceBase, ISensorControl
 
     /// <summary>
     /// Executes a command on the device (publishes command to message broker topic).
+    /// Architecture: Device validates → Parser encodes → MessageBroker publishes
     /// </summary>
-    public override Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
+    public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing command {CommandName} on ISensing device {DeviceId}", command.DeviceCmd, DeviceId);
-        // TODO: Implement command publishing to MQTT topics when command protocol is defined
-        return Task.FromResult(true);
+
+        try
+        {
+            // 1. Validate command for DO/AO commands (sensor must exist)
+            if (command.DeviceCmd is "SetDO" or "SetDigitalOutput")
+            {
+                var validationResult = ValidateOutputCommand(command, SensorGroup.DO);
+                if (!validationResult.IsValid)
+                {
+                    _logger.LogError("Command validation failed: {Error}", validationResult.Error);
+                    return false;
+                }
+            }
+            else if (command.DeviceCmd is "SetAO" or "SetAnalogOutput")
+            {
+                var validationResult = ValidateOutputCommand(command, SensorGroup.AO);
+                if (!validationResult.IsValid)
+                {
+                    _logger.LogError("Command validation failed: {Error}", validationResult.Error);
+                    return false;
+                }
+            }
+
+            // 2. Use Protocol Parser to encode command to JSON payload
+            var payload = _protocolParser.EncodeCommand(command);
+
+            // 3. Use MessageBroker to publish to device command topic
+            await _messageBroker.PublishAsync(_commandTopic, payload, cancellationToken);
+
+            _logger.LogInformation(
+                "Command {CommandName} published to topic {Topic}",
+                command.DeviceCmd, _commandTopic);
+
+            return true;
+        }
+        catch (NotSupportedException ex)
+        {
+            _logger.LogError(ex, "Command {CommandName} is not supported by ISensing protocol", command.DeviceCmd);
+            return false;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogError(ex, "Invalid command parameters for {CommandName}", command.DeviceCmd);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to execute command {CommandName}", command.DeviceCmd);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Validates output command (SetDO/SetAO) - ensures sensor exists and has correct group
+    /// </summary>
+    private (bool IsValid, string? Error) ValidateOutputCommand(DeviceCommand command, SensorGroup expectedGroup)
+    {
+        // Extract output name from parameters
+        var name = ExtractOutputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return (false, $"Missing 'name', 'do', 'ao', or 'outputName' parameter");
+        }
+
+        // Find sensor in configuration (case-insensitive)
+        var sensor = Configuration.Sensors.FirstOrDefault(s =>
+            s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (sensor == null)
+        {
+            return (false, $"Sensor '{name}' not found in device configuration");
+        }
+
+        // Validate sensor group
+        if (sensor.SensorGroup != expectedGroup)
+        {
+            return (false, $"Sensor '{name}' is not a {expectedGroup} sensor (actual: {sensor.SensorGroup})");
+        }
+
+        return (true, null);
+    }
+
+    /// <summary>
+    /// Extract output name from command parameters (supports multiple aliases)
+    /// </summary>
+    private static string? ExtractOutputName(Dictionary<string, object> parameters)
+    {
+        string[] aliases = ["name", "do", "ao", "outputName"];
+
+        foreach (var alias in aliases)
+        {
+            if (parameters.TryGetValue(alias, out var value) && value != null)
+            {
+                return value.ToString();
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

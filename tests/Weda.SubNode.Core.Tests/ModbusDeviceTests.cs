@@ -198,6 +198,7 @@ public class ModbusDeviceTests : IDisposable
         // Arrange
         var config = CreateModbusConfiguration();
         var device = new ModbusDevice(_context, config, _mockCommunication);
+        device.EnableDataReceivedTracking = true; // Enable tracking to receive events
 
         var dataReceivedEventRaised = false;
         device.DataReceived += (sender, args) =>
