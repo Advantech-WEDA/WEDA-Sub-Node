@@ -57,10 +57,22 @@ public record ConfigUpdateOptions
     public bool ValidateDeviceName { get; init; } = true;
 
     /// <summary>
-    /// Validates that period values (ReadTelemetry, SendTelemetry, ReportHealth) are non-negative.
+    /// Validates that period values (ReadTelemetry, SendTelemetry, ReportHealth, ReportConfiguration) are valid.
     /// Default: true
     /// </summary>
     public bool ValidatePeriods { get; init; } = true;
+
+    /// <summary>
+    /// Minimum allowed value for ReportConfiguration period in milliseconds.
+    /// Default: 300000 (5 minutes)
+    /// </summary>
+    public int ReportConfigurationMinMs { get; init; } = 300_000;
+
+    /// <summary>
+    /// Maximum allowed value for ReportConfiguration period in milliseconds.
+    /// Default: 86400000 (24 hours)
+    /// </summary>
+    public int ReportConfigurationMaxMs { get; init; } = 86_400_000;
 
     /// <summary>
     /// Validates sensor configurations (name not empty, interval non-negative).
