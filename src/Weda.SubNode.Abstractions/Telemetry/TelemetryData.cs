@@ -36,4 +36,10 @@ public record TelemetryMeasure
     /// Timestamp in milliseconds (Unix epoch)
     /// </summary>
     public long Timestamp { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    /// <summary>
+    /// Optional metadata dictionary for additional telemetry information.
+    /// Examples: stock name, exchange, field type (open/high/low/close), unit, etc.
+    /// </summary>
+    public IReadOnlyDictionary<string, object>? Metadata { get; init; }
 }
