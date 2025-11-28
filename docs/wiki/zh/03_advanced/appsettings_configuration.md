@@ -113,26 +113,115 @@ translations:
 {
   "Nats": {
     "Url": "nats://172.22.160.197:4224",
-    "CredFile": "",
     "Name": "default",
-    "SerializerType": "json"
+    "SerializerType": "json",
+    "AuthStrategy": "None"
   }
 }
 ```
 
-### 欄位說明
+### 基本欄位
 
 | 欄位 | 類型 | 必填 | 說明 | 預設值 |
 |------|------|------|------|--------|
-| `Url` | string | 是 | NATS 伺服器位址 | - |
-| `CredFile` | string | 否 | NATS 認證檔案路徑（.creds 檔案） | "" |
-| `Name` | string | 否 | 連線名稱（用於識別） | "default" |
-| `SerializerType` | string | 否 | 序列化類型（json/protobuf） | "json" |
+| `Url` | string | 是 | NATS 伺服器位址 | `nats://localhost:4222` |
+| `Name` | string | 否 | 連線名稱（用於識別） | `default` |
+| `SerializerType` | string | 否 | 序列化類型（json/protobuf） | `json` |
+| `AuthStrategy` | string | 否 | 認證策略（見下方說明） | `None` |
+
+### 認證策略 (AuthStrategy)
+
+SDK 支援以下四種 NATS 認證策略：
+
+| 策略 | 說明 | 所需配置欄位 |
+|------|------|-------------|
+| `None` | 匿名連線（無認證） | 無 |
+| `UserPassword` | 使用者名稱/密碼認證 | `Username`, `Password` |
+| `Token` | Token 認證 | `Token` |
+| `CredFile` | 憑證檔案認證（JWT + NKey） | `CredFile` |
+| `TlsCert` | TLS 客戶端憑證認證 | `TlsCertPath`, `TlsKeyPath`, `TlsCaPath`（選填）|
+
+### 認證配置範例
+
+#### 1. 匿名連線 (None)
+
+```json
+{
+  "Nats": {
+    "Url": "nats://localhost:4222",
+    "AuthStrategy": "None"
+  }
+}
+```
+
+#### 2. 使用者名稱/密碼認證 (UserPassword)
+
+```json
+{
+  "Nats": {
+    "Url": "nats://localhost:4222",
+    "AuthStrategy": "UserPassword",
+    "Username": "myuser",
+    "Password": "mypassword"
+  }
+}
+```
+
+#### 3. Token 認證 (Token)
+
+```json
+{
+  "Nats": {
+    "Url": "nats://localhost:4222",
+    "AuthStrategy": "Token",
+    "Token": "your-auth-token"
+  }
+}
+```
+
+#### 4. 憑證檔案認證 (CredFile) - **生產環境推薦**
+
+```json
+{
+  "Nats": {
+    "Url": "nats://nats.example.com:4222",
+    "AuthStrategy": "CredFile",
+    "CredFile": "/path/to/credentials.creds"
+  }
+}
+```
+
+#### 5. TLS 客戶端憑證認證 (TlsCert) - Mutual TLS
+
+```json
+{
+  "Nats": {
+    "Url": "tls://nats.example.com:4222",
+    "AuthStrategy": "TlsCert",
+    "TlsCertPath": "/path/to/client-cert.pem",
+    "TlsKeyPath": "/path/to/client-key.pem",
+    "TlsCaPath": "/path/to/ca-cert.pem"
+  }
+}
+```
+
+### 認證欄位說明
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `Username` | string | UserPassword 策略的使用者名稱 |
+| `Password` | string | UserPassword 策略的密碼 |
+| `Token` | string | Token 策略的認證 token |
+| `CredFile` | string | CredFile 策略的憑證檔案路徑（.creds 檔案） |
+| `TlsCertPath` | string | TlsCert 策略的客戶端憑證路徑（PEM 格式） |
+| `TlsKeyPath` | string | TlsCert 策略的私鑰路徑（PEM 格式） |
+| `TlsCaPath` | string | TlsCert 策略的 CA 憑證路徑（選填，用於驗證伺服器） |
 
 ### 使用案例
 
 - **開發環境**: 使用 `WedaFactory.Cloud.Mock` 或是 `UseMockCloud`，無需 NATS
-- **生產環境**: 連接到 Weda.Core 的 NATS server，使用 CredFile 認證
+- **測試環境**: 使用 `None` 或 `UserPassword` 策略
+- **生產環境**: 連接到 Weda.Core 的 NATS server，推薦使用 `CredFile` 或 `TlsCert` 策略
 
 ---
 
