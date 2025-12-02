@@ -31,6 +31,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     private readonly ModbusBatchReader _batchReader;
     private readonly bool _useBatchOptimization;
     private readonly Dictionary<string, ModbusSensorRegister> _sensorMetadata;
+    private readonly int _defaultCommandTimeoutMs;
     private ushort _transactionId = 0;
 
     /// <summary>
@@ -42,19 +43,22 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     /// <param name="logger">Logger instance</param>
     /// <param name="useBatchOptimization">Enable batch reading optimization (default: true)</param>
     /// <param name="batchOptions">Batch optimization options (optional)</param>
+    /// <param name="defaultCommandTimeoutMs">Default command execution timeout in milliseconds (default: 30000)</param>
     public ModbusRequestResponseParser(
         IRequestResponseCommunication<byte[], byte[]> communication,
         byte slaveId,
         Dictionary<string, ModbusSensorRegister> sensorMetadata,
         ILogger logger,
         bool useBatchOptimization = true,
-        ModbusBatchOptimizationOptions? batchOptions = null)
+        ModbusBatchOptimizationOptions? batchOptions = null,
+        int defaultCommandTimeoutMs = 30000)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _slaveId = slaveId;
         _sensorMetadata = sensorMetadata ?? throw new ArgumentNullException(nameof(sensorMetadata));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _useBatchOptimization = useBatchOptimization;
+        _defaultCommandTimeoutMs = defaultCommandTimeoutMs;
 
         // Create batch reader for optimized multi-sensor reading
         _batchReader = new ModbusBatchReader(
@@ -213,6 +217,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 
     /// <summary>
     /// Execute command synchronously (Request-Response pattern)
+    /// Enforces timeout from DeviceOptions (default 30 seconds as per UC9884 specification).
     /// </summary>
     public async Task<ErrorOr<object>> ExecuteCommandAsync(
         DeviceCommand command,
@@ -220,15 +225,36 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     {
         _logger.LogInformation("Executing Modbus command {CommandName}", command.DeviceCmd);
 
+        // Determine timeout from command or use default from DeviceOptions
+        var timeoutMs = command.Timeout > 0 ? (int)command.Timeout : _defaultCommandTimeoutMs;
+        using var timeoutCts = new CancellationTokenSource(timeoutMs);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         try
         {
             return command.DeviceCmd switch
             {
-                "SetDO" or "SetDigitalOutput" => await ExecuteSetDOAsync(command, cancellationToken),
+                "SetDO" or "SetDigitalOutput" => await ExecuteSetDOAsync(command, linkedCts.Token),
                 _ => Error.Validation(
                     code: "Command.NotSupported",
                     description: $"Command '{command.DeviceCmd}' is not supported by Modbus protocol")
             };
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            _logger.LogError(
+                "Command {CommandName} execution timeout after {Timeout}ms",
+                command.DeviceCmd, timeoutMs);
+            return Error.Failure(
+                code: "Command.Timeout",
+                description: $"Command execution exceeded {timeoutMs}ms timeout");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Command {CommandName} execution cancelled by caller", command.DeviceCmd);
+            return Error.Failure(
+                code: "Command.Cancelled",
+                description: "Command execution was cancelled");
         }
         catch (Exception ex)
         {

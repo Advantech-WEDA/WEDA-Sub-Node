@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
-using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Protocols.ISensing;
 using Weda.SubNode.Core.Protocols.ISensing.Models;
@@ -87,7 +87,24 @@ public class ISensingDevice : DeviceBase, ISensorControl
     /// </summary>
     public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
+        var result = await ExecuteCommandInternalAsync(command, cancellationToken);
+        return !result.IsError;
+    }
+
+    /// <summary>
+    /// Internal command execution with ErrorOr result for detailed error information.
+    /// Enforces timeout and provides structured error codes.
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteCommandInternalAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
         _logger.LogInformation("Executing command {CommandName} on ISensing device {DeviceId}", command.DeviceCmd, DeviceId);
+
+        // Determine timeout from command or use default from DeviceOptions
+        var timeoutMs = command.Timeout > 0 ? (int)command.Timeout : _context.DeviceOptions.DefaultCommandTimeoutMs;
+        using var timeoutCts = new CancellationTokenSource(timeoutMs);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         try
         {
@@ -98,7 +115,9 @@ public class ISensingDevice : DeviceBase, ISensorControl
                 if (!validationResult.IsValid)
                 {
                     _logger.LogError("Command validation failed: {Error}", validationResult.Error);
-                    return false;
+                    return Error.Validation(
+                        code: "SetDO.ValidationFailed",
+                        description: validationResult.Error ?? "Validation failed");
                 }
             }
             else if (command.DeviceCmd is "SetAO" or "SetAnalogOutput")
@@ -107,7 +126,9 @@ public class ISensingDevice : DeviceBase, ISensorControl
                 if (!validationResult.IsValid)
                 {
                     _logger.LogError("Command validation failed: {Error}", validationResult.Error);
-                    return false;
+                    return Error.Validation(
+                        code: "SetAO.ValidationFailed",
+                        description: validationResult.Error ?? "Validation failed");
                 }
             }
 
@@ -115,28 +136,55 @@ public class ISensingDevice : DeviceBase, ISensorControl
             var payload = _protocolParser.EncodeCommand(command);
 
             // 3. Use MessageBroker to publish to device command topic
-            await _messageBroker.PublishAsync(_commandTopic, payload, cancellationToken);
+            await _messageBroker.PublishAsync(_commandTopic, payload, linkedCts.Token);
 
             _logger.LogInformation(
                 "Command {CommandName} published to topic {Topic}",
                 command.DeviceCmd, _commandTopic);
 
-            return true;
+            return new Dictionary<string, object>
+            {
+                ["success"] = true,
+                ["command"] = command.DeviceCmd,
+                ["topic"] = _commandTopic
+            };
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            _logger.LogError(
+                "Command {CommandName} execution timeout after {Timeout}ms",
+                command.DeviceCmd, timeoutMs);
+            return Error.Failure(
+                code: "Command.Timeout",
+                description: $"Command execution exceeded {timeoutMs}ms timeout");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Command {CommandName} execution cancelled by caller", command.DeviceCmd);
+            return Error.Failure(
+                code: "Command.Cancelled",
+                description: "Command execution was cancelled");
         }
         catch (NotSupportedException ex)
         {
             _logger.LogError(ex, "Command {CommandName} is not supported by ISensing protocol", command.DeviceCmd);
-            return false;
+            return Error.Validation(
+                code: "Command.NotSupported",
+                description: $"Command '{command.DeviceCmd}' is not supported by ISensing protocol");
         }
         catch (ArgumentException ex)
         {
             _logger.LogError(ex, "Invalid command parameters for {CommandName}", command.DeviceCmd);
-            return false;
+            return Error.Validation(
+                code: "Command.InvalidParameters",
+                description: ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to execute command {CommandName}", command.DeviceCmd);
-            return false;
+            return Error.Failure(
+                code: "Command.ExecutionFailed",
+                description: ex.Message);
         }
     }
 
