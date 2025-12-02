@@ -445,6 +445,13 @@ public class WedaApplicationBuilder
     /// <summary>
     /// Use default cloud service (NATS-based EdgeSync cloud service).
     /// This is the default in CreateDefaultBuilder().
+    ///
+    /// Supports multiple authentication strategies configured via appsettings.json:
+    /// - None: Anonymous connection (default)
+    /// - UserPassword: Username and password authentication
+    /// - Token: Token-based authentication
+    /// - TlsCert: TLS client certificate authentication
+    /// - CredFile: Credential file authentication (JWT + NKey)
     /// </summary>
     /// <returns>The builder for chaining</returns>
     public WedaApplicationBuilder UseDefaultCloud()
@@ -458,21 +465,25 @@ public class WedaApplicationBuilder
 
         Services.Configure<NatsConnectionSettings>(_hostBuilder.Configuration.GetSection("Nats"));
 
-        // Register NatsClient as singleton
+        // Register NatsClient as singleton with configurable authentication strategy
         Services.AddSingleton(sp =>
         {
-            var natsOptions = sp.GetService<IOptions<NatsConnectionSettings>>()?.Value;
-            var url = natsOptions?.Url ?? "nats://localhost:4222";
-            var credsFile = natsOptions?.CredFile;
+            var settings = sp.GetService<IOptions<NatsConnectionSettings>>()?.Value
+                ?? NatsConnectionSettings.Default;
+            var logger = sp.GetService<ILogger<NatsClient>>();
+
             var natsOpts = NatsOpts.Default with
             {
-                Url = url,
+                Url = settings.Url,
+                Name = settings.Name,
                 SerializerRegistry = WedaNatsSerializerRegistry.Default,
-                AuthOpts = NatsAuthOpts.Default with
-                {
-                    CredsFile = credsFile
-                }
+                AuthOpts = settings.BuildAuthOpts(),
+                TlsOpts = BuildTlsOpts(settings)
             };
+
+            logger?.LogInformation(
+                "Creating NATS connection to {Url} with auth strategy: {AuthStrategy}",
+                settings.Url, settings.AuthStrategy);
 
             return new NatsClient(natsOpts);
         });
@@ -503,6 +514,28 @@ public class WedaApplicationBuilder
         });
 
         return this;
+    }
+
+    /// <summary>
+    /// Build NatsTlsOpts from NatsConnectionSettings for TLS certificate authentication.
+    /// </summary>
+    private static NatsTlsOpts BuildTlsOpts(NatsConnectionSettings settings)
+    {
+        // Only configure TLS opts for TlsCert strategy or when TLS paths are provided
+        if (settings.AuthStrategy != NatsAuthStrategy.TlsCert &&
+            string.IsNullOrEmpty(settings.TlsCertPath) &&
+            string.IsNullOrEmpty(settings.TlsCaPath))
+        {
+            return NatsTlsOpts.Default;
+        }
+
+        // Build TLS options for client certificate authentication
+        return new NatsTlsOpts
+        {
+            CertFile = settings.TlsCertPath,
+            KeyFile = settings.TlsKeyPath,
+            CaFile = settings.TlsCaPath
+        };
     }
 
     /// <summary>
