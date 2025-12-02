@@ -93,4 +93,17 @@ public interface IWedaCloudService : IDisposable
     Task<bool> PublishConfigurationReportAsync(
         SubNodeConfigurationUpdateMessage report,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Send command response to cloud.
+    /// Used to report command execution status (received/rejected/success/failed).
+    /// </summary>
+    /// <param name="responseTopic">The response topic from DeviceCommand.RespTopic</param>
+    /// <param name="response">The command response</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if sent successfully, false otherwise</returns>
+    Task<bool> SendCommandResponseAsync(
+        string responseTopic,
+        CommandResponse response,
+        CancellationToken cancellationToken = default);
 }

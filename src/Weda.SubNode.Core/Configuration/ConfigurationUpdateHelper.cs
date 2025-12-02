@@ -102,6 +102,18 @@ public static class ConfigurationUpdateHelper
                 return ConfigurationValidationResult.Failure("SendTelemetry period cannot be negative");
             if (desiredConfig.Periods.ReportHealth < 0)
                 return ConfigurationValidationResult.Failure("ReportHealth period cannot be negative");
+
+            // Validate ReportConfiguration period range (default: 5 minutes ~ 24 hours)
+            // Value of 0 means disabled, which is allowed
+            if (desiredConfig.Periods.ReportConfiguration > 0)
+            {
+                if (desiredConfig.Periods.ReportConfiguration < options.ReportConfigurationMinMs)
+                    return ConfigurationValidationResult.Failure(
+                        $"ReportConfiguration period ({desiredConfig.Periods.ReportConfiguration}ms) is below minimum ({options.ReportConfigurationMinMs}ms)");
+                if (desiredConfig.Periods.ReportConfiguration > options.ReportConfigurationMaxMs)
+                    return ConfigurationValidationResult.Failure(
+                        $"ReportConfiguration period ({desiredConfig.Periods.ReportConfiguration}ms) exceeds maximum ({options.ReportConfigurationMaxMs}ms)");
+            }
         }
 
         // Validate sensor configurations if provided

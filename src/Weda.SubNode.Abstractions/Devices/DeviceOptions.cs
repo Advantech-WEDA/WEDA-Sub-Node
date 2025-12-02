@@ -31,6 +31,13 @@ public class DeviceOptions
     public bool EnableHealthReporting { get; set; } = false;
 
     /// <summary>
+    /// Default timeout for command execution (in milliseconds).
+    /// Individual commands can override this via DeviceCommand.Timeout.
+    /// Default: 30000ms (30 seconds) as per UC9884 specification.
+    /// </summary>
+    public int DefaultCommandTimeoutMs { get; set; } = 30000;
+
+    /// <summary>
     /// Default device options (all features disabled by default)
     /// </summary>
     public static DeviceOptions Default => new();

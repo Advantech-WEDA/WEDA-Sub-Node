@@ -60,7 +60,8 @@ public class ModbusDevice : DeviceBase
             sensorMetadata,
             _logger,
             useBatchOptimization,
-            batchOptions);
+            batchOptions,
+            context.DeviceOptions.DefaultCommandTimeoutMs);
 
         // Create Polly reconnection pipeline using ConnectionOptions from context
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(context.ConnectionOptions);

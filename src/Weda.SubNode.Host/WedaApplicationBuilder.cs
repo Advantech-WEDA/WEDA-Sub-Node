@@ -12,15 +12,23 @@ using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host;
 
 /// <summary>
-/// Builder for configuring and creating a WedaApplication
-/// Similar to WebApplicationBuilder in ASP.NET Core
+/// Builder for configuring and creating a WedaApplication.
+/// Similar to WebApplicationBuilder in ASP.NET Core.
+///
+/// Configuration loading priority (default):
+/// 1. .device-config-cache.json (if exists) - preserves cloud-driven configuration updates
+/// 2. appsettings.json (fallback) - initial configuration
+///
+/// Use --no-cache argument to force loading from appsettings.json only.
 /// </summary>
 public class WedaApplicationBuilder
 {
@@ -28,10 +36,14 @@ public class WedaApplicationBuilder
     private readonly List<DeviceConfiguration> _deviceConfigurations = new();
     private readonly List<Func<IWedaApplicationContext, IDevice>> _deviceFactories = [];
     private IDeviceTypeNameResolver _deviceTypeNameResolver = new DefaultDeviceTypeNameResolver();
+    private readonly bool _useCache;
+    private readonly IConfigurationCache _configurationCache;
 
-    internal WedaApplicationBuilder(HostApplicationBuilder hostBuilder)
+    internal WedaApplicationBuilder(HostApplicationBuilder hostBuilder, bool useCache = true)
     {
         _hostBuilder = hostBuilder;
+        _useCache = useCache;
+        _configurationCache = new JsonConfigurationCache();
     }
 
     /// <summary>
@@ -125,7 +137,10 @@ public class WedaApplicationBuilder
 
     /// <summary>
     /// Add a device by type with explicit configuration section name.
-    /// The device configuration will be read from DeviceConfigs section using the specified section name.
+    ///
+    /// Configuration loading priority:
+    /// 1. .device-config-cache.json (if exists and --no-cache not specified)
+    /// 2. appsettings.json DeviceConfigs section (fallback)
     ///
     /// Example for AddDevice&lt;MyCustomDevice&gt;("MyFirstDevice"):
     /// {
@@ -150,22 +165,49 @@ public class WedaApplicationBuilder
             throw new ArgumentException("Section name cannot be null or whitespace", nameof(sectionName));
         }
 
-        // Load configuration from appsettings.json using the specified section name
-        var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
-        if (!deviceConfigSection.Exists())
+        // Try loading from cache first (if enabled)
+        DeviceConfiguration? config = null;
+        var configSource = "appsettings.json";
+
+        if (_useCache)
         {
-            throw new InvalidOperationException(
-                $"Device configuration section 'DeviceConfigs:{sectionName}' not found in appsettings.json. " +
-                $"Please ensure the configuration exists.");
+            try
+            {
+                var cachedConfig = _configurationCache.GetConfigurationAsync().GetAwaiter().GetResult();
+                if (cachedConfig != null)
+                {
+                    config = cachedConfig;
+                    configSource = ".device-config-cache.json";
+                    Log.Information("Loaded device configuration from cache: {CachePath}", _configurationCache.CacheFilePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to load configuration from cache, falling back to appsettings.json");
+            }
         }
 
-        var config = deviceConfigSection.Get<DeviceConfiguration>();
+        // Fallback to appsettings.json
         if (config == null)
         {
-            throw new InvalidOperationException(
-                $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
-                $"Please check your appsettings.json format.");
+            var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
+            if (!deviceConfigSection.Exists())
+            {
+                throw new InvalidOperationException(
+                    $"Device configuration section 'DeviceConfigs:{sectionName}' not found in appsettings.json. " +
+                    $"Please ensure the configuration exists.");
+            }
+
+            config = deviceConfigSection.Get<DeviceConfiguration>();
+            if (config == null)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
+                    $"Please check your appsettings.json format.");
+            }
         }
+
+        Log.Information("Using device configuration from {Source}", configSource);
 
         // Ensure DeviceTypeName is set for factory resolution
         if (string.IsNullOrEmpty(config.DeviceTypeName))

@@ -265,6 +265,17 @@ public class MockCloudService : IWedaCloudService
         GC.SuppressFinalize(this);
     }
 
+    public Task<bool> SendCommandResponseAsync(
+        string responseTopic,
+        CommandResponse response,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[MockCloud] Command response: Topic={Topic}, Status={Status}, Command={Command}",
+            responseTopic, response.Status, response.Command);
+        return Task.FromResult(true);
+    }
+
     private class NoOpDisposable : IDisposable
     {
         public void Dispose() { }

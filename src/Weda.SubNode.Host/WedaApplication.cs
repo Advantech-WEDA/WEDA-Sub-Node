@@ -44,11 +44,15 @@ public class WedaApplication : IAsyncDisposable
     /// - --Nats:Url=nats://localhost:4222          (override NATS URL)
     /// - --Nats:CredFile=/path/to/creds            (override credentials file)
     /// - --Serilog:MinimumLevel:Default=Debug      (override log level)
+    /// - --no-cache                                (force loading from appsettings.json, ignore .device-config-cache.json)
     /// </summary>
     /// <param name="args">Command-line arguments</param>
     /// <returns>A configured WedaApplicationBuilder</returns>
     public static WedaApplicationBuilder CreateDefaultBuilder(string[]? args = null)
     {
+        // Check for --no-cache argument
+        var useCache = !HasNoCacheArgument(args);
+
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
         // Configure default settings with priority:
@@ -88,7 +92,7 @@ public class WedaApplication : IAsyncDisposable
         hostBuilder.Logging.ClearProviders();
         hostBuilder.Logging.AddSerilog(Log.Logger);
 
-        var builder = new WedaApplicationBuilder(hostBuilder);
+        var builder = new WedaApplicationBuilder(hostBuilder, useCache);
 
         // Configure WedaFactory to use the logger factory from DI
         // This ensures all WedaFactory-created instances have proper logging
@@ -128,11 +132,15 @@ public class WedaApplication : IAsyncDisposable
     /// - --Nats:Url=nats://localhost:4222          (override NATS URL)
     /// - --Nats:CredFile=/path/to/creds            (override credentials file)
     /// - --Serilog:MinimumLevel:Default=Debug      (override log level)
+    /// - --no-cache                                (force loading from appsettings.json, ignore .device-config-cache.json)
     /// </summary>
     /// <param name="args">Command-line arguments</param>
     /// <returns>A minimal WedaApplicationBuilder</returns>
     public static WedaApplicationBuilder CreateBuilder(string[]? args = null)
     {
+        // Check for --no-cache argument
+        var useCache = !HasNoCacheArgument(args);
+
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
         // Configuration - load appsettings.json, environment variables, and command-line arguments
@@ -144,7 +152,7 @@ public class WedaApplication : IAsyncDisposable
             .AddEnvironmentVariables()
             .AddCommandLine(args ?? Array.Empty<string>());
 
-        var builder = new WedaApplicationBuilder(hostBuilder);
+        var builder = new WedaApplicationBuilder(hostBuilder, useCache);
 
         // Add default cloud service (can be overridden with .UseMockCloud())
         builder.UseDefaultCloud();
@@ -201,5 +209,18 @@ public class WedaApplication : IAsyncDisposable
 
         await Log.CloseAndFlushAsync();
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Check if the --no-cache argument is present in command-line arguments
+    /// </summary>
+    private static bool HasNoCacheArgument(string[]? args)
+    {
+        if (args == null || args.Length == 0)
+            return false;
+
+        return args.Any(arg =>
+            arg.Equals("--no-cache", StringComparison.OrdinalIgnoreCase) ||
+            arg.Equals("-no-cache", StringComparison.OrdinalIgnoreCase));
     }
 }

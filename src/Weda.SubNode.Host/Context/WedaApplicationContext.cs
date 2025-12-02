@@ -44,13 +44,24 @@ namespace Weda.SubNode.Host.Context;
 public class WedaApplicationContext : IWedaApplicationContext
 {
     private static readonly Lazy<WedaApplicationContext> _default = new(
-        () => new WedaApplicationContext(),
+        () => new WedaApplicationContext(options =>
+        {
+            // Default singleton enables all features for convenience
+            options.DeviceOptions = new DeviceOptions
+            {
+                EnableCommands = true,
+                EnableConfigUpdates = true,
+                EnableTelemetry = true,
+                EnableHealthReporting = true
+            };
+        }),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
     /// Gets the default singleton instance of WedaApplicationContext.
     /// Uses lazy initialization with thread-safety.
     /// Auto-loads configuration from appsettings.json.
+    /// All device features (Commands, ConfigUpdates, Telemetry, HealthReporting) are enabled by default.
     /// </summary>
     /// <remarks>
     /// The default instance is suitable for simple single-device scenarios.
