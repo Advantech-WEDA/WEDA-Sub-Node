@@ -154,13 +154,22 @@ public class WedaApplicationContext : IWedaApplicationContext
                 _options.NatsConnectionSettings = new NatsConnectionSettings
                 {
                     Url = natsSection["Url"] ?? "nats://localhost:4222",
-                    CredFile = natsSection["CredFile"] ?? string.Empty,
                     Name = natsSection["Name"] ?? "default",
                     NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
                     {
                         "json" => WedaNatsSerializerRegistry.Default,
                         _ => WedaNatsSerializerRegistry.Default
-                    }
+                    },
+                    AuthStrategy = Enum.TryParse<NatsAuthStrategy>(natsSection["AuthStrategy"], true, out var strategy)
+                        ? strategy
+                        : NatsAuthStrategy.None,
+                    Username = natsSection["Username"],
+                    Password = natsSection["Password"],
+                    Token = natsSection["Token"],
+                    CredFile = natsSection["CredFile"],
+                    TlsCertPath = natsSection["TlsCertPath"],
+                    TlsKeyPath = natsSection["TlsKeyPath"],
+                    TlsCaPath = natsSection["TlsCaPath"]
                 };
             }
         }
@@ -235,13 +244,22 @@ public class WedaApplicationContext : IWedaApplicationContext
                 options.NatsConnectionSettings = new NatsConnectionSettings
                 {
                     Url = natsSection["Url"] ?? "nats://localhost:4222",
-                    CredFile = natsSection["CredFile"] ?? string.Empty,
                     Name = natsSection["Name"] ?? "default",
                     NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
                     {
                         "json" => WedaNatsSerializerRegistry.Default,
                         _ => WedaNatsSerializerRegistry.Default
-                    }
+                    },
+                    AuthStrategy = Enum.TryParse<NatsAuthStrategy>(natsSection["AuthStrategy"], true, out var strategy)
+                        ? strategy
+                        : NatsAuthStrategy.None,
+                    Username = natsSection["Username"],
+                    Password = natsSection["Password"],
+                    Token = natsSection["Token"],
+                    CredFile = natsSection["CredFile"],
+                    TlsCertPath = natsSection["TlsCertPath"],
+                    TlsKeyPath = natsSection["TlsKeyPath"],
+                    TlsCaPath = natsSection["TlsCaPath"]
                 };
             }
         })
@@ -397,9 +415,8 @@ public class WedaApplicationContext : IWedaApplicationContext
             Url = settings.Url,
             Name = settings?.Name ?? "default",
             SerializerRegistry = settings!.NatsSerializerRegistry,
-            AuthOpts = !string.IsNullOrEmpty(settings.CredFile)
-                ? NatsAuthOpts.Default with { CredsFile = settings.CredFile }
-                : NatsAuthOpts.Default
+            AuthOpts = settings.BuildAuthOpts(),
+            TlsOpts = BuildTlsOpts(settings)
         };
         var natsClient = new NatsClient(natsOpts);
 
@@ -419,6 +436,24 @@ public class WedaApplicationContext : IWedaApplicationContext
             _loggerFactory.CreateLogger<WedaCloudService>());
 
         return (cloudService, natsClient);
+    }
+
+    private static NatsTlsOpts BuildTlsOpts(NatsConnectionSettings settings)
+    {
+        // Only configure TLS if using TlsCert strategy or TLS paths are provided
+        if (settings.AuthStrategy != NatsAuthStrategy.TlsCert &&
+            string.IsNullOrEmpty(settings.TlsCertPath) &&
+            string.IsNullOrEmpty(settings.TlsCaPath))
+        {
+            return NatsTlsOpts.Default;
+        }
+
+        return new NatsTlsOpts
+        {
+            CertFile = settings.TlsCertPath,
+            KeyFile = settings.TlsKeyPath,
+            CaFile = settings.TlsCaPath
+        };
     }
 
     #endregion
