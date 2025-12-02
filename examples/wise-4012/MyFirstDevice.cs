@@ -1,8 +1,4 @@
 using Microsoft.Extensions.Logging;
-
-using Polly.Simmy;
-
-
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Devices.Generic;
@@ -33,7 +29,8 @@ public class MyFirstDevice : TcpModbusDevice
         : base(context)
     {
         // Subscribe to DataReceived event to process telemetry
-        DataReceived += OnDataReceived;
+        // EnableDataReceivedTracking = true;
+        // DataReceived += OnDataReceived;
     }
 
     /// <summary>

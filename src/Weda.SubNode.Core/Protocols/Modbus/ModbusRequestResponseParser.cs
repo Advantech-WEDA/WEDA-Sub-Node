@@ -292,7 +292,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         bool state;
         try
         {
-            state = Convert.ToBoolean(stateObj);
+            state = ConvertToBoolean(stateObj);
         }
         catch (Exception)
         {
@@ -358,11 +358,38 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         {
             if (parameters.TryGetValue(alias, out var value) && value != null)
             {
+                // Handle JsonElement from JSON deserialization
+                if (value is System.Text.Json.JsonElement jsonElement)
+                {
+                    return jsonElement.GetString();
+                }
                 return value.ToString();
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Convert object to boolean, handling JsonElement from JSON deserialization
+    /// </summary>
+    private static bool ConvertToBoolean(object value)
+    {
+        // Handle JsonElement from JSON deserialization
+        if (value is System.Text.Json.JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.True => true,
+                System.Text.Json.JsonValueKind.False => false,
+                System.Text.Json.JsonValueKind.Number => jsonElement.GetInt32() != 0,
+                System.Text.Json.JsonValueKind.String => bool.Parse(jsonElement.GetString()!),
+                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to boolean")
+            };
+        }
+
+        // Handle other types
+        return Convert.ToBoolean(value);
     }
 
     /// <summary>

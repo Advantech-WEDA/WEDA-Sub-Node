@@ -262,43 +262,39 @@ public class ISensingProtocolParser : IProtocolParser
         {
             "SetDigitalOutput" or "SetDO" => new DigitalOutputCommand
             {
-                OutputName = command.Parameters.GetValueOrDefault("name")?.ToString()
-                    ?? command.Parameters.GetValueOrDefault("outputName")?.ToString()
-                    ?? command.Parameters.GetValueOrDefault("do")?.ToString()
+                OutputName = ExtractStringParameter(command.Parameters, ["name", "outputName", "do"])
                     ?? throw new ArgumentException("Missing 'name', 'outputName', or 'do' parameter"),
-                State = Convert.ToBoolean(command.Parameters.GetValueOrDefault("state")
-                    ?? throw new ArgumentException("Missing 'state' parameter"))
+                State = ExtractBooleanParameter(command.Parameters, "state")
+                    ?? throw new ArgumentException("Missing 'state' parameter")
             },
 
             "SetAnalogOutput" or "SetAO" => new AnalogOutputCommand
             {
-                OutputName = command.Parameters.GetValueOrDefault("name")?.ToString()
-                    ?? command.Parameters.GetValueOrDefault("outputName")?.ToString()
-                    ?? command.Parameters.GetValueOrDefault("ao")?.ToString()
+                OutputName = ExtractStringParameter(command.Parameters, ["name", "outputName", "ao"])
                     ?? throw new ArgumentException("Missing 'name', 'outputName', or 'ao' parameter"),
-                Value = Convert.ToDouble(command.Parameters.GetValueOrDefault("value")
-                    ?? throw new ArgumentException("Missing 'value' parameter"))
+                Value = ExtractDoubleParameter(command.Parameters, "value")
+                    ?? throw new ArgumentException("Missing 'value' parameter")
             },
 
             "GetConfig" or "GetConfiguration" => new ConfigurationRequestCommand
             {
-                Index = Convert.ToUInt16(command.Parameters.GetValueOrDefault("index") ?? 0)
+                Index = ExtractUInt16Parameter(command.Parameters, "index") ?? 0
             },
 
             "SetConfig" or "SetConfiguration" => new ConfigurationUpdateCommand
             {
-                Index = Convert.ToUInt16(command.Parameters.GetValueOrDefault("index")
-                    ?? throw new ArgumentException("Missing 'index' parameter")),
+                Index = ExtractUInt16Parameter(command.Parameters, "index")
+                    ?? throw new ArgumentException("Missing 'index' parameter"),
                 ConfigData = command.Parameters.GetValueOrDefault("config") as Dictionary<string, object>
                     ?? throw new ArgumentException("Missing or invalid 'config' parameter")
             },
 
             "SetSensorEnable" => new SensorEnableCommand
             {
-                SensorName = command.Parameters.GetValueOrDefault("sensorName")?.ToString()
+                SensorName = ExtractStringParameter(command.Parameters, ["sensorName"])
                     ?? throw new ArgumentException("Missing 'sensorName' parameter"),
-                Enabled = Convert.ToBoolean(command.Parameters.GetValueOrDefault("enabled")
-                    ?? throw new ArgumentException("Missing 'enabled' parameter"))
+                Enabled = ExtractBooleanParameter(command.Parameters, "enabled")
+                    ?? throw new ArgumentException("Missing 'enabled' parameter")
             },
 
             _ => throw new NotSupportedException($"Command '{command.DeviceCmd}' is not supported by ISensing protocol")
@@ -311,6 +307,94 @@ public class ISensingProtocolParser : IProtocolParser
         };
         return JsonSerializer.Serialize(isensingCommand, isensingCommand.GetType(), options);
     }
+
+    #region Parameter Extraction Helpers (handles JsonElement from JSON deserialization)
+
+    /// <summary>
+    /// Extract string parameter from dictionary, handling JsonElement
+    /// </summary>
+    private static string? ExtractStringParameter(Dictionary<string, object> parameters, string[] aliases)
+    {
+        foreach (var alias in aliases)
+        {
+            if (parameters.TryGetValue(alias, out var value) && value != null)
+            {
+                if (value is JsonElement jsonElement)
+                {
+                    return jsonElement.GetString();
+                }
+                return value.ToString();
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Extract boolean parameter from dictionary, handling JsonElement
+    /// </summary>
+    private static bool? ExtractBooleanParameter(Dictionary<string, object> parameters, string key)
+    {
+        if (!parameters.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Number => jsonElement.GetInt32() != 0,
+                JsonValueKind.String => bool.Parse(jsonElement.GetString()!),
+                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to boolean")
+            };
+        }
+
+        return Convert.ToBoolean(value);
+    }
+
+    /// <summary>
+    /// Extract double parameter from dictionary, handling JsonElement
+    /// </summary>
+    private static double? ExtractDoubleParameter(Dictionary<string, object> parameters, string key)
+    {
+        if (!parameters.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.Number => jsonElement.GetDouble(),
+                JsonValueKind.String => double.Parse(jsonElement.GetString()!),
+                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to double")
+            };
+        }
+
+        return Convert.ToDouble(value);
+    }
+
+    /// <summary>
+    /// Extract ushort parameter from dictionary, handling JsonElement
+    /// </summary>
+    private static ushort? ExtractUInt16Parameter(Dictionary<string, object> parameters, string key)
+    {
+        if (!parameters.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.Number => jsonElement.GetUInt16(),
+                JsonValueKind.String => ushort.Parse(jsonElement.GetString()!),
+                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to ushort")
+            };
+        }
+
+        return Convert.ToUInt16(value);
+    }
+
+    #endregion
 }
 
 /// <summary>
