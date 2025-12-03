@@ -46,6 +46,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012Builder", "examples
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testdevice", "examples\testdevice\testdevice.csproj", "{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemMonitorDevice", "examples\system-monitor\SystemMonitorDevice.csproj", "{49AB7585-FC42-4E52-8A8F-88743EB856A0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -260,6 +262,18 @@ Global
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}.Release|x64.Build.0 = Release|Any CPU
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}.Release|x86.ActiveCfg = Release|Any CPU
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}.Release|x86.Build.0 = Release|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x64.Build.0 = Debug|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x86.Build.0 = Debug|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x64.ActiveCfg = Release|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x64.Build.0 = Release|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x86.ActiveCfg = Release|Any CPU
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -283,5 +297,6 @@ Global
 		{D80B5DC4-ADD0-B355-1CED-0956DF3E0F52} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 		{443202A0-477E-47D7-9944-E28DCA4E0F7A} = {D80B5DC4-ADD0-B355-1CED-0956DF3E0F52}
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1} = {16671E85-B961-4076-AC39-3004C9A0BE38}
+		{49AB7585-FC42-4E52-8A8F-88743EB856A0} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 	EndGlobalSection
 EndGlobal
