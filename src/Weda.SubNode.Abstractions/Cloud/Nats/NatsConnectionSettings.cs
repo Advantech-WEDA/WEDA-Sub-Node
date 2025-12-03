@@ -24,6 +24,16 @@ public record NatsConnectionSettings
     public string CredFile { get; set; } = "";
 
     /// <summary>
+    /// Username for NATS authentication
+    /// </summary>
+    public string UserName { get; set; } = "";
+
+    /// <summary>
+    /// Password for NATS authentication
+    /// </summary>
+    public string Password { get; set; } = "";
+
+    /// <summary>
     /// Connection name for identification
     /// </summary>
     public string Name { get; set; } = "default";

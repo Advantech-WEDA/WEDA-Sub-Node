@@ -43,15 +43,10 @@ public class SystemMonitorDevice : DeviceBase
     {
         var measures = new List<TelemetryMeasure>();
 
-        _logger.LogInformation("Starting telemetry read for system monitor device {DeviceName}", Configuration.DeviceName);
-        _logger.LogInformation("Total configured sensors: {TotalSensorCount}", Configuration.Sensors.Count);
-
         // Filter enabled sensors
         var enabledSensors = Configuration.Sensors
             .Where(s => s.Config.Enabled)
             .ToList();
-
-        _logger.LogInformation("Reading telemetry for {EnabledSensorCount} enabled sensors", enabledSensors.Count);
 
         if (enabledSensors.Count == 0)
         {

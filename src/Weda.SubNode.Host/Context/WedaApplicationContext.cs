@@ -155,6 +155,8 @@ public class WedaApplicationContext : IWedaApplicationContext
                 {
                     Url = natsSection["Url"] ?? "nats://localhost:4222",
                     CredFile = natsSection["CredFile"] ?? string.Empty,
+                    UserName = natsSection["UserName"] ?? string.Empty,
+                    Password = natsSection["Password"] ?? string.Empty,
                     Name = natsSection["Name"] ?? "default",
                     NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
                     {
@@ -236,6 +238,8 @@ public class WedaApplicationContext : IWedaApplicationContext
                 {
                     Url = natsSection["Url"] ?? "nats://localhost:4222",
                     CredFile = natsSection["CredFile"] ?? string.Empty,
+                    UserName = natsSection["UserName"] ?? string.Empty,
+                    Password = natsSection["Password"] ?? string.Empty,
                     Name = natsSection["Name"] ?? "default",
                     NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
                     {
@@ -397,9 +401,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             Url = settings.Url,
             Name = settings?.Name ?? "default",
             SerializerRegistry = settings!.NatsSerializerRegistry,
-            AuthOpts = !string.IsNullOrEmpty(settings.CredFile)
-                ? NatsAuthOpts.Default with { CredsFile = settings.CredFile }
-                : NatsAuthOpts.Default
+            AuthOpts = GetAuthOpts(settings)
         };
         var natsClient = new NatsClient(natsOpts);
 
@@ -419,6 +421,32 @@ public class WedaApplicationContext : IWedaApplicationContext
             _loggerFactory.CreateLogger<WedaCloudService>());
 
         return (cloudService, natsClient);
+    }
+
+    /// <summary>
+    /// Get NATS authentication options based on configuration settings.
+    /// Priority: 1) Credential file, 2) Username/Password, 3) No authentication
+    /// </summary>
+    private static NatsAuthOpts GetAuthOpts(NatsConnectionSettings settings)
+    {
+        // Priority 1: Credential file
+        if (!string.IsNullOrEmpty(settings.CredFile))
+        {
+            return NatsAuthOpts.Default with { CredsFile = settings.CredFile };
+        }
+
+        // Priority 2: Username/Password
+        if (!string.IsNullOrEmpty(settings.UserName) && !string.IsNullOrEmpty(settings.Password))
+        {
+            return NatsAuthOpts.Default with
+            {
+                Username = settings.UserName,
+                Password = settings.Password
+            };
+        }
+
+        // Priority 3: No authentication
+        return NatsAuthOpts.Default;
     }
 
     #endregion
