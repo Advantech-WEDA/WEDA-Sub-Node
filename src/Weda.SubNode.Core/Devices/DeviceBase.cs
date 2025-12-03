@@ -1,12 +1,15 @@
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
 
 namespace Weda.SubNode.Core.Devices;
@@ -26,6 +29,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly DeviceInitializer _initializer;
 
     private CancellationTokenSource? _runningCts;
+    private Task? _configSyncTask;
+    private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
 
     public DeviceConfiguration Configuration { get; }
     public string DeviceId => _orchestrator.DeviceId;
@@ -35,7 +40,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public IReadOnlyDictionary<string, object> Properties => Configuration.Properties;
     public DeviceStatus Status => _orchestrator.StateMachine.CurrentStatus;
     public CommunicationState ConnectionState => _communication.State;
-    public virtual List<IDspFilter>? DspFilters { get; set; }
 
     protected DeviceBase(
         IWedaApplicationContext context,
@@ -63,15 +67,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             context.CloudService,
             context.GetLogger<DeviceInitializer>());
 
-        // Configure DSP filters
-        if (DspFilters != null)
-        {
-            foreach (var filter in DspFilters)
-                _orchestrator.TelemetryPipeline.AddFilter(filter);
-        }
-
         // Wire events
         WireEvents();
+
+        // Register device with context's device registry
+        _context.DeviceRegistry.Register(this);
     }
 
     // ===== IDevice Lifecycle =====
@@ -119,7 +119,45 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStartAsync(CancellationToken ct)
     {
         _runningCts = new CancellationTokenSource();
-        _ = StartBackgroundTasksAsync(_runningCts.Token);
+        var cts = _runningCts.Token;
+
+        // Start device-specific background tasks
+        _ = StartBackgroundTasksAsync(cts);
+
+        // Start config sync task (core functionality in DeviceBase)
+        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
+        if (configSyncPeriod > 0)
+        {
+            _configSyncTask = Task.Run(async () =>
+            {
+                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
+
+                while (!cts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await ReportConfigurationAsync(cts);
+                        _logger.LogDebug("Configuration sync completed for device {DeviceId}", DeviceId);
+                    }
+                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                    {
+                        _logger.LogInformation("Configuration sync task cancelled for device {DeviceId}", DeviceId);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in configuration sync task for device {DeviceId}", DeviceId);
+                    }
+
+                    await Task.Delay(configSyncPeriod, cts);
+                }
+            }, cts);
+        }
+        else
+        {
+            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
+        }
+
         return await Task.FromResult(Result.Success);
     }
 
@@ -182,6 +220,31 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public async Task<DeviceConfiguration?> GetCurrentConfigurationAsync(CancellationToken ct = default)
         => await _cloudService.GetDeviceConfigurationAsync(DeviceId ?? "unknown", ct);
 
+    /// <summary>
+    /// Reports current device configuration to cloud.
+    /// Used for periodic sync to ensure reported state is synchronized
+    /// even if update response fails due to disconnection.
+    /// </summary>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>True if report was successfully published</returns>
+    public async Task<bool> ReportConfigurationAsync(CancellationToken ct = default)
+    {
+        var deviceId = DeviceId ?? "unknown";
+        var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+
+        // Use default groupId for periodic reports (groupId is mainly for multi-tenant scenarios)
+        var groupId = "default";
+
+        var report = ConfigurationUpdateHelper.CreatePeriodicReport(
+            deviceId,
+            groupId,
+            Configuration,
+            deviceTypeName);
+
+        _logger.LogDebug("Reporting configuration for device {DeviceId}", deviceId);
+        return await _cloudService.PublishConfigurationReportAsync(report, ct);
+    }
+
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
     // ===== Lifecycle Hooks =====
@@ -199,8 +262,259 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected virtual Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
     /// <summary>
+    /// Gets the configuration update validation options.
+    /// Override this property to customize which validations are enabled for this device.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // Disable threshold validation for custom device
+    /// protected override ConfigUpdateOptions ConfigUpdateOptions => ConfigUpdateOptions.Default with
+    /// {
+    ///     ValidateThresholds = false
+    /// };
+    /// </code>
+    /// </example>
+    protected virtual ConfigUpdateOptions ConfigUpdateOptions => ConfigUpdateOptions.Default;
+
+    /// <summary>
+    /// Validates the configuration update message.
+    /// Override this method to implement custom validation logic for your device.
+    /// </summary>
+    /// <param name="message">The configuration update message to validate</param>
+    /// <returns>Validation result indicating success or failure with error message</returns>
+    /// <example>
+    /// <code>
+    /// protected override ConfigurationValidationResult ValidateConfigurationUpdate(
+    ///     SubNodeConfigurationUpdateMessage message)
+    /// {
+    ///     // Call base validation first
+    ///     var baseResult = base.ValidateConfigurationUpdate(message);
+    ///     if (!baseResult.IsValid)
+    ///         return baseResult;
+    ///
+    ///     // Add custom validation
+    ///     var desiredConfig = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs?.Values.FirstOrDefault();
+    ///     if (desiredConfig?.Communication?.ContainsKey("CustomField") == false)
+    ///         return ConfigurationValidationResult.Failure("CustomField is required");
+    ///
+    ///     return ConfigurationValidationResult.Success;
+    /// }
+    /// </code>
+    /// </example>
+    protected virtual ConfigurationValidationResult ValidateConfigurationUpdate(
+        SubNodeConfigurationUpdateMessage message)
+    {
+        return ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, Configuration, ConfigUpdateOptions);
+    }
+
+    /// <summary>
+    /// Applies base DeviceConfiguration updates from cloud and persists to cache.
+    /// This handles standard configuration fields (sensors, periods, etc.) at the framework level.
+    /// Implements proper validation, acknowledgment, update, and response workflow.
+    /// Derived classes should use OnAfterConfigUpdateAsync for custom configuration handling.
+    /// </summary>
+    private async Task ApplyBaseConfigurationUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        // Use semaphore for thread-safe configuration updates
+        await _configUpdateLock.WaitAsync(ct);
+
+        try
+        {
+            // Get the strongly-typed message from the event
+            var message = e.Message;
+            if (message?.Data?.Cfg?.Desired == null)
+            {
+                _logger.LogDebug("Configuration update event does not contain valid desired configuration, skipping base update");
+                return;
+            }
+
+            // Determine device type name for reporting (use DeviceTypeName or DeviceType.ToString())
+            var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+
+            // Step 1: Validate the configuration update using virtual method
+            _logger.LogInformation("Validating configuration update for device: {DeviceName}", Configuration.DeviceName);
+
+            var validationResult = ValidateConfigurationUpdate(message);
+            if (!validationResult.IsValid)
+            {
+                _logger.LogWarning("Configuration update validation failed: {Error}", validationResult.ErrorMessage);
+
+                // Send invalid status response
+                var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
+                    message, Configuration, deviceTypeName, validationResult.ErrorMessage ?? "Unknown validation error");
+                await _cloudService.PublishConfigurationReportAsync(invalidReport, ct);
+
+                return;
+            }
+
+            _logger.LogInformation("Configuration update validation passed");
+
+            // Step 2: Send "message received" acknowledgment (updating status)
+            _logger.LogInformation("Sending 'message received' acknowledgment for device: {DeviceName}", Configuration.DeviceName);
+            var updatingReport = ConfigurationUpdateHelper.CreateUpdatingReport(
+                message, Configuration, deviceTypeName);
+            await _cloudService.PublishConfigurationReportAsync(updatingReport, ct);
+
+            // Step 3: Create backup before applying changes
+            var backup = ConfigurationUpdateHelper.CreateBackup(Configuration);
+            _logger.LogDebug("Configuration backup created");
+
+            // Step 4: Apply configuration updates
+            try
+            {
+                // Find the device config for this device
+                var deviceConfigs = message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs;
+                if (deviceConfigs == null)
+                {
+                    _logger.LogDebug("No device configurations in desired state");
+                    return;
+                }
+
+                // Find matching device config by DeviceName
+                SubNodeDeviceConfigDto? desiredConfig = null;
+                foreach (var (key, config) in deviceConfigs)
+                {
+                    if (string.Equals(config.DeviceName, Configuration.DeviceName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        desiredConfig = config;
+                        break;
+                    }
+                }
+
+                if (desiredConfig == null)
+                {
+                    _logger.LogDebug("No matching device configuration found for device: {DeviceName}", Configuration.DeviceName);
+                    return;
+                }
+
+                _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
+
+                // Apply sensor configuration updates (PATCH semantics - only update provided fields)
+                var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
+                    Configuration, desiredConfig.Sensors);
+
+                if (updatedSensors.Count > 0)
+                {
+                    _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
+                        updatedSensors.Count,
+                        string.Join(", ", updatedSensors));
+                }
+
+                // Apply pipeline updates (Transform and DSP filters)
+                var pipelineUpdateResult = ConfigurationUpdateHelper.ApplyAllPipelineUpdates(
+                    Configuration, desiredConfig.Sensors);
+
+                if (pipelineUpdateResult.IsError)
+                {
+                    var error = pipelineUpdateResult.FirstError;
+                    _logger.LogError("Pipeline update validation failed: {Error}", error.Description);
+                    throw new InvalidOperationException($"Pipeline update failed: {error.Description}");
+                }
+
+                var pipelineSummary = pipelineUpdateResult.Value;
+                if (pipelineSummary.TotalDspSensorsUpdated > 0 || pipelineSummary.TotalTransformSensorsUpdated > 0)
+                {
+                    _logger.LogInformation(
+                        "Updated pipelines - DSP: {DspCount} sensors, Transform: {TransformCount} sensors",
+                        pipelineSummary.TotalDspSensorsUpdated,
+                        pipelineSummary.TotalTransformSensorsUpdated);
+
+                    // Log detailed results
+                    foreach (var (sensorName, dspResult) in pipelineSummary.DspResults)
+                    {
+                        if (dspResult.TotalUpdated > 0)
+                        {
+                            _logger.LogDebug("Sensor '{Sensor}' DSP updates: {Updated} filters updated",
+                                sensorName, dspResult.TotalUpdated);
+                        }
+                    }
+
+                    foreach (var (sensorName, transformResult) in pipelineSummary.TransformResults)
+                    {
+                        if (transformResult.TotalUpdated > 0)
+                        {
+                            _logger.LogDebug("Sensor '{Sensor}' Transform updates: {Updated} transforms updated",
+                                sensorName, transformResult.TotalUpdated);
+                        }
+                    }
+                }
+
+                // Apply background task periods if provided (PATCH semantics)
+                if (desiredConfig.Periods != null)
+                {
+                    if (desiredConfig.Periods.ReadTelemetry > 0)
+                    {
+                        _logger.LogDebug("Updating ReadTelemetry period: {Old} -> {New}",
+                            Configuration.Periods.ReadTelemetry, desiredConfig.Periods.ReadTelemetry);
+                        Configuration.Periods.ReadTelemetry = desiredConfig.Periods.ReadTelemetry;
+                    }
+                    if (desiredConfig.Periods.SendTelemetry > 0)
+                    {
+                        _logger.LogDebug("Updating SendTelemetry period: {Old} -> {New}",
+                            Configuration.Periods.SendTelemetry, desiredConfig.Periods.SendTelemetry);
+                        Configuration.Periods.SendTelemetry = desiredConfig.Periods.SendTelemetry;
+                    }
+                    if (desiredConfig.Periods.ReportHealth > 0)
+                    {
+                        _logger.LogDebug("Updating ReportHealth period: {Old} -> {New}",
+                            Configuration.Periods.ReportHealth, desiredConfig.Periods.ReportHealth);
+                        Configuration.Periods.ReportHealth = desiredConfig.Periods.ReportHealth;
+                    }
+                    // ReportConfiguration can be 0 (disabled) or > 0 (enabled), so always update if provided
+                    if (desiredConfig.Periods.ReportConfiguration >= 0)
+                    {
+                        _logger.LogDebug("Updating ReportConfiguration period: {Old} -> {New}",
+                            Configuration.Periods.ReportConfiguration, desiredConfig.Periods.ReportConfiguration);
+                        Configuration.Periods.ReportConfiguration = desiredConfig.Periods.ReportConfiguration;
+                    }
+
+                    _logger.LogInformation("Updated background task periods");
+                }
+
+                // Step 5: Persist configuration to cache for restart persistence
+                await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
+                _logger.LogInformation("Configuration cached to: {CachePath}",
+                    _context.ConfigurationCache.CacheFilePath);
+
+                // Step 6: Send success response with updated configuration
+                _logger.LogInformation("Configuration update successful, sending success response");
+                var successReport = ConfigurationUpdateHelper.CreateSuccessReport(
+                    message, Configuration, deviceTypeName);
+                await _cloudService.PublishConfigurationReportAsync(successReport, ct);
+
+                _logger.LogInformation("Configuration update completed successfully for device: {DeviceName}", Configuration.DeviceName);
+            }
+            catch (Exception updateEx)
+            {
+                _logger.LogError(updateEx, "Error applying configuration update, rolling back changes");
+
+                // Step 7: Rollback on failure
+                ConfigurationUpdateHelper.RestoreBackup(Configuration, backup);
+                _logger.LogInformation("Configuration rolled back to previous state");
+
+                // Send failure response
+                var failureReport = ConfigurationUpdateHelper.CreateFailedReport(
+                    message, Configuration, deviceTypeName, updateEx.Message);
+                await _cloudService.PublishConfigurationReportAsync(failureReport, ct);
+
+                throw; // Re-throw to let OnAfterConfigUpdateAsync know there was an error
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in configuration update workflow for device {DeviceId}", DeviceId);
+            // Don't rethrow - allow OnAfterConfigUpdateAsync to still execute
+        }
+        finally
+        {
+            _configUpdateLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Hook: Called after configuration update is applied.
-    /// Use this to reload settings, restart components, etc.
+    /// Use this to handle custom/device-specific configuration changes.
+    /// Base configuration (sensors, periods) is already applied and cached by the framework.
     /// </summary>
     protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
@@ -221,9 +535,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
+    /// Only fires if EnableDataReceivedTracking is true.
     /// </summary>
     protected void RaiseDataReceived(List<TelemetryMeasure> measures)
     {
+        if (!EnableDataReceivedTracking) return;
+
         DataReceived?.Invoke(this, new DataReceivedEvent(
             DeviceId: DeviceId ?? "unknown",
             DeviceType: DeviceType,
@@ -231,7 +548,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             Timestamp: DateTimeOffset.UtcNow));
     }
 
-    // ===== Events =====
+    // ===== Events & Tracking Flags =====
 
     public event EventHandler<DataReceivedEvent>? DataReceived;
     public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
@@ -239,24 +556,68 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;
     public event EventHandler<UpdateConfigurationEvent>? ConfigurationUpdateReceived;
     public event EventHandler<ExecuteCommandEvent>? CommandReceived;
+    public event EventHandler<TelemetryValueChangedEvent>? ValueChanged;
+
+    /// <inheritdoc />
+    public bool EnableDataReceivedTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableConnectionStateTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableDeviceStatusTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableTelemetrySentTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableConfigurationUpdateTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableCommandReceivedTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableValueChangeTracking
+    {
+        get => _orchestrator.TelemetryPipeline.EnableValueChangeTracking;
+        set => _orchestrator.TelemetryPipeline.EnableValueChangeTracking = value;
+    }
 
     private void WireEvents()
     {
-        _communication.StateChanged += (s, e) => ConnectionStateChanged?.Invoke(this, e);
-        _orchestrator.StatusChanged += (s, e) => DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+        // Connection state changes
+        _communication.StateChanged += (s, e) =>
+        {
+            if (EnableConnectionStateTracking)
+                ConnectionStateChanged?.Invoke(this, e);
+        };
+
+        // Device status changes
+        _orchestrator.StatusChanged += (s, e) =>
+        {
+            if (EnableDeviceStatusTracking)
+                DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+        };
+
+        // Forward pipeline value change events to device level
+        _orchestrator.TelemetryPipeline.ValueChanged += (s, e) => ValueChanged?.Invoke(this, e);
 
         // Configuration Update: Auto-invoke Pre/Post hooks
         _orchestrator.ConnectionManager.ConfigurationUpdateReceived += async e =>
         {
             try
             {
-                // Pre-hook
+                // Pre-hook (for derived class validation/preparation)
                 await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
 
                 // Raise event (for framework monitoring/logging)
-                ConfigurationUpdateReceived?.Invoke(this, e);
+                if (EnableConfigurationUpdateTracking)
+                    ConfigurationUpdateReceived?.Invoke(this, e);
 
-                // Post-hook
+                // Apply base DeviceConfiguration updates from cloud
+                await ApplyBaseConfigurationUpdateAsync(e, CancellationToken.None);
+
+                // Post-hook (for derived class custom configuration handling)
                 await OnAfterConfigUpdateAsync(e, CancellationToken.None);
             }
             catch (Exception ex)
@@ -275,7 +636,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 await OnBeforeCommandAsync(e, CancellationToken.None);
 
                 // Raise event (for framework monitoring/logging)
-                CommandReceived?.Invoke(this, e);
+                if (EnableCommandReceivedTracking)
+                    CommandReceived?.Invoke(this, e);
 
                 // Execute command on device
                 _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
@@ -303,9 +665,49 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         };
     }
 
+    // ===== Sensor Access =====
+
+    /// <inheritdoc />
+    public Sensor GetSensor(string sensorName)
+    {
+        return FindSensor(sensorName)
+            ?? throw new KeyNotFoundException($"Sensor '{sensorName}' not found in device '{DeviceName}'");
+    }
+
+    /// <inheritdoc />
+    public Sensor? FindSensor(string sensorName)
+    {
+        if (string.IsNullOrWhiteSpace(sensorName))
+            return null;
+
+        return Configuration.Sensors.FirstOrDefault(s =>
+            string.Equals(s.Name, sensorName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <inheritdoc />
+    public Sensor GetSensorByResourceId(string resourceId)
+    {
+        return FindSensorByResourceId(resourceId)
+            ?? throw new KeyNotFoundException($"Sensor with ResourceId '{resourceId}' not found in device '{DeviceName}'");
+    }
+
+    /// <inheritdoc />
+    public Sensor? FindSensorByResourceId(string resourceId)
+    {
+        if (string.IsNullOrWhiteSpace(resourceId))
+            return null;
+
+        return Configuration.Sensors.FirstOrDefault(s =>
+            string.Equals(s.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
+    }
+
     public void Dispose()
     {
+        // Unregister device from context's device registry
+        _context.DeviceRegistry.Unregister(this);
+
         _orchestrator.Dispose();
+        _configUpdateLock.Dispose();
         GC.SuppressFinalize(this);
     }
 }

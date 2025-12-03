@@ -1,5 +1,6 @@
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
@@ -34,12 +35,58 @@ public class DeviceConnectionManager : IDeviceConnectionManager
         ICommunication communication,
         IWedaCloudService cloudService,
         ILogger<DeviceConnectionManager>? logger = null)
-        : this(communication, cloudService, null, null, logger)
+        : this(communication, cloudService, (ConnectionPolicyOptions?)null, null, logger)
     {
     }
 
     /// <summary>
-    /// Creates a DeviceConnectionManager with custom Polly resilience pipelines.
+    /// Creates a DeviceConnectionManager with ConnectionOptions (simplified configuration).
+    /// The ConnectionOptions will be converted to ConnectionPolicyOptions internally.
+    /// </summary>
+    /// <param name="communication">The communication instance for physical device</param>
+    /// <param name="cloudService">The cloud service instance</param>
+    /// <param name="connectionOptions">Simplified connection options from developer configuration</param>
+    /// <param name="logger">Optional logger</param>
+    public DeviceConnectionManager(
+        ICommunication communication,
+        IWedaCloudService cloudService,
+        ConnectionOptions connectionOptions,
+        ILogger<DeviceConnectionManager>? logger = null)
+        : this(communication, cloudService,
+            connectionOptions != null ? ConnectionPolicyOptions.FromConnectionOptions(connectionOptions) : null,
+            connectionOptions != null ? ConnectionPolicyOptions.FromConnectionOptions(connectionOptions) : null,
+            logger)
+    {
+    }
+
+    /// <summary>
+    /// Creates a DeviceConnectionManager with ConnectionPolicyOptions (advanced configuration).
+    /// </summary>
+    /// <param name="communication">The communication instance for physical device</param>
+    /// <param name="cloudService">The cloud service instance</param>
+    /// <param name="devicePolicyOptions">Policy options for device connection (null for default)</param>
+    /// <param name="cloudPolicyOptions">Policy options for cloud connection (null for default)</param>
+    /// <param name="logger">Optional logger</param>
+    public DeviceConnectionManager(
+        ICommunication communication,
+        IWedaCloudService cloudService,
+        ConnectionPolicyOptions? devicePolicyOptions,
+        ConnectionPolicyOptions? cloudPolicyOptions,
+        ILogger<DeviceConnectionManager>? logger = null)
+    {
+        _communication = communication ?? throw new ArgumentNullException(nameof(communication));
+        _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
+        _logger = logger ?? NullLogger<DeviceConnectionManager>.Instance;
+
+        // Create pipelines from options (or use defaults)
+        _devicePipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, devicePolicyOptions);
+        _cloudPipeline = ConnectionPolicies.CreateCloudConnectionPipeline(_logger, cloudPolicyOptions);
+
+        CurrentState = CommunicationState.Disconnected;
+    }
+
+    /// <summary>
+    /// Creates a DeviceConnectionManager with custom Polly resilience pipelines (for advanced scenarios).
     /// </summary>
     public DeviceConnectionManager(
         ICommunication communication,
@@ -50,7 +97,7 @@ public class DeviceConnectionManager : IDeviceConnectionManager
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
-        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DeviceConnectionManager>.Instance;
+        _logger = logger ?? NullLogger<DeviceConnectionManager>.Instance;
 
         // Create default pipelines if not provided
         _devicePipeline = devicePipeline ?? ConnectionPolicies.CreateDeviceConnectionPipeline(_logger);

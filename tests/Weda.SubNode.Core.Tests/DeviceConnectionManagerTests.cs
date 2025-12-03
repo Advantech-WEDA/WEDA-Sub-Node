@@ -1,6 +1,7 @@
 using NSubstitute;
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Core.Managers;
@@ -262,9 +263,15 @@ public class DeviceConnectionManagerTests
         await manager.SubscribeToCloudEventsAsync("device-001");
 
         // Act
+        var testMessage = new SubNodeConfigurationUpdateMessage
+        {
+            DeviceId = "device-001",
+            Cmd = "updateCmd",
+            SeqId = 1
+        };
         var testEvent = new UpdateConfigurationEvent(
             DeviceId: "device-001",
-            Configuration: new Dictionary<string, object>(),
+            Message: testMessage,
             Timestamp: DateTimeOffset.UtcNow);
 
         if (capturedHandler != null)

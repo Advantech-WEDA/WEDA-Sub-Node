@@ -4,8 +4,7 @@ using Wise4012ISensingExample;
 
 try
 {
-    using var context = new WedaApplicationContext();
-    var device = new MyFirstISensingDevice(context);
+    var device = new MyFirstISensingDevice(WedaApplicationContext.Default);
 
     if (!await device.InitializeAsync())
     {

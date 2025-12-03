@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using ErrorOr;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -7,14 +8,51 @@ namespace Weda.SubNode.Core.Dsp;
 /// <summary>
 /// ReLU (Rectified Linear Unit) DSP filter - sets negative values to 0
 /// </summary>
-public class ReluFilter : IDspFilter
+public class ReluFilter : IDspFilter, IConfigurableDspFilter<ReluFilter>
 {
+    // === Static Abstract Implementation (Self-Registration) ===
+
+    /// <inheritdoc/>
+    public static string TypeName => "relu";
+
+    /// <inheritdoc/>
+    public static ReluFilter Create(Dictionary<string, object> parameters)
+    {
+        // ReluFilter has no constructor parameters
+        return new ReluFilter();
+    }
+
+    // === Instance Members ===
+
+    /// <inheritdoc/>
+    public bool Enabled { get; set; } = true;
+
+    /// <inheritdoc/>
+    public ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters)
+    {
+        // ReluFilter has no configurable parameters
+        return Result.Success;
+    }
+
+    /// <inheritdoc/>
+    public void UpdateParameters(Dictionary<string, object> parameters)
+    {
+        // ReluFilter has no configurable parameters
+    }
+
     public async IAsyncEnumerable<TelemetryMeasure> ApplyAsync(
         IAsyncEnumerable<TelemetryMeasure> input,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (var measure in input.WithCancellation(cancellationToken))
         {
+            // Pass through if disabled
+            if (!Enabled)
+            {
+                yield return measure;
+                continue;
+            }
+
             // Convert Value to double
             if (measure.Value is not double and not int and not float and not long)
             {

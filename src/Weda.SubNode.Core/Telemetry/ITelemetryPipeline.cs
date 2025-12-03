@@ -51,6 +51,19 @@ public interface ITelemetryPipeline
     /// Event raised before and after each pipeline stage.
     /// </summary>
     event EventHandler<TelemetryPipelineStageEvent>? StageExecuting;
+
+    /// <summary>
+    /// Event raised when telemetry values are processed through a transform or filter.
+    /// Provides detailed value-level monitoring including input/output values.
+    /// </summary>
+    event EventHandler<TelemetryValueChangedEvent>? ValueChanged;
+
+    /// <summary>
+    /// Gets or sets whether value change tracking is enabled.
+    /// When disabled, ValueChanged events are not emitted (better performance).
+    /// Default is false.
+    /// </summary>
+    bool EnableValueChangeTracking { get; set; }
 }
 
 /// <summary>

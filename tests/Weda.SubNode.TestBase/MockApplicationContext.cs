@@ -6,6 +6,8 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Core.Context;
 
 namespace Weda.SubNode.TestBase;
 
@@ -58,15 +60,28 @@ public class MockApplicationContext : IWedaApplicationContext
     public DeviceOptions DeviceOptions { get; set; }
 
     /// <summary>
+    /// Gets the device registry.
+    /// </summary>
+    public IDeviceRegistry DeviceRegistry { get; }
+
+    /// <summary>
+    /// Gets the mock configuration cache.
+    /// Use this to setup mock behaviors for configuration caching.
+    /// </summary>
+    public IConfigurationCache MockConfigurationCache { get; }
+
+    /// <summary>
     /// Initializes a new instance of MockApplicationContext with default mocks.
     /// </summary>
     public MockApplicationContext()
     {
         MockCloudService = Substitute.For<IWedaCloudService>();
         MockCommunication = Substitute.For<IRequestResponseCommunication<byte[], byte[]>>();
+        MockConfigurationCache = Substitute.For<IConfigurationCache>();
         MockLoggerFactory = NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
+        DeviceRegistry = new DeviceRegistry();
 
         // Setup default behaviors
         SetupDefaultBehaviors();
@@ -78,16 +93,20 @@ public class MockApplicationContext : IWedaApplicationContext
     /// <param name="cloudService">Custom mock cloud service.</param>
     /// <param name="communication">Custom mock communication.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
+    /// <param name="configurationCache">Optional configuration cache.</param>
     public MockApplicationContext(
         IWedaCloudService cloudService,
         IRequestResponseCommunication<byte[], byte[]> communication,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IConfigurationCache? configurationCache = null)
     {
         MockCloudService = cloudService;
         MockCommunication = communication;
+        MockConfigurationCache = configurationCache ?? Substitute.For<IConfigurationCache>();
         MockLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
+        DeviceRegistry = new DeviceRegistry();
     }
 
     #region IWedaApplicationContext Implementation
@@ -105,7 +124,26 @@ public class MockApplicationContext : IWedaApplicationContext
     public DeviceConfiguration? DeviceConfiguration { get; set; }
 
     /// <inheritdoc />
+    public IConfigurationCache ConfigurationCache => MockConfigurationCache;
+
+    /// <inheritdoc />
     public ILogger<T> GetLogger<T>() => MockLoggerFactory.CreateLogger<T>();
+
+    // ===== Device Registry Convenience Methods =====
+
+    /// <inheritdoc />
+    public IDevice GetDevice(string deviceName) => DeviceRegistry.GetDevice(deviceName);
+
+    /// <inheritdoc />
+    public TDevice GetDevice<TDevice>(string deviceName) where TDevice : IDevice
+        => DeviceRegistry.GetDevice<TDevice>(deviceName);
+
+    /// <inheritdoc />
+    public IDevice? FindDevice(string deviceName) => DeviceRegistry.FindDevice(deviceName);
+
+    /// <inheritdoc />
+    public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
+        => DeviceRegistry.FindDevice<TDevice>(deviceName);
 
     #endregion
 

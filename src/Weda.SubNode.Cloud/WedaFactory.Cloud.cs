@@ -4,6 +4,7 @@ using NATS.Net;
 
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Cloud.Clients;
+using Weda.SubNode.Cloud.Serialization;
 using Weda.SubNode.Core.Cloud;
 
 namespace Weda.SubNode.Cloud;
@@ -28,7 +29,7 @@ public static partial class WedaFactory
         {
             get
             {
-                var natsOpts = NatsOpts.Default with { Url = "nats://localhost:4222", SerializerRegistry = NatsClientDefaultSerializerRegistry.Default };
+                var natsOpts = NatsOpts.Default with { Url = "nats://localhost:4222", SerializerRegistry = WedaNatsSerializerRegistry.Default };
                 var client = new NatsClient(natsOpts);
                 var deviceAgentClient = new DeviceAgentClient(client, logger: null);
                 var telemetryClient = new TelemetryClient(client, logger: null);

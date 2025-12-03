@@ -6,6 +6,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Cloud.Clients;
+using Weda.SubNode.Cloud.Serialization;
 
 namespace Weda.SubNode.Cloud;
 
@@ -25,7 +26,7 @@ public static class Cloud
     /// <returns>A new WedaCloudService instance</returns>
     public static IWedaCloudService Default(ILogger<WedaCloudService>? logger = null)
     {
-        var natsOpts = NatsOpts.Default with { Url = "nats://localhost:4222", SerializerRegistry = NatsClientDefaultSerializerRegistry.Default };
+        var natsOpts = NatsOpts.Default with { Url = "nats://localhost:4222", SerializerRegistry = WedaNatsSerializerRegistry.Default };
         var client = new NatsClient(natsOpts);
         var deviceAgentClient = new DeviceAgentClient(client, logger: null);
         var telemetryClient = new TelemetryClient(client, logger: null);
