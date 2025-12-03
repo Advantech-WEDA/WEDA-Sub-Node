@@ -87,9 +87,11 @@ public sealed class DeviceOrchestrator : IDisposable
             lifecycleHooks,
             context.GetLogger<DeviceLifecycleManager>());
 
+        // Use ConnectionOptions from context for Polly pipeline configuration
         ConnectionManager = new DeviceConnectionManager(
             communication,
             context.CloudService,
+            context.ConnectionOptions,
             context.GetLogger<DeviceConnectionManager>());
 
         // Wire up all events

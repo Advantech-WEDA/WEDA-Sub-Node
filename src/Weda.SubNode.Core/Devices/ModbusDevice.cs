@@ -4,6 +4,7 @@ using Polly;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication;
 using Weda.SubNode.Core.Policies;
@@ -12,24 +13,21 @@ using Weda.SubNode.Core.Protocols.Modbus;
 namespace Weda.SubNode.Core.Devices;
 
 /// <summary>
-/// Modbus device implementation with real Modbus protocol support
+/// Modbus device implementation with real Modbus protocol support.
+/// Now uses ModbusRequestResponseParser internally for proper layering.
+/// Architecture: Device -> Parser -> Communication
 /// </summary>
 public class ModbusDevice : DeviceBase
 {
-    private readonly byte _slaveId;
-    private readonly List<ModbusSensorRegister> _sensorRegisters;
-    private readonly IRequestResponseCommunication<byte[], byte[]> _tcpCommunication;
+    private readonly IRequestResponseProtocolParser _parser;
     private readonly ResiliencePipeline<bool> _reconnectionPipeline;
-    private readonly ModbusBatchReader _batchReader;
-    private readonly bool _useBatchOptimization;
     private CancellationTokenSource? _backgroundTasksCts;
     private Task? _telemetryTask;
     private Task? _healthTask;
-    private ushort _transactionId = 0;
 
     /// <summary>
     /// Initializes a new instance of ModbusDevice with ApplicationContext.
-    /// ModbusDevice directly manages Modbus TCP communication using request-response pattern.
+    /// Now uses ModbusRequestResponseParser internally for proper layering.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing Modbus settings.</param>
@@ -44,147 +42,43 @@ public class ModbusDevice : DeviceBase
         ModbusBatchOptimizationOptions? batchOptions = null)
         : base(context, configuration, communication)
     {
-        _tcpCommunication = communication ?? throw new ArgumentNullException(nameof(communication));
-        _useBatchOptimization = useBatchOptimization;
+        if (communication == null)
+            throw new ArgumentNullException(nameof(communication));
 
         // Extract Modbus protocol settings (SlaveId)
-        _slaveId = configuration.GetModbusSlaveId();
+        var slaveId = configuration.GetModbusSlaveId();
 
-        // Convert sensors to Modbus registers
-        _sensorRegisters = configuration.Sensors
+        // Convert sensors to Modbus registers and create metadata dictionary
+        var sensorMetadata = configuration.Sensors
             .Select(s => s.ToModbusRegister())
-            .ToList();
+            .ToDictionary(r => r.Name, r => r);
 
-        // Create batch reader for optimized multi-sensor reading
-        _batchReader = new ModbusBatchReader(
-            _tcpCommunication,
-            _slaveId,
+        // Create ModbusRequestResponseParser (Parser owns Communication)
+        _parser = new ModbusRequestResponseParser(
+            communication,
+            slaveId,
+            sensorMetadata,
             _logger,
+            useBatchOptimization,
             batchOptions);
 
-        // Create Polly reconnection pipeline for background task resilience
-        _reconnectionPipeline = ConnectionPolicies.CreateReconnectionPipeline(_logger);
+        // Create Polly reconnection pipeline using ConnectionOptions from context
+        var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(context.ConnectionOptions);
+        _reconnectionPipeline = ConnectionPolicies.CreateReconnectionPipeline(_logger, policyOptions);
 
-        if (_useBatchOptimization)
-        {
-            _logger.LogDebug(
-                "Modbus batch optimization ENABLED for device ({SensorCount} sensors)",
-                _sensorRegisters.Count);
-        }
-        else
-        {
-            _logger.LogDebug(
-                "Modbus batch optimization DISABLED for device (using legacy single-point reading)"
-                );
-        }
+        _logger.LogDebug(
+            "ModbusDevice initialized with {ParserType} ({SensorCount} sensors)",
+            _parser.GetType().Name,
+            sensorMetadata.Count);
     }
 
     public override async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
-        var measures = new List<TelemetryMeasure>();
+        // Build sensor mapping from configuration (business logic)
+        var sensorMapping = BuildSensorMapping();
 
-        // Filter enabled sensors
-        var enabledSensors = _sensorRegisters
-            .Where(r => Configuration.Sensors.First(s => s.Name == r.Name).Config.Enabled)
-            .ToList();
-
-        if (enabledSensors.Count == 0)
-        {
-            _logger.LogTrace("No enabled sensors to read");
-            return measures;
-        }
-
-        if (_useBatchOptimization)
-        {
-            // Use batch reader for optimized multi-sensor reading
-            var results = await _batchReader.ReadSensorsAsync(enabledSensors, cancellationToken);
-
-            foreach (var (sensorName, result) in results)
-            {
-                if (result.Success && result.Value != null)
-                {
-                    var sensor = Configuration.Sensors.First(s => s.Name == sensorName);
-                    var measure = new TelemetryMeasure
-                    {
-                        ResourceId = sensor.ResourceId,
-                        Value = result.Value,
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                    };
-
-                    measures.Add(measure);
-
-                    _logger.LogDebug(
-                        "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
-                        sensorName,
-                        result.Value,
-                        sensor.ResourceId,
-                        result.RawRegisters != null ? string.Join(",", result.RawRegisters) : "N/A");
-                }
-                else
-                {
-                    _logger.LogError(
-                        "Failed to read sensor {SensorName}: {Error}",
-                        sensorName,
-                        result.ErrorMessage ?? "Unknown error");
-                }
-            }
-        }
-        else
-        {
-            // Legacy single-point reading mode
-            foreach (var register in enabledSensors)
-            {
-                try
-                {
-                    var sensor = Configuration.Sensors.First(s => s.Name == register.Name);
-
-                    _logger.LogDebug(
-                        "Reading Modbus register: Address={Address}, Count={Count}, Type={Type}",
-                        register.RegisterAddress,
-                        register.RegisterCount,
-                        register.RegisterType);
-
-                    // Step 1: Read raw data from hardware via communication
-                    var rawData = await ReadModbusRegistersAsync(
-                        register.RegisterType,
-                        register.RegisterAddress,
-                        register.RegisterCount,
-                        cancellationToken);
-
-                    // Step 2: Protocol parser - convert registers to C# type
-                    var parser = new ModbusProtocolParser(register.DataType);
-                    var parsedValue = parser.Parse(rawData);
-
-                    // Step 3: Create telemetry measure with raw parsed value
-                    // Transforms and DSP filters will be applied by TelemetryPipeline
-                    var measure = new TelemetryMeasure
-                    {
-                        ResourceId = sensor.ResourceId,
-                        Value = parsedValue,
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                    };
-
-                    measures.Add(measure);
-
-                    // Detailed debug log
-                    _logger.LogDebug(
-                        "[DATA] Telemetry: {SensorName} = {Value} (ResourceId: {ResourceId}) | Raw={Raw}",
-                        register.Name,
-                        parsedValue,
-                        register.ResourceId,
-                        string.Join(",", rawData));
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex,
-                        "Error reading sensor {SensorName} at address {Address} from device {DeviceId}",
-                        register.Name,
-                        register.RegisterAddress,
-                        DeviceId);
-                    // Continue reading other sensors even if one fails
-                }
-            }
-        }
+        // Delegate to Parser for protocol-level operations
+        var measures = await _parser.ReadSensorDataAsync(sensorMapping, cancellationToken);
 
         if (measures.Count > 0)
         {
@@ -194,58 +88,56 @@ public class ModbusDevice : DeviceBase
         return measures;
     }
 
-    private async Task<ushort[]> ReadModbusRegistersAsync(
-        ModbusRegisterType registerType,
-        ushort startAddress,
-        ushort count,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Build sensor mapping from device configuration (business logic).
+    /// Maps protocol field names to ResourceIds for enabled sensors.
+    /// </summary>
+    private SensorMapping BuildSensorMapping()
     {
-        var request = BuildModbusRequest(0x03, startAddress, count);
-        var response = await _tcpCommunication.RequestAsync(request, cancellationToken);
-        return ParseModbusResponse(response, count);
+        var mapping = new SensorMapping();
+
+        foreach (var sensor in Configuration.Sensors.Where(s => s.Config.Enabled))
+        {
+            mapping.FieldToResourceId[sensor.Name] = sensor.ResourceId;
+
+            // Map sensor type based on sensor group
+            var sensorType = MapSensorGroupToType(sensor.SensorGroup);
+            mapping.FieldToSensorType[sensor.Name] = sensorType;
+        }
+
+        return mapping;
     }
 
-    private byte[] BuildModbusRequest(byte functionCode, ushort startAddress, ushort count)
+    /// <summary>
+    /// Map SensorGroup to SensorType enum
+    /// </summary>
+    private static SensorType MapSensorGroupToType(SensorGroup sensorGroup)
     {
-        var transactionId = ++_transactionId;
-
-        return new byte[]
+        return sensorGroup switch
         {
-            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),
-            0x00, 0x00,
-            0x00, 0x06,
-            _slaveId,
-            functionCode,
-            (byte)(startAddress >> 8), (byte)(startAddress & 0xFF),
-            (byte)(count >> 8), (byte)(count & 0xFF)
+            SensorGroup.AI => SensorType.Analog,
+            SensorGroup.AO => SensorType.Analog,
+            SensorGroup.DI => SensorType.Digital,
+            SensorGroup.DO => SensorType.Digital,
+            SensorGroup.TEMP => SensorType.Temperature,
+            _ => SensorType.Other
         };
     }
 
-    private ushort[] ParseModbusResponse(byte[] response, ushort expectedCount)
-    {
-        if (response.Length < 9)
-            throw new InvalidOperationException($"Invalid Modbus response length: {response.Length}");
-
-        var byteCount = response[8];
-        var expectedByteCount = expectedCount * 2;
-
-        if (byteCount != expectedByteCount)
-            throw new InvalidOperationException($"Unexpected byte count: {byteCount}, expected: {expectedByteCount}");
-
-        var registers = new ushort[expectedCount];
-        for (int i = 0; i < expectedCount; i++)
-        {
-            var offset = 9 + (i * 2);
-            registers[i] = (ushort)((response[offset] << 8) | response[offset + 1]);
-        }
-
-        return registers;
-    }
-
-    public override Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
+    public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing command {CommandName} on Modbus device {DeviceId}", command.DeviceCmd, DeviceId);
-        return Task.FromResult(true);
+
+        // Delegate to Parser for command execution
+        var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogError("Command execution failed: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -257,7 +149,12 @@ public class ModbusDevice : DeviceBase
     {
         _logger.LogInformation("Starting Modbus register scan for device {DeviceId}", DeviceId);
 
-        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
+        // Get Communication from Parser
+        var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
+            ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");
+
+        var slaveId = Configuration.GetModbusSlaveId();
+        var scanner = new ModbusScanner(communication, slaveId, _logger);
         var results = await scanner.ScanHoldingRegistersAsync(config, cancellationToken);
 
         // Print results to console
@@ -271,7 +168,11 @@ public class ModbusDevice : DeviceBase
     /// </summary>
     public List<SensorSuggestion> GenerateSensorSuggestions(List<ModbusScanResult> scanResults)
     {
-        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
+        var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
+            ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");
+
+        var slaveId = Configuration.GetModbusSlaveId();
+        var scanner = new ModbusScanner(communication, slaveId, _logger);
         return scanner.GenerateSensorSuggestions(scanResults);
     }
 
@@ -283,7 +184,11 @@ public class ModbusDevice : DeviceBase
     /// <returns>Markdown formatted report</returns>
     public string GenerateScanReport(List<ModbusScanResult> scanResults, ModbusScanConfig config)
     {
-        var scanner = new ModbusScanner(_tcpCommunication, _slaveId, _logger);
+        var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
+            ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");
+
+        var slaveId = Configuration.GetModbusSlaveId();
+        var scanner = new ModbusScanner(communication, slaveId, _logger);
 
         // Build device info from configuration
         var deviceInfo = new Dictionary<string, object>

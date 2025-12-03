@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Protocols.ISensing.Commands;
 using Weda.SubNode.Core.Protocols.ISensing.Models;
 
 namespace Weda.SubNode.Core.Protocols.ISensing;
@@ -58,9 +59,50 @@ public class ISensingProtocolParser : IProtocolParser
 
     public List<TelemetryMeasure> ParseSensorData(string jsonPayload, SensorMapping? sensorMapping = null)
     {
-        // TODO: Implement actual JSON parsing with SensorMapping
-        // For now, throw NotImplementedException to indicate this needs to be implemented
-        throw new NotImplementedException("ParseSensorData with SensorMapping not yet implemented");
+        var sensorData = JsonSerializer.Deserialize<ISensingSensorData>(jsonPayload);
+
+        if (sensorData == null || sensorData.AdditionalData == null || sensorData.AdditionalData.Count == 0)
+        {
+            throw new ISensingProtocolException("Failed to parse ISensing sensor data or no sensor data found", jsonPayload);
+        }
+
+        var measures = new List<TelemetryMeasure>();
+
+        // Parse timestamp
+        long timestamp = sensorData.Timestamp.ValueKind switch
+        {
+            JsonValueKind.Number => sensorData.Timestamp.GetInt64(),
+            JsonValueKind.String => DateTimeOffset.Parse(sensorData.Timestamp.GetString()!).ToUnixTimeMilliseconds(),
+            _ => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        // Process each sensor field in AdditionalData
+        foreach (var (fieldName, fieldValue) in sensorData.AdditionalData)
+        {
+            // Extract numeric value
+            double value = fieldValue.ValueKind switch
+            {
+                JsonValueKind.Number => fieldValue.GetDouble(),
+                JsonValueKind.String when double.TryParse(fieldValue.GetString(), out var d) => d,
+                JsonValueKind.True => 1.0,
+                JsonValueKind.False => 0.0,
+                _ => 0.0
+            };
+
+            // Map field name to ResourceId using SensorMapping if provided
+            var resourceId = sensorMapping?.FieldToResourceId.GetValueOrDefault(fieldName) ?? fieldName;
+
+            var measure = new TelemetryMeasure
+            {
+                ResourceId = resourceId,
+                Value = value,
+                Timestamp = timestamp
+            };
+
+            measures.Add(measure);
+        }
+
+        return measures;
     }
 
     /// <summary>
@@ -68,8 +110,14 @@ public class ISensingProtocolParser : IProtocolParser
     /// </summary>
     public ConnectionStatusMessage ParseConnectionStatus(string jsonPayload)
     {
-        // TODO: Implement connection status parsing
-        throw new NotImplementedException("ParseConnectionStatus not yet implemented");
+        var statusMessage = JsonSerializer.Deserialize<ConnectionStatusMessage>(jsonPayload);
+
+        if (statusMessage == null)
+        {
+            throw new ISensingProtocolException("Failed to parse ISensing connection status message", jsonPayload);
+        }
+
+        return statusMessage;
     }
 
     /// <summary>
@@ -77,8 +125,18 @@ public class ISensingProtocolParser : IProtocolParser
     /// </summary>
     public bool IsConnectionMessage(string jsonPayload)
     {
-        // TODO: Implement message type detection
-        throw new NotImplementedException("IsConnectionMessage not yet implemented");
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonPayload);
+            var root = doc.RootElement;
+
+            // Connection messages have "status" and "macid" fields
+            return root.TryGetProperty("status", out _) && root.TryGetProperty("macid", out _);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -86,8 +144,20 @@ public class ISensingProtocolParser : IProtocolParser
     /// </summary>
     public bool IsSensorDataMessage(string jsonPayload)
     {
-        // TODO: Implement message type detection
-        throw new NotImplementedException("IsSensorDataMessage not yet implemented");
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonPayload);
+            var root = doc.RootElement;
+
+            // Sensor data messages have standard fields: s (sequence), t (timestamp), q (quality), c (config)
+            return root.TryGetProperty("s", out _) &&
+                   root.TryGetProperty("t", out _) &&
+                   root.TryGetProperty("q", out _);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     // ===== Encode Methods (Internal Format -> ISensing JSON) =====
@@ -109,8 +179,13 @@ public class ISensingProtocolParser : IProtocolParser
     /// </summary>
     public string EncodeDigitalOutputCommand(string outputName, bool state)
     {
-        // TODO: Implement DO command encoding
-        throw new NotImplementedException("EncodeDigitalOutputCommand not yet implemented");
+        var command = new DigitalOutputCommand
+        {
+            OutputName = outputName,
+            State = state
+        };
+
+        return JsonSerializer.Serialize(command);
     }
 
     /// <summary>
@@ -118,8 +193,13 @@ public class ISensingProtocolParser : IProtocolParser
     /// </summary>
     public string EncodeAnalogOutputCommand(string outputName, double value)
     {
-        // TODO: Implement AO command encoding
-        throw new NotImplementedException("EncodeAnalogOutputCommand not yet implemented");
+        var command = new AnalogOutputCommand
+        {
+            OutputName = outputName,
+            Value = value
+        };
+
+        return JsonSerializer.Serialize(command);
     }
 
     /// <summary>
@@ -127,22 +207,107 @@ public class ISensingProtocolParser : IProtocolParser
     /// </summary>
     public string EncodeConfigurationRequest(string operation, string sensorType, object? config = null)
     {
-        // TODO: Implement configuration request encoding
-        throw new NotImplementedException("EncodeConfigurationRequest not yet implemented");
+        if (operation.Equals("GET", StringComparison.OrdinalIgnoreCase))
+        {
+            var command = new ConfigurationRequestCommand();
+            return JsonSerializer.Serialize(command);
+        }
+        else if (operation.Equals("SET", StringComparison.OrdinalIgnoreCase))
+        {
+            if (config == null || config is not Dictionary<string, object> configDict)
+            {
+                throw new ArgumentException("Config must be a Dictionary<string, object> for SET operation", nameof(config));
+            }
+
+            var command = new ConfigurationUpdateCommand
+            {
+                Index = 0, // Default to 0
+                ConfigData = configDict
+            };
+
+            return JsonSerializer.Serialize(command);
+        }
+        else
+        {
+            throw new ArgumentException($"Unknown operation: {operation}. Expected 'GET' or 'SET'", nameof(operation));
+        }
     }
 
     // ===== Internal Helper Methods =====
 
     private string EncodeSensorDataToJson(IEnumerable<TelemetryMeasure> measures)
     {
-        // TODO: Implement sensor data encoding
-        throw new NotImplementedException("EncodeSensorDataToJson not yet implemented");
+        // Convert TelemetryMeasure list to ISensing JSON format
+        var data = new Dictionary<string, object>
+        {
+            ["s"] = 0, // Sequence number (placeholder)
+            ["t"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ["q"] = ISensingQualityCode.Good,
+            ["c"] = 0 // Configuration index
+        };
+
+        // Add sensor values
+        foreach (var measure in measures)
+        {
+            data[measure.ResourceId] = measure.Value;
+        }
+
+        return JsonSerializer.Serialize(data);
     }
 
     private string EncodeCommandToJson(DeviceCommand command)
     {
-        // TODO: Implement command encoding
-        throw new NotImplementedException("EncodeCommandToJson not yet implemented");
+        // Map DeviceCommand to ISensingCommand based on command name
+        ISensingCommand isensingCommand = command.DeviceCmd switch
+        {
+            "SetDigitalOutput" or "SetDO" => new DigitalOutputCommand
+            {
+                OutputName = command.Parameters.GetValueOrDefault("outputName")?.ToString()
+                    ?? command.Parameters.GetValueOrDefault("do")?.ToString()
+                    ?? throw new ArgumentException("Missing 'outputName' or 'do' parameter"),
+                State = Convert.ToBoolean(command.Parameters.GetValueOrDefault("state")
+                    ?? throw new ArgumentException("Missing 'state' parameter"))
+            },
+
+            "SetAnalogOutput" or "SetAO" => new AnalogOutputCommand
+            {
+                OutputName = command.Parameters.GetValueOrDefault("outputName")?.ToString()
+                    ?? command.Parameters.GetValueOrDefault("ao")?.ToString()
+                    ?? throw new ArgumentException("Missing 'outputName' or 'ao' parameter"),
+                Value = Convert.ToDouble(command.Parameters.GetValueOrDefault("value")
+                    ?? throw new ArgumentException("Missing 'value' parameter"))
+            },
+
+            "GetConfig" or "GetConfiguration" => new ConfigurationRequestCommand
+            {
+                Index = Convert.ToUInt16(command.Parameters.GetValueOrDefault("index") ?? 0)
+            },
+
+            "SetConfig" or "SetConfiguration" => new ConfigurationUpdateCommand
+            {
+                Index = Convert.ToUInt16(command.Parameters.GetValueOrDefault("index")
+                    ?? throw new ArgumentException("Missing 'index' parameter")),
+                ConfigData = command.Parameters.GetValueOrDefault("config") as Dictionary<string, object>
+                    ?? throw new ArgumentException("Missing or invalid 'config' parameter")
+            },
+
+            "SetSensorEnable" => new SensorEnableCommand
+            {
+                SensorName = command.Parameters.GetValueOrDefault("sensorName")?.ToString()
+                    ?? throw new ArgumentException("Missing 'sensorName' parameter"),
+                Enabled = Convert.ToBoolean(command.Parameters.GetValueOrDefault("enabled")
+                    ?? throw new ArgumentException("Missing 'enabled' parameter"))
+            },
+
+            _ => throw new NotSupportedException($"Command '{command.DeviceCmd}' is not supported by ISensing protocol")
+        };
+
+        // Serialize with options to include all properties
+        var options = new JsonSerializerOptions
+        {
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never
+        };
+        return JsonSerializer.Serialize(isensingCommand, isensingCommand.GetType(), options);
     }
 }
 

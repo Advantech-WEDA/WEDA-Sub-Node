@@ -81,4 +81,16 @@ public interface IWedaCloudService : IDisposable
         string deviceId,
         Func<ExecuteCommandEvent, Task> handler,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publish configuration report (reported state) to cloud.
+    /// This is used to report the current device configuration state back to the cloud,
+    /// including both the desired configuration (from cloud) and the reported configuration (actual device state).
+    /// </summary>
+    /// <param name="report">The configuration report message containing desired and reported states</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if published successfully, false otherwise</returns>
+    Task<bool> PublishConfigurationReportAsync(
+        SubNodeConfigurationUpdateMessage report,
+        CancellationToken cancellationToken = default);
 }

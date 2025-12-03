@@ -220,6 +220,14 @@ public class BackgroundTaskPeriods
     /// Command polling period (default: 1000ms)
     /// </summary>
     public int PollCommands { get; set; } = 1000;
+
+    /// <summary>
+    /// Configuration sync/report period (default: 1800000ms = 30 minutes).
+    /// Periodically reports device configuration to cloud
+    /// to ensure reported state is synchronized even if update response fails.
+    /// Valid range: 300000ms (5 min) ~ 86400000ms (24 hours), or 0 to disable.
+    /// </summary>
+    public int ReportConfiguration { get; set; } = 1_800_000;
 }
 
 /// <summary>

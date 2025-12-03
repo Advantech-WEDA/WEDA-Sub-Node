@@ -35,23 +35,37 @@ public class WedaApplication : IAsyncDisposable
     /// Create a WedaApplicationBuilder with default configuration
     /// Automatically configures:
     /// - Serilog logging from appsettings.json (with console output)
-    /// - Configuration from appsettings.json and environment variables
+    /// - Configuration from appsettings.json, environment variables, and command-line arguments
     /// - Default cloud service
     /// - Automatic device scanning from appsettings.json
     /// - Telemetry and health reporting
+    ///
+    /// Command-line arguments can override any configuration value:
+    /// - --Nats:Url=nats://localhost:4222          (override NATS URL)
+    /// - --Nats:CredFile=/path/to/creds            (override credentials file)
+    /// - --Serilog:MinimumLevel:Default=Debug      (override log level)
+    /// - --no-cache                                (force loading from appsettings.json, ignore .device-config-cache.json)
     /// </summary>
     /// <param name="args">Command-line arguments</param>
     /// <returns>A configured WedaApplicationBuilder</returns>
     public static WedaApplicationBuilder CreateDefaultBuilder(string[]? args = null)
     {
+        // Check for --no-cache argument
+        var useCache = !HasNoCacheArgument(args);
+
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
-        // Configure default settings
+        // Configure default settings with priority:
+        // 1. appsettings.json (lowest priority)
+        // 2. appsettings.{Environment}.json
+        // 3. Environment variables
+        // 4. Command-line arguments (highest priority)
         hostBuilder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
-            .AddEnvironmentVariables();
+            .AddEnvironmentVariables()
+            .AddCommandLine(args ?? Array.Empty<string>());
 
         // Configure Serilog with console output
         // If appsettings.json has Serilog config, use it; otherwise use defaults
@@ -78,7 +92,7 @@ public class WedaApplication : IAsyncDisposable
         hostBuilder.Logging.ClearProviders();
         hostBuilder.Logging.AddSerilog(Log.Logger);
 
-        var builder = new WedaApplicationBuilder(hostBuilder);
+        var builder = new WedaApplicationBuilder(hostBuilder, useCache);
 
         // Configure WedaFactory to use the logger factory from DI
         // This ensures all WedaFactory-created instances have proper logging
@@ -106,28 +120,39 @@ public class WedaApplication : IAsyncDisposable
     /// Create a WedaApplicationBuilder with minimal configuration
     /// Provides a clean slate for custom configuration
     /// Automatically configures:
-    /// - Configuration from appsettings.json and environment variables
+    /// - Configuration from appsettings.json, environment variables, and command-line arguments
     /// - Default cloud service
     ///
     /// User is responsible for:
     /// - Adding logging (call .AddLogging() to configure from appsettings.json)
     /// - Adding devices (manually or via ScanDevicesFromConfiguration)
     /// - Adding telemetry and health reporting (if needed)
+    ///
+    /// Command-line arguments can override any configuration value:
+    /// - --Nats:Url=nats://localhost:4222          (override NATS URL)
+    /// - --Nats:CredFile=/path/to/creds            (override credentials file)
+    /// - --Serilog:MinimumLevel:Default=Debug      (override log level)
+    /// - --no-cache                                (force loading from appsettings.json, ignore .device-config-cache.json)
     /// </summary>
     /// <param name="args">Command-line arguments</param>
     /// <returns>A minimal WedaApplicationBuilder</returns>
     public static WedaApplicationBuilder CreateBuilder(string[]? args = null)
     {
+        // Check for --no-cache argument
+        var useCache = !HasNoCacheArgument(args);
+
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
-        // Configuration - load appsettings.json and environment variables
+        // Configuration - load appsettings.json, environment variables, and command-line arguments
+        // Priority: appsettings.json < environment variables < command-line arguments
         hostBuilder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
-            .AddEnvironmentVariables();
+            .AddEnvironmentVariables()
+            .AddCommandLine(args ?? Array.Empty<string>());
 
-        var builder = new WedaApplicationBuilder(hostBuilder);
+        var builder = new WedaApplicationBuilder(hostBuilder, useCache);
 
         // Add default cloud service (can be overridden with .UseMockCloud())
         builder.UseDefaultCloud();
@@ -184,5 +209,18 @@ public class WedaApplication : IAsyncDisposable
 
         await Log.CloseAndFlushAsync();
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Check if the --no-cache argument is present in command-line arguments
+    /// </summary>
+    private static bool HasNoCacheArgument(string[]? args)
+    {
+        if (args == null || args.Length == 0)
+            return false;
+
+        return args.Any(arg =>
+            arg.Equals("--no-cache", StringComparison.OrdinalIgnoreCase) ||
+            arg.Equals("-no-cache", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -27,6 +27,13 @@ translations:
 - [方式 2: 配置檔方式 (appsettings.json)](#方式-2-配置檔方式-appsettingsjson)
   - [配置 Transform Pipeline](#配置-transform-pipeline)
   - [配置 DSP Pipeline](#配置-dsp-pipeline)
+- [Real-time 參數調整](#real-time-參數調整)
+  - [操作類型](#操作類型)
+  - [參數驗證](#參數驗證)
+  - [透過 Cloud 更新](#透過-cloud-更新)
+- [效能監控 (Performance Monitoring)](#效能監控-performance-monitoring)
+  - [Pipeline 統計資料](#pipeline-統計資料)
+  - [事件監聽](#事件監聽)
 - [完整範例](#完整範例)
 - [最佳實踐](#最佳實踐)
 
@@ -491,6 +498,327 @@ config.AddSensor(sensor);
 
 ---
 
+## Real-time 參數調整
+
+SubNode SDK 支援在運行時動態調整 DSP Filter 和 Transform 的參數，無需重啟裝置。這對於需要根據實際情況微調參數的場景非常有用。
+
+### 操作類型
+
+| 操作 | 重建實體 | Warm-up | 說明 |
+|------|---------|---------|------|
+| **新增** | ✅ | ✅ | 建立新實例，需累積歷史資料 |
+| **移除** | ✅ | - | 移除實例，釋放資源 |
+| **更新參數** | ❌ | ❌ | 原地修改，內部狀態保留 |
+| **暫停/恢復** | ❌ | ❌ | `Enabled=false` → pass-through |
+
+### 參數驗證
+
+每個 Filter 和 Transform 都有參數驗證規則，確保參數在合理範圍內：
+
+| Filter/Transform | 參數 | 驗證規則 |
+|------------------|------|----------|
+| MovingAverageFilter | Window | > 0 |
+| KalmanFilter | ProcessNoise | >= 0 |
+| KalmanFilter | MeasurementNoise | > 0 |
+| CalibrationTransform | Scale | != 0 |
+| UnitConversionTransform | FromUnit, ToUnit | 不為空 |
+
+#### 程式化驗證與更新
+
+```csharp
+using ErrorOr;
+using Weda.SubNode.Core.Dsp;
+
+var filter = new MovingAverageFilter(windowSize: 5);
+
+// 驗證參數
+var parameters = new Dictionary<string, object>
+{
+    ["Window"] = 10
+};
+
+var validationResult = filter.ValidateParameters(parameters);
+if (validationResult.IsError)
+{
+    Console.WriteLine($"驗證失敗: {validationResult.FirstError.Description}");
+    return;
+}
+
+// 更新參數 (內部狀態會被重置)
+filter.UpdateParameters(parameters);
+
+// 暫停 Filter (資料直接 pass-through)
+filter.Enabled = false;
+
+// 恢復 Filter
+filter.Enabled = true;
+```
+
+#### Transform 參數更新
+
+```csharp
+using Weda.SubNode.Core.Transforms;
+
+var calibration = new CalibrationTransform(scale: 1.0, offset: 0.0);
+
+// 驗證並更新參數
+var parameters = new Dictionary<string, object>
+{
+    ["Scale"] = 2.0,
+    ["Offset"] = 10.0
+};
+
+var result = calibration.ValidateParameters(parameters);
+if (!result.IsError)
+{
+    calibration.UpdateParameters(parameters);
+    // 新參數立即生效，無 warm-up
+}
+```
+
+### 透過 Cloud 更新
+
+Cloud 可以發送配置更新訊息來動態調整 DSP Pipeline：
+
+```json
+{
+  "cmd": "updateCmd",
+  "data": {
+    "cfg": {
+      "desired": {
+        "subNodeDeviceConfig": {
+          "deviceConfigs": {
+            "MyDevice": {
+              "sensors": [{
+                "name": "temperature",
+                "config": {
+                  "transformPipeline": [
+                    {
+                      "type": "Calibration",
+                      "enabled": true,
+                      "parameters": { "Scale": 1.1, "Offset": 0.5 }
+                    }
+                  ],
+                  "dspPipeline": [
+                    {
+                      "type": "movingAverage",
+                      "enabled": true,
+                      "parameters": { "Window": 10 }
+                    },
+                    {
+                      "type": "kalman",
+                      "enabled": false,
+                      "parameters": { "ProcessNoise": 0.05 }
+                    }
+                  ]
+                }
+              }]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### 驗證失敗回報
+
+當 Cloud 發送的參數驗證失敗時，SubNode 會回報錯誤：
+
+```json
+{
+  "cmd": "updateCmdResponse",
+  "data": {
+    "cfg": {
+      "reported": {
+        "status": "invalid",
+        "errorMessage": "Sensor 'temperature' DSP filter 'movingAverage': Window must be greater than 0"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 效能監控 (Performance Monitoring)
+
+SubNode SDK 提供 Pipeline 效能監控功能，可追蹤處理時間和成功/失敗統計。
+
+### Pipeline 統計資料
+
+`TelemetryPipeline` 提供 `GetStatistics()` 方法來獲取統計資料：
+
+```csharp
+using Weda.SubNode.Core.Telemetry;
+
+// 獲取 Pipeline 統計
+var stats = pipeline.GetStatistics();
+
+Console.WriteLine($"Device: {stats.DeviceId}");
+Console.WriteLine($"Total Processed: {stats.TotalProcessed}");
+Console.WriteLine($"Successfully Sent: {stats.SuccessfullySent}");
+Console.WriteLine($"Failed to Send: {stats.FailedToSend}");
+Console.WriteLine($"Filtered Out: {stats.FilteredOut}");
+Console.WriteLine($"Last Processed: {stats.LastProcessedAt}");
+
+// 平均處理時間
+Console.WriteLine($"Avg Transform Duration: {stats.AverageTransformDuration.TotalMilliseconds:F2}ms");
+Console.WriteLine($"Avg Filter Duration: {stats.AverageFilterDuration.TotalMilliseconds:F2}ms");
+Console.WriteLine($"Avg Send Duration: {stats.AverageSendDuration.TotalMilliseconds:F2}ms");
+Console.WriteLine($"Avg Total Duration: {stats.AverageTotalDuration.TotalMilliseconds:F2}ms");
+```
+
+#### PipelineStatistics 屬性
+
+| 屬性 | 類型 | 說明 |
+|------|------|------|
+| `DeviceId` | string | 裝置 ID |
+| `TotalProcessed` | int | 總處理次數 |
+| `SuccessfullySent` | int | 成功發送次數 |
+| `FailedToSend` | int | 發送失敗次數 |
+| `FilteredOut` | int | 被濾除的數據數量 |
+| `AverageTransformDuration` | TimeSpan | Transform 階段平均耗時 |
+| `AverageFilterDuration` | TimeSpan | Filter 階段平均耗時 |
+| `AverageSendDuration` | TimeSpan | 發送階段平均耗時 |
+| `AverageTotalDuration` | TimeSpan | 總平均耗時 |
+| `LastProcessedAt` | DateTimeOffset? | 最後處理時間 |
+
+### 事件監聽
+
+可訂閱 `StageExecuting` 事件來監控每個階段的執行：
+
+```csharp
+using Weda.SubNode.Abstractions.Events;
+
+pipeline.StageExecuting += (sender, e) =>
+{
+    if (e.Phase == StagePhase.Before)
+    {
+        Console.WriteLine($"[{e.Timestamp:HH:mm:ss.fff}] {e.Stage} 開始: {e.InputCount} measures");
+    }
+    else // StagePhase.After
+    {
+        Console.WriteLine($"[{e.Timestamp:HH:mm:ss.fff}] {e.Stage} 完成: " +
+            $"{e.OutputCount} measures, 耗時 {e.Duration?.TotalMilliseconds:F2}ms");
+
+        if (e.Error != null)
+        {
+            Console.WriteLine($"  錯誤: {e.Error}");
+        }
+    }
+};
+```
+
+#### TelemetryPipelineStageEvent 屬性
+
+| 屬性 | 類型 | 說明 |
+|------|------|------|
+| `DeviceId` | string | 裝置 ID |
+| `Stage` | PipelineStage | 階段 (Transform, Filter, Send) |
+| `StageName` | string | 階段名稱 |
+| `InputCount` | int | 輸入數據數量 |
+| `OutputCount` | int? | 輸出數據數量 (After 階段) |
+| `Phase` | StagePhase | 執行階段 (Before, After) |
+| `Duration` | TimeSpan? | 執行時間 (After 階段) |
+| `Error` | string? | 錯誤訊息 |
+| `Timestamp` | DateTimeOffset | 事件時間戳 |
+
+#### Pipeline 階段
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Transform  │ ──▶ │   Filter    │ ──▶ │    Send     │
+│   Stage     │     │   Stage     │     │   Stage     │
+└─────────────┘     └─────────────┘     └─────────────┘
+      │                   │                   │
+      ▼                   ▼                   ▼
+   Before              Before              Before
+   After               After               After
+```
+
+### 效能監控範例
+
+```csharp
+using Microsoft.Extensions.Logging;
+using Weda.SubNode.Abstractions.Events;
+
+public class PipelineMonitor
+{
+    private readonly ILogger _logger;
+    private readonly TelemetryPipeline _pipeline;
+    private int _slowCount = 0;
+
+    public PipelineMonitor(TelemetryPipeline pipeline, ILogger logger)
+    {
+        _pipeline = pipeline;
+        _logger = logger;
+
+        // 監控慢速處理
+        _pipeline.StageExecuting += OnStageExecuting;
+    }
+
+    private void OnStageExecuting(object? sender, TelemetryPipelineStageEvent e)
+    {
+        if (e.Phase != StagePhase.After) return;
+
+        // 警告: Transform 超過 10ms
+        if (e.Stage == PipelineStage.Transform && e.Duration > TimeSpan.FromMilliseconds(10))
+        {
+            _logger.LogWarning("Transform 執行緩慢: {Duration}ms", e.Duration?.TotalMilliseconds);
+        }
+
+        // 警告: 發送超過 1000ms
+        if (e.Stage == PipelineStage.Send && e.Duration > TimeSpan.FromSeconds(1))
+        {
+            _slowCount++;
+            _logger.LogWarning("Cloud 發送緩慢: {Duration}ms (累計 {Count} 次)",
+                e.Duration?.TotalMilliseconds, _slowCount);
+        }
+    }
+
+    public void PrintReport()
+    {
+        var stats = _pipeline.GetStatistics();
+
+        var successRate = stats.TotalProcessed > 0
+            ? (double)stats.SuccessfullySent / stats.TotalProcessed * 100
+            : 0;
+
+        _logger.LogInformation("""
+            ══════════════════════════════════════
+            Pipeline 效能報告 - {DeviceId}
+            ══════════════════════════════════════
+            處理統計:
+              總處理: {TotalProcessed}
+              成功: {SuccessfullySent} ({SuccessRate:F1}%)
+              失敗: {FailedToSend}
+              濾除: {FilteredOut}
+
+            平均耗時:
+              Transform: {TransformMs:F2}ms
+              Filter: {FilterMs:F2}ms
+              Send: {SendMs:F2}ms
+              Total: {TotalMs:F2}ms
+            ══════════════════════════════════════
+            """,
+            stats.DeviceId,
+            stats.TotalProcessed,
+            stats.SuccessfullySent,
+            successRate,
+            stats.FailedToSend,
+            stats.FilteredOut,
+            stats.AverageTransformDuration.TotalMilliseconds,
+            stats.AverageFilterDuration.TotalMilliseconds,
+            stats.AverageSendDuration.TotalMilliseconds,
+            stats.AverageTotalDuration.TotalMilliseconds);
+    }
+}
+```
+
+---
+
 ## 完整範例
 
 ### 範例 1: 程式化方式 - 多感測器不同處理
@@ -754,6 +1082,11 @@ sensor.Config.AddTransform(new MyCustomTransform());
 
 ---
 
-**版本**: 1.0.0
-**最後更新**: 2025-11-17
+**版本**: 1.1.0
+**最後更新**: 2025-11-27
 **維護者**: Rain Hu
+
+### 更新記錄
+
+- **1.1.0** (2025-11-27): 新增 Real-time 參數調整和效能監控章節
+- **1.0.0** (2025-11-17): 初始版本

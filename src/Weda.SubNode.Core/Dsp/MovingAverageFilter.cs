@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using ErrorOr;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -7,10 +8,35 @@ namespace Weda.SubNode.Core.Dsp;
 /// <summary>
 /// Moving average DSP filter with O(1) time complexity using circular buffer
 /// </summary>
-public class MovingAverageFilter : IDspFilter
+public class MovingAverageFilter : IDspFilter, IConfigurableDspFilter<MovingAverageFilter>
 {
-    private readonly int _window;
-    private readonly Dictionary<string, CircularBuffer> _buffers = new();
+    private int _window;
+    private Dictionary<string, CircularBuffer> _buffers = new();
+
+    // === Static Abstract Implementation (Self-Registration) ===
+
+    /// <inheritdoc/>
+    public static string TypeName => "movingaverage";
+
+    /// <inheritdoc/>
+    public static MovingAverageFilter Create(Dictionary<string, object> parameters)
+    {
+        var window = GetIntParameter(parameters, "Window", 5);
+
+        if (window <= 0)
+            throw new ArgumentException("MovingAverage Window parameter must be greater than 0");
+
+        return new MovingAverageFilter(window);
+    }
+
+    private static int GetIntParameter(Dictionary<string, object> parameters, string key, int defaultValue)
+    {
+        if (parameters.TryGetValue(key, out var value))
+            return Convert.ToInt32(value);
+        return defaultValue;
+    }
+
+    // === Instance Members ===
 
     public MovingAverageFilter(int window)
     {
@@ -19,12 +45,50 @@ public class MovingAverageFilter : IDspFilter
         _window = window;
     }
 
+    /// <inheritdoc/>
+    public bool Enabled { get; set; } = true;
+
+    /// <inheritdoc/>
+    public ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("Window", out var w))
+        {
+            var window = Convert.ToInt32(w);
+            if (window <= 0)
+                return Error.Validation("MovingAverageFilter.Window", "Window must be greater than 0");
+        }
+
+        return Result.Success;
+    }
+
+    /// <inheritdoc/>
+    public void UpdateParameters(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("Window", out var w))
+        {
+            var newWindow = Convert.ToInt32(w);
+            if (newWindow != _window)
+            {
+                _window = newWindow;
+                // Reset buffers when window size changes (warm-up required)
+                _buffers = new Dictionary<string, CircularBuffer>();
+            }
+        }
+    }
+
     public async IAsyncEnumerable<TelemetryMeasure> ApplyAsync(
         IAsyncEnumerable<TelemetryMeasure> input,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (var measure in input.WithCancellation(cancellationToken))
         {
+            // Pass through if disabled
+            if (!Enabled)
+            {
+                yield return measure;
+                continue;
+            }
+
             // Get or create buffer for this sensor
             if (!_buffers.ContainsKey(measure.ResourceId))
             {

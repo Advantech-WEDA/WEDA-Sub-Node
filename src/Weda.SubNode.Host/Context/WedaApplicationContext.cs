@@ -9,9 +9,12 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Context;
+using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host.Context;
 
@@ -22,9 +25,13 @@ namespace Weda.SubNode.Host.Context;
 /// </summary>
 /// <example>
 /// <code>
-/// // Simple usage with defaults
+/// // Simplest usage with default singleton (recommended for single-device scenarios)
+/// var device = new TcpModbusDevice(WedaApplicationContext.Default, config);
+/// await device.StartAsync();
+///
+/// // Create new instance with defaults
 /// using var context = new WedaApplicationContext();
-/// var device = new ModbusDevice(config, context);
+/// var device = new TcpModbusDevice(context, config);
 ///
 /// // Custom configuration
 /// using var context = new WedaApplicationContext(options =>
@@ -32,20 +39,44 @@ namespace Weda.SubNode.Host.Context;
 ///     options.CloudService = myCloudService;
 ///     options.LoggerFactory = myLoggerFactory;
 /// });
-///
-/// // Factory method
-/// using var context = new WedaApplicationContext();
-/// var device = context.CreateModbusDevice(config);
 /// </code>
 /// </example>
 public class WedaApplicationContext : IWedaApplicationContext
 {
+    private static readonly Lazy<WedaApplicationContext> _default = new(
+        () => new WedaApplicationContext(),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
+    /// <summary>
+    /// Gets the default singleton instance of WedaApplicationContext.
+    /// Uses lazy initialization with thread-safety.
+    /// Auto-loads configuration from appsettings.json.
+    /// </summary>
+    /// <remarks>
+    /// The default instance is suitable for simple single-device scenarios.
+    /// For multi-device applications or custom configuration, create instances manually
+    /// or use WedaApplicationBuilder.
+    ///
+    /// Note: The default instance should NOT be disposed manually as it is shared.
+    /// It will be disposed when the application exits.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Simple usage with default singleton
+    /// var device = new TcpModbusDevice(WedaApplicationContext.Default, config);
+    /// await device.StartAsync();
+    /// </code>
+    /// </example>
+    public static WedaApplicationContext Default => _default.Value;
+
     private readonly WedaContextOptions _options;
     private readonly IWedaCloudService _cloudService;
     private readonly ILoggerFactory _loggerFactory;
     private readonly NatsClient? _natsClient;
     private readonly IConfiguration? _configuration;
     private readonly DeviceConfiguration? _deviceConfiguration;
+    private readonly IDeviceRegistry _deviceRegistry;
+    private readonly IConfigurationCache _configurationCache;
     private bool _disposed;
 
     /// <summary>
@@ -64,6 +95,13 @@ public class WedaApplicationContext : IWedaApplicationContext
     {
         _options = new WedaContextOptions();
         configure(_options);
+
+        // Initialize device registry
+        _deviceRegistry = new DeviceRegistry();
+
+        // Initialize configuration cache (for UC9868 cloud-driven config updates)
+        _configurationCache = new JsonConfigurationCache(
+            logger: null); // Logger not available yet
 
         // Auto-load configuration from appsettings.json if not provided
         if (_options.Configuration == null)
@@ -240,11 +278,63 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// </summary>
     public DeviceConfiguration? DeviceConfiguration => _deviceConfiguration;
 
+    /// <inheritdoc />
+    public IDeviceRegistry DeviceRegistry => _deviceRegistry;
+
+    /// <inheritdoc />
+    public IConfigurationCache ConfigurationCache => _configurationCache;
+
+    // ===== Device Registry Convenience Methods =====
+
+    /// <inheritdoc />
+    public IDevice GetDevice(string deviceName) => _deviceRegistry.GetDevice(deviceName);
+
+    /// <inheritdoc />
+    public TDevice GetDevice<TDevice>(string deviceName) where TDevice : IDevice
+        => _deviceRegistry.GetDevice<TDevice>(deviceName);
+
+    /// <inheritdoc />
+    public IDevice? FindDevice(string deviceName) => _deviceRegistry.FindDevice(deviceName);
+
+    /// <inheritdoc />
+    public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
+        => _deviceRegistry.FindDevice<TDevice>(deviceName);
+
     #region Private Methods
 
     private const string DeviceConfigurationSectionName = "DeviceConfigs";
     private DeviceConfiguration? LoadDeviceConfiguration()
     {
+        var logger = _loggerFactory.CreateLogger<WedaApplicationContext>();
+
+        // Priority 1: Check configuration cache (cloud-updated config)
+        // This ensures cloud-driven configuration updates persist across restarts
+        try
+        {
+            if (_configurationCache.ExistsAsync().GetAwaiter().GetResult())
+            {
+                var cachedConfig = _configurationCache.GetConfigurationAsync().GetAwaiter().GetResult();
+                if (cachedConfig != null)
+                {
+                    logger.LogInformation(
+                        "Using cached configuration (cloud-updated): DeviceName={DeviceName}, CachePath={CachePath}",
+                        cachedConfig.DeviceName,
+                        _configurationCache.CacheFilePath);
+
+                    // Auto-load DTDL if enabled
+                    LoadDtdlIfEnabled(cachedConfig, logger);
+
+                    return cachedConfig;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to load configuration from cache, falling back to appsettings.json");
+        }
+
+        // Priority 2: Load from appsettings.json (initial/fallback config)
         if (_configuration == null)
             return null;
 
@@ -266,29 +356,36 @@ public class WedaApplicationContext : IWedaApplicationContext
                 return null;
             }
 
+            logger.LogInformation(
+                "Using appsettings.json configuration: DeviceName={DeviceName}, ConfigKey={ConfigKey}",
+                deviceConfig.DeviceName,
+                _options.DeviceConfigurationKey);
+
             // Auto-load DTDL if enabled
-            if (_options.AutoLoadDtdl && !string.IsNullOrEmpty(deviceConfig.DtdlPath))
-            {
-                try
-                {
-                    deviceConfig.LoadDtdl();
-                    _loggerFactory.CreateLogger<WedaApplicationContext>()
-                        .LogInformation("DTDL loaded from: {DtdlPath}", deviceConfig.DtdlPath);
-                }
-                catch (Exception ex)
-                {
-                    _loggerFactory.CreateLogger<WedaApplicationContext>()
-                        .LogWarning(ex, "Failed to load DTDL from: {DtdlPath}", deviceConfig.DtdlPath);
-                }
-            }
+            LoadDtdlIfEnabled(deviceConfig, logger);
 
             return deviceConfig;
         }
         catch (Exception ex)
         {
-            _loggerFactory.CreateLogger<WedaApplicationContext>()
-                .LogError(ex, "Failed to load device configuration from: {ConfigKey}", _options.DeviceConfigurationKey);
+            logger.LogError(ex, "Failed to load device configuration from: {ConfigKey}", _options.DeviceConfigurationKey);
             return null;
+        }
+    }
+
+    private void LoadDtdlIfEnabled(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        if (_options.AutoLoadDtdl && !string.IsNullOrEmpty(deviceConfig.DtdlPath))
+        {
+            try
+            {
+                deviceConfig.LoadDtdl();
+                logger.LogInformation("DTDL loaded from: {DtdlPath}", deviceConfig.DtdlPath);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to load DTDL from: {DtdlPath}", deviceConfig.DtdlPath);
+            }
         }
     }
 

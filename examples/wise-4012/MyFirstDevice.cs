@@ -7,7 +7,17 @@ namespace Wise4012Example;
 
 /// <summary>
 /// MyFirstDevice - A custom device implementation
-/// Inherits from TcpModbusDevice to get Modbus TCP protocol support with automatic communication setup
+/// Inherits from TcpModbusDevice to get Modbus TCP protocol support with automatic communication setup.
+///
+/// Demonstrates UC9868: Configuration update from cloud.
+///
+/// The framework (DeviceBase) automatically handles:
+/// - Base configuration updates (sensors, periods)
+/// - Persisting configuration to cache (.device-config-cache.json)
+///
+/// This custom device only needs to:
+/// - Report configuration update status back to cloud (updating/success/failed)
+/// - Handle any device-specific configuration if needed
 /// </summary>
 public class MyFirstDevice : TcpModbusDevice
 {
@@ -36,15 +46,45 @@ public class MyFirstDevice : TcpModbusDevice
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
             if (measure?.Value != null)
             {
-                _logger.LogInformation("{SensorName}: {Value}",
+                _logger.LogInformation("{SensorName}: {Value} (Enabled={Enabled})",
                     sensor.Name,
-                    measure.Value);
+                    measure.Value,
+                    sensor.Config.Enabled);
             }
         }
     }
 
-    // Note: GetHealthAsync is no longer overridable in new DeviceBase
-    // Health monitoring is handled by DeviceHealthMonitor component
+    /// <summary>
+    /// UC9868: Handle configuration update from cloud.
+    ///
+    /// Note: Base configuration (sensors, periods) is already applied and cached
+    /// by the framework before this hook is called. The framework also handles
+    /// validation, "updating" status, and "success/failed" status reports.
+    ///
+    /// This hook is used for:
+    /// - Handle any device-specific custom configuration that the framework doesn't know about
+    /// </summary>
+    protected override Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
+    {
+        _logger.LogInformation("Configuration update applied for device: {DeviceId}", DeviceId);
+
+        // Get the strongly-typed message from the event
+        var message = e.Message;
+        if (message?.Data?.Cfg?.Desired == null)
+        {
+            _logger.LogWarning("Configuration update event does not contain valid desired configuration");
+            return Task.CompletedTask;
+        }
+
+        // Handle device-specific custom configuration here
+        // Base sensors and periods are already applied by the framework
+        // Example: Apply custom properties specific to this device type
+        // var customConfig = message.Data?.Cfg?.Desired?.CustomProperties;
+        // ApplyCustomConfiguration(customConfig);
+
+        _logger.LogInformation("Custom configuration processing completed");
+        return Task.CompletedTask;
+    }
 
     ~MyFirstDevice()
     {

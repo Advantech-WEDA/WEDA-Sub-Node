@@ -7,11 +7,6 @@ namespace Weda.SubNode.Abstractions.Devices;
 public class DeviceOptions
 {
     /// <summary>
-    /// Default polling interval in milliseconds for telemetry collection
-    /// </summary>
-    public int DefaultPollingIntervalMs { get; set; } = 1000;
-
-    /// <summary>
     /// Enable command receiving from cloud (downlink)
     /// When enabled, devices can receive and execute commands from the cloud platform
     /// </summary>

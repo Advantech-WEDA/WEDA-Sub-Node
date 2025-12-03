@@ -2,12 +2,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Storage;
 
 namespace Weda.SubNode.Abstractions.Context;
 
 /// <summary>
 /// Application context for Weda SubNode SDK.
 /// Manages the lifecycle of framework-level services (cloud, logging, etc.).
+/// Provides device registry for cross-device communication.
 /// </summary>
 public interface IWedaApplicationContext : IDisposable
 {
@@ -43,7 +45,59 @@ public interface IWedaApplicationContext : IDisposable
     DeviceConfiguration? DeviceConfiguration { get; }
 
     /// <summary>
+    /// Gets the device registry for managing and discovering devices.
+    /// All devices created with this context are automatically registered.
+    /// </summary>
+    IDeviceRegistry DeviceRegistry { get; }
+
+    /// <summary>
+    /// Gets the configuration cache for persisting cloud-updated configurations.
+    /// When configuration is updated from cloud (UC9868), changes are cached locally
+    /// so device restart uses the latest cloud-provided config instead of appsettings.json.
+    /// </summary>
+    IConfigurationCache ConfigurationCache { get; }
+
+    /// <summary>
     /// Gets a typed logger for the specified type.
     /// </summary>
     ILogger<T> GetLogger<T>();
+
+    // ===== Device Registry Convenience Methods =====
+
+    /// <summary>
+    /// Gets a device by name. Throws if not found.
+    /// Convenience method that delegates to DeviceRegistry.GetDevice.
+    /// </summary>
+    /// <param name="deviceName">The device name to search for</param>
+    /// <returns>The device instance</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when device is not found</exception>
+    IDevice GetDevice(string deviceName);
+
+    /// <summary>
+    /// Gets a device by name with specific type. Throws if not found or type mismatch.
+    /// Convenience method that delegates to DeviceRegistry.GetDevice&lt;TDevice&gt;.
+    /// </summary>
+    /// <typeparam name="TDevice">The expected device type</typeparam>
+    /// <param name="deviceName">The device name to search for</param>
+    /// <returns>The device instance cast to TDevice</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when device is not found</exception>
+    /// <exception cref="InvalidCastException">Thrown when device cannot be cast to TDevice</exception>
+    TDevice GetDevice<TDevice>(string deviceName) where TDevice : IDevice;
+
+    /// <summary>
+    /// Finds a device by name. Returns null if not found.
+    /// Convenience method that delegates to DeviceRegistry.FindDevice.
+    /// </summary>
+    /// <param name="deviceName">The device name to search for</param>
+    /// <returns>The device instance or null</returns>
+    IDevice? FindDevice(string deviceName);
+
+    /// <summary>
+    /// Finds a device by name with specific type. Returns null if not found or type mismatch.
+    /// Convenience method that delegates to DeviceRegistry.FindDevice&lt;TDevice&gt;.
+    /// </summary>
+    /// <typeparam name="TDevice">The expected device type</typeparam>
+    /// <param name="deviceName">The device name to search for</param>
+    /// <returns>The device instance cast to TDevice, or null</returns>
+    TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice;
 }

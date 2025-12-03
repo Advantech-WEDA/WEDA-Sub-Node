@@ -46,7 +46,6 @@ public class MyFirstDevice : TcpModbusDevice
 
                 // 2. Unit Conversion: Convert Celsius to Fahrenheit
                 transforms.Add(new UnitConversionTransform(
-                    targetResourceId: "*",  // Apply to all resources
                     fromUnit: "celsius",
                     toUnit: "fahrenheit"));
             });
