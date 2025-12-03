@@ -1,113 +1,94 @@
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
-using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Abstractions.Telemetry;
+using Microsoft.Extensions.Logging;
 
 namespace SystemMonitorExample;
 
 /// <summary>
-/// Collects system resource metrics using cross-platform .NET APIs.
+/// Collects raw system resource metrics from operating system APIs.
+/// This is the "communication layer" that interfaces with the local system.
+/// Returns raw data that will be converted to TelemetryMeasure by SystemMetricsParser.
 /// </summary>
 public class SystemResourceCollector
 {
     private readonly ILogger _logger;
-    private DateTime _lastCpuCheck = DateTime.UtcNow;
-    private TimeSpan _lastTotalProcessorTime;
-    private Dictionary<int, CpuCoreStats> _lastCoreStats = new();
+
+    // Track boot time (calculated once)
+    private static readonly long BootTimeSeconds = CalculateBootTimeSeconds();
 
     public SystemResourceCollector(ILogger logger)
     {
         _logger = logger;
-        _lastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
     }
 
     /// <summary>
-    /// Collects CPU usage metrics (overall usage, per-core usage, load averages).
+    /// Collects all system metrics and returns raw data.
     /// </summary>
-    public async Task<List<TelemetryMeasure>> CollectCpuMetricsAsync(List<Sensor> sensors, CancellationToken ct)
+    public async Task<SystemMetricsRawData> CollectAllMetricsAsync(CancellationToken ct)
     {
-        var measures = new List<TelemetryMeasure>();
+        var rawData = new SystemMetricsRawData
+        {
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        // Collect all metrics in parallel where possible
+        var cpuTask = CollectCpuMetricsAsync(ct);
+        var ramTask = CollectRamMetricsAsync(ct);
+        var diskTask = CollectDiskMetricsAsync(ct);
+        var networkTask = Task.Run(() => CollectNetworkMetrics(), ct);
+        var systemTask = CollectSystemMetricsAsync(ct);
+        var gpuTask = Task.Run(() => CollectGpuMetrics(), ct);
+
+        await Task.WhenAll(cpuTask, ramTask, diskTask, networkTask, systemTask, gpuTask);
+
+        rawData.Cpu = await cpuTask;
+        rawData.Ram = await ramTask;
+        rawData.Disks = await diskTask;
+        rawData.Networks = await networkTask;
+        rawData.System = await systemTask;
+        rawData.Gpu = await gpuTask;
+
+        return rawData;
+    }
+
+    private async Task<CpuMetrics> CollectCpuMetricsAsync(CancellationToken ct)
+    {
+        var metrics = new CpuMetrics();
 
         try
         {
-            // Overall CPU usage (cross-platform approximation)
-            var now = DateTime.UtcNow;
-            var elapsedTime = now - _lastCpuCheck;
-
-            if (elapsedTime.TotalMilliseconds > 100)
-            {
-                var currentProcess = Process.GetCurrentProcess();
-                var currentTotalTime = currentProcess.TotalProcessorTime;
-                var cpuUsedMs = (currentTotalTime - _lastTotalProcessorTime).TotalMilliseconds;
-                var totalMsPassed = elapsedTime.TotalMilliseconds * Environment.ProcessorCount;
-                var cpuUsagePercent = totalMsPassed > 0 ? (cpuUsedMs / totalMsPassed) * 100 : 0;
-
-                var cpuSensor = sensors.FirstOrDefault(s => s.Name == "cpu.usage");
-                if (cpuSensor != null)
-                {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = cpuSensor.ResourceId,
-                        Value = Math.Round(Math.Min(cpuUsagePercent, 100), 2)
-                    });
-                }
-
-                _lastCpuCheck = now;
-                _lastTotalProcessorTime = currentTotalTime;
-            }
-
-            // Per-core CPU usage (Linux only)
             if (OperatingSystem.IsLinux())
             {
-                var coreMetrics = await ReadLinuxCpuStatsAsync(ct);
-                foreach (var (coreNum, usage) in coreMetrics)
+                // Read /proc/stat for CPU times
+                var statContent = await File.ReadAllTextAsync("/proc/stat", ct);
+                metrics.Cores = ParseLinuxCpuStats(statContent);
+
+                // Read context switches from /proc/stat
+                metrics.ContextSwitchesTotal = ParseContextSwitches(statContent);
+
+                // Read load averages from /proc/loadavg
+                var loadContent = await File.ReadAllTextAsync("/proc/loadavg", ct);
+                var loadParts = loadContent.Split(' ');
+                if (loadParts.Length >= 3)
                 {
-                    var coreSensor = sensors.FirstOrDefault(s => s.Name == $"cpu.core.{coreNum}");
-                    if (coreSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = coreSensor.ResourceId,
-                            Value = Math.Round(usage, 2)
-                        });
-                    }
+                    metrics.Load1 = double.Parse(loadParts[0]);
+                    metrics.Load5 = double.Parse(loadParts[1]);
+                    metrics.Load15 = double.Parse(loadParts[2]);
                 }
-
-                // Load averages (Linux only)
-                var loadAvg = await ReadLinuxLoadAverageAsync(ct);
-                if (loadAvg != null)
-                {
-                    var load1mSensor = sensors.FirstOrDefault(s => s.Name == "cpu.load.1m");
-                    if (load1mSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = load1mSensor.ResourceId,
-                            Value = loadAvg.Value.OneMinute
-                        });
-                    }
-
-                    var load5mSensor = sensors.FirstOrDefault(s => s.Name == "cpu.load.5m");
-                    if (load5mSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = load5mSensor.ResourceId,
-                            Value = loadAvg.Value.FiveMinute
-                        });
-                    }
-
-                    var load15mSensor = sensors.FirstOrDefault(s => s.Name == "cpu.load.15m");
-                    if (load15mSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = load15mSensor.ResourceId,
-                            Value = loadAvg.Value.FifteenMinute
-                        });
-                    }
-                }
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                // macOS: Use sysctl for load averages
+                metrics.Cores = GetMacOSCpuCores();
+                var loadAvg = GetMacOSLoadAverage();
+                metrics.Load1 = loadAvg.load1;
+                metrics.Load5 = loadAvg.load5;
+                metrics.Load15 = loadAvg.load15;
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                // Windows: Basic CPU info
+                metrics.Cores = GetWindowsCpuCores();
             }
         }
         catch (Exception ex)
@@ -115,154 +96,228 @@ public class SystemResourceCollector
             _logger.LogWarning(ex, "Failed to collect CPU metrics");
         }
 
-        return measures;
+        return metrics;
     }
 
-    /// <summary>
-    /// Collects memory usage metrics (total, used, available, cached).
-    /// </summary>
-    public async Task<List<TelemetryMeasure>> CollectMemoryMetricsAsync(List<Sensor> sensors, CancellationToken ct)
+    private static List<CpuCoreMetrics> ParseLinuxCpuStats(string statContent)
     {
-        var measures = new List<TelemetryMeasure>();
+        var cores = new List<CpuCoreMetrics>();
+        var lines = statContent.Split('\n');
 
+        foreach (var line in lines)
+        {
+            // Match cpu0, cpu1, etc. (not the aggregate "cpu" line)
+            if (line.StartsWith("cpu") && line.Length > 3 && char.IsDigit(line[3]))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 8)
+                {
+                    var coreNum = int.Parse(parts[0][3..]);
+                    // Values are in USER_HZ (typically 100), convert to seconds
+                    const double userHz = 100.0;
+
+                    cores.Add(new CpuCoreMetrics
+                    {
+                        CoreNumber = coreNum,
+                        SecondsUser = long.Parse(parts[1]) / userHz,
+                        SecondsNice = long.Parse(parts[2]) / userHz,
+                        SecondsSystem = long.Parse(parts[3]) / userHz,
+                        SecondsIdle = long.Parse(parts[4]) / userHz,
+                        SecondsIowait = parts.Length > 5 ? long.Parse(parts[5]) / userHz : 0,
+                        SecondsIrq = parts.Length > 6 ? long.Parse(parts[6]) / userHz : 0,
+                        SecondsSoftirq = parts.Length > 7 ? long.Parse(parts[7]) / userHz : 0,
+                        SecondsSteal = parts.Length > 8 ? long.Parse(parts[8]) / userHz : 0
+                    });
+                }
+            }
+        }
+
+        return cores;
+    }
+
+    private static long ParseContextSwitches(string statContent)
+    {
+        var lines = statContent.Split('\n');
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("ctxt "))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && long.TryParse(parts[1], out var ctxt))
+                {
+                    return ctxt;
+                }
+            }
+        }
+        return 0;
+    }
+
+    private static List<CpuCoreMetrics> GetMacOSCpuCores()
+    {
+        var cores = new List<CpuCoreMetrics>();
+        var coreCount = Environment.ProcessorCount;
+
+        // macOS doesn't expose per-core stats easily without native code
+        // Return placeholder cores with zero values
+        for (int i = 0; i < coreCount; i++)
+        {
+            cores.Add(new CpuCoreMetrics { CoreNumber = i });
+        }
+
+        return cores;
+    }
+
+    private (double load1, double load5, double load15) GetMacOSLoadAverage()
+    {
         try
         {
-            // GC memory info (cross-platform)
-            var gcInfo = GC.GetGCMemoryInfo();
-
-            var totalSensor = sensors.FirstOrDefault(s => s.Name == "memory.total");
-            if (totalSensor != null)
+            // Use getloadavg via process
+            var psi = new ProcessStartInfo("sysctl", "-n vm.loadavg")
             {
-                measures.Add(new TelemetryMeasure
-                {
-                    ResourceId = totalSensor.ResourceId,
-                    Value = gcInfo.TotalAvailableMemoryBytes
-                });
-            }
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
 
-            // Process memory (cross-platform)
-            var currentProcess = Process.GetCurrentProcess();
-            var usedSensor = sensors.FirstOrDefault(s => s.Name == "memory.used");
-            if (usedSensor != null)
+            using var process = Process.Start(psi);
+            if (process != null)
             {
-                measures.Add(new TelemetryMeasure
-                {
-                    ResourceId = usedSensor.ResourceId,
-                    Value = currentProcess.WorkingSet64
-                });
-            }
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
 
-            // Linux-specific memory details
-            if (OperatingSystem.IsLinux())
-            {
-                var memInfo = await ReadLinuxMemInfoAsync(ct);
-
-                if (memInfo.TryGetValue("MemAvailable", out var memAvailable))
+                // Output format: "{ 1.23 4.56 7.89 }"
+                var cleaned = output.Replace("{", "").Replace("}", "").Trim();
+                var parts = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 3)
                 {
-                    var availableSensor = sensors.FirstOrDefault(s => s.Name == "memory.available");
-                    if (availableSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = availableSensor.ResourceId,
-                            Value = memAvailable * 1024 // KB to bytes
-                        });
-                    }
-                }
-
-                if (memInfo.TryGetValue("Cached", out var cached))
-                {
-                    var cachedSensor = sensors.FirstOrDefault(s => s.Name == "memory.cached");
-                    if (cachedSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = cachedSensor.ResourceId,
-                            Value = cached * 1024
-                        });
-                    }
-                }
-
-                if (memInfo.TryGetValue("Buffers", out var buffers))
-                {
-                    var buffersSensor = sensors.FirstOrDefault(s => s.Name == "memory.buffers");
-                    if (buffersSensor != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = buffersSensor.ResourceId,
-                            Value = buffers * 1024
-                        });
-                    }
+                    return (
+                        double.Parse(parts[0]),
+                        double.Parse(parts[1]),
+                        double.Parse(parts[2])
+                    );
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to collect memory metrics");
+            _logger.LogWarning(ex, "Failed to get macOS load average");
         }
 
-        return measures;
+        return (0, 0, 0);
     }
 
-    /// <summary>
-    /// Collects disk usage metrics for all mounted drives.
-    /// </summary>
-    public Task<List<TelemetryMeasure>> CollectDiskMetricsAsync(List<Sensor> sensors, CancellationToken ct)
+    private static List<CpuCoreMetrics> GetWindowsCpuCores()
     {
-        var measures = new List<TelemetryMeasure>();
+        var cores = new List<CpuCoreMetrics>();
+        var coreCount = Environment.ProcessorCount;
+
+        for (int i = 0; i < coreCount; i++)
+        {
+            cores.Add(new CpuCoreMetrics { CoreNumber = i });
+        }
+
+        return cores;
+    }
+
+    private async Task<RamMetrics> CollectRamMetricsAsync(CancellationToken ct)
+    {
+        var metrics = new RamMetrics();
 
         try
         {
-            var drives = DriveInfo.GetDrives();
+            if (OperatingSystem.IsLinux())
+            {
+                var memInfo = await ReadLinuxMemInfoAsync(ct);
 
+                metrics.MemAvailableBytes = memInfo.GetValueOrDefault("MemAvailable", 0) * 1024;
+                metrics.MemFreeBytes = memInfo.GetValueOrDefault("MemFree", 0) * 1024;
+                metrics.BuffersBytes = memInfo.GetValueOrDefault("Buffers", 0) * 1024;
+                metrics.CachedBytes = memInfo.GetValueOrDefault("Cached", 0) * 1024;
+                metrics.SwapTotalBytes = memInfo.GetValueOrDefault("SwapTotal", 0) * 1024;
+                metrics.SwapFreeBytes = memInfo.GetValueOrDefault("SwapFree", 0) * 1024;
+            }
+            else
+            {
+                // Cross-platform fallback using GC info
+                var gcInfo = GC.GetGCMemoryInfo();
+                metrics.MemAvailableBytes = gcInfo.TotalAvailableMemoryBytes;
+                metrics.MemFreeBytes = gcInfo.TotalAvailableMemoryBytes - Process.GetCurrentProcess().WorkingSet64;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to collect RAM metrics");
+        }
+
+        return metrics;
+    }
+
+    private static async Task<Dictionary<string, long>> ReadLinuxMemInfoAsync(CancellationToken ct)
+    {
+        var result = new Dictionary<string, long>();
+        var lines = await File.ReadAllLinesAsync("/proc/meminfo", ct);
+
+        foreach (var line in lines)
+        {
+            var parts = line.Split(':', StringSplitOptions.TrimEntries);
+            if (parts.Length == 2)
+            {
+                var key = parts[0];
+                var value = parts[1].Replace(" kB", "").Trim();
+                if (long.TryParse(value, out var numValue))
+                {
+                    result[key] = numValue;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<List<DiskMetrics>> CollectDiskMetricsAsync(CancellationToken ct)
+    {
+        var diskList = new List<DiskMetrics>();
+
+        try
+        {
+            // Collect filesystem metrics from DriveInfo (cross-platform)
+            var drives = DriveInfo.GetDrives();
             foreach (var drive in drives.Where(d => d.IsReady))
             {
-                var driveName = NormalizeDriveName(drive.Name);
-
-                // Total space
-                var totalSensor = sensors.FirstOrDefault(s => s.Name == $"disk.{driveName}.total");
-                if (totalSensor != null)
+                var deviceName = NormalizeDriveName(drive.Name);
+                var disk = new DiskMetrics
                 {
-                    measures.Add(new TelemetryMeasure
+                    DeviceName = deviceName,
+                    MountPoint = drive.Name,
+                    FilesystemAvailBytes = drive.AvailableFreeSpace,
+                    FilesystemFreeBytes = drive.TotalFreeSpace
+                };
+
+                diskList.Add(disk);
+            }
+
+            // Linux-specific: Read I/O stats from /proc/diskstats
+            if (OperatingSystem.IsLinux())
+            {
+                var diskStats = await ReadLinuxDiskStatsAsync(ct);
+                foreach (var disk in diskList)
+                {
+                    if (diskStats.TryGetValue(disk.DeviceName, out var stats))
                     {
-                        ResourceId = totalSensor.ResourceId,
-                        Value = drive.TotalSize
-                    });
+                        disk.ReadsCompletedTotal = stats.ReadsCompleted;
+                        disk.WritesCompletedTotal = stats.WritesCompleted;
+                        disk.ReadBytesTotal = stats.SectorsRead * 512;
+                        disk.WrittenBytesTotal = stats.SectorsWritten * 512;
+                        disk.IOTimeSecondsTotal = stats.IoTimeMs / 1000;
+                    }
                 }
 
-                // Used space
-                var usedSensor = sensors.FirstOrDefault(s => s.Name == $"disk.{driveName}.used");
-                if (usedSensor != null)
+                // Read inode info from statfs
+                foreach (var disk in diskList)
                 {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = usedSensor.ResourceId,
-                        Value = drive.TotalSize - drive.AvailableFreeSpace
-                    });
-                }
-
-                // Available space
-                var availableSensor = sensors.FirstOrDefault(s => s.Name == $"disk.{driveName}.available");
-                if (availableSensor != null)
-                {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = availableSensor.ResourceId,
-                        Value = drive.AvailableFreeSpace
-                    });
-                }
-
-                // Usage percentage
-                var usagePercentSensor = sensors.FirstOrDefault(s => s.Name == $"disk.{driveName}.usage_percent");
-                if (usagePercentSensor != null && drive.TotalSize > 0)
-                {
-                    var usagePercent = (double)(drive.TotalSize - drive.AvailableFreeSpace) / drive.TotalSize * 100;
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = usagePercentSensor.ResourceId,
-                        Value = Math.Round(usagePercent, 2)
-                    });
+                    var inodeInfo = GetLinuxInodeInfo(disk.MountPoint);
+                    disk.FilesystemFiles = inodeInfo.total;
+                    disk.FilesystemFilesFree = inodeInfo.free;
                 }
             }
         }
@@ -271,15 +326,50 @@ public class SystemResourceCollector
             _logger.LogWarning(ex, "Failed to collect disk metrics");
         }
 
-        return Task.FromResult(measures);
+        return diskList;
     }
 
-    /// <summary>
-    /// Collects network interface metrics (bytes sent/received, packets, errors).
-    /// </summary>
-    public Task<List<TelemetryMeasure>> CollectNetworkMetricsAsync(List<Sensor> sensors, CancellationToken ct)
+    private static async Task<Dictionary<string, DiskIoStats>> ReadLinuxDiskStatsAsync(CancellationToken ct)
     {
-        var measures = new List<TelemetryMeasure>();
+        var result = new Dictionary<string, DiskIoStats>();
+
+        try
+        {
+            var lines = await File.ReadAllLinesAsync("/proc/diskstats", ct);
+            foreach (var line in lines)
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 14)
+                {
+                    var deviceName = parts[2];
+                    result[deviceName] = new DiskIoStats
+                    {
+                        ReadsCompleted = long.Parse(parts[3]),
+                        SectorsRead = long.Parse(parts[5]),
+                        WritesCompleted = long.Parse(parts[7]),
+                        SectorsWritten = long.Parse(parts[9]),
+                        IoTimeMs = long.Parse(parts[12])
+                    };
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors reading disk stats
+        }
+
+        return result;
+    }
+
+    private static (long total, long free) GetLinuxInodeInfo(string _)
+    {
+        // This would require P/Invoke to statvfs, return 0 for now
+        return (0, 0);
+    }
+
+    private List<NetworkMetrics> CollectNetworkMetrics()
+    {
+        var networks = new List<NetworkMetrics>();
 
         try
         {
@@ -287,63 +377,15 @@ public class SystemResourceCollector
 
             foreach (var iface in interfaces.Where(i => i.OperationalStatus == OperationalStatus.Up))
             {
-                var ifaceName = SanitizeInterfaceName(iface.Name);
                 var stats = iface.GetIPv4Statistics();
-
-                // Bytes sent
-                var sentSensor = sensors.FirstOrDefault(s => s.Name == $"network.{ifaceName}.bytes_sent");
-                if (sentSensor != null)
+                networks.Add(new NetworkMetrics
                 {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = sentSensor.ResourceId,
-                        Value = stats.BytesSent
-                    });
-                }
-
-                // Bytes received
-                var receivedSensor = sensors.FirstOrDefault(s => s.Name == $"network.{ifaceName}.bytes_received");
-                if (receivedSensor != null)
-                {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = receivedSensor.ResourceId,
-                        Value = stats.BytesReceived
-                    });
-                }
-
-                // Packets sent
-                var packetsSentSensor = sensors.FirstOrDefault(s => s.Name == $"network.{ifaceName}.packets_sent");
-                if (packetsSentSensor != null)
-                {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = packetsSentSensor.ResourceId,
-                        Value = stats.UnicastPacketsSent
-                    });
-                }
-
-                // Packets received
-                var packetsReceivedSensor = sensors.FirstOrDefault(s => s.Name == $"network.{ifaceName}.packets_received");
-                if (packetsReceivedSensor != null)
-                {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = packetsReceivedSensor.ResourceId,
-                        Value = stats.UnicastPacketsReceived
-                    });
-                }
-
-                // Errors
-                var errorsSensor = sensors.FirstOrDefault(s => s.Name == $"network.{ifaceName}.errors");
-                if (errorsSensor != null)
-                {
-                    measures.Add(new TelemetryMeasure
-                    {
-                        ResourceId = errorsSensor.ResourceId,
-                        Value = stats.IncomingPacketsWithErrors + stats.OutgoingPacketsWithErrors
-                    });
-                }
+                    InterfaceName = SanitizeInterfaceName(iface.Name),
+                    ReceiveBytesTotal = stats.BytesReceived,
+                    TransmitBytesTotal = stats.BytesSent,
+                    ReceiveErrsTotal = stats.IncomingPacketsWithErrors,
+                    TransmitErrsTotal = stats.OutgoingPacketsWithErrors
+                });
             }
         }
         catch (Exception ex)
@@ -351,109 +393,158 @@ public class SystemResourceCollector
             _logger.LogWarning(ex, "Failed to collect network metrics");
         }
 
-        return Task.FromResult(measures);
+        return networks;
     }
 
-    // Linux-specific helpers
+    private async Task<SystemMetrics> CollectSystemMetricsAsync(CancellationToken ct)
+    {
+        var metrics = new SystemMetrics
+        {
+            TimeSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            BootTimeSeconds = BootTimeSeconds
+        };
 
-    private async Task<Dictionary<int, double>> ReadLinuxCpuStatsAsync(CancellationToken ct)
+        try
+        {
+            if (OperatingSystem.IsLinux())
+            {
+                // Read /proc/stat for procs_running, procs_blocked, intr
+                var statContent = await File.ReadAllTextAsync("/proc/stat", ct);
+                var lines = statContent.Split('\n');
+
+                foreach (var line in lines)
+                {
+                    if (line.StartsWith("procs_running "))
+                    {
+                        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2) metrics.ProcsRunning = int.Parse(parts[1]);
+                    }
+                    else if (line.StartsWith("procs_blocked "))
+                    {
+                        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2) metrics.ProcsBlocked = int.Parse(parts[1]);
+                    }
+                    else if (line.StartsWith("intr "))
+                    {
+                        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2) metrics.IntrTotal = long.Parse(parts[1]);
+                    }
+                }
+
+                // Read file descriptor info from /proc/sys/fs/file-nr
+                try
+                {
+                    var fileNr = await File.ReadAllTextAsync("/proc/sys/fs/file-nr", ct);
+                    var parts = fileNr.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 3)
+                    {
+                        metrics.FilefdAllocated = long.Parse(parts[0]);
+                        metrics.FilefdMaximum = long.Parse(parts[2].Trim());
+                    }
+                }
+                catch
+                {
+                    // Ignore errors reading file-nr
+                }
+            }
+            else
+            {
+                // Cross-platform: Count processes
+                metrics.ProcsRunning = Process.GetProcesses().Length;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to collect system metrics");
+        }
+
+        return metrics;
+    }
+
+    private GpuMetrics CollectGpuMetrics()
+    {
+        var metrics = new GpuMetrics();
+
+        try
+        {
+            // GPU metrics typically require NVIDIA SMI or similar tools
+            // For now, return 0 - can be extended with nvidia-smi parsing
+            if (OperatingSystem.IsLinux())
+            {
+                var utilization = TryGetNvidiaGpuUtilization();
+                metrics.Utilization = utilization;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to collect GPU metrics");
+        }
+
+        return metrics;
+    }
+
+    private static int TryGetNvidiaGpuUtilization()
     {
         try
         {
-            var stats = await File.ReadAllTextAsync("/proc/stat", ct);
-            var lines = stats.Split('\n');
-            var result = new Dictionary<int, double>();
-
-            foreach (var line in lines)
+            var psi = new ProcessStartInfo("nvidia-smi", "--query-gpu=utilization.gpu --format=csv,noheader,nounits")
             {
-                if (line.StartsWith("cpu") && line.Length > 3 && char.IsDigit(line[3]))
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process != null)
+            {
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit();
+
+                if (int.TryParse(output, out var utilization))
                 {
-                    var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    var coreNum = int.Parse(parts[0][3..]);
-                    var user = long.Parse(parts[1]);
-                    var nice = long.Parse(parts[2]);
-                    var system = long.Parse(parts[3]);
-                    var idle = long.Parse(parts[4]);
+                    return utilization;
+                }
+            }
+        }
+        catch
+        {
+            // nvidia-smi not available or failed
+        }
 
-                    var total = user + nice + system + idle;
+        return 0;
+    }
 
-                    // Calculate usage based on change from last measurement
-                    if (_lastCoreStats.TryGetValue(coreNum, out var lastStats))
+    private static long CalculateBootTimeSeconds()
+    {
+        try
+        {
+            if (OperatingSystem.IsLinux())
+            {
+                // Read /proc/stat for btime
+                var content = File.ReadAllText("/proc/stat");
+                var lines = content.Split('\n');
+                foreach (var line in lines)
+                {
+                    if (line.StartsWith("btime "))
                     {
-                        var totalDelta = total - lastStats.Total;
-                        var idleDelta = idle - lastStats.Idle;
-                        var usage = totalDelta > 0 ? (double)(totalDelta - idleDelta) / totalDelta * 100 : 0;
-                        result[coreNum] = usage;
+                        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && long.TryParse(parts[1], out var btime))
+                        {
+                            return btime;
+                        }
                     }
-
-                    _lastCoreStats[coreNum] = new CpuCoreStats { Total = total, Idle = idle };
                 }
             }
 
-            return result;
+            // Fallback: Calculate from uptime
+            var uptime = Environment.TickCount64 / 1000;
+            return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - uptime;
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning(ex, "Failed to read /proc/stat");
-            return new Dictionary<int, double>();
+            return 0;
         }
     }
-
-    private async Task<LoadAverage?> ReadLinuxLoadAverageAsync(CancellationToken ct)
-    {
-        try
-        {
-            var content = await File.ReadAllTextAsync("/proc/loadavg", ct);
-            var parts = content.Split(' ');
-            if (parts.Length >= 3)
-            {
-                return new LoadAverage
-                {
-                    OneMinute = double.Parse(parts[0]),
-                    FiveMinute = double.Parse(parts[1]),
-                    FifteenMinute = double.Parse(parts[2])
-                };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read /proc/loadavg");
-        }
-
-        return null;
-    }
-
-    private async Task<Dictionary<string, long>> ReadLinuxMemInfoAsync(CancellationToken ct)
-    {
-        try
-        {
-            var result = new Dictionary<string, long>();
-            var lines = await File.ReadAllLinesAsync("/proc/meminfo", ct);
-
-            foreach (var line in lines)
-            {
-                var parts = line.Split(':', StringSplitOptions.TrimEntries);
-                if (parts.Length == 2)
-                {
-                    var key = parts[0];
-                    var value = parts[1].Replace(" kB", "").Trim();
-                    if (long.TryParse(value, out var numValue))
-                    {
-                        result[key] = numValue;
-                    }
-                }
-            }
-
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read /proc/meminfo");
-            return new Dictionary<string, long>();
-        }
-    }
-
-    // Helper methods
 
     private static string NormalizeDriveName(string driveName)
     {
@@ -461,8 +552,8 @@ public class SystemResourceCollector
         if (string.IsNullOrEmpty(normalized) || normalized == "/")
             return "root";
         if (normalized.EndsWith(':'))
-            return normalized.TrimEnd(':');
-        return normalized.Replace("/", "_");
+            return normalized.TrimEnd(':').ToLowerInvariant();
+        return normalized.Replace("/", "_").TrimStart('_');
     }
 
     private static string SanitizeInterfaceName(string name)
@@ -470,16 +561,12 @@ public class SystemResourceCollector
         return name.Replace(" ", "_").Replace("-", "_").ToLowerInvariant();
     }
 
-    private record struct CpuCoreStats
+    private record struct DiskIoStats
     {
-        public long Total { get; init; }
-        public long Idle { get; init; }
-    }
-
-    private record struct LoadAverage
-    {
-        public double OneMinute { get; init; }
-        public double FiveMinute { get; init; }
-        public double FifteenMinute { get; init; }
+        public long ReadsCompleted { get; init; }
+        public long SectorsRead { get; init; }
+        public long WritesCompleted { get; init; }
+        public long SectorsWritten { get; init; }
+        public long IoTimeMs { get; init; }
     }
 }

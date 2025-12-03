@@ -12,8 +12,17 @@ try
 
     using var context = new WedaApplicationContext(configuration, deviceConfigKey: "SystemMonitorDeviceConfig");
     var config = context.DeviceConfiguration ?? throw new InvalidOperationException("Device configuration not found");
-    var communication = new NullCommunication();
-    var device = new SystemMonitorDevice(context, config, communication);
+
+    // Create communication and parser following Device -> Parser -> Communication architecture
+    var communication = new LocalSystemCommunication(
+        config.ConnectionSettings,
+        context.GetLogger<LocalSystemCommunication>());
+
+    var parser = new SystemMetricsParser(
+        communication,
+        context.GetLogger<SystemMetricsParser>());
+
+    var device = new SystemMonitorDevice(context, config, parser);
 
     if (!await device.InitializeAsync())
     {
