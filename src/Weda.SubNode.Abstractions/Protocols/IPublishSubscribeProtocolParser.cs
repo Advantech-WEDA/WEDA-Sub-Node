@@ -8,43 +8,41 @@ namespace Weda.SubNode.Abstractions.Protocols;
 /// Publish-Subscribe pattern protocol parser.
 /// Used for asynchronous protocols where data is pushed to device via subscriptions.
 /// Examples: MQTT, NATS, AMQP, Kafka, WebSocket
+///
+/// Parser is responsible for:
+/// - Communication with the message broker
+/// - Protocol-specific parsing logic
+/// - Mapping protocol fields to ResourceIds (internally using DeviceConfiguration)
 /// </summary>
 public interface IPublishSubscribeProtocolParser : IProtocolParserCore
 {
     /// <summary>
-    /// Subscribe to sensor data (asynchronous push).
-    /// Parser subscribes to topics/channels and invokes callback when data arrives.
+    /// Event raised when telemetry data is received from subscription.
+    /// Parser internally handles all mapping logic using DeviceConfiguration.
     /// </summary>
-    /// <param name="sensorMapping">Mapping from protocol fields to ResourceIds</param>
-    /// <param name="callback">Callback function invoked when sensor data arrives</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Subscription task (completes when subscription is established)</returns>
-    Task SubscribeToSensorDataAsync(
-        SensorMapping sensorMapping,
-        Action<List<TelemetryMeasure>> callback,
-        CancellationToken cancellationToken = default);
+    event Action<List<TelemetryMeasure>>? OnTelemetryReceived;
 
     /// <summary>
-    /// Unsubscribe from sensor data.
+    /// Start subscription to receive telemetry data.
+    /// Parser subscribes to topics/channels and raises OnTelemetryReceived when data arrives.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task UnsubscribeFromSensorDataAsync(CancellationToken cancellationToken = default);
+    /// <returns>Task that completes when subscription is established</returns>
+    Task StartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Publish command to device (fire-and-forget, no response confirmation).
+    /// Stop subscription and clean up resources.
     /// </summary>
-    /// <param name="command">Device command to publish</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task PublishCommandAsync(
+    Task StopAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Execute command on device (publish to command topic).
+    /// </summary>
+    /// <param name="command">Device command to execute</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Command execution result or error</returns>
+    Task<ErrorOr<object>> ExecuteCommandAsync(
         DeviceCommand command,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Subscribe to command responses (if protocol supports bidirectional command flow).
-    /// </summary>
-    /// <param name="callback">Callback function invoked when command response arrives</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task SubscribeToCommandResponseAsync(
-        Action<ErrorOr<object>> callback,
         CancellationToken cancellationToken = default);
 }

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using Weda.SubNode.Host.Context;
-using SystemMonitorExample;
+using WebSocketStreamingExample;
 
 try
 {
@@ -10,19 +10,25 @@ try
         .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
         .Build();
 
-    using var context = new WedaApplicationContext(configuration, deviceConfigKey: "SystemMonitorDeviceConfig");
+    using var context = new WedaApplicationContext(configuration, deviceConfigKey: "WebSocketStreamingDeviceConfig");
     var config = context.DeviceConfiguration ?? throw new InvalidOperationException("Device configuration not found");
 
-    var device = new SystemMonitorDevice(context, config);
+    // Get WebSocket URI from configuration
+    var webSocketUri = configuration["WebSocket:Uri"]
+        ?? throw new InvalidOperationException("WebSocket URI not configured");
+
+    // Create device using inheritance pattern (new architecture)
+    // WebSocketStreamingDevice -> StreamingDeviceBase -> DeviceBase
+    var device = new WebSocketStreamingDevice(context, config, webSocketUri);
 
     if (!await device.InitializeAsync())
     {
-        Log.Error("Failed to initialize system monitor");
+        Log.Error("Failed to initialize WebSocket streaming device");
         return;
     }
 
     await device.StartAsync();
-    Log.Information("System monitor started. Press Ctrl+C to stop...");
+    Log.Information("WebSocket streaming device started. Press Ctrl+C to stop...");
 
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
@@ -41,11 +47,11 @@ try
 }
 catch (OperationCanceledException)
 {
-    Log.Information("System monitor stopped");
+    Log.Information("WebSocket streaming device stopped");
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "System monitor terminated unexpectedly");
+    Log.Fatal(ex, "WebSocket streaming device terminated unexpectedly");
 }
 finally
 {

@@ -8,19 +8,21 @@ namespace Weda.SubNode.Abstractions.Protocols;
 /// Request-Response pattern protocol parser.
 /// Used for synchronous protocols where device actively polls/requests data.
 /// Examples: Modbus TCP/RTU, OPC-UA Read, REST API, BACnet
+///
+/// Parser is responsible for:
+/// - Communication with the device
+/// - Protocol-specific parsing logic
+/// - Mapping protocol fields to ResourceIds (internally using DeviceConfiguration)
 /// </summary>
 public interface IRequestResponseProtocolParser : IProtocolParserCore
 {
     /// <summary>
-    /// Read sensor data synchronously (request-response).
-    /// Device calls this method and immediately gets back sensor data.
+    /// Read telemetry data synchronously (request-response).
+    /// Parser internally handles all mapping logic using DeviceConfiguration.
     /// </summary>
-    /// <param name="sensorMapping">Mapping from protocol fields to ResourceIds</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of telemetry measures</returns>
-    Task<List<TelemetryMeasure>> ReadSensorDataAsync(
-        SensorMapping sensorMapping,
-        CancellationToken cancellationToken = default);
+    /// <returns>List of telemetry measures with ResourceIds</returns>
+    Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Execute command synchronously (request-response).

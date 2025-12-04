@@ -29,6 +29,7 @@ public class MyFirstDevice : TcpModbusDevice
         : base(context)
     {
         // Subscribe to DataReceived event to process telemetry
+        EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;
     }
 

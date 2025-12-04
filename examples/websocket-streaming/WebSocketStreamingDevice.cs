@@ -3,59 +3,62 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
+using Weda.SubNode.Core;
+using Weda.SubNode.Core.Communication;
 using Weda.SubNode.Core.Devices;
 
-namespace SystemMonitorExample;
+namespace WebSocketStreamingExample;
 
 /// <summary>
-/// System resource monitoring device that collects CPU, memory, disk, and network metrics.
-/// Inherits from RequestResponseDeviceBase for Request/Response communication pattern.
+/// WebSocket streaming device that demonstrates streaming communication pattern.
+/// Inherits from StreamingDeviceBase for Streaming communication pattern.
 ///
 /// Architecture: Device -> Parser -> Communication
-/// Inheritance: SystemMonitorDevice -> RequestResponseDeviceBase -> DeviceBase
+/// Inheritance: WebSocketStreamingDevice -> StreamingDeviceBase -> DeviceBase
 /// </summary>
-public class SystemMonitorDevice : RequestResponseDeviceBase
+public class WebSocketStreamingDevice : StreamingDeviceBase
 {
     /// <summary>
-    /// Initializes a new instance of SystemMonitorDevice.
+    /// Initializes a new instance of WebSocketStreamingDevice.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing sensor settings.</param>
-    public SystemMonitorDevice(
+    /// <param name="webSocketUri">WebSocket server URI to connect to.</param>
+    public WebSocketStreamingDevice(
         IWedaApplicationContext context,
-        DeviceConfiguration configuration)
-        : base(context, configuration, CreateParser(context, configuration))
+        DeviceConfiguration configuration,
+        string webSocketUri)
+        : base(context, configuration, CreateParser(context, configuration, webSocketUri))
     {
         _logger.LogDebug(
-            "SystemMonitorDevice initialized ({SensorCount} sensors)",
-            configuration.Sensors.Count);
+            "WebSocketStreamingDevice initialized ({SensorCount} sensors, Uri={Uri})",
+            configuration.Sensors.Count,
+            webSocketUri);
 
         EnableDataReceivedTracking = true;
-        DataReceived += OnDataReceived;      
+        DataReceived += OnDataReceived;
     }
 
     /// <summary>
-    /// Creates the SystemMetricsParser for this device.
+    /// Creates the WebSocketStreamingParser for this device.
     /// </summary>
-    private static IRequestResponseProtocolParser CreateParser(
+    private static IStreamingProtocolParser CreateParser(
         IWedaApplicationContext context,
-        DeviceConfiguration configuration)
+        DeviceConfiguration configuration,
+        string webSocketUri)
     {
         var loggerFactory = context.LoggerFactory;
-        var communication = new LocalSystemCommunication(
+        var communication = new WebSocketCommunication(
+            webSocketUri,
             configuration.ConnectionSettings,
-            loggerFactory.CreateLogger<LocalSystemCommunication>());
+            loggerFactory.CreateLogger<CommunicationBase>());
 
-        return new SystemMetricsParser(
+        return new WebSocketStreamingParser(
             configuration,
             communication,
-            loggerFactory.CreateLogger<SystemMetricsParser>());
+            loggerFactory.CreateLogger<WebSocketStreamingParser>());
     }
 
-        /// <summary>
-    /// Event handler for telemetry data received from device
-    /// Prints all sensor values from configuration (channel.0~3)
-    /// </summary>
     private void OnDataReceived(object? sender, DataReceivedEvent e)
     {
         _logger.LogDebug("MyFirstDevice: Data received, Count={Count}", e.Data.Count);

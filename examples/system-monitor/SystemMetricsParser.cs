@@ -10,18 +10,22 @@ namespace SystemMonitorExample;
 /// <summary>
 /// Protocol parser for system metrics.
 /// Converts raw system metrics data to TelemetryMeasure.
+/// Parser owns DeviceConfiguration and handles all mapping logic internally.
 /// Architecture: Device -> Parser -> Communication (SystemResourceCollector)
 /// </summary>
 public class SystemMetricsParser : IRequestResponseProtocolParser
 {
+    private readonly DeviceConfiguration _configuration;
     private readonly LocalSystemCommunication _communication;
     private readonly SystemResourceCollector _collector;
     private readonly ILogger<SystemMetricsParser> _logger;
 
     public SystemMetricsParser(
+        DeviceConfiguration configuration,
         LocalSystemCommunication communication,
         ILogger<SystemMetricsParser> logger)
     {
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _collector = new SystemResourceCollector(logger);
@@ -35,9 +39,11 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
 
     public bool SupportsBidirectional => false;
 
-    public async Task<List<TelemetryMeasure>> ReadSensorDataAsync(
-        SensorMapping sensorMapping,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Read telemetry data from system resources.
+    /// Parser internally handles all mapping logic using DeviceConfiguration.
+    /// </summary>
+    public async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         if (!_communication.IsConnected)
         {
@@ -50,8 +56,8 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             // Collect raw metrics from system
             var rawData = await _collector.CollectAllMetricsAsync(cancellationToken);
 
-            // Convert raw data to telemetry measures using sensor mapping
-            return ConvertToTelemetryMeasures(rawData, sensorMapping);
+            // Convert raw data to telemetry measures using configuration
+            return ConvertToTelemetryMeasures(rawData);
         }
         catch (Exception ex)
         {
@@ -80,89 +86,95 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         return Task.FromResult(false);
     }
 
-    private List<TelemetryMeasure> ConvertToTelemetryMeasures(
-        SystemMetricsRawData rawData,
-        SensorMapping sensorMapping)
+    /// <summary>
+    /// Convert raw system metrics to TelemetryMeasures using DeviceConfiguration.
+    /// </summary>
+    private List<TelemetryMeasure> ConvertToTelemetryMeasures(SystemMetricsRawData rawData)
     {
         var measures = new List<TelemetryMeasure>();
+
+        // Build sensor lookup from configuration (enabled sensors only)
+        var sensorLookup = _configuration.Sensors
+            .Where(s => s.Config.Enabled)
+            .ToDictionary(s => s.Name, s => s.ResourceId);
 
         // CPU metrics (per core)
         foreach (var core in rawData.Cpu.Cores)
         {
             var corePrefix = $"cpu{core.CoreNumber}";
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsUser", core.SecondsUser);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsNice", core.SecondsNice);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsSystem", core.SecondsSystem);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsIdle", core.SecondsIdle);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsIowait", core.SecondsIowait);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsIrq", core.SecondsIrq);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsSoftirq", core.SecondsSoftirq);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsSteal", core.SecondsSteal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{corePrefix}.cpuSecondsTotal", core.SecondsTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsUser", core.SecondsUser);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsNice", core.SecondsNice);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsSystem", core.SecondsSystem);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsIdle", core.SecondsIdle);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsIowait", core.SecondsIowait);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsIrq", core.SecondsIrq);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsSoftirq", core.SecondsSoftirq);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsSteal", core.SecondsSteal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{corePrefix}.cpuSecondsTotal", core.SecondsTotal);
         }
 
         // CPU load averages
-        AddMeasureIfMapped(measures, sensorMapping, "cpu.cpuLoad1", rawData.Cpu.Load1);
-        AddMeasureIfMapped(measures, sensorMapping, "cpu.cpuLoad5", rawData.Cpu.Load5);
-        AddMeasureIfMapped(measures, sensorMapping, "cpu.cpuLoad15", rawData.Cpu.Load15);
-        AddMeasureIfMapped(measures, sensorMapping, "cpu.cpuContextSwitchesTotal", rawData.Cpu.ContextSwitchesTotal);
+        AddMeasureIfEnabled(measures, sensorLookup, "cpu.cpuLoad1", rawData.Cpu.Load1);
+        AddMeasureIfEnabled(measures, sensorLookup, "cpu.cpuLoad5", rawData.Cpu.Load5);
+        AddMeasureIfEnabled(measures, sensorLookup, "cpu.cpuLoad15", rawData.Cpu.Load15);
+        AddMeasureIfEnabled(measures, sensorLookup, "cpu.cpuContextSwitchesTotal", rawData.Cpu.ContextSwitchesTotal);
 
         // GPU metrics
-        AddMeasureIfMapped(measures, sensorMapping, "gpu.gpuUtilization", rawData.Gpu.Utilization);
+        AddMeasureIfEnabled(measures, sensorLookup, "gpu.gpuUtilization", rawData.Gpu.Utilization);
 
         // RAM metrics
-        AddMeasureIfMapped(measures, sensorMapping, "ram.ramMemAvailableBytes", rawData.Ram.MemAvailableBytes);
-        AddMeasureIfMapped(measures, sensorMapping, "ram.ramMemFreeBytes", rawData.Ram.MemFreeBytes);
-        AddMeasureIfMapped(measures, sensorMapping, "ram.ramBuffersBytes", rawData.Ram.BuffersBytes);
-        AddMeasureIfMapped(measures, sensorMapping, "ram.ramCachedBytes", rawData.Ram.CachedBytes);
-        AddMeasureIfMapped(measures, sensorMapping, "ram.ramSwapTotalBytes", rawData.Ram.SwapTotalBytes);
-        AddMeasureIfMapped(measures, sensorMapping, "ram.ramSwapFreeBytes", rawData.Ram.SwapFreeBytes);
+        AddMeasureIfEnabled(measures, sensorLookup, "ram.ramMemAvailableBytes", rawData.Ram.MemAvailableBytes);
+        AddMeasureIfEnabled(measures, sensorLookup, "ram.ramMemFreeBytes", rawData.Ram.MemFreeBytes);
+        AddMeasureIfEnabled(measures, sensorLookup, "ram.ramBuffersBytes", rawData.Ram.BuffersBytes);
+        AddMeasureIfEnabled(measures, sensorLookup, "ram.ramCachedBytes", rawData.Ram.CachedBytes);
+        AddMeasureIfEnabled(measures, sensorLookup, "ram.ramSwapTotalBytes", rawData.Ram.SwapTotalBytes);
+        AddMeasureIfEnabled(measures, sensorLookup, "ram.ramSwapFreeBytes", rawData.Ram.SwapFreeBytes);
 
         // Disk metrics (per device)
         foreach (var disk in rawData.Disks)
         {
             var diskPrefix = $"disk.{disk.DeviceName}";
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskFilesystemAvailBytes", disk.FilesystemAvailBytes);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskFilesystemFreeBytes", disk.FilesystemFreeBytes);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskFilesystemFilesFree", disk.FilesystemFilesFree);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskFilesystemFiles", disk.FilesystemFiles);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskReadsCompletedTotal", disk.ReadsCompletedTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskWritesCompletedTotal", disk.WritesCompletedTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskReadBytesTotal", disk.ReadBytesTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskWrittenBytesTotal", disk.WrittenBytesTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{diskPrefix}.diskIOTimeSecondsTotal", disk.IOTimeSecondsTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskFilesystemAvailBytes", disk.FilesystemAvailBytes);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskFilesystemFreeBytes", disk.FilesystemFreeBytes);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskFilesystemFilesFree", disk.FilesystemFilesFree);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskFilesystemFiles", disk.FilesystemFiles);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskReadsCompletedTotal", disk.ReadsCompletedTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskWritesCompletedTotal", disk.WritesCompletedTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskReadBytesTotal", disk.ReadBytesTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskWrittenBytesTotal", disk.WrittenBytesTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{diskPrefix}.diskIOTimeSecondsTotal", disk.IOTimeSecondsTotal);
         }
 
         // Network metrics (per interface)
         foreach (var network in rawData.Networks)
         {
             var netPrefix = $"network.{network.InterfaceName}";
-            AddMeasureIfMapped(measures, sensorMapping, $"{netPrefix}.networkReceiveBytesTotal", network.ReceiveBytesTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{netPrefix}.networkTransmitBytesTotal", network.TransmitBytesTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{netPrefix}.networkReceiveErrsTotal", network.ReceiveErrsTotal);
-            AddMeasureIfMapped(measures, sensorMapping, $"{netPrefix}.networkTransmitErrsTotal", network.TransmitErrsTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{netPrefix}.networkReceiveBytesTotal", network.ReceiveBytesTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{netPrefix}.networkTransmitBytesTotal", network.TransmitBytesTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{netPrefix}.networkReceiveErrsTotal", network.ReceiveErrsTotal);
+            AddMeasureIfEnabled(measures, sensorLookup, $"{netPrefix}.networkTransmitErrsTotal", network.TransmitErrsTotal);
         }
 
         // System metrics
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemTimeSeconds", rawData.System.TimeSeconds);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemTimexOffsetSeconds", rawData.System.TimexOffsetSeconds);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemBootTimeSeconds", rawData.System.BootTimeSeconds);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemFilefdAllocated", rawData.System.FilefdAllocated);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemFilefdMaximum", rawData.System.FilefdMaximum);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemProcsRunning", rawData.System.ProcsRunning);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemProcsBlocked", rawData.System.ProcsBlocked);
-        AddMeasureIfMapped(measures, sensorMapping, "system.systemIntrTotal", rawData.System.IntrTotal);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemTimeSeconds", rawData.System.TimeSeconds);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemTimexOffsetSeconds", rawData.System.TimexOffsetSeconds);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemBootTimeSeconds", rawData.System.BootTimeSeconds);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemFilefdAllocated", rawData.System.FilefdAllocated);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemFilefdMaximum", rawData.System.FilefdMaximum);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemProcsRunning", rawData.System.ProcsRunning);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemProcsBlocked", rawData.System.ProcsBlocked);
+        AddMeasureIfEnabled(measures, sensorLookup, "system.systemIntrTotal", rawData.System.IntrTotal);
 
         return measures;
     }
 
-    private static void AddMeasureIfMapped(
+    private static void AddMeasureIfEnabled(
         List<TelemetryMeasure> measures,
-        SensorMapping sensorMapping,
-        string fieldName,
+        Dictionary<string, string> sensorLookup,
+        string sensorName,
         object value)
     {
-        if (sensorMapping.FieldToResourceId.TryGetValue(fieldName, out var resourceId))
+        if (sensorLookup.TryGetValue(sensorName, out var resourceId))
         {
             measures.Add(new TelemetryMeasure
             {
