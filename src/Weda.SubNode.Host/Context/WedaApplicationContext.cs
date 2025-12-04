@@ -165,6 +165,8 @@ public class WedaApplicationContext : IWedaApplicationContext
                 _options.NatsConnectionSettings = new NatsConnectionSettings
                 {
                     Url = natsSection["Url"] ?? "nats://localhost:4222",
+                    CredFile = natsSection["CredFile"] ?? string.Empty,
+                    Password = natsSection["Password"] ?? string.Empty,
                     Name = natsSection["Name"] ?? "default",
                     NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
                     {
@@ -175,9 +177,7 @@ public class WedaApplicationContext : IWedaApplicationContext
                         ? strategy
                         : NatsAuthStrategy.None,
                     Username = natsSection["Username"],
-                    Password = natsSection["Password"],
                     Token = natsSection["Token"],
-                    CredFile = natsSection["CredFile"],
                     TlsCertPath = natsSection["TlsCertPath"],
                     TlsKeyPath = natsSection["TlsKeyPath"],
                     TlsCaPath = natsSection["TlsCaPath"]
@@ -255,6 +255,8 @@ public class WedaApplicationContext : IWedaApplicationContext
                 options.NatsConnectionSettings = new NatsConnectionSettings
                 {
                     Url = natsSection["Url"] ?? "nats://localhost:4222",
+                    CredFile = natsSection["CredFile"] ?? string.Empty,
+                    Password = natsSection["Password"] ?? string.Empty,
                     Name = natsSection["Name"] ?? "default",
                     NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
                     {
@@ -265,9 +267,7 @@ public class WedaApplicationContext : IWedaApplicationContext
                         ? strategy
                         : NatsAuthStrategy.None,
                     Username = natsSection["Username"],
-                    Password = natsSection["Password"],
                     Token = natsSection["Token"],
-                    CredFile = natsSection["CredFile"],
                     TlsCertPath = natsSection["TlsCertPath"],
                     TlsKeyPath = natsSection["TlsKeyPath"],
                     TlsCaPath = natsSection["TlsCaPath"]
@@ -424,10 +424,9 @@ public class WedaApplicationContext : IWedaApplicationContext
         var natsOpts = NatsOpts.Default with
         {
             Url = settings.Url,
-            Name = settings?.Name ?? "default",
-            SerializerRegistry = settings!.NatsSerializerRegistry,
-            AuthOpts = settings.BuildAuthOpts(),
-            TlsOpts = BuildTlsOpts(settings)
+            Name = settings.Name ?? "default",
+            SerializerRegistry = settings.NatsSerializerRegistry,
+            AuthOpts = GetAuthOpts(settings)
         };
         var natsClient = new NatsClient(natsOpts);
 
@@ -449,21 +448,26 @@ public class WedaApplicationContext : IWedaApplicationContext
         return (cloudService, natsClient);
     }
 
-    private static NatsTlsOpts BuildTlsOpts(NatsConnectionSettings settings)
+    /// <summary>
+    /// Get NATS authentication options based on configuration settings.
+    /// Passes all configured auth options to NatsAuthOpts, letting NATS client
+    /// use its internal priority to select the appropriate authentication method.
+    /// </summary>
+    private static NatsAuthOpts GetAuthOpts(NatsConnectionSettings settings)
     {
-        // Only configure TLS if using TlsCert strategy or TLS paths are provided
-        if (settings.AuthStrategy != NatsAuthStrategy.TlsCert &&
-            string.IsNullOrEmpty(settings.TlsCertPath) &&
-            string.IsNullOrEmpty(settings.TlsCaPath))
+        // If AuthStrategy is explicitly set, use BuildAuthOpts for that specific strategy
+        if (settings.AuthStrategy != NatsAuthStrategy.None)
         {
-            return NatsTlsOpts.Default;
+            return settings.BuildAuthOpts();
         }
 
-        return new NatsTlsOpts
+        // Pass all configured auth options, let NATS client decide priority
+        return NatsAuthOpts.Default with
         {
-            CertFile = settings.TlsCertPath,
-            KeyFile = settings.TlsKeyPath,
-            CaFile = settings.TlsCaPath
+            CredsFile = settings.CredFile,
+            Username = settings.Username,
+            Password = settings.Password,
+            Token = settings.Token
         };
     }
 

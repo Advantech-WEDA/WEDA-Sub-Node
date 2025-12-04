@@ -1,0 +1,145 @@
+{
+  "@id": "dtmi:advantech:EdgeSync:SystemMonitor;1",
+  "@type": "Interface",
+  "displayName": "System Resource Monitor",
+  "description": "Cross-platform system resource monitoring for CPU, memory, disk, and network metrics",
+  "contents": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",
+      "@type": "Telemetry",
+      "name": "CpuUsage",
+      "displayName": "CPU Usage",
+      "schema": "double",
+      "description": "Overall CPU usage percentage (0-100)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuCore;1",
+      "@type": "Telemetry",
+      "name": "CpuCore",
+      "displayName": "CPU Core Usage",
+      "schema": "double",
+      "description": "Per-core CPU usage percentage (0-100)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:LoadAverage;1",
+      "@type": "Telemetry",
+      "name": "LoadAverage",
+      "displayName": "Load Average",
+      "schema": "double",
+      "description": "System load average (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryTotal;1",
+      "@type": "Telemetry",
+      "name": "MemoryTotal",
+      "displayName": "Total Memory",
+      "schema": "long",
+      "description": "Total system memory in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1",
+      "@type": "Telemetry",
+      "name": "MemoryUsed",
+      "displayName": "Used Memory",
+      "schema": "long",
+      "description": "Used memory in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryAvailable;1",
+      "@type": "Telemetry",
+      "name": "MemoryAvailable",
+      "displayName": "Available Memory",
+      "schema": "long",
+      "description": "Available memory in bytes (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryCached;1",
+      "@type": "Telemetry",
+      "name": "MemoryCached",
+      "displayName": "Cached Memory",
+      "schema": "long",
+      "description": "Cached memory in bytes (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryBuffers;1",
+      "@type": "Telemetry",
+      "name": "MemoryBuffers",
+      "displayName": "Memory Buffers",
+      "schema": "long",
+      "description": "Memory buffers in bytes (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskTotal;1",
+      "@type": "Telemetry",
+      "name": "DiskTotal",
+      "displayName": "Disk Total Space",
+      "schema": "long",
+      "description": "Total disk space in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsed;1",
+      "@type": "Telemetry",
+      "name": "DiskUsed",
+      "displayName": "Disk Used Space",
+      "schema": "long",
+      "description": "Used disk space in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskAvailable;1",
+      "@type": "Telemetry",
+      "name": "DiskAvailable",
+      "displayName": "Disk Available Space",
+      "schema": "long",
+      "description": "Available disk space in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1",
+      "@type": "Telemetry",
+      "name": "DiskUsagePercent",
+      "displayName": "Disk Usage Percentage",
+      "schema": "double",
+      "description": "Disk usage percentage (0-100)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1",
+      "@type": "Telemetry",
+      "name": "NetworkBytesSent",
+      "displayName": "Network Bytes Sent",
+      "schema": "long",
+      "description": "Total bytes sent on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesReceived;1",
+      "@type": "Telemetry",
+      "name": "NetworkBytesReceived",
+      "displayName": "Network Bytes Received",
+      "schema": "long",
+      "description": "Total bytes received on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsSent;1",
+      "@type": "Telemetry",
+      "name": "NetworkPacketsSent",
+      "displayName": "Network Packets Sent",
+      "schema": "long",
+      "description": "Total packets sent on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsReceived;1",
+      "@type": "Telemetry",
+      "name": "NetworkPacketsReceived",
+      "displayName": "Network Packets Received",
+      "schema": "long",
+      "description": "Total packets received on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrors;1",
+      "@type": "Telemetry",
+      "name": "NetworkErrors",
+      "displayName": "Network Errors",
+      "schema": "long",
+      "description": "Total network packet errors (incoming + outgoing)"
+    }
+  ],
+  "@context": "dtmi:dtdl:context;2"
+}

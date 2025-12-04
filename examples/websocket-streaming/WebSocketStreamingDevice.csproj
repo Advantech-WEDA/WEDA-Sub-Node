@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>WebSocketStreamingExample</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Exclude simulator subdirectory from this project -->
+  <ItemGroup>
+    <Compile Remove="simulator/**/*.cs" />
+    <None Remove="simulator/**/*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Weda.SubNode.Abstractions/Weda.SubNode.Abstractions.csproj" />
+    <ProjectReference Include="../../src/Weda.SubNode.Core/Weda.SubNode.Core.csproj" />
+    <ProjectReference Include="../../src/Weda.SubNode.Host/Weda.SubNode.Host.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

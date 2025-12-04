@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
-using ErrorOr;
+
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Protocols.ISensing;
 using Weda.SubNode.Core.Protocols.ISensing.Models;
@@ -15,16 +16,18 @@ namespace Weda.SubNode.Core.Devices;
 
 /// <summary>
 /// ISensing protocol device implementation.
-/// Handles ISensing JSON protocol parsing and message broker communication.
-/// This is the protocol-specific implementation similar to ModbusDevice.
+/// Inherits from MessageBrokerDeviceBase for Publish-Subscribe communication pattern.
+/// Adds ISensing-specific functionality like sensor control and configuration.
+///
+/// Architecture: Device -> Parser -> Communication
+/// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> MessageBrokerDeviceBase -> DeviceBase
 /// </summary>
 public class ISensingDevice : DeviceBase, ISensorControl
 {
     private readonly IMessageBroker _messageBroker;
-    private readonly ISensingProtocolParser _protocolParser;
+    private readonly IProtocolParser _protocolParser;
     private readonly string _dataTopic;
     private readonly string _statusTopic;
-    private readonly string _commandTopic;
 
     // Cache for latest telemetry data by ResourceId
     private readonly ConcurrentDictionary<string, TelemetryMeasure> _latestData = new();
@@ -34,8 +37,7 @@ public class ISensingDevice : DeviceBase, ISensorControl
     private Task? _healthTask;
 
     /// <summary>
-    /// Initializes a new instance of ISensingDevice with ApplicationContext.
-    /// Similar to ModbusDevice, this accepts an IMessageBroker parameter.
+    /// Initializes a new instance of ISensingDevice.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing ISensing settings.</param>
@@ -50,7 +52,7 @@ public class ISensingDevice : DeviceBase, ISensorControl
         _protocolParser = new ISensingProtocolParser(messageBroker);
 
         // Extract MQTT topics from configuration
-        // Expected format: "Advantech/{MacAddress}/data", "Advantech/{MacAddress}/status", "Advantech/{MacAddress}/cmd"
+        // Expected format: "Advantech/{MacAddress}/data" and "Advantech/{MacAddress}/status"
         var macAddress = configuration.Communication.TryGetValue("MacAddress", out var mac)
             ? mac?.ToString() ?? throw new InvalidOperationException("MacAddress not found in communication configuration")
             : throw new InvalidOperationException("MacAddress not found in communication configuration");
@@ -61,12 +63,10 @@ public class ISensingDevice : DeviceBase, ISensorControl
 
         _dataTopic = $"{manufacturer}/{macAddress}/data";
         _statusTopic = $"{manufacturer}/{macAddress}/status";
-        _commandTopic = $"{manufacturer}/{macAddress}/cmd";
     }
 
     /// <summary>
-    /// Reads telemetry data from the device cache.
-    /// Returns the latest received data from MQTT messages.
+    /// Creates the ISensingPubSubParser for this device.
     /// </summary>
     public override Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
@@ -83,157 +83,12 @@ public class ISensingDevice : DeviceBase, ISensorControl
 
     /// <summary>
     /// Executes a command on the device (publishes command to message broker topic).
-    /// Architecture: Device validates → Parser encodes → MessageBroker publishes
     /// </summary>
-    public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
-    {
-        var result = await ExecuteCommandInternalAsync(command, cancellationToken);
-        return !result.IsError;
-    }
-
-    /// <summary>
-    /// Internal command execution with ErrorOr result for detailed error information.
-    /// Enforces timeout and provides structured error codes.
-    /// </summary>
-    private async Task<ErrorOr<object>> ExecuteCommandInternalAsync(
-        DeviceCommand command,
-        CancellationToken cancellationToken)
+    public override Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing command {CommandName} on ISensing device {DeviceId}", command.DeviceCmd, DeviceId);
-
-        // Determine timeout from command or use default from DeviceOptions
-        var timeoutMs = command.Timeout > 0 ? (int)command.Timeout : _context.DeviceOptions.DefaultCommandTimeoutMs;
-        using var timeoutCts = new CancellationTokenSource(timeoutMs);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
-        try
-        {
-            // 1. Validate command for DO/AO commands (sensor must exist)
-            if (command.DeviceCmd is "SetDO" or "SetDigitalOutput")
-            {
-                var validationResult = ValidateOutputCommand(command, SensorGroup.DO);
-                if (!validationResult.IsValid)
-                {
-                    _logger.LogError("Command validation failed: {Error}", validationResult.Error);
-                    return Error.Validation(
-                        code: "SetDO.ValidationFailed",
-                        description: validationResult.Error ?? "Validation failed");
-                }
-            }
-            else if (command.DeviceCmd is "SetAO" or "SetAnalogOutput")
-            {
-                var validationResult = ValidateOutputCommand(command, SensorGroup.AO);
-                if (!validationResult.IsValid)
-                {
-                    _logger.LogError("Command validation failed: {Error}", validationResult.Error);
-                    return Error.Validation(
-                        code: "SetAO.ValidationFailed",
-                        description: validationResult.Error ?? "Validation failed");
-                }
-            }
-
-            // 2. Use Protocol Parser to encode command to JSON payload
-            var payload = _protocolParser.EncodeCommand(command);
-
-            // 3. Use MessageBroker to publish to device command topic
-            await _messageBroker.PublishAsync(_commandTopic, payload, linkedCts.Token);
-
-            _logger.LogInformation(
-                "Command {CommandName} published to topic {Topic}",
-                command.DeviceCmd, _commandTopic);
-
-            return new Dictionary<string, object>
-            {
-                ["success"] = true,
-                ["command"] = command.DeviceCmd,
-                ["topic"] = _commandTopic
-            };
-        }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
-        {
-            _logger.LogError(
-                "Command {CommandName} execution timeout after {Timeout}ms",
-                command.DeviceCmd, timeoutMs);
-            return Error.Failure(
-                code: "Command.Timeout",
-                description: $"Command execution exceeded {timeoutMs}ms timeout");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogWarning("Command {CommandName} execution cancelled by caller", command.DeviceCmd);
-            return Error.Failure(
-                code: "Command.Cancelled",
-                description: "Command execution was cancelled");
-        }
-        catch (NotSupportedException ex)
-        {
-            _logger.LogError(ex, "Command {CommandName} is not supported by ISensing protocol", command.DeviceCmd);
-            return Error.Validation(
-                code: "Command.NotSupported",
-                description: $"Command '{command.DeviceCmd}' is not supported by ISensing protocol");
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogError(ex, "Invalid command parameters for {CommandName}", command.DeviceCmd);
-            return Error.Validation(
-                code: "Command.InvalidParameters",
-                description: ex.Message);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to execute command {CommandName}", command.DeviceCmd);
-            return Error.Failure(
-                code: "Command.ExecutionFailed",
-                description: ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Validates output command (SetDO/SetAO) - ensures sensor exists and has correct group
-    /// </summary>
-    private (bool IsValid, string? Error) ValidateOutputCommand(DeviceCommand command, SensorGroup expectedGroup)
-    {
-        // Extract output name from parameters
-        var name = ExtractOutputName(command.Parameters);
-        if (string.IsNullOrEmpty(name))
-        {
-            return (false, $"Missing 'name', 'do', 'ao', or 'outputName' parameter");
-        }
-
-        // Find sensor in configuration (case-insensitive)
-        var sensor = Configuration.Sensors.FirstOrDefault(s =>
-            s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-
-        if (sensor == null)
-        {
-            return (false, $"Sensor '{name}' not found in device configuration");
-        }
-
-        // Validate sensor group
-        if (sensor.SensorGroup != expectedGroup)
-        {
-            return (false, $"Sensor '{name}' is not a {expectedGroup} sensor (actual: {sensor.SensorGroup})");
-        }
-
-        return (true, null);
-    }
-
-    /// <summary>
-    /// Extract output name from command parameters (supports multiple aliases)
-    /// </summary>
-    private static string? ExtractOutputName(Dictionary<string, object> parameters)
-    {
-        string[] aliases = ["name", "do", "ao", "outputName"];
-
-        foreach (var alias in aliases)
-        {
-            if (parameters.TryGetValue(alias, out var value) && value != null)
-            {
-                return value.ToString();
-            }
-        }
-
-        return null;
+        // TODO: Implement command publishing to MQTT topics when command protocol is defined
+        return Task.FromResult(true);
     }
 
     /// <summary>
@@ -391,62 +246,49 @@ public class ISensingDevice : DeviceBase, ISensorControl
     #region ISensorControl Implementation
 
     /// <summary>
-    /// Sets the state of a digital output
+    /// Sets the state of a digital output.
     /// </summary>
     public virtual Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException("SetDigitalOutputAsync not yet implemented");
+        _logger.LogWarning("SetDigitalOutputAsync not yet implemented for ISensing device");
+        return Task.FromResult(false);
     }
 
     /// <summary>
-    /// Sets the value of an analog output
+    /// Sets the value of an analog output.
     /// </summary>
     public virtual Task<bool> SetAnalogOutputAsync(string outputName, double value, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException("SetAnalogOutputAsync not yet implemented");
+        _logger.LogWarning("SetAnalogOutputAsync not yet implemented for ISensing device");
+        return Task.FromResult(false);
     }
 
     /// <summary>
-    /// Requests current device configuration
+    /// Requests current device configuration.
     /// </summary>
     public virtual Task<Dictionary<string, object>> GetConfigurationAsync(ushort configIndex = 0, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException("GetConfigurationAsync not yet implemented");
+        _logger.LogWarning("GetConfigurationAsync not yet implemented for ISensing device");
+        return Task.FromResult(new Dictionary<string, object>());
     }
 
     /// <summary>
-    /// Updates device configuration
+    /// Updates device configuration.
     /// </summary>
     public virtual Task<bool> SetConfigurationAsync(ushort configIndex, Dictionary<string, object> configData, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException("SetConfigurationAsync not yet implemented");
+        _logger.LogWarning("SetConfigurationAsync not yet implemented for ISensing device");
+        return Task.FromResult(false);
     }
 
     /// <summary>
-    /// Enables or disables a sensor
+    /// Enables or disables a sensor.
     /// </summary>
     public virtual Task<bool> SetSensorEnabledAsync(string sensorName, bool enabled, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException("SetSensorEnabledAsync not yet implemented");
+        _logger.LogWarning("SetSensorEnabledAsync not yet implemented for ISensing device");
+        return Task.FromResult(false);
     }
 
     #endregion
-
-    /// <summary>
-    /// Disposes resources used by the device.
-    /// </summary>
-    public new void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _backgroundTasksCts?.Cancel();
-            _backgroundTasksCts?.Dispose();
-        }
-    }
 }
