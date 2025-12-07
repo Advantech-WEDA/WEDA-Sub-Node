@@ -36,11 +36,22 @@ public interface IWedaCloudService : IDisposable
     Task<string?> GetOrRegisterDeviceIdAsync(DeviceInfo info, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Configure NATS topic assignments for telemetry and health reporting
-    /// Must be called after device registration to enable telemetry transmission
+    /// Configure NATS topic assignments for a specific device.
+    /// Must be called after device registration to enable telemetry transmission.
+    /// Each device has its own topic assignments.
     /// INTERNAL USE ONLY - Called by DeviceInitializer after registration
     /// </summary>
-    void ConfigureTopics(NatsTopicAssignments topicAssignments);
+    /// <param name="deviceName">The device name (used as key for topic lookup)</param>
+    /// <param name="topicAssignments">The NATS topic assignments for this device</param>
+    void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments);
+
+    /// <summary>
+    /// Get topic assignments for a specific device.
+    /// Returns null if the device has not been configured.
+    /// </summary>
+    /// <param name="deviceName">The device name</param>
+    /// <returns>Topic assignments or null if not configured</returns>
+    NatsTopicAssignments? GetTopics(string deviceName);
 
     /// <summary>
     /// Upload device configuration to DMA

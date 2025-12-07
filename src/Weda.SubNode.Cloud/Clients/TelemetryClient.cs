@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.JetStream;
@@ -11,16 +12,16 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Cloud.Clients;
 
 /// <summary>
-/// Telemetry Client implementation for NATS JetStream
-/// Handles telemetry data transmission and health reporting with guaranteed delivery
-/// Uses topic assignments from device registration
+/// Telemetry Client implementation for NATS JetStream.
+/// Handles telemetry data transmission and health reporting with guaranteed delivery.
+/// Supports multiple devices with per-device topic assignments.
 /// </summary>
 public class TelemetryClient : ITelemetryClient
 {
     private readonly ILogger<TelemetryClient> _logger;
     private readonly NatsClient _client;
     private readonly INatsJSContext _jetStream;
-    private NatsTopicAssignments? _topicAssignments;
+    private readonly ConcurrentDictionary<string, NatsTopicAssignments> _deviceTopics = new();
 
     public TelemetryClient(
         NatsClient client,
@@ -32,19 +33,41 @@ public class TelemetryClient : ITelemetryClient
     }
 
     /// <summary>
-    /// Configure topic assignments from device registration
-    /// Must be called after device registration
+    /// Configure topic assignments for a specific device.
+    /// Each device has its own set of topic assignments.
     /// </summary>
-    public void ConfigureTopics(NatsTopicAssignments topicAssignments)
+    public void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
         ArgumentNullException.ThrowIfNull(topicAssignments);
-        _topicAssignments = topicAssignments;
+
+        _deviceTopics[deviceName] = topicAssignments;
 
         _logger.LogInformation(
-            "Telemetry client topics configured: TelemetryTopic={TelemetryTopic}, BatchTelemetryTopic={BatchTelemetryTopic}, HealthTopic={HealthTopic}",
+            "Telemetry client topics configured for device {DeviceName}: TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}",
+            deviceName,
             topicAssignments.TelemetryTopic,
-            topicAssignments.BatchTelemetryTopic,
             topicAssignments.HealthTopic);
+    }
+
+    private NatsTopicAssignments? FindTopicsByDeviceId(string deviceId)
+    {
+        // Search through all device topics to find one whose topic contains the deviceId
+        foreach (var kvp in _deviceTopics)
+        {
+            if (kvp.Value.TelemetryTopic.Contains(deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return kvp.Value;
+            }
+        }
+
+        // Fallback: try using deviceId as deviceName directly
+        if (_deviceTopics.TryGetValue(deviceId, out var topics))
+        {
+            return topics;
+        }
+
+        return null;
     }
 
     public async Task<TelemetrySendResponse> SendTelemetryAsync(
@@ -52,10 +75,12 @@ public class TelemetryClient : ITelemetryClient
         TelemetryData telemetryData,
         CancellationToken cancellationToken = default)
     {
-        if (_topicAssignments?.TelemetryTopic == null)
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments?.TelemetryTopic == null)
         {
             throw new InvalidOperationException(
-                "Telemetry topics not configured. Call ConfigureTopics() after device registration.");
+                $"Telemetry topics not configured for device {deviceId}. " +
+                "Call ConfigureTopics() after device registration.");
         }
 
         // Create message with audit fields
@@ -65,7 +90,7 @@ public class TelemetryClient : ITelemetryClient
             "Sending telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}, Topic={Topic}, ReqSeqId={ReqSeqId}",
             deviceId,
             telemetryData.Measures.Count,
-            _topicAssignments.TelemetryTopic,
+            topicAssignments.TelemetryTopic,
             message.SeqId);
 
         foreach (var measure in telemetryData.Measures)
@@ -77,26 +102,11 @@ public class TelemetryClient : ITelemetryClient
                 DateTimeOffset.FromUnixTimeMilliseconds(measure.Timestamp));
         }
 
-        // Send telemetry via NATS JetStream with guaranteed delivery
-
-        // (1) Publish with fire and forget
+        // Send telemetry via NATS with fire and forget
         await _client.PublishAsync(
-            subject: _topicAssignments.TelemetryTopic,
+            subject: topicAssignments.TelemetryTopic,
             data: message,
             cancellationToken: cancellationToken);
-
-        // var ack = await _jetStream.PublishAsync(
-        //     subject: _topicAssignments.TelemetryTopic,
-        //     data: message,
-        //     cancellationToken: cancellationToken);
-
-        // Verify message was persisted
-        // ack.EnsureSuccess();
-
-        // _logger.LogDebug(
-        //     "Telemetry persisted to stream: Stream={Stream}, Sequence={Sequence}",
-        //     ack.Stream,
-        //     ack.Seq);
 
         // Create success response
         var response = new TelemetrySendResponse
@@ -116,7 +126,7 @@ public class TelemetryClient : ITelemetryClient
         _logger.LogInformation(
             "Telemetry sent successfully: MeasureCount={MeasureCount}, Topic={Topic}",
             telemetryData.Measures.Count,
-            _topicAssignments.TelemetryTopic);
+            topicAssignments.TelemetryTopic);
 
         return response;
     }
@@ -126,10 +136,12 @@ public class TelemetryClient : ITelemetryClient
         List<TelemetryData> telemetryDataList,
         CancellationToken cancellationToken = default)
     {
-        if (_topicAssignments?.BatchTelemetryTopic == null)
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments?.BatchTelemetryTopic == null)
         {
             throw new InvalidOperationException(
-                "Telemetry topics not configured. Call ConfigureTopics() after device registration.");
+                $"Telemetry topics not configured for device {deviceId}. " +
+                "Call ConfigureTopics() after device registration.");
         }
 
         var totalMeasures = telemetryDataList.Sum(td => td.Measures.Count);
@@ -139,11 +151,11 @@ public class TelemetryClient : ITelemetryClient
             deviceId,
             telemetryDataList.Count,
             totalMeasures,
-            _topicAssignments.BatchTelemetryTopic);
+            topicAssignments.BatchTelemetryTopic);
 
         // Send batch telemetry via NATS JetStream with guaranteed delivery
         var ack = await _jetStream.PublishAsync(
-            subject: _topicAssignments.BatchTelemetryTopic,
+            subject: topicAssignments.BatchTelemetryTopic,
             data: telemetryDataList,
             cancellationToken: cancellationToken);
 
@@ -172,7 +184,7 @@ public class TelemetryClient : ITelemetryClient
         _logger.LogInformation(
             "Batch telemetry sent successfully: TotalMeasures={TotalMeasures}, Topic={Topic}",
             totalMeasures,
-            _topicAssignments.BatchTelemetryTopic);
+            topicAssignments.BatchTelemetryTopic);
 
         return response;
     }
@@ -182,10 +194,12 @@ public class TelemetryClient : ITelemetryClient
         DeviceHealth health,
         CancellationToken cancellationToken = default)
     {
-        if (_topicAssignments?.HealthTopic == null)
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments?.HealthTopic == null)
         {
             throw new InvalidOperationException(
-                "Telemetry topics not configured. Call ConfigureTopics() after device registration.");
+                $"Telemetry topics not configured for device {deviceId}. " +
+                "Call ConfigureTopics() after device registration.");
         }
 
         // Create message with audit fields
@@ -197,7 +211,7 @@ public class TelemetryClient : ITelemetryClient
             health.IsHealthy,
             health.CpuUsage,
             health.MemoryUsage,
-            _topicAssignments.HealthTopic,
+            topicAssignments.HealthTopic,
             message.SeqId);
 
         if (!string.IsNullOrEmpty(health.LastError))
@@ -206,23 +220,9 @@ public class TelemetryClient : ITelemetryClient
         }
 
         await _client.PublishAsync(
-            subject: _topicAssignments.HealthTopic,
-            data: message
-        );
-
-        // Send health report via NATS JetStream with guaranteed delivery
-        // var ack = await _jetStream.PublishAsync(
-        //     subject: _topicAssignments.HealthTopic,
-        //     data: message,
-        //     cancellationToken: cancellationToken);
-
-        // Verify message was persisted
-        // ack.EnsureSuccess();
-
-        // _logger.LogDebug(
-        //     "Health report persisted to stream: Stream={Stream}, Sequence={Sequence}",
-        //     ack.Stream,
-        //     ack.Seq);
+            subject: topicAssignments.HealthTopic,
+            data: message,
+            cancellationToken: cancellationToken);
 
         var response = new HealthReportResponse
         {
@@ -241,7 +241,7 @@ public class TelemetryClient : ITelemetryClient
         _logger.LogInformation(
             "Health report sent successfully: DeviceId={DeviceId}, Topic={Topic}",
             deviceId,
-            _topicAssignments.HealthTopic);
+            topicAssignments.HealthTopic);
 
         return response;
     }

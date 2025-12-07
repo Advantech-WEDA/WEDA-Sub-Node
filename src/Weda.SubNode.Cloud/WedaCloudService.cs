@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Net;
@@ -17,6 +18,7 @@ namespace Weda.SubNode.Cloud;
 /// Weda Cloud Service implementation
 /// Application service layer that coordinates Client layer operations
 /// Delegates protocol-specific communication to DeviceAgentClient and TelemetryClient
+/// Supports multiple devices with per-device topic assignments and registration storage.
 /// Sealed to prevent inheritance and ensure template method pattern integrity
 /// </summary>
 public sealed class WedaCloudService : IWedaCloudService
@@ -25,40 +27,49 @@ public sealed class WedaCloudService : IWedaCloudService
     private readonly NatsClient _client;
     private readonly IDeviceAgentClient _deviceAgentClient;
     private readonly ITelemetryClient _telemetryClient;
-    private readonly IDeviceRegistrationStorage _registrationStorage;
+    private readonly IMultiDeviceRegistrationStorage _registrationStorage;
+    private readonly ConcurrentDictionary<string, NatsTopicAssignments> _deviceTopics = new();
     private bool _isConnected;
     private bool _disposed;
-    private NatsTopicAssignments? _topicAssignments;
 
     public WedaCloudService(
         NatsClient client,
         IDeviceAgentClient deviceAgentClient,
         ITelemetryClient telemetryClient,
-        IDeviceRegistrationStorage? registrationStorage = null,
+        IMultiDeviceRegistrationStorage? registrationStorage = null,
         ILogger<WedaCloudService>? logger = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _deviceAgentClient = deviceAgentClient ?? throw new ArgumentNullException(nameof(deviceAgentClient));
         _telemetryClient = telemetryClient ?? throw new ArgumentNullException(nameof(telemetryClient));
-        _registrationStorage = registrationStorage ?? new JsonDeviceRegistrationStorage();
+        _registrationStorage = registrationStorage ?? new JsonMultiDeviceRegistrationStorage();
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<WedaCloudService>();
     }
 
     public bool IsConnected => _isConnected;
 
-    public void ConfigureTopics(NatsTopicAssignments topicAssignments)
+    public void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
         ArgumentNullException.ThrowIfNull(topicAssignments);
 
         _logger.LogInformation(
-            "Configuring NATS topic assignments: TelemetryTopic={TelemetryTopic}, BatchTelemetryTopic={BatchTelemetryTopic}, HealthTopic={HealthTopic}, CommandTopic={CommandTopic}",
+            "Configuring NATS topic assignments for device {DeviceName}: TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}, CommandTopic={CommandTopic}",
+            deviceName,
             topicAssignments.TelemetryTopic,
-            topicAssignments.BatchTelemetryTopic,
             topicAssignments.HealthTopic,
             topicAssignments.CommandTopic);
 
-        _topicAssignments = topicAssignments;
-        _telemetryClient.ConfigureTopics(topicAssignments);
+        _deviceTopics[deviceName] = topicAssignments;
+
+        // Configure telemetry client with the device's topics
+        _telemetryClient.ConfigureTopics(deviceName, topicAssignments);
+    }
+
+    public NatsTopicAssignments? GetTopics(string deviceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
+        return _deviceTopics.TryGetValue(deviceName, out var topics) ? topics : null;
     }
 
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
@@ -117,27 +128,37 @@ public sealed class WedaCloudService : IWedaCloudService
         DeviceInfo info,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Getting or registering device ID: DeviceName={DeviceName}", info.DeviceName);
+        var deviceName = info.DeviceName;
+        _logger.LogInformation("Getting or registering device ID: DeviceName={DeviceName}", deviceName);
 
         // 1. Try to get existing registration from storage (includes NATS topics)
         try
         {
-            var existingRegistration = await _registrationStorage.GetRegistrationAsync(cancellationToken);
+            var existingRegistration = await _registrationStorage.GetRegistrationAsync(deviceName, cancellationToken);
             if (existingRegistration != null && !string.IsNullOrEmpty(existingRegistration.DeviceId))
             {
-                _logger.LogInformation("Found existing device registration: DeviceId={DeviceId}", existingRegistration.DeviceId);
+                _logger.LogInformation(
+                    "Found existing device registration: DeviceName={DeviceName}, DeviceId={DeviceId}",
+                    deviceName, existingRegistration.DeviceId);
 
                 info.DeviceId = existingRegistration.DeviceId;
+
+                // Configure topics from stored registration
+                ConfigureTopics(deviceName, existingRegistration.NatsTopicAssignments);
+
+                return existingRegistration.DeviceId;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read device registration from storage, falling back to Cloud registration");
+            _logger.LogWarning(ex,
+                "Failed to read device registration from storage for {DeviceName}, falling back to Cloud registration",
+                deviceName);
             // Fall through to Cloud registration
         }
 
         // 2. Device not in storage or read failed, register device with Cloud
-        _logger.LogInformation("Registering device with Cloud");
+        _logger.LogInformation("Registering device {DeviceName} with Cloud", deviceName);
 
         var response = await _deviceAgentClient.RegisterDeviceAsync(
             info,
@@ -145,27 +166,33 @@ public sealed class WedaCloudService : IWedaCloudService
 
         if (response.Code != 0 || response.Data?.DeviceId == null)
         {
-            _logger.LogError("Failed to register device with Cloud: Code={Code}, Message={Message}",
-                response.Code, response.Message);
+            _logger.LogError(
+                "Failed to register device {DeviceName} with Cloud: Code={Code}, Message={Message}",
+                deviceName, response.Code, response.Message);
             return null;
         }
 
         var deviceId = response.Data.DeviceId;
-        _logger.LogInformation("Device registered with Cloud: DeviceId={DeviceId}, Status={Status}",
-            deviceId, response.Data.RegistrationStatus);
+        _logger.LogInformation(
+            "Device registered with Cloud: DeviceName={DeviceName}, DeviceId={DeviceId}, Status={Status}",
+            deviceName, deviceId, response.Data.RegistrationStatus);
 
         // 3. Configure NATS topics from registration response
-        ConfigureTopics(response.Data.NatsTopicAssignments);
+        ConfigureTopics(deviceName, response.Data.NatsTopicAssignments);
 
         // 4. Try to save complete registration data to storage for future use
         try
         {
-            await _registrationStorage.SaveRegistrationAsync(response.Data, cancellationToken);
-            _logger.LogInformation("Device registration saved to storage (includes NATS topic assignments)");
+            await _registrationStorage.SaveRegistrationAsync(deviceName, response.Data, cancellationToken);
+            _logger.LogInformation(
+                "Device registration saved to storage: DeviceName={DeviceName} (includes NATS topic assignments)",
+                deviceName);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to save device registration to storage (device will re-register on restart)");
+            _logger.LogWarning(ex,
+                "Failed to save device registration to storage for {DeviceName} (device will re-register on restart)",
+                deviceName);
             // Non-critical failure, continue with deviceId
         }
 
@@ -260,13 +287,16 @@ public sealed class WedaCloudService : IWedaCloudService
     {
         ArgumentNullException.ThrowIfNull(handler);
 
-        if (_topicAssignments == null)
+        // Find the device's topic assignments by deviceId
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments == null)
         {
             throw new InvalidOperationException(
-                "Topic assignments not configured. Call ConfigureTopics() before subscribing to configuration updates.");
+                $"Topic assignments not configured for device {deviceId}. " +
+                "Call ConfigureTopics() before subscribing to configuration updates.");
         }
 
-        var configUpdateTopic = _topicAssignments.ConfigUpdateTopic;
+        var configUpdateTopic = topicAssignments.ConfigUpdateTopic;
         _logger.LogInformation(
             "Subscribing to configuration updates: DeviceId={DeviceId}, Topic={Topic}",
             deviceId,
@@ -345,13 +375,16 @@ public sealed class WedaCloudService : IWedaCloudService
     {
         ArgumentNullException.ThrowIfNull(handler);
 
-        if (_topicAssignments == null)
+        // Find the device's topic assignments by deviceId
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments == null)
         {
             throw new InvalidOperationException(
-                "Topic assignments not configured. Call ConfigureTopics() before subscribing to commands.");
+                $"Topic assignments not configured for device {deviceId}. " +
+                "Call ConfigureTopics() before subscribing to commands.");
         }
 
-        var commandTopic = _topicAssignments.CommandTopic;
+        var commandTopic = topicAssignments.CommandTopic;
         _logger.LogInformation(
             "Subscribing to commands: DeviceId={DeviceId}, Topic={Topic}",
             deviceId,
@@ -428,13 +461,16 @@ public sealed class WedaCloudService : IWedaCloudService
     {
         ArgumentNullException.ThrowIfNull(report);
 
-        if (_topicAssignments == null)
+        // Find the device's topic assignments by deviceId in the report
+        var topicAssignments = FindTopicsByDeviceId(report.DeviceId);
+        if (topicAssignments == null)
         {
             throw new InvalidOperationException(
-                "Topic assignments not configured. Call ConfigureTopics() before publishing configuration reports.");
+                $"Topic assignments not configured for device {report.DeviceId}. " +
+                "Call ConfigureTopics() before publishing configuration reports.");
         }
 
-        var configResponseTopic = _topicAssignments.ConfigResponseTopic;
+        var configResponseTopic = topicAssignments.ConfigResponseTopic;
         _logger.LogInformation(
             "Publishing configuration report: DeviceId={DeviceId}, Status={Status}, Topic={Topic}",
             report.DeviceId,
@@ -500,6 +536,37 @@ public sealed class WedaCloudService : IWedaCloudService
                 response.DeviceId, response.Command);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Find topic assignments by deviceId.
+    /// Since topics are keyed by deviceName, we need to search through all registered devices.
+    /// Returns null if no matching device is found.
+    /// </summary>
+    private NatsTopicAssignments? FindTopicsByDeviceId(string deviceId)
+    {
+        // Search through all device topics to find one whose topic contains the deviceId
+        // This is a fallback mechanism; ideally we should use deviceName directly
+        foreach (var kvp in _deviceTopics)
+        {
+            // Check if this device's telemetry topic contains the deviceId
+            if (kvp.Value.TelemetryTopic.Contains(deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return kvp.Value;
+            }
+        }
+
+        // If not found by deviceId, try using deviceId as deviceName directly
+        if (_deviceTopics.TryGetValue(deviceId, out var topics))
+        {
+            return topics;
+        }
+
+        _logger.LogWarning(
+            "Could not find topic assignments for deviceId={DeviceId}. Available devices: {Devices}",
+            deviceId, string.Join(", ", _deviceTopics.Keys));
+
+        return null;
     }
 
     /// <summary>

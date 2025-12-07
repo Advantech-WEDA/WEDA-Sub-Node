@@ -6,15 +6,19 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 
 /// <summary>
-/// Telemetry Client for sending telemetry data and health reports
+/// Telemetry Client for sending telemetry data and health reports.
+/// Supports multiple devices with per-device topic assignments.
 /// </summary>
 public interface ITelemetryClient
 {
     /// <summary>
-    /// Configure topic assignments from device registration
-    /// Must be called after device registration
+    /// Configure topic assignments for a specific device.
+    /// Each device has its own set of topic assignments.
+    /// Must be called after device registration.
     /// </summary>
-    void ConfigureTopics(NatsTopicAssignments topicAssignments);
+    /// <param name="deviceName">The device name (used as key for topic lookup)</param>
+    /// <param name="topicAssignments">The NATS topic assignments for this device</param>
+    void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments);
 
     /// <summary>
     /// Send telemetry data to cloud

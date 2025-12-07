@@ -27,12 +27,19 @@ public class MockCloudService : IWedaCloudService
 
     public bool IsConnected => _isConnected;
 
-    public void ConfigureTopics(NatsTopicAssignments topicAssignments)
+    public void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments)
     {
         _logger.LogInformation(
-            "Configure NATS topics (simulated): TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}",
+            "Configure NATS topics (simulated) for device {DeviceName}: TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}",
+            deviceName,
             topicAssignments?.TelemetryTopic ?? "null",
             topicAssignments?.HealthTopic ?? "null");
+    }
+
+    public NatsTopicAssignments? GetTopics(string deviceName)
+    {
+        _logger.LogDebug("Get topics (simulated) for device {DeviceName}", deviceName);
+        return null;
     }
 
     public Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
