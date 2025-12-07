@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -31,6 +32,13 @@ public class RequestResponseDeviceBase : DeviceBase
     private CancellationTokenSource? _backgroundTasksCts;
     private Task? _telemetryTask;
     private Task? _healthTask;
+    private Task? _batchSendTask;
+
+    /// <summary>
+    /// Buffer for batch mode telemetry collection.
+    /// Thread-safe collection to allow concurrent reads and batch sends.
+    /// </summary>
+    private readonly ConcurrentQueue<TelemetryMeasure> _telemetryBatch = new();
 
     /// <summary>
     /// Initializes a new instance of RequestResponseDeviceBase.
@@ -95,16 +103,28 @@ public class RequestResponseDeviceBase : DeviceBase
     /// Starts background tasks for telemetry polling and health reporting.
     /// Framework implementation with automatic reconnection handling.
     /// Sealed to prevent subclasses from overriding framework logic.
+    ///
+    /// Supports two telemetry upload modes based on Configuration.Periods.SendTelemetry:
+    /// - Realtime mode (SendTelemetry = 0): Send immediately after each read
+    /// - Batch mode (SendTelemetry > 0): Collect data and send at specified interval
     /// </summary>
     protected sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         _backgroundTasksCts = new CancellationTokenSource();
         var cts = _backgroundTasksCts.Token;
 
+        var readPeriod = Configuration.Periods.ReadTelemetry;
+        var sendPeriod = Configuration.Periods.SendTelemetry;
+        var isRealtimeMode = sendPeriod <= 0;
+
+        _logger.LogDebug(
+            "Starting telemetry task: ReadPeriod={ReadPeriod}ms, SendPeriod={SendPeriod}ms, Mode={Mode}",
+            readPeriod, sendPeriod, isRealtimeMode ? "Realtime" : "Batch");
+
+        // Telemetry read task
         _telemetryTask = Task.Run(async () =>
         {
-            var period = Configuration.Periods.ReadTelemetry;
-            _logger.LogDebug("Starting telemetry polling task with period {Period}ms", period);
+            _logger.LogDebug("Starting telemetry polling task with period {Period}ms", readPeriod);
 
             while (!cts.IsCancellationRequested)
             {
@@ -131,7 +151,7 @@ public class RequestResponseDeviceBase : DeviceBase
                             else
                             {
                                 _logger.LogError("Failed to reconnect device {DeviceId}", DeviceId);
-                                await Task.Delay(period, cts);
+                                await Task.Delay(readPeriod, cts);
                                 continue;
                             }
                         }
@@ -147,7 +167,19 @@ public class RequestResponseDeviceBase : DeviceBase
 
                     if (measures.Count > 0)
                     {
-                        await SendTelemetryAsync(ToAsyncEnumerable(measures), cts);
+                        if (isRealtimeMode)
+                        {
+                            // Realtime mode: send immediately
+                            await SendTelemetryAsync(ToAsyncEnumerable(measures), cts);
+                        }
+                        else
+                        {
+                            // Batch mode: add to queue for later sending
+                            foreach (var measure in measures)
+                            {
+                                _telemetryBatch.Enqueue(measure);
+                            }
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -160,9 +192,60 @@ public class RequestResponseDeviceBase : DeviceBase
                     _logger.LogError(ex, "Error in telemetry task for device {DeviceId}", DeviceId);
                 }
 
-                await Task.Delay(period, cts);
+                await Task.Delay(readPeriod, cts);
             }
         }, cts);
+
+        // Batch send task (only started in batch mode)
+        if (!isRealtimeMode)
+        {
+            _batchSendTask = Task.Run(async () =>
+            {
+                _logger.LogDebug("Starting batch send task with period {Period}ms", sendPeriod);
+
+                while (!cts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await Task.Delay(sendPeriod, cts);
+
+                        // Collect all queued telemetry
+                        var batch = new List<TelemetryMeasure>();
+                        while (_telemetryBatch.TryDequeue(out var measure))
+                        {
+                            batch.Add(measure);
+                        }
+
+                        if (batch.Count > 0)
+                        {
+                            _logger.LogDebug(
+                                "Sending telemetry batch: {Count} measures for device {DeviceId}",
+                                batch.Count, DeviceId);
+                            await SendTelemetryAsync(batch, cts);
+                        }
+                    }
+                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                    {
+                        // Send remaining data before exit
+                        var remaining = new List<TelemetryMeasure>();
+                        while (_telemetryBatch.TryDequeue(out var measure))
+                        {
+                            remaining.Add(measure);
+                        }
+                        if (remaining.Count > 0)
+                        {
+                            _logger.LogDebug("Sending remaining {Count} measures before shutdown", remaining.Count);
+                            await SendTelemetryAsync(remaining, CancellationToken.None);
+                        }
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+                    }
+                }
+            }, cts);
+        }
 
         _healthTask = Task.Run(async () =>
         {

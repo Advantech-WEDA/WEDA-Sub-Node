@@ -202,14 +202,22 @@ public class DeviceCapabilities
 public class BackgroundTaskPeriods
 {
     /// <summary>
-    /// Telemetry reading period (default: 5000ms)
+    /// Default telemetry reading period in milliseconds (default: 5000ms).
+    /// Used as fallback when a sensor's Config.Interval is not set (0 or negative).
+    /// Each sensor can override this by setting its own Config.Interval value.
     /// </summary>
     public int ReadTelemetry { get; set; } = 5000;
 
     /// <summary>
-    /// Telemetry sending period (default: 5000ms)
+    /// Telemetry sending/upload period in milliseconds.
+    /// Controls how telemetry data is sent to the cloud:
+    /// - 0: Realtime mode - send immediately after each read (default)
+    /// - >0: Batch mode - collect data for this duration, then send as a batch
+    ///
+    /// In batch mode, multiple readings are collected into a List and sent together,
+    /// reducing network overhead for high-frequency sensors.
     /// </summary>
-    public int SendTelemetry { get; set; } = 5000;
+    public int SendTelemetry { get; set; } = 0;
 
     /// <summary>
     /// Health reporting period (default: 60000ms)
