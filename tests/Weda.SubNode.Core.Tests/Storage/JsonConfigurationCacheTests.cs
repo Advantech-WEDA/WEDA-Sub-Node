@@ -10,12 +10,13 @@ namespace Weda.SubNode.Core.Tests.Storage;
 /// <summary>
 /// Unit tests for JsonConfigurationCache.
 /// Tests the configuration cache mechanism for UC9868 (cloud-driven config updates).
+/// Multi-device support: Each device has its own cache file in .weda/{DeviceName}.config.json
 /// </summary>
 public class JsonConfigurationCacheTests : IDisposable
 {
     private readonly string _testDirectory;
-    private readonly string _cacheFilePath;
     private readonly JsonConfigurationCache _cache;
+    private const string TestDeviceName = "TestDevice";
 
     public JsonConfigurationCacheTests()
     {
@@ -23,9 +24,8 @@ public class JsonConfigurationCacheTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), $"config-cache-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDirectory);
 
-        _cacheFilePath = Path.Combine(_testDirectory, JsonConfigurationCache.DefaultFileName);
         _cache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
     }
 
@@ -44,7 +44,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheNotExists_ReturnsFalse()
     {
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(TestDeviceName);
 
         // Assert
         exists.ShouldBeFalse();
@@ -58,7 +58,7 @@ public class JsonConfigurationCacheTests : IDisposable
         await _cache.SaveConfigurationAsync(config);
 
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(TestDeviceName);
 
         // Assert
         exists.ShouldBeTrue();
@@ -68,10 +68,11 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheFileIsEmpty_ReturnsFalse()
     {
         // Arrange
-        await File.WriteAllTextAsync(_cacheFilePath, string.Empty);
+        var cacheFilePath = _cache.GetCacheFilePath(TestDeviceName);
+        await File.WriteAllTextAsync(cacheFilePath, string.Empty);
 
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(TestDeviceName);
 
         // Assert
         exists.ShouldBeFalse();
@@ -91,7 +92,8 @@ public class JsonConfigurationCacheTests : IDisposable
         await _cache.SaveConfigurationAsync(config);
 
         // Assert
-        File.Exists(_cacheFilePath).ShouldBeTrue();
+        var cacheFilePath = _cache.GetCacheFilePath(TestDeviceName);
+        File.Exists(cacheFilePath).ShouldBeTrue();
     }
 
     [Fact]
@@ -113,7 +115,7 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Act
         await _cache.SaveConfigurationAsync(config);
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetConfigurationAsync(TestDeviceName);
 
         // Assert
         loaded.ShouldNotBeNull();
@@ -131,7 +133,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task GetConfigurationAsync_WhenCacheNotExists_ReturnsNull()
     {
         // Act
-        var config = await _cache.GetConfigurationAsync();
+        var config = await _cache.GetConfigurationAsync(TestDeviceName);
 
         // Assert
         config.ShouldBeNull();
@@ -145,7 +147,7 @@ public class JsonConfigurationCacheTests : IDisposable
         await _cache.SaveConfigurationAsync(original);
 
         // Act
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetConfigurationAsync(TestDeviceName);
 
         // Assert
         loaded.ShouldNotBeNull();
@@ -164,7 +166,7 @@ public class JsonConfigurationCacheTests : IDisposable
         await _cache.SaveConfigurationAsync(original);
 
         // Act
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetConfigurationAsync(TestDeviceName);
 
         // Assert
         loaded.ShouldNotBeNull();
@@ -184,20 +186,21 @@ public class JsonConfigurationCacheTests : IDisposable
         // Arrange
         var config = CreateTestConfiguration();
         await _cache.SaveConfigurationAsync(config);
-        File.Exists(_cacheFilePath).ShouldBeTrue();
+        var cacheFilePath = _cache.GetCacheFilePath(TestDeviceName);
+        File.Exists(cacheFilePath).ShouldBeTrue();
 
         // Act
-        await _cache.DeleteCacheAsync();
+        await _cache.DeleteCacheAsync(TestDeviceName);
 
         // Assert
-        File.Exists(_cacheFilePath).ShouldBeFalse();
+        File.Exists(cacheFilePath).ShouldBeFalse();
     }
 
     [Fact]
     public async Task DeleteCacheAsync_WhenCacheNotExists_DoesNotThrow()
     {
         // Act & Assert - Should not throw
-        await Should.NotThrowAsync(() => _cache.DeleteCacheAsync());
+        await Should.NotThrowAsync(() => _cache.DeleteCacheAsync(TestDeviceName));
     }
 
     #endregion
@@ -208,7 +211,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task GetLastModifiedAsync_WhenCacheNotExists_ReturnsNull()
     {
         // Act
-        var lastModified = await _cache.GetLastModifiedAsync();
+        var lastModified = await _cache.GetLastModifiedAsync(TestDeviceName);
 
         // Assert
         lastModified.ShouldBeNull();
@@ -224,7 +227,7 @@ public class JsonConfigurationCacheTests : IDisposable
         var afterSave = DateTimeOffset.UtcNow.AddSeconds(1);
 
         // Act
-        var lastModified = await _cache.GetLastModifiedAsync();
+        var lastModified = await _cache.GetLastModifiedAsync(TestDeviceName);
 
         // Assert
         lastModified.ShouldNotBeNull();
@@ -237,17 +240,34 @@ public class JsonConfigurationCacheTests : IDisposable
     #region CacheFilePath Tests
 
     [Fact]
-    public void CacheFilePath_ReturnsConfiguredPath()
+    public void CacheDirectoryPath_ReturnsConfiguredPath()
     {
         // Assert
-        _cache.CacheFilePath.ShouldBe(_cacheFilePath);
+        _cache.CacheDirectoryPath.ShouldBe(_testDirectory);
     }
 
     [Fact]
-    public void DefaultFileName_IsCorrect()
+    public void GetCacheFilePath_ReturnsCorrectPath()
+    {
+        // Act
+        var filePath = _cache.GetCacheFilePath(TestDeviceName);
+
+        // Assert
+        filePath.ShouldBe(Path.Combine(_testDirectory, $"{TestDeviceName}{JsonConfigurationCache.CacheFileExtension}"));
+    }
+
+    [Fact]
+    public void DefaultCacheDirectory_IsCorrect()
     {
         // Assert
-        JsonConfigurationCache.DefaultFileName.ShouldBe(".device-config-cache.json");
+        JsonConfigurationCache.DefaultCacheDirectory.ShouldBe(".weda");
+    }
+
+    [Fact]
+    public void CacheFileExtension_IsCorrect()
+    {
+        // Assert
+        JsonConfigurationCache.CacheFileExtension.ShouldBe(".config.json");
     }
 
     #endregion
@@ -258,29 +278,34 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ConcurrentAccess_DoesNotCorruptCache()
     {
         // Arrange
-        var config = CreateTestConfiguration();
         var tasks = new List<Task>();
 
-        // Act - Multiple concurrent saves and reads
+        // Act - Multiple concurrent saves and reads for different devices
         for (int i = 0; i < 10; i++)
         {
+            var deviceName = $"Device-{i}";
             tasks.Add(Task.Run(async () =>
             {
                 var testConfig = CreateTestConfiguration();
-                testConfig.DeviceName = $"Device-{Guid.NewGuid():N}";
+                testConfig.DeviceName = deviceName;
                 await _cache.SaveConfigurationAsync(testConfig);
-                await _cache.GetConfigurationAsync();
+                await _cache.GetConfigurationAsync(deviceName);
             }));
         }
 
         await Task.WhenAll(tasks);
 
-        // Assert - Cache should still be valid
-        var exists = await _cache.ExistsAsync();
-        exists.ShouldBeTrue();
+        // Assert - All caches should be valid
+        for (int i = 0; i < 10; i++)
+        {
+            var deviceName = $"Device-{i}";
+            var exists = await _cache.ExistsAsync(deviceName);
+            exists.ShouldBeTrue();
 
-        var loaded = await _cache.GetConfigurationAsync();
-        loaded.ShouldNotBeNull();
+            var loaded = await _cache.GetConfigurationAsync(deviceName);
+            loaded.ShouldNotBeNull();
+            loaded.DeviceName.ShouldBe(deviceName);
+        }
     }
 
     #endregion
@@ -301,10 +326,10 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Simulate restart by creating new cache instance
         var newCache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedConfig = await newCache.GetConfigurationAsync();
+        var loadedConfig = await newCache.GetConfigurationAsync(TestDeviceName);
 
         // Assert - Configuration should persist disabled state
         loadedConfig.ShouldNotBeNull();
@@ -325,10 +350,10 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Simulate restart
         var newCache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedConfig = await newCache.GetConfigurationAsync();
+        var loadedConfig = await newCache.GetConfigurationAsync(TestDeviceName);
 
         // Assert
         loadedConfig.ShouldNotBeNull();
@@ -349,10 +374,10 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Simulate restart
         var newCache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedConfig = await newCache.GetConfigurationAsync();
+        var loadedConfig = await newCache.GetConfigurationAsync(TestDeviceName);
 
         // Assert
         loadedConfig.ShouldNotBeNull();
@@ -370,13 +395,13 @@ public class JsonConfigurationCacheTests : IDisposable
         await _cache.SaveConfigurationAsync(config);
 
         // Act - Reset to appsettings.json by deleting cache
-        await _cache.DeleteCacheAsync();
+        await _cache.DeleteCacheAsync(TestDeviceName);
 
         // Assert
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(TestDeviceName);
         exists.ShouldBeFalse();
 
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetConfigurationAsync(TestDeviceName);
         loaded.ShouldBeNull();
     }
 

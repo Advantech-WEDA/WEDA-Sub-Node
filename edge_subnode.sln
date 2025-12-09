@@ -52,6 +52,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebSocketStreamingDevice", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "stock-monitor", "examples\stock-monitor\stock-monitor.csproj", "{5D17CBB9-3080-4621-9A20-0D99527C6F6A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowerAggregation", "examples\power-aggregation\PowerAggregation.csproj", "{49459EB9-0E73-41C5-A85E-4D4192653D95}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -302,6 +304,18 @@ Global
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A}.Release|x64.Build.0 = Release|Any CPU
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A}.Release|x86.ActiveCfg = Release|Any CPU
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A}.Release|x86.Build.0 = Release|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Debug|x64.Build.0 = Debug|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Debug|x86.Build.0 = Debug|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x64.ActiveCfg = Release|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x64.Build.0 = Release|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x86.ActiveCfg = Release|Any CPU
+		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -326,5 +340,6 @@ Global
 		{49AB7585-FC42-4E52-8A8F-88743EB856A0} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 		{2FAB10DF-CDA5-42B3-BC6C-15D34AA260F7} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A} = {16671E85-B961-4076-AC39-3004C9A0BE38}
+		{49459EB9-0E73-41C5-A85E-4D4192653D95} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 	EndGlobalSection
 EndGlobal

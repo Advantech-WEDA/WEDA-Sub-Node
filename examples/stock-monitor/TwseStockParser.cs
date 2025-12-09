@@ -1,7 +1,6 @@
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -37,8 +36,28 @@ public class TwseStockParser : IRequestResponseProtocolParser
 
     /// <summary>
     /// Reads stock data via HttpCommunication and parses to TelemetryMeasure list.
+    /// Implements IRequestResponseProtocolParser.ReadTelemetryAsync interface.
+    /// Note: This method requires sensor mapping to be provided separately.
+    /// Use ReadSensorDataAsync(sensorMapping) instead, or ensure sensors are configured.
     /// </summary>
-    public async Task<List<TelemetryMeasure>> ReadSensorDataAsync(
+    public Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
+    {
+        // Build sensor mapping from stock codes
+        // Each stock code maps to itself as ResourceId (stock code becomes ResourceId)
+        var sensorMapping = new SensorMapping();
+        foreach (var stockCode in _stockCodes)
+        {
+            sensorMapping.FieldToResourceId[stockCode] = stockCode;
+            sensorMapping.FieldToSensorType[stockCode] = SensorType.Other;
+        }
+
+        return ReadSensorDataAsync(sensorMapping, cancellationToken);
+    }
+
+    /// <summary>
+    /// Internal method that reads stock data via HttpCommunication and parses to TelemetryMeasure list.
+    /// </summary>
+    private async Task<List<TelemetryMeasure>> ReadSensorDataAsync(
         SensorMapping sensorMapping,
         CancellationToken cancellationToken = default)
     {

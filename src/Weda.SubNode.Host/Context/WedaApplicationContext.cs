@@ -336,34 +336,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     {
         var logger = _loggerFactory.CreateLogger<WedaApplicationContext>();
 
-        // Priority 1: Check configuration cache (cloud-updated config)
-        // This ensures cloud-driven configuration updates persist across restarts
-        try
-        {
-            if (_configurationCache.ExistsAsync().GetAwaiter().GetResult())
-            {
-                var cachedConfig = _configurationCache.GetConfigurationAsync().GetAwaiter().GetResult();
-                if (cachedConfig != null)
-                {
-                    logger.LogInformation(
-                        "Using cached configuration (cloud-updated): DeviceName={DeviceName}, CachePath={CachePath}",
-                        cachedConfig.DeviceName,
-                        _configurationCache.CacheFilePath);
-
-                    // Auto-load DTDL if enabled
-                    LoadDtdlIfEnabled(cachedConfig, logger);
-
-                    return cachedConfig;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex,
-                "Failed to load configuration from cache, falling back to appsettings.json");
-        }
-
-        // Priority 2: Load from appsettings.json (initial/fallback config)
+        // Step 1: Load from appsettings.json to get DeviceName
         if (_configuration == null)
             return null;
 
@@ -375,25 +348,59 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         try
         {
-            var deviceConfig = _configuration
+            var appSettingsConfig = _configuration
                 .GetSection(DeviceConfigurationSectionName)
                 .GetSection(_options.DeviceConfigurationKey)
                 .Get<DeviceConfiguration>();
 
-            if (deviceConfig == null)
+            if (appSettingsConfig == null)
             {
                 return null;
             }
 
+            // Use DeviceName from appsettings.json, or fallback to ConfigKey
+            var deviceName = !string.IsNullOrWhiteSpace(appSettingsConfig.DeviceName)
+                ? appSettingsConfig.DeviceName
+                : _options.DeviceConfigurationKey;
+
+            // Step 2: Try loading from cache (cloud-updated config) with deviceName
+            try
+            {
+                if (_configurationCache.ExistsAsync(deviceName).GetAwaiter().GetResult())
+                {
+                    var cachedConfig = _configurationCache.GetConfigurationAsync(deviceName).GetAwaiter().GetResult();
+                    if (cachedConfig != null)
+                    {
+                        var cacheFilePath = _configurationCache.GetCacheFilePath(deviceName);
+                        logger.LogInformation(
+                            "Using cached configuration (cloud-updated): DeviceName={DeviceName}, CachePath={CachePath}",
+                            cachedConfig.DeviceName,
+                            cacheFilePath);
+
+                        // Auto-load DTDL if enabled
+                        LoadDtdlIfEnabled(cachedConfig, logger);
+
+                        return cachedConfig;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to load configuration from cache for device '{DeviceName}', falling back to appsettings.json",
+                    deviceName);
+            }
+
+            // Step 3: Fallback to appsettings.json configuration
             logger.LogInformation(
                 "Using appsettings.json configuration: DeviceName={DeviceName}, ConfigKey={ConfigKey}",
-                deviceConfig.DeviceName,
+                appSettingsConfig.DeviceName,
                 _options.DeviceConfigurationKey);
 
             // Auto-load DTDL if enabled
-            LoadDtdlIfEnabled(deviceConfig, logger);
+            LoadDtdlIfEnabled(appSettingsConfig, logger);
 
-            return deviceConfig;
+            return appSettingsConfig;
         }
         catch (Exception ex)
         {

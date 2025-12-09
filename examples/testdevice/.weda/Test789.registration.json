@@ -1,0 +1,15 @@
+{
+  "deviceName": "Test789",
+  "registrationStatus": "accepted",
+  "deviceId": "256604193228324864",
+  "natsTopicAssignments": {
+    "telemetryTopic": "eco1j.weda.256604193228324864.telemetry",
+    "batchTelemetryTopic": "eco1j.weda.256604193228324864.telemetry-batch",
+    "healthTopic": "eco1j.weda.256604193228324864.health",
+    "configUpdateTopic": "eco1j.weda.256604193228324864.subnode.shadow.cfg.delta",
+    "configResponseTopic": "eco1j.weda.256604193228324864.subnode.shadow.cfg.update",
+    "commandTopic": "eco1j.weda.256604193228324864.subnode.cmd.req",
+    "commandResponseTopic": "eco1j.weda.256604193228324864.subnode.cmd.rsp",
+    "eventTopic": "eco1j.weda.256604193228324864.event"
+  }
+}

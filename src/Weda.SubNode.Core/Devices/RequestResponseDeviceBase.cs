@@ -102,13 +102,13 @@ public class RequestResponseDeviceBase : DeviceBase
     /// <summary>
     /// Starts background tasks for telemetry polling and health reporting.
     /// Framework implementation with automatic reconnection handling.
-    /// Sealed to prevent subclasses from overriding framework logic.
+    /// Internal sealed to prevent high-level devices from overriding framework logic.
     ///
     /// Supports two telemetry upload modes based on Configuration.Periods.SendTelemetry:
     /// - Realtime mode (SendTelemetry = 0): Send immediately after each read
     /// - Batch mode (SendTelemetry > 0): Collect data and send at specified interval
     /// </summary>
-    protected sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
+    internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         _backgroundTasksCts = new CancellationTokenSource();
         var cts = _backgroundTasksCts.Token;

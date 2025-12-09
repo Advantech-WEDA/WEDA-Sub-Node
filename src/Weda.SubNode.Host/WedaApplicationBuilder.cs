@@ -139,7 +139,7 @@ public class WedaApplicationBuilder
     /// Add a device by type with explicit configuration section name.
     ///
     /// Configuration loading priority:
-    /// 1. .device-config-cache.json (if exists and --no-cache not specified)
+    /// 1. .weda/{DeviceName}.config.json (if exists and --no-cache not specified)
     /// 2. appsettings.json DeviceConfigs section (fallback)
     ///
     /// Example for AddDevice&lt;MyCustomDevice&gt;("MyFirstDevice"):
@@ -165,49 +165,50 @@ public class WedaApplicationBuilder
             throw new ArgumentException("Section name cannot be null or whitespace", nameof(sectionName));
         }
 
+        // First, read from appsettings.json to get the DeviceName
+        var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
+        if (!deviceConfigSection.Exists())
+        {
+            throw new InvalidOperationException(
+                $"Device configuration section 'DeviceConfigs:{sectionName}' not found in appsettings.json. " +
+                $"Please ensure the configuration exists.");
+        }
+
+        var appSettingsConfig = deviceConfigSection.Get<DeviceConfiguration>()
+            ?? throw new InvalidOperationException(
+                $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
+                $"Please check your appsettings.json format.");
+
+        // Use DeviceName from appsettings.json, or fallback to sectionName if not specified
+        var deviceName = !string.IsNullOrWhiteSpace(appSettingsConfig.DeviceName)
+            ? appSettingsConfig.DeviceName
+            : sectionName;
+
         // Try loading from cache first (if enabled)
-        DeviceConfiguration? config = null;
         var configSource = "appsettings.json";
+        var config = appSettingsConfig;
 
         if (_useCache)
         {
             try
             {
-                var cachedConfig = _configurationCache.GetConfigurationAsync().GetAwaiter().GetResult();
+                var cachedConfig = _configurationCache.GetConfigurationAsync(deviceName).GetAwaiter().GetResult();
                 if (cachedConfig != null)
                 {
                     config = cachedConfig;
-                    configSource = ".device-config-cache.json";
-                    Log.Information("Loaded device configuration from cache: {CachePath}", _configurationCache.CacheFilePath);
+                    configSource = _configurationCache.GetCacheFilePath(deviceName);
+                    Log.Information("Loaded device '{DeviceName}' configuration from cache: {CachePath}",
+                        deviceName, configSource);
                 }
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Failed to load configuration from cache, falling back to appsettings.json");
+                Log.Warning(ex, "Failed to load configuration from cache for device '{DeviceName}', falling back to appsettings.json",
+                    deviceName);
             }
         }
 
-        // Fallback to appsettings.json
-        if (config == null)
-        {
-            var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
-            if (!deviceConfigSection.Exists())
-            {
-                throw new InvalidOperationException(
-                    $"Device configuration section 'DeviceConfigs:{sectionName}' not found in appsettings.json. " +
-                    $"Please ensure the configuration exists.");
-            }
-
-            config = deviceConfigSection.Get<DeviceConfiguration>();
-            if (config == null)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
-                    $"Please check your appsettings.json format.");
-            }
-        }
-
-        Log.Information("Using device configuration from {Source}", configSource);
+        Log.Information("Using device '{DeviceName}' configuration from {Source}", deviceName, configSource);
 
         // Ensure DeviceTypeName is set for factory resolution
         if (string.IsNullOrEmpty(config.DeviceTypeName))

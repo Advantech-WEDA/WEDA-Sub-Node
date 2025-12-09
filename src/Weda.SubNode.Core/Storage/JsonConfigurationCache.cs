@@ -9,23 +9,30 @@ namespace Weda.SubNode.Core.Storage;
 
 /// <summary>
 /// JSON-based configuration cache implementation.
-/// Stores device configuration in a local JSON file (.device-config-cache.json).
+/// Stores device configurations in .weda/{DeviceName}.config.json files.
 ///
 /// Purpose:
 /// When cloud sends configuration updates (UC9868), the updated configuration
 /// is persisted to this cache. On device restart, the cache takes priority
 /// over appsettings.json, ensuring cloud-driven configuration persists.
 ///
-/// File naming convention follows .device-registration.json pattern.
+/// Multi-Device Support:
+/// Each device has its own cache file: .weda/{DeviceName}.config.json
+/// This allows multiple devices to coexist with independent cloud-managed configurations.
 /// </summary>
 public class JsonConfigurationCache : IConfigurationCache
 {
     /// <summary>
-    /// Default cache file name.
+    /// Default cache directory name.
     /// </summary>
-    public const string DefaultFileName = ".device-config-cache.json";
+    public const string DefaultCacheDirectory = ".weda";
 
-    private readonly string _filePath;
+    /// <summary>
+    /// Cache file extension.
+    /// </summary>
+    public const string CacheFileExtension = ".config.json";
+
+    private readonly string _cacheDirectoryPath;
     private readonly ILogger<JsonConfigurationCache> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions;
@@ -33,18 +40,18 @@ public class JsonConfigurationCache : IConfigurationCache
     /// <summary>
     /// Create a new JSON-based configuration cache.
     /// </summary>
-    /// <param name="filePath">
-    /// Path to cache file.
-    /// Default: .device-config-cache.json in project root directory.
+    /// <param name="cacheDirectoryPath">
+    /// Path to cache directory.
+    /// Default: .weda/ in project root directory.
     /// </param>
     /// <param name="logger">Logger instance</param>
     public JsonConfigurationCache(
-        string? filePath = null,
+        string? cacheDirectoryPath = null,
         ILogger<JsonConfigurationCache>? logger = null)
     {
-        _filePath = filePath ?? Path.Combine(
+        _cacheDirectoryPath = cacheDirectoryPath ?? Path.Combine(
             FindProjectRoot() ?? Directory.GetCurrentDirectory(),
-            DefaultFileName);
+            DefaultCacheDirectory);
 
         _logger = logger ?? NullLoggerFactory.Instance
             .CreateLogger<JsonConfigurationCache>();
@@ -57,30 +64,56 @@ public class JsonConfigurationCache : IConfigurationCache
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
         };
+
+        // Ensure cache directory exists
+        if (!Directory.Exists(_cacheDirectoryPath))
+        {
+            Directory.CreateDirectory(_cacheDirectoryPath);
+        }
     }
 
     /// <inheritdoc />
-    public string CacheFilePath => _filePath;
+    public string CacheDirectoryPath => _cacheDirectoryPath;
+
+    /// <inheritdoc />
+    public string GetCacheFilePath(string deviceName)
+    {
+        if (string.IsNullOrWhiteSpace(deviceName))
+        {
+            throw new ArgumentException("Device name cannot be null or whitespace", nameof(deviceName));
+        }
+
+        return Path.Combine(_cacheDirectoryPath, $"{deviceName}{CacheFileExtension}");
+    }
 
     /// <inheritdoc />
     public async Task<DeviceConfiguration?> GetConfigurationAsync(
+        string deviceName,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(deviceName))
+        {
+            throw new ArgumentException("Device name cannot be null or whitespace", nameof(deviceName));
+        }
+
+        var filePath = GetCacheFilePath(deviceName);
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(filePath))
             {
-                _logger.LogDebug("Configuration cache not found: {FilePath}", _filePath);
+                _logger.LogDebug("Configuration cache not found for device '{DeviceName}': {FilePath}",
+                    deviceName, filePath);
                 return null;
             }
 
-            var json = await File.ReadAllTextAsync(_filePath, cancellationToken);
+            var json = await File.ReadAllTextAsync(filePath, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogWarning("Configuration cache exists but is empty: {FilePath}",
-                    _filePath);
+                _logger.LogWarning("Configuration cache exists but is empty for device '{DeviceName}': {FilePath}",
+                    deviceName, filePath);
                 return null;
             }
 
@@ -92,21 +125,21 @@ public class JsonConfigurationCache : IConfigurationCache
                 _logger.LogInformation(
                     "Configuration loaded from cache: DeviceName={DeviceName}, Path={FilePath}",
                     configuration.DeviceName,
-                    _filePath);
+                    filePath);
             }
 
             return configuration;
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "Error parsing configuration cache JSON: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error parsing configuration cache JSON for device '{DeviceName}': {FilePath}",
+                deviceName, filePath);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error reading configuration cache: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error reading configuration cache for device '{DeviceName}': {FilePath}",
+                deviceName, filePath);
             throw;
         }
         finally
@@ -122,29 +155,35 @@ public class JsonConfigurationCache : IConfigurationCache
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (string.IsNullOrWhiteSpace(configuration.DeviceName))
+        {
+            throw new ArgumentException("DeviceConfiguration.DeviceName cannot be null or whitespace", nameof(configuration));
+        }
+
+        var filePath = GetCacheFilePath(configuration.DeviceName);
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
             // Ensure directory exists
-            var directory = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            if (!Directory.Exists(_cacheDirectoryPath))
             {
-                Directory.CreateDirectory(directory);
+                Directory.CreateDirectory(_cacheDirectoryPath);
             }
 
             var json = JsonSerializer.Serialize(configuration, _jsonOptions);
-            await File.WriteAllTextAsync(_filePath, json, cancellationToken);
+            await File.WriteAllTextAsync(filePath, json, cancellationToken);
 
             _logger.LogInformation(
                 "Configuration saved to cache: DeviceName={DeviceName}, SensorCount={SensorCount}, Path={FilePath}",
                 configuration.DeviceName,
                 configuration.Sensors.Count,
-                _filePath);
+                filePath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving configuration cache: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error saving configuration cache for device '{DeviceName}': {FilePath}",
+                configuration.DeviceName, filePath);
             throw;
         }
         finally
@@ -154,15 +193,24 @@ public class JsonConfigurationCache : IConfigurationCache
     }
 
     /// <inheritdoc />
-    public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(
+        string deviceName,
+        CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(deviceName))
+        {
+            throw new ArgumentException("Device name cannot be null or whitespace", nameof(deviceName));
+        }
+
+        var filePath = GetCacheFilePath(deviceName);
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(filePath))
                 return false;
 
-            var content = await File.ReadAllTextAsync(_filePath, cancellationToken);
+            var content = await File.ReadAllTextAsync(filePath, cancellationToken);
             return !string.IsNullOrWhiteSpace(content);
         }
         finally
@@ -172,28 +220,37 @@ public class JsonConfigurationCache : IConfigurationCache
     }
 
     /// <inheritdoc />
-    public async Task DeleteCacheAsync(CancellationToken cancellationToken = default)
+    public async Task DeleteCacheAsync(
+        string deviceName,
+        CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(deviceName))
+        {
+            throw new ArgumentException("Device name cannot be null or whitespace", nameof(deviceName));
+        }
+
+        var filePath = GetCacheFilePath(deviceName);
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (File.Exists(_filePath))
+            if (File.Exists(filePath))
             {
-                File.Delete(_filePath);
-                _logger.LogInformation("Configuration cache deleted: {FilePath}",
-                    _filePath);
+                File.Delete(filePath);
+                _logger.LogInformation("Configuration cache deleted for device '{DeviceName}': {FilePath}",
+                    deviceName, filePath);
             }
             else
             {
                 _logger.LogDebug(
-                    "Configuration cache not found, nothing to delete: {FilePath}",
-                    _filePath);
+                    "Configuration cache not found for device '{DeviceName}', nothing to delete: {FilePath}",
+                    deviceName, filePath);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting configuration cache: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error deleting configuration cache for device '{DeviceName}': {FilePath}",
+                deviceName, filePath);
             throw;
         }
         finally
@@ -204,15 +261,23 @@ public class JsonConfigurationCache : IConfigurationCache
 
     /// <inheritdoc />
     public async Task<DateTimeOffset?> GetLastModifiedAsync(
+        string deviceName,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(deviceName))
+        {
+            throw new ArgumentException("Device name cannot be null or whitespace", nameof(deviceName));
+        }
+
+        var filePath = GetCacheFilePath(deviceName);
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(filePath))
                 return null;
 
-            var fileInfo = new FileInfo(_filePath);
+            var fileInfo = new FileInfo(filePath);
             return new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero);
         }
         finally

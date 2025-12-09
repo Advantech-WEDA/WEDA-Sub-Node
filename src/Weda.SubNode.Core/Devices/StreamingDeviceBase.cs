@@ -117,7 +117,7 @@ public class StreamingDeviceBase : DeviceBase
     /// <summary>
     /// Starts background tasks for streaming, sampling, and health reporting.
     /// Framework implementation with automatic stream handling.
-    /// Sealed to prevent subclasses from overriding framework logic.
+    /// Internal sealed to prevent high-level devices from overriding framework logic.
     ///
     /// Tasks:
     /// 1. Stream task - maintains stream connection, pushes data into SensorCache
@@ -125,7 +125,7 @@ public class StreamingDeviceBase : DeviceBase
     /// 3. Batch send task (if batch mode) - sends collected data at configured intervals
     /// 4. Health task - periodic health reporting
     /// </summary>
-    protected sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
+    internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         _backgroundTasksCts = new CancellationTokenSource();
         var cts = _backgroundTasksCts.Token;

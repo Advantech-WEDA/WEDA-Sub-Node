@@ -720,13 +720,6 @@ internal class TestDevice : DeviceBase
         return Task.FromResult(true);
     }
 
-    protected override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
-    {
-        OnStartedCalled = true;
-        BackgroundTasksStarted = true;
-        return Task.CompletedTask;
-    }
-
     protected override Task OnBeforeInitializeAsync(CancellationToken cancellationToken)
     {
         OnBeforeInitializeCalled = true;

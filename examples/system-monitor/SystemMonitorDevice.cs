@@ -52,7 +52,7 @@ public class SystemMonitorDevice : RequestResponseDeviceBase
             loggerFactory.CreateLogger<SystemMetricsParser>());
     }
 
-        /// <summary>
+    /// <summary>
     /// Event handler for telemetry data received from device
     /// Prints all sensor values from configuration (channel.0~3)
     /// </summary>

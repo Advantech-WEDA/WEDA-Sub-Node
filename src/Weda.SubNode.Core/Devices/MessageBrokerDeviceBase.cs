@@ -112,7 +112,7 @@ public class MessageBrokerDeviceBase : DeviceBase
     /// <summary>
     /// Starts background tasks for message broker subscription, sampling, and health reporting.
     /// Framework implementation with automatic event handling.
-    /// Sealed to prevent subclasses from overriding framework logic.
+    /// Internal sealed to prevent high-level devices from overriding framework logic.
     ///
     /// Tasks:
     /// 1. Subscription task - maintains connection to message broker, pushes data into SensorCache
@@ -120,7 +120,7 @@ public class MessageBrokerDeviceBase : DeviceBase
     /// 3. Batch send task (if batch mode) - sends collected data at configured intervals
     /// 4. Health task - periodic health reporting
     /// </summary>
-    protected sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
+    internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         _backgroundTasksCts = new CancellationTokenSource();
         var cts = _backgroundTasksCts.Token;

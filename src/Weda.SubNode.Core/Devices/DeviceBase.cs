@@ -251,7 +251,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     protected virtual Task OnBeforeInitializeAsync(CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnAfterInitializeAsync(CancellationToken ct) => Task.CompletedTask;
-    protected abstract Task StartBackgroundTasksAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Internal lifecycle hook for starting device background tasks.
+    /// This method is sealed and can only be overridden by intermediate framework base classes
+    /// (RequestResponseDeviceBase, StreamingDeviceBase, MessageBrokerDeviceBase).
+    /// High-level custom devices should NOT override this method directly.
+    /// Instead, inherit from one of the framework base classes.
+    /// </summary>
+    internal virtual Task StartBackgroundTasksAsync(CancellationToken ct) => Task.CompletedTask;
 
     // ===== Downlink Hooks =====
 
@@ -473,8 +481,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                 // Step 5: Persist configuration to cache for restart persistence
                 await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
-                _logger.LogInformation("Configuration cached to: {CachePath}",
-                    _context.ConfigurationCache.CacheFilePath);
+                var cacheFilePath = _context.ConfigurationCache.GetCacheFilePath(Configuration.DeviceName);
+                _logger.LogInformation("Configuration cached to: {CachePath}", cacheFilePath);
 
                 // Step 6: Send success response with updated configuration
                 _logger.LogInformation("Configuration update successful, sending success response");
