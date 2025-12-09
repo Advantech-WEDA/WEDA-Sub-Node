@@ -41,6 +41,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public DeviceStatus Status => _orchestrator.StateMachine.CurrentStatus;
     public CommunicationState ConnectionState => _communication.State;
 
+    /// <summary>
+    /// Calculated telemetry batch send period (minimum of all enabled sensor intervals).
+    /// Used by derived device classes for batch upload scheduling.
+    /// </summary>
+    protected int CalculatedSendTelemetryPeriod { get; private set; }
+
     protected DeviceBase(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
@@ -51,6 +57,10 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
+
+        // Validate sensor intervals and calculate send period
+        ValidateSensorIntervals(configuration);
+        CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(configuration);
 
         Configuration.LoadDtdl();
 
@@ -450,18 +460,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Apply background task periods if provided (PATCH semantics)
                 if (desiredConfig.Periods != null)
                 {
-                    if (desiredConfig.Periods.ReadTelemetry > 0)
-                    {
-                        _logger.LogDebug("Updating ReadTelemetry period: {Old} -> {New}",
-                            Configuration.Periods.ReadTelemetry, desiredConfig.Periods.ReadTelemetry);
-                        Configuration.Periods.ReadTelemetry = desiredConfig.Periods.ReadTelemetry;
-                    }
-                    if (desiredConfig.Periods.SendTelemetry > 0)
-                    {
-                        _logger.LogDebug("Updating SendTelemetry period: {Old} -> {New}",
-                            Configuration.Periods.SendTelemetry, desiredConfig.Periods.SendTelemetry);
-                        Configuration.Periods.SendTelemetry = desiredConfig.Periods.SendTelemetry;
-                    }
                     if (desiredConfig.Periods.ReportHealth > 0)
                     {
                         _logger.LogDebug("Updating ReportHealth period: {Old} -> {New}",
@@ -478,6 +476,10 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                     _logger.LogInformation("Updated background task periods");
                 }
+
+                // Recalculate send telemetry period if sensor intervals changed
+                CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
+                _logger.LogDebug("Recalculated SendTelemetry period: {Period}ms", CalculatedSendTelemetryPeriod);
 
                 // Step 5: Persist configuration to cache for restart persistence
                 await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
@@ -778,5 +780,50 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _orchestrator.Dispose();
         _configUpdateLock.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    // ===== Sensor Interval Validation & Calculation =====
+
+    /// <summary>
+    /// Validates that all enabled sensors have a valid Interval configured (> 0).
+    /// Throws InvalidOperationException if any enabled sensor has Interval <= 0.
+    /// </summary>
+    /// <param name="configuration">Device configuration to validate</param>
+    /// <exception cref="InvalidOperationException">Thrown when any enabled sensor has invalid Interval</exception>
+    private static void ValidateSensorIntervals(DeviceConfiguration configuration)
+    {
+        var invalidSensors = configuration.Sensors
+            .Where(s => s.Config.Enabled && s.Config.Interval <= 0)
+            .Select(s => s.Name)
+            .ToList();
+
+        if (invalidSensors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"All enabled sensors must have Config.Interval > 0. " +
+                $"Invalid sensors: [{string.Join(", ", invalidSensors)}]. " +
+                $"Please configure the Interval property for each sensor in appsettings.json.");
+        }
+    }
+
+    /// <summary>
+    /// Calculates the telemetry batch send period as the minimum of all enabled sensor intervals.
+    /// </summary>
+    /// <param name="configuration">Device configuration</param>
+    /// <returns>Minimum interval in milliseconds</returns>
+    private static int CalculateSendTelemetryPeriod(DeviceConfiguration configuration)
+    {
+        var enabledIntervals = configuration.Sensors
+            .Where(s => s.Config.Enabled && s.Config.Interval > 0)
+            .Select(s => (int)s.Config.Interval)
+            .ToList();
+
+        // This should never happen after validation, but provide safe default
+        if (enabledIntervals.Count == 0)
+        {
+            return 5000; // Default fallback
+        }
+
+        return enabledIntervals.Min();
     }
 }

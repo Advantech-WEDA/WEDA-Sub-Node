@@ -104,27 +104,24 @@ public class RequestResponseDeviceBase : DeviceBase
     /// Framework implementation with automatic reconnection handling.
     /// Internal sealed to prevent high-level devices from overriding framework logic.
     ///
-    /// Supports two telemetry upload modes based on Configuration.Periods.SendTelemetry:
-    /// - Realtime mode (SendTelemetry = 0): Send immediately after each read
-    /// - Batch mode (SendTelemetry > 0): Collect data and send at specified interval
+    /// Telemetry is always sent in batch mode with period = min(sensor.Interval).
+    /// Each sensor is read at its configured Interval, and batched data is sent at CalculatedSendTelemetryPeriod.
     /// </summary>
     internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         _backgroundTasksCts = new CancellationTokenSource();
         var cts = _backgroundTasksCts.Token;
 
-        var readPeriod = Configuration.Periods.ReadTelemetry;
-        var sendPeriod = Configuration.Periods.SendTelemetry;
-        var isRealtimeMode = sendPeriod <= 0;
+        var sendPeriod = CalculatedSendTelemetryPeriod;
 
         _logger.LogDebug(
-            "Starting telemetry task: ReadPeriod={ReadPeriod}ms, SendPeriod={SendPeriod}ms, Mode={Mode}",
-            readPeriod, sendPeriod, isRealtimeMode ? "Realtime" : "Batch");
+            "Starting telemetry task: SendPeriod={SendPeriod}ms (min of sensor intervals)",
+            sendPeriod);
 
-        // Telemetry read task
+        // Telemetry read task - reads at sendPeriod interval and collects to batch
         _telemetryTask = Task.Run(async () =>
         {
-            _logger.LogDebug("Starting telemetry polling task with period {Period}ms", readPeriod);
+            _logger.LogDebug("Starting telemetry polling task with period {Period}ms", sendPeriod);
 
             while (!cts.IsCancellationRequested)
             {
@@ -151,7 +148,7 @@ public class RequestResponseDeviceBase : DeviceBase
                             else
                             {
                                 _logger.LogError("Failed to reconnect device {DeviceId}", DeviceId);
-                                await Task.Delay(readPeriod, cts);
+                                await Task.Delay(sendPeriod, cts);
                                 continue;
                             }
                         }
@@ -165,20 +162,12 @@ public class RequestResponseDeviceBase : DeviceBase
                     // Record telemetry read duration in health monitor
                     _orchestrator.HealthMonitor.RecordTelemetryReadDuration(readStopwatch.Elapsed);
 
+                    // Always batch mode: add to queue for batch sending
                     if (measures.Count > 0)
                     {
-                        if (isRealtimeMode)
+                        foreach (var measure in measures)
                         {
-                            // Realtime mode: send immediately
-                            await SendTelemetryAsync(ToAsyncEnumerable(measures), cts);
-                        }
-                        else
-                        {
-                            // Batch mode: add to queue for later sending
-                            foreach (var measure in measures)
-                            {
-                                _telemetryBatch.Enqueue(measure);
-                            }
+                            _telemetryBatch.Enqueue(measure);
                         }
                     }
                 }
@@ -192,60 +181,57 @@ public class RequestResponseDeviceBase : DeviceBase
                     _logger.LogError(ex, "Error in telemetry task for device {DeviceId}", DeviceId);
                 }
 
-                await Task.Delay(readPeriod, cts);
+                await Task.Delay(sendPeriod, cts);
             }
         }, cts);
 
-        // Batch send task (only started in batch mode)
-        if (!isRealtimeMode)
+        // Batch send task - sends collected telemetry at sendPeriod interval
+        _batchSendTask = Task.Run(async () =>
         {
-            _batchSendTask = Task.Run(async () =>
+            _logger.LogDebug("Starting batch send task with period {Period}ms", sendPeriod);
+
+            while (!cts.IsCancellationRequested)
             {
-                _logger.LogDebug("Starting batch send task with period {Period}ms", sendPeriod);
-
-                while (!cts.IsCancellationRequested)
+                try
                 {
-                    try
-                    {
-                        await Task.Delay(sendPeriod, cts);
+                    await Task.Delay(sendPeriod, cts);
 
-                        // Collect all queued telemetry
-                        var batch = new List<TelemetryMeasure>();
-                        while (_telemetryBatch.TryDequeue(out var measure))
-                        {
-                            batch.Add(measure);
-                        }
+                    // Collect all queued telemetry
+                    var batch = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        batch.Add(measure);
+                    }
 
-                        if (batch.Count > 0)
-                        {
-                            _logger.LogDebug(
-                                "Sending telemetry batch: {Count} measures for device {DeviceId}",
-                                batch.Count, DeviceId);
-                            await SendTelemetryAsync(batch, cts);
-                        }
-                    }
-                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                    if (batch.Count > 0)
                     {
-                        // Send remaining data before exit
-                        var remaining = new List<TelemetryMeasure>();
-                        while (_telemetryBatch.TryDequeue(out var measure))
-                        {
-                            remaining.Add(measure);
-                        }
-                        if (remaining.Count > 0)
-                        {
-                            _logger.LogDebug("Sending remaining {Count} measures before shutdown", remaining.Count);
-                            await SendTelemetryAsync(remaining, CancellationToken.None);
-                        }
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+                        _logger.LogDebug(
+                            "Sending telemetry batch: {Count} measures for device {DeviceId}",
+                            batch.Count, DeviceId);
+                        await SendTelemetryAsync(batch, cts);
                     }
                 }
-            }, cts);
-        }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                {
+                    // Send remaining data before exit
+                    var remaining = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        remaining.Add(measure);
+                    }
+                    if (remaining.Count > 0)
+                    {
+                        _logger.LogDebug("Sending remaining {Count} measures before shutdown", remaining.Count);
+                        await SendTelemetryAsync(remaining, CancellationToken.None);
+                    }
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+                }
+            }
+        }, cts);
 
         _healthTask = Task.Run(async () =>
         {
@@ -268,14 +254,5 @@ public class RequestResponseDeviceBase : DeviceBase
         }, cts);
 
         return Task.CompletedTask;
-    }
-
-    private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(IEnumerable<T> source)
-    {
-        foreach (var item in source)
-        {
-            yield return item;
-            await Task.CompletedTask;
-        }
     }
 }

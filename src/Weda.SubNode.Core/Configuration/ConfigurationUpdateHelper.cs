@@ -96,10 +96,6 @@ public static class ConfigurationUpdateHelper
         // Validate periods if provided (if enabled)
         if (options.ValidatePeriods && desiredConfig.Periods != null)
         {
-            if (desiredConfig.Periods.ReadTelemetry < 0)
-                return ConfigurationValidationResult.Failure("ReadTelemetry period cannot be negative");
-            if (desiredConfig.Periods.SendTelemetry < 0)
-                return ConfigurationValidationResult.Failure("SendTelemetry period cannot be negative");
             if (desiredConfig.Periods.ReportHealth < 0)
                 return ConfigurationValidationResult.Failure("ReportHealth period cannot be negative");
 
@@ -339,8 +335,6 @@ public static class ConfigurationUpdateHelper
     {
         return new DeviceConfigurationBackup
         {
-            ReadTelemetryPeriod = config.Periods.ReadTelemetry,
-            SendTelemetryPeriod = config.Periods.SendTelemetry,
             ReportHealthPeriod = config.Periods.ReportHealth,
             ReportConfigurationPeriod = config.Periods.ReportConfiguration,
             SensorBackups = config.Sensors.Select(s => new SensorConfigBackup
@@ -368,8 +362,6 @@ public static class ConfigurationUpdateHelper
     public static void RestoreBackup(DeviceConfiguration config, DeviceConfigurationBackup backup)
     {
         // Restore periods
-        config.Periods.ReadTelemetry = backup.ReadTelemetryPeriod;
-        config.Periods.SendTelemetry = backup.SendTelemetryPeriod;
         config.Periods.ReportHealth = backup.ReportHealthPeriod;
         config.Periods.ReportConfiguration = backup.ReportConfigurationPeriod;
 
@@ -688,8 +680,6 @@ public static class ConfigurationUpdateHelper
             Communication = config.Communication,
             Periods = new SubNodePeriodsDto
             {
-                ReadTelemetry = config.Periods.ReadTelemetry,
-                SendTelemetry = config.Periods.SendTelemetry,
                 ReportHealth = config.Periods.ReportHealth,
                 ReportConfiguration = config.Periods.ReportConfiguration
             },
@@ -842,8 +832,6 @@ public static class ConfigurationUpdateHelper
 /// </summary>
 public class DeviceConfigurationBackup
 {
-    public int ReadTelemetryPeriod { get; set; }
-    public int SendTelemetryPeriod { get; set; }
     public int ReportHealthPeriod { get; set; }
     public int ReportConfigurationPeriod { get; set; }
     public List<SensorConfigBackup> SensorBackups { get; set; } = [];

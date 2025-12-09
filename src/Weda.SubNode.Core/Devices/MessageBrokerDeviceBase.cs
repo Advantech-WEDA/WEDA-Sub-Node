@@ -17,10 +17,8 @@ namespace Weda.SubNode.Core.Devices;
 ///
 /// Architecture:
 /// 1. External data (MQTT/NATS) pushes into SensorCache (like Modbus registers)
-/// 2. Device samples from SensorCache at configured intervals (SensorConfig.Interval or Periods.ReadTelemetry)
-/// 3. Device sends to cloud based on Periods.SendTelemetry:
-///    - 0: Realtime mode - send immediately after each sample
-///    - >0: Batch mode - collect samples and send at specified interval
+/// 2. Device samples from SensorCache at CalculatedSendTelemetryPeriod (min of sensor intervals)
+/// 3. Device sends to cloud in batch mode at CalculatedSendTelemetryPeriod
 ///
 /// Inheritance hierarchy example:
 /// MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> MessageBrokerDeviceBase -> DeviceBase
@@ -116,8 +114,8 @@ public class MessageBrokerDeviceBase : DeviceBase
     ///
     /// Tasks:
     /// 1. Subscription task - maintains connection to message broker, pushes data into SensorCache
-    /// 2. Sampling task - reads from SensorCache at configured intervals
-    /// 3. Batch send task (if batch mode) - sends collected data at configured intervals
+    /// 2. Sampling task - reads from SensorCache at CalculatedSendTelemetryPeriod
+    /// 3. Batch send task - sends collected data at CalculatedSendTelemetryPeriod
     /// 4. Health task - periodic health reporting
     /// </summary>
     internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
@@ -125,13 +123,11 @@ public class MessageBrokerDeviceBase : DeviceBase
         _backgroundTasksCts = new CancellationTokenSource();
         var cts = _backgroundTasksCts.Token;
 
-        var readPeriod = Configuration.Periods.ReadTelemetry;
-        var sendPeriod = Configuration.Periods.SendTelemetry;
-        var isRealtimeMode = sendPeriod <= 0;
+        var sendPeriod = CalculatedSendTelemetryPeriod;
 
         _logger.LogDebug(
-            "Starting message broker device: ReadPeriod={ReadPeriod}ms, SendPeriod={SendPeriod}ms, Mode={Mode}",
-            readPeriod, sendPeriod, isRealtimeMode ? "Realtime" : "Batch");
+            "Starting message broker device: SendPeriod={SendPeriod}ms (min of sensor intervals)",
+            sendPeriod);
 
         // Subscribe to parser's OnTelemetryReceived event - pushes into SensorCache
         _parser.OnTelemetryReceived += OnTelemetryReceived;
@@ -169,10 +165,10 @@ public class MessageBrokerDeviceBase : DeviceBase
             }
         }, cts);
 
-        // 2. Sampling task - reads from SensorCache at configured intervals
+        // 2. Sampling task - reads from SensorCache at sendPeriod interval
         _samplingTask = Task.Run(async () =>
         {
-            _logger.LogDebug("Starting sampling task with period {Period}ms", readPeriod);
+            _logger.LogDebug("Starting sampling task with period {Period}ms", sendPeriod);
 
             while (!cts.IsCancellationRequested)
             {
@@ -185,18 +181,10 @@ public class MessageBrokerDeviceBase : DeviceBase
                         // Record telemetry in health monitor
                         _orchestrator.HealthMonitor.RecordTelemetryReadDuration(TimeSpan.Zero);
 
-                        if (isRealtimeMode)
+                        // Always batch mode: add to queue for later sending
+                        foreach (var measure in measures)
                         {
-                            // Realtime mode: send immediately
-                            await SendTelemetryAsync(measures, cts);
-                        }
-                        else
-                        {
-                            // Batch mode: add to queue for later sending
-                            foreach (var measure in measures)
-                            {
-                                _telemetryBatch.Enqueue(measure);
-                            }
+                            _telemetryBatch.Enqueue(measure);
                         }
                     }
                 }
@@ -209,59 +197,56 @@ public class MessageBrokerDeviceBase : DeviceBase
                     _logger.LogError(ex, "Error in sampling task for device {DeviceId}", DeviceId);
                 }
 
-                await Task.Delay(readPeriod, cts);
+                await Task.Delay(sendPeriod, cts);
             }
         }, cts);
 
-        // 3. Batch send task (only in batch mode)
-        if (!isRealtimeMode)
+        // 3. Batch send task - sends collected telemetry at sendPeriod interval
+        _batchSendTask = Task.Run(async () =>
         {
-            _batchSendTask = Task.Run(async () =>
+            _logger.LogDebug("Starting batch send task with period {Period}ms", sendPeriod);
+
+            while (!cts.IsCancellationRequested)
             {
-                _logger.LogDebug("Starting batch send task with period {Period}ms", sendPeriod);
-
-                while (!cts.IsCancellationRequested)
+                try
                 {
-                    try
-                    {
-                        await Task.Delay(sendPeriod, cts);
+                    await Task.Delay(sendPeriod, cts);
 
-                        var batch = new List<TelemetryMeasure>();
-                        while (_telemetryBatch.TryDequeue(out var measure))
-                        {
-                            batch.Add(measure);
-                        }
+                    var batch = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        batch.Add(measure);
+                    }
 
-                        if (batch.Count > 0)
-                        {
-                            _logger.LogDebug(
-                                "Sending telemetry batch: {Count} measures for device {DeviceId}",
-                                batch.Count, DeviceId);
-                            await SendTelemetryAsync(batch, cts);
-                        }
-                    }
-                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                    if (batch.Count > 0)
                     {
-                        // Send remaining data before exit
-                        var remaining = new List<TelemetryMeasure>();
-                        while (_telemetryBatch.TryDequeue(out var measure))
-                        {
-                            remaining.Add(measure);
-                        }
-                        if (remaining.Count > 0)
-                        {
-                            _logger.LogDebug("Sending remaining {Count} measures before shutdown", remaining.Count);
-                            await SendTelemetryAsync(remaining, CancellationToken.None);
-                        }
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+                        _logger.LogDebug(
+                            "Sending telemetry batch: {Count} measures for device {DeviceId}",
+                            batch.Count, DeviceId);
+                        await SendTelemetryAsync(batch, cts);
                     }
                 }
-            }, cts);
-        }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
+                {
+                    // Send remaining data before exit
+                    var remaining = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        remaining.Add(measure);
+                    }
+                    if (remaining.Count > 0)
+                    {
+                        _logger.LogDebug("Sending remaining {Count} measures before shutdown", remaining.Count);
+                        await SendTelemetryAsync(remaining, CancellationToken.None);
+                    }
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+                }
+            }
+        }, cts);
 
         // 4. Health reporting task
         _healthTask = Task.Run(async () =>

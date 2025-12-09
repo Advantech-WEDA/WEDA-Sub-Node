@@ -111,7 +111,7 @@ public class JsonConfigurationCacheTests : IDisposable
         var config = CreateTestConfiguration();
         config.Sensors[0].Config.Enabled = false;
         config.Sensors[0].Config.Interval = 2000;
-        config.Periods.ReadTelemetry = 10000;
+        config.Periods.ReportHealth = 10000;
 
         // Act
         await _cache.SaveConfigurationAsync(config);
@@ -122,7 +122,7 @@ public class JsonConfigurationCacheTests : IDisposable
         loaded.DeviceName.ShouldBe(config.DeviceName);
         loaded.Sensors[0].Config.Enabled.ShouldBeFalse();
         loaded.Sensors[0].Config.Interval.ShouldBe(2000);
-        loaded.Periods.ReadTelemetry.ShouldBe(10000);
+        loaded.Periods.ReportHealth.ShouldBe(10000);
     }
 
     #endregion
@@ -367,9 +367,8 @@ public class JsonConfigurationCacheTests : IDisposable
         var config = CreateTestConfiguration();
 
         // Act - Simulate cloud update changing periods
-        config.Periods.ReadTelemetry = 10000;
-        config.Periods.SendTelemetry = 15000;
         config.Periods.ReportHealth = 120000;
+        config.Periods.PollCommands = 2000;
         await _cache.SaveConfigurationAsync(config);
 
         // Simulate restart
@@ -381,9 +380,8 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Assert
         loadedConfig.ShouldNotBeNull();
-        loadedConfig.Periods.ReadTelemetry.ShouldBe(10000);
-        loadedConfig.Periods.SendTelemetry.ShouldBe(15000);
         loadedConfig.Periods.ReportHealth.ShouldBe(120000);
+        loadedConfig.Periods.PollCommands.ShouldBe(2000);
     }
 
     [Fact]
@@ -458,9 +456,8 @@ public class JsonConfigurationCacheTests : IDisposable
             },
             Periods = new BackgroundTaskPeriods
             {
-                ReadTelemetry = 5000,
-                SendTelemetry = 5000,
-                ReportHealth = 60000
+                ReportHealth = 60000,
+                PollCommands = 1000
             }
         };
     }

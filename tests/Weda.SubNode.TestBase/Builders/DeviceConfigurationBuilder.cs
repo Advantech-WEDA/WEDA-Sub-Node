@@ -35,6 +35,11 @@ public class DeviceConfigurationBuilder
                 ["RegisterAddress"] = 0,
                 ["RegisterCount"] = 2,
                 ["DataType"] = "Float32"
+            },
+            Config = new SensorConfig
+            {
+                Enabled = true,
+                Interval = 1000
             }
         }
     };
@@ -46,8 +51,6 @@ public class DeviceConfigurationBuilder
     };
     private BackgroundTaskPeriods _periods = new()
     {
-        ReadTelemetry = 1000,
-        SendTelemetry = 5000,
         ReportHealth = 60000,
         PollCommands = 1000
     };
