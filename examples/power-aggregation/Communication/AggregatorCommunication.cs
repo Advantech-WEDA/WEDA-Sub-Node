@@ -9,13 +9,19 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace PowerAggregationExample.Communication;
 
 /// <summary>
-/// In-process aggregator communication that subscribes to multiple external devices
-/// and aggregates their data using a pluggable IAggregatorDefinition.
+/// PubSub-style aggregator communication that subscribes to multiple external devices
+/// and delegates aggregation logic to an IAggregatorDefinition.
 ///
 /// This communication pattern:
-/// 1. Subscribes to DataReceived events from external source devices
-/// 2. Forwards received data to the IAggregatorDefinition for processing
-/// 3. Provides aggregated telemetry when requested
+/// 1. Subscribes to DataProcessed events from external source devices
+/// 2. Forwards received data to the IAggregatorDefinition for caching
+/// 3. Triggers aggregation and raises OnTelemetryReceived when data is ready
+///
+/// Architecture:
+/// - Source devices emit DataProcessed after transform/filter pipeline processing
+/// - AggregatorCommunication listens to these events and forwards to IAggregatorDefinition
+/// - IAggregatorDefinition handles caching, synchronization, and aggregation calculation
+/// - When aggregation is ready, OnTelemetryReceived is raised for PubSubDeviceBase
 /// </summary>
 public class AggregatorCommunication : ICommunication
 {
@@ -30,10 +36,16 @@ public class AggregatorCommunication : ICommunication
     public event EventHandler<ConnectionStateChangedEvent>? StateChanged;
 
     /// <summary>
-    /// Creates an AggregatorCommunication with an IAggregatorDefinition.
+    /// Event raised when aggregated telemetry data is ready.
+    /// This mimics the IPubSubProtocolParser.OnTelemetryReceived pattern.
+    /// </summary>
+    public event Action<List<TelemetryMeasure>>? OnTelemetryReceived;
+
+    /// <summary>
+    /// Creates an AggregatorCommunication with an aggregator definition.
     /// </summary>
     /// <param name="deviceRegistry">Device registry for discovering source devices</param>
-    /// <param name="aggregatorDefinition">The aggregator definition that specifies external sources and aggregation logic</param>
+    /// <param name="aggregatorDefinition">The aggregation definition that handles caching and calculation</param>
     /// <param name="logger">Logger instance</param>
     public AggregatorCommunication(
         IDeviceRegistry deviceRegistry,
@@ -46,38 +58,89 @@ public class AggregatorCommunication : ICommunication
             .CreateLogger<AggregatorCommunication>();
     }
 
-    public Task<bool> ConnectAsync(CancellationToken ct = default)
+    public async Task<bool> ConnectAsync(CancellationToken ct = default)
     {
         try
         {
-            // Subscribe to all external sources defined in the aggregator definition
-            foreach (var source in _aggregatorDefinition.ExternalSources)
+            var externalSources = _aggregatorDefinition.ExternalSources;
+
+            _logger.LogInformation(
+                "[AggregatorCommunication] ConnectAsync starting with {Count} external sources",
+                externalSources.Count);
+
+            // Subscribe to all external sources
+            foreach (var source in externalSources)
             {
+                _logger.LogInformation(
+                    "[AggregatorCommunication] Looking for device '{DeviceName}' (SourceKey={SourceKey}) in registry",
+                    source.DeviceName, source.SourceKey);
+
                 var device = _deviceRegistry.GetDevice(source.DeviceName);
                 if (device == null)
                 {
                     _logger.LogError("External source device '{DeviceName}' not found in registry", source.DeviceName);
-                    return Task.FromResult(false);
+                    return false;
+                }
+
+                _logger.LogInformation(
+                    "[AggregatorCommunication] Found device '{DeviceName}', state={State}",
+                    source.DeviceName, device.ConnectionState);
+
+                // Wait for device to be connected (up to 30 seconds)
+                var waitTime = TimeSpan.FromSeconds(30);
+                var startTime = DateTime.UtcNow;
+                while (device.ConnectionState != CommunicationState.Connected)
+                {
+                    if (DateTime.UtcNow - startTime > waitTime)
+                    {
+                        _logger.LogError(
+                            "External source device '{DeviceName}' not connected after {WaitTime}s. Current state: {State}",
+                            source.DeviceName, waitTime.TotalSeconds, device.ConnectionState);
+                        return false;
+                    }
+
+                    _logger.LogDebug(
+                        "Waiting for external source '{DeviceName}' to connect. Current state: {State}",
+                        source.DeviceName, device.ConnectionState);
+
+                    await Task.Delay(500, ct);
                 }
 
                 _sourceDevices[source.DeviceName] = device;
-                device.DataReceived += OnDataReceived;
 
-                _logger.LogDebug("Subscribed to external source: {SourceName}", source.GetDisplayName());
+                // Enable DataProcessed tracking and subscribe to the event
+                device.EnableDataProcessedTracking = true;
+                device.DataProcessed += OnSourceDataProcessed;
+
+                _logger.LogInformation(
+                    "[AggregatorCommunication] Subscribed to '{DeviceName}' DataProcessed event, EnableDataProcessedTracking={Enabled}",
+                    source.DeviceName, device.EnableDataProcessedTracking);
             }
 
             _logger.LogInformation(
-                "AggregatorCommunication connected: subscribed to {SourceCount} external sources: {Sources}",
+                "[AggregatorCommunication] Connected: subscribed to {SourceCount} external sources: {Sources}",
                 _sourceDevices.Count,
-                string.Join(", ", _aggregatorDefinition.ExternalSources.Select(s => s.GetDisplayName())));
+                string.Join(", ", externalSources.Select(s => $"{s.GetDisplayName()}[{s.SourceKey}]")));
 
             State = CommunicationState.Connected;
-            return Task.FromResult(true);
+            StateChanged?.Invoke(this, new ConnectionStateChangedEvent(
+                DeviceId: "aggregator",
+                DeviceType: DeviceType.CustomDevice,
+                PreviousState: CommunicationState.Disconnected,
+                CurrentState: CommunicationState.Connected,
+                Timestamp: DateTimeOffset.UtcNow));
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("AggregatorCommunication connection cancelled");
+            return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to connect AggregatorCommunication");
-            return Task.FromResult(false);
+            return false;
         }
     }
 
@@ -86,19 +149,38 @@ public class AggregatorCommunication : ICommunication
         // Unsubscribe from all source devices
         foreach (var (deviceName, device) in _sourceDevices)
         {
-            device.DataReceived -= OnDataReceived;
+            device.DataProcessed -= OnSourceDataProcessed;
+            device.EnableDataProcessedTracking = false;
             _logger.LogDebug("Unsubscribed from external source: {DeviceName}", deviceName);
         }
 
         _sourceDevices.Clear();
+        _aggregatorDefinition.Reset();
+
+        var previousState = State;
         State = CommunicationState.Disconnected;
+
+        StateChanged?.Invoke(this, new ConnectionStateChangedEvent(
+            DeviceId: "aggregator",
+            DeviceType: DeviceType.CustomDevice,
+            PreviousState: previousState,
+            CurrentState: CommunicationState.Disconnected,
+            Timestamp: DateTimeOffset.UtcNow));
 
         _logger.LogInformation("AggregatorCommunication disconnected");
         return Task.CompletedTask;
     }
 
-    private void OnDataReceived(object? sender, DataReceivedEvent e)
+    /// <summary>
+    /// Handles DataProcessed events from source devices.
+    /// Forwards data to IAggregatorDefinition and triggers aggregation.
+    /// </summary>
+    private void OnSourceDataProcessed(object? sender, DataProcessedEvent e)
     {
+        _logger.LogDebug(
+            "[Aggregator] Received DataProcessed event: DeviceId={DeviceId}, DataCount={Count}",
+            e.DeviceId, e.Data.Count);
+
         // Find which device sent this data
         var sourceDevice = _sourceDevices.FirstOrDefault(kvp => ReferenceEquals(kvp.Value, sender));
         if (sourceDevice.Key == null)
@@ -107,17 +189,30 @@ public class AggregatorCommunication : ICommunication
             return;
         }
 
-        // Forward to aggregator definition for processing
-        _aggregatorDefinition.OnDataReceived(sourceDevice.Key, e.Data, e.Timestamp);
+        var sourceName = sourceDevice.Key;
+
+        // Forward data to the aggregator definition
+        _aggregatorDefinition.OnDataReceived(sourceName, e.Data, e.Timestamp);
+
+        // Try to aggregate and raise event if successful
+        TryRaiseAggregatedTelemetry();
     }
 
     /// <summary>
-    /// Gets the latest aggregated telemetry data from the aggregator definition.
-    /// Returns null if aggregation cannot be performed yet.
+    /// Tries to aggregate and raise OnTelemetryReceived if successful.
     /// </summary>
-    public IReadOnlyList<TelemetryMeasure>? GetAggregatedData()
+    private void TryRaiseAggregatedTelemetry()
     {
-        return _aggregatorDefinition.GetAggregatedData();
+        if (!_aggregatorDefinition.CanAggregate())
+        {
+            return;
+        }
+
+        var aggregatedData = _aggregatorDefinition.Aggregate();
+        if (aggregatedData != null)
+        {
+            OnTelemetryReceived?.Invoke(aggregatedData.ToList());
+        }
     }
 
     public void Dispose()

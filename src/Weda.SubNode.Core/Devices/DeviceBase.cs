@@ -297,14 +297,23 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             return;
         }
 
-        foreach (var processedMeasure in processResult.Value)
+        var processedMeasures = processResult.Value;
+
+        foreach (var processedMeasure in processedMeasures)
         {
             _telemetryBatch.Enqueue(processedMeasure);
         }
 
+        // Raise DataProcessed event AFTER transform/filter processing
+        // This allows subscribers (e.g., AggregatorCommunication) to receive processed data
+        if (processedMeasures.Count > 0)
+        {
+            RaiseDataProcessed(processedMeasures);
+        }
+
         _logger.LogTrace(
             "Enqueued {Count} processed measures for device {DeviceId}",
-            processResult.Value.Count, DeviceId);
+            processedMeasures.Count, DeviceId);
     }
 
     public async Task<DeviceHealth> GetHealthAsync(CancellationToken ct = default)
@@ -635,6 +644,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
     /// Only fires if EnableDataReceivedTracking is true.
+    /// This event fires with RAW data before transform/filter processing.
     /// </summary>
     protected void RaiseDataReceived(List<TelemetryMeasure> measures)
     {
@@ -647,9 +657,26 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             Timestamp: DateTimeOffset.UtcNow));
     }
 
+    /// <summary>
+    /// Triggers DataProcessed event. Called after transform/filter pipeline processing.
+    /// Only fires if EnableDataProcessedTracking is true.
+    /// This event fires with PROCESSED data after transform/filter processing.
+    /// </summary>
+    protected void RaiseDataProcessed(List<TelemetryMeasure> measures)
+    {
+        if (!EnableDataProcessedTracking) return;
+
+        DataProcessed?.Invoke(this, new DataProcessedEvent(
+            DeviceId: DeviceId ?? "unknown",
+            DeviceType: DeviceType,
+            Data: measures,
+            Timestamp: DateTimeOffset.UtcNow));
+    }
+
     // ===== Events & Tracking Flags =====
 
     public event EventHandler<DataReceivedEvent>? DataReceived;
+    public event EventHandler<DataProcessedEvent>? DataProcessed;
     public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
     public event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged;
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;
@@ -659,6 +686,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     /// <inheritdoc />
     public bool EnableDataReceivedTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableDataProcessedTracking { get; set; }
 
     /// <inheritdoc />
     public bool EnableConnectionStateTracking { get; set; }

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PowerAggregationExample.Devices;
+using PowerAggregationExample;
 using PowerAggregationExample.Simulators;
 using Serilog;
 using Weda.SubNode.Host;

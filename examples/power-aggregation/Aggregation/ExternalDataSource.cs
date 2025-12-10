@@ -11,6 +11,13 @@ public record ExternalDataSource
     public required string DeviceName { get; init; }
 
     /// <summary>
+    /// A unique key to identify this source in the aggregation definition.
+    /// Used by IAggregatorDefinition to reference data from this source.
+    /// Examples: "voltage", "current", "temperature", "pressure"
+    /// </summary>
+    public required string SourceKey { get; init; }
+
+    /// <summary>
     /// The ResourceIds to extract from this device's telemetry.
     /// If empty, all telemetry from the device will be forwarded.
     /// </summary>

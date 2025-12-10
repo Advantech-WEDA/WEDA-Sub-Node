@@ -86,6 +86,8 @@ public class StreamingDeviceBase : DeviceBase
         if (measures.Count > 0)
         {
             _logger.LogDebug("Sampled {Count} telemetry measures from cache", measures.Count);
+            // RaiseDataReceived fires with RAW data before transform/filter
+            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
             RaiseDataReceived(measures);
         }
 
@@ -108,6 +110,8 @@ public class StreamingDeviceBase : DeviceBase
         if (measures.Count > 0)
         {
             _logger.LogDebug("Sampled {Count} telemetry measures from cache for specific sensors", measures.Count);
+            // RaiseDataReceived fires with RAW data before transform/filter
+            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
             RaiseDataReceived(measures);
         }
 
@@ -290,10 +294,13 @@ public class StreamingDeviceBase : DeviceBase
                 return;
             }
 
-            RaiseDataReceived(measures);
             _orchestrator.HealthMonitor.RecordTelemetryReadDuration(TimeSpan.Zero);
 
+            // RaiseDataReceived fires with RAW data before transform/filter
+            RaiseDataReceived(measures);
+
             // Step 2: Transform, Filter, and Enqueue (handled by DeviceBase)
+            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
             await EnqueueTelemetryAsync(measures, cancellationToken);
         }
         catch (Exception ex)

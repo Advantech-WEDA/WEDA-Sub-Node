@@ -70,12 +70,9 @@ public class RequestResponseDeviceBase : DeviceBase
     public sealed override async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         var measures = await _parser.ReadTelemetryAsync(cancellationToken);
-
-        if (measures.Count > 0)
-        {
-            RaiseDataReceived(measures);
-        }
-
+        // RaiseDataReceived fires with RAW data before transform/filter
+        // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
+        RaiseDataReceived(measures);
         return measures;
     }
 
@@ -231,9 +228,11 @@ public class RequestResponseDeviceBase : DeviceBase
                 return;
             }
 
+            // RaiseDataReceived fires with RAW data before transform/filter
             RaiseDataReceived(measures);
 
             // Step 2: Transform, Filter, and Enqueue (handled by DeviceBase)
+            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
             await EnqueueTelemetryAsync(measures, cancellationToken);
         }
         catch (Exception ex)

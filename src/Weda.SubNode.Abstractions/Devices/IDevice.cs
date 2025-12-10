@@ -119,6 +119,19 @@ public interface IDevice : IDisposable
     bool EnableDataReceivedTracking { get; set; }
 
     /// <summary>
+    /// Event: Telemetry data processed through pipeline (Device → SubNode).
+    /// Fired after transformation and DSP filtering, before sending to cloud.
+    /// Only fires when EnableDataProcessedTracking is true.
+    /// </summary>
+    event EventHandler<DataProcessedEvent>? DataProcessed;
+
+    /// <summary>
+    /// Gets or sets whether DataProcessed events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableDataProcessedTracking { get; set; }
+
+    /// <summary>
     /// Event: Connection state changed (Device → SubNode).
     /// Only fires when EnableConnectionStateTracking is true.
     /// </summary>
