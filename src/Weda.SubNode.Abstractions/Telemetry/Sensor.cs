@@ -13,14 +13,14 @@ public class Sensor
     /// <summary>
     /// Sensor name or channel identifier (e.g., "ai.channel[0]")
     /// </summary>
-    public required string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Digital Twin Model Identifier (DTMI) for the sensor
     /// Following DTDL v2 specification (e.g., "dtmi:advantech:EdgeSync:AI;1")
     /// Defines unit and dataType
     /// </summary>
-    public required string Dtmi { get; set; }
+    public string Dtmi { get; set; } = string.Empty;
 
     /// <summary>
     /// Logical grouping of sensor (e.g., "AI", "DO", "DI")

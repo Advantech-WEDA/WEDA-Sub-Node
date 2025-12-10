@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SystemMonitorExample.Communication;
-using SystemMonitorExample.Protocols.SystemMetrics;
+using SystemMonitorExample.Protocols;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
@@ -10,17 +10,6 @@ namespace SystemMonitorExample.Devices;
 
 /// <summary>
 /// Base class for system monitoring devices that collect CPU, memory, disk, and network metrics.
-/// Inherits from RequestResponseDeviceBase for Request/Response communication pattern.
-///
-/// This class is responsible for creating the Parser layer (SystemMetricsParser).
-/// Subclasses are responsible for providing the Communication layer.
-///
-/// Architecture: Device -> Parser -> Communication
-/// Inheritance: LocalSystemMonitorDevice -> SystemMonitorDevice -> RequestResponseDeviceBase -> DeviceBase
-///
-/// Layered Responsibility (following TcpModbusDevice pattern):
-/// - SystemMonitorDevice: Creates Parser (protocol layer)
-/// - LocalSystemMonitorDevice: Creates Communication (transport layer)
 /// </summary>
 public class SystemMonitorDevice : RequestResponseDeviceBase
 {

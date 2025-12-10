@@ -1,36 +1,17 @@
 using Microsoft.Extensions.Logging;
 using SystemMonitorExample.Communication;
+using SystemMonitorExample.Devices;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Core.Communication;
 
-namespace SystemMonitorExample.Devices;
+namespace SystemMonitorExample;
 
 /// <summary>
 /// Pre-configured system monitor device for local system resource monitoring.
 /// Automatically creates LocalSystemCommunication for accessing local OS APIs.
-///
-/// This class is responsible for creating the Communication layer (LocalSystemCommunication).
-///
-/// Architecture: Device -> Parser -> Communication
-/// Inheritance: LocalSystemMonitorDevice -> SystemMonitorDevice -> RequestResponseDeviceBase -> DeviceBase
-///
-/// Usage:
-/// <code>
-/// var device = new LocalSystemMonitorDevice(context, configuration);
-/// await device.StartAsync();
-/// </code>
-///
-/// For remote system monitoring (e.g., via SSH), create a new subclass:
-/// <code>
-/// public class RemoteSystemMonitorDevice : SystemMonitorDevice
-/// {
-///     public RemoteSystemMonitorDevice(IWedaApplicationContext context, DeviceConfiguration config)
-///         : base(context, config, CreateSshCommunication(context, config)) { }
-/// }
-/// </code>
 /// </summary>
 public class LocalSystemMonitorDevice : SystemMonitorDevice
 {

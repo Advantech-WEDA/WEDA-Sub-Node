@@ -12,11 +12,6 @@ public record SystemMetricsRequest(HashSet<string> MetricTypes);
 
 /// <summary>
 /// Communication implementation for local system resource access.
-/// Inherits from RequestResponseCommunicationBase following SDK architecture pattern.
-/// This represents the "connection" to the local operating system APIs.
-///
-/// Architecture: LocalSystemMonitorDevice -> SystemMonitorDevice -> RequestResponseDeviceBase
-///               -> SystemMetricsParser -> LocalSystemCommunication (Request-Response pattern)
 /// </summary>
 public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemMetricsRequest, SystemMetricsRawData>
 {

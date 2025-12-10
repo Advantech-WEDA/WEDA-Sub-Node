@@ -7,16 +7,11 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 
-namespace SystemMonitorExample.Protocols.SystemMetrics;
+namespace SystemMonitorExample.Protocols;
 
 /// <summary>
 /// Protocol parser for system metrics.
 /// Converts raw system metrics data to TelemetryMeasure.
-/// Parser owns DeviceConfiguration and handles all mapping logic internally.
-/// Uses Parameters for protocol-specific mapping (MetricType, MetricName, etc.)
-///
-/// Architecture: Device -> Parser -> Communication
-/// Uses the Request-Response pattern via Communication.RequestAsync().
 /// </summary>
 public class SystemMetricsParser : IRequestResponseProtocolParser
 {
@@ -62,24 +57,9 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         // Find sensors by ResourceId
         var requestedIds = sensorResourceIds.ToHashSet();
 
-        _logger.LogDebug(
-            "ReadTelemetryAsync called with {Count} ResourceIds: [{Ids}]",
-            requestedIds.Count,
-            string.Join(", ", requestedIds.Take(5)));
-
-        // Log both Name and ResourceId for comparison
-        foreach (var s in _configuration.Sensors.Take(3))
-        {
-            _logger.LogDebug(
-                "Config sensor: Name={Name}, ResourceId={ResourceId}",
-                s.Name, s.ResourceId);
-        }
-
         var sensors = _configuration.Sensors
             .Where(s => s.Config.Enabled && requestedIds.Contains(s.ResourceId))
             .ToList();
-
-        _logger.LogDebug("Matched {Count} sensors for reading", sensors.Count);
 
         return await ReadTelemetryForSensorsAsync(sensors, cancellationToken);
     }
