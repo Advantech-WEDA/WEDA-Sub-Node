@@ -16,6 +16,7 @@ public class ModbusBatchReader
 {
     private readonly IRequestResponseCommunication<byte[], byte[]> _communication;
     private readonly byte _slaveId;
+    private readonly ModbusByteOrder _byteOrder;
     private readonly ILogger _logger;
     private readonly ModbusBatchOptimizationOptions _options;
     private ushort _transactionId = 0;
@@ -23,11 +24,13 @@ public class ModbusBatchReader
     public ModbusBatchReader(
         IRequestResponseCommunication<byte[], byte[]> communication,
         byte slaveId,
+        ModbusByteOrder byteOrder,
         ILogger logger,
         ModbusBatchOptimizationOptions? options = null)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _slaveId = slaveId;
+        _byteOrder = byteOrder;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options ?? ModbusBatchOptimizationOptions.Default;
     }
@@ -219,8 +222,8 @@ public class ModbusBatchReader
                 var sensorRegisters = new ushort[sensor.RegisterCount];
                 Array.Copy(registers, offset, sensorRegisters, 0, sensor.RegisterCount);
 
-                // Parse the value using protocol parser
-                var parser = new ModbusProtocolParser(sensor.DataType);
+                // Parse the value using protocol parser with device-level byte order
+                var parser = new ModbusProtocolParser(sensor.DataType, _byteOrder);
                 var parsedValue = parser.Parse(sensorRegisters);
 
                 results[sensor.Name] = new SensorReadResult

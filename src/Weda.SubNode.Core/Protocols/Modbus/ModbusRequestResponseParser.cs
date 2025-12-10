@@ -28,6 +28,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     private readonly IRequestResponseCommunication<byte[], byte[]> _communication;
     private readonly DeviceConfiguration _configuration;
     private readonly byte _slaveId;
+    private readonly ModbusByteOrder _byteOrder;
     private readonly ILogger _logger;
     private readonly ModbusBatchReader _batchReader;
     private readonly bool _useBatchOptimization;
@@ -58,8 +59,9 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         _useBatchOptimization = useBatchOptimization;
         _defaultCommandTimeoutMs = defaultCommandTimeoutMs;
 
-        // Extract Modbus protocol settings (SlaveId)
+        // Extract Modbus protocol settings (SlaveId, ByteOrder)
         _slaveId = configuration.GetModbusSlaveId();
+        _byteOrder = configuration.GetModbusByteOrder();
 
         // Convert sensors to Modbus registers and create metadata dictionary
         _sensorMetadata = configuration.Sensors
@@ -70,6 +72,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         _batchReader = new ModbusBatchReader(
             _communication,
             _slaveId,
+            _byteOrder,
             _logger,
             batchOptions);
 
@@ -193,7 +196,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                         register.RegisterCount,
                         cancellationToken);
 
-                    // Parse registers to C# type
+                    // Parse registers to C# type with device-level byte order
                     var parsedValue = ParseValue(rawData, register.DataType);
 
                     // Create telemetry measure
@@ -583,15 +586,15 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Parse Modbus registers (ushort[]) to C# primitive type
+    /// Parse Modbus registers (ushort[]) to C# primitive type using device-level byte order
     /// </summary>
     private object ParseValue(ushort[] rawData, ModbusDataType dataType)
     {
         if (rawData == null || rawData.Length == 0)
             throw new ArgumentException("Raw data cannot be null or empty", nameof(rawData));
 
-        // Use the existing ModbusProtocolParser for type conversion
-        var parser = new ModbusProtocolParser(dataType);
+        // Use the existing ModbusProtocolParser for type conversion with device-level byte order
+        var parser = new ModbusProtocolParser(dataType, _byteOrder);
         return parser.Parse(rawData);
     }
 }

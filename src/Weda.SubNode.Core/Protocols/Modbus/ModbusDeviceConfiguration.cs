@@ -18,6 +18,16 @@ public static class ModbusDeviceConfigurationExtensions
     }
 
     /// <summary>
+    /// Get Modbus ByteOrder (protocol layer setting)
+    /// Default: BigEndian (standard Modbus)
+    /// </summary>
+    public static ModbusByteOrder GetModbusByteOrder(this DeviceConfiguration config)
+    {
+        var byteOrderStr = config.Communication.GetValueOrDefault("ByteOrder")?.ToString() ?? "BigEndian";
+        return Enum.Parse<ModbusByteOrder>(byteOrderStr);
+    }
+
+    /// <summary>
     /// Get Modbus sensor register from Sensor
     /// </summary>
     public static ModbusSensorRegister ToModbusRegister(this Sensor sensor)
@@ -86,4 +96,47 @@ public enum ModbusDataType
     Int64,
     Float64,
     String16    // 16-character ASCII string (16 registers)
+}
+
+/// <summary>
+/// Modbus byte order modes for multi-register data types (32-bit, 64-bit).
+/// Different Modbus devices use different byte/word ordering conventions.
+/// </summary>
+/// <remarks>
+/// For a 32-bit float value with IEEE 754 bytes A(MSB), B, C, D(LSB):
+/// - BigEndian (ABCD): Standard Modbus - High word first, MSB first in each word
+/// - LittleEndian (DCBA): Low word first, LSB first in each word
+/// - BigEndianByteSwap (BADC): High word first, bytes swapped within words
+/// - LittleEndianByteSwap (CDAB): Low word first, bytes swapped within words
+/// </remarks>
+public enum ModbusByteOrder
+{
+    /// <summary>
+    /// Big Endian Word + Big Endian Byte (ABCD) - Standard Modbus
+    /// Register[0] = AB (high word, MSB first)
+    /// Register[1] = CD (low word, MSB first)
+    /// Default and most common Modbus byte order.
+    /// </summary>
+    BigEndian = 0,
+
+    /// <summary>
+    /// Little Endian Word + Little Endian Byte (DCBA)
+    /// Register[0] = DC (low word, LSB first)
+    /// Register[1] = BA (high word, LSB first)
+    /// </summary>
+    LittleEndian = 1,
+
+    /// <summary>
+    /// Big Endian Word + Little Endian Byte (BADC) - Byte swapped
+    /// Register[0] = BA (high word, LSB first)
+    /// Register[1] = DC (low word, LSB first)
+    /// </summary>
+    BigEndianByteSwap = 2,
+
+    /// <summary>
+    /// Little Endian Word + Big Endian Byte (CDAB) - Word swapped
+    /// Register[0] = CD (low word, MSB first)
+    /// Register[1] = AB (high word, MSB first)
+    /// </summary>
+    LittleEndianByteSwap = 3
 }

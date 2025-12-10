@@ -115,10 +115,13 @@ public class TcpModbusSimulator : IDisposable
 
     private ushort[] ConvertFloat32ToRegisters(float value)
     {
+        // Standard Modbus Big Endian (ABCD order)
+        // BitConverter on little-endian: bytes = [0]=LSB, [1], [2], [3]=MSB
+        // We need: reg[0] = AB (high word), reg[1] = CD (low word)
         var bytes = BitConverter.GetBytes(value);
         return [
-            (ushort)((bytes[0] << 8) | bytes[1]),
-            (ushort)((bytes[2] << 8) | bytes[3])
+            (ushort)((bytes[3] << 8) | bytes[2]),  // AB (high word: MSB first)
+            (ushort)((bytes[1] << 8) | bytes[0])   // CD (low word)
         ];
     }
 
@@ -132,12 +135,15 @@ public class TcpModbusSimulator : IDisposable
 
     private ushort[] ConvertFloat64ToRegisters(double value)
     {
+        // Standard Modbus Big Endian
+        // BitConverter on little-endian: bytes = [0]=LSB ... [7]=MSB
+        // We need: reg[0] = most significant word, reg[3] = least significant word
         var bytes = BitConverter.GetBytes(value);
         return [
-            (ushort)((bytes[0] << 8) | bytes[1]),
-            (ushort)((bytes[2] << 8) | bytes[3]),
-            (ushort)((bytes[4] << 8) | bytes[5]),
-            (ushort)((bytes[6] << 8) | bytes[7])
+            (ushort)((bytes[7] << 8) | bytes[6]),  // Most significant word
+            (ushort)((bytes[5] << 8) | bytes[4]),
+            (ushort)((bytes[3] << 8) | bytes[2]),
+            (ushort)((bytes[1] << 8) | bytes[0])   // Least significant word
         ];
     }
 
@@ -424,13 +430,16 @@ public class TcpModbusSimulator : IDisposable
             return CreateExceptionResponse(transactionId, unitId, 0x03, 0x03); // Illegal data value
         }
 
+        // Convert Modbus address to physical address (e.g., 40001 -> 0)
+        var physicalStartAddress = GetPhysicalAddress(startAddress);
+
         // Read registers
         var registerValues = new List<ushort>();
         lock (_registerLock)
         {
             for (ushort i = 0; i < quantity; i++)
             {
-                var address = (ushort)(startAddress + i);
+                var address = (ushort)(physicalStartAddress + i);
                 var value = _holdingRegisters.TryGetValue(address, out var v) ? v : (ushort)0;
                 registerValues.Add(value);
             }
