@@ -1,13 +1,15 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using Microsoft.Extensions.Logging;
+using SystemMonitorExample.Models;
 
-namespace SystemMonitorExample;
+namespace SystemMonitorExample.Communication;
 
 /// <summary>
 /// Collects raw system resource metrics from operating system APIs.
 /// This is the "communication layer" that interfaces with the local system.
 /// Returns raw data that will be converted to TelemetryMeasure by SystemMetricsParser.
+/// Part of the Communication layer.
 /// </summary>
 public class SystemResourceCollector
 {
@@ -26,27 +28,80 @@ public class SystemResourceCollector
     /// </summary>
     public async Task<SystemMetricsRawData> CollectAllMetricsAsync(CancellationToken ct)
     {
+        return await CollectMetricsAsync(["cpu", "memory", "disk", "network", "system", "gpu"], ct);
+    }
+
+    /// <summary>
+    /// Collects only the requested metric categories and returns raw data.
+    /// This is more efficient when only specific metrics are needed.
+    /// </summary>
+    /// <param name="metricTypes">Set of metric types to collect: "cpu", "memory", "disk", "network", "system", "gpu"</param>
+    /// <param name="ct">Cancellation token</param>
+    public async Task<SystemMetricsRawData> CollectMetricsAsync(HashSet<string> metricTypes, CancellationToken ct)
+    {
         var rawData = new SystemMetricsRawData
         {
             Timestamp = DateTimeOffset.UtcNow
         };
 
-        // Collect all metrics in parallel where possible
-        var cpuTask = CollectCpuMetricsAsync(ct);
-        var ramTask = CollectRamMetricsAsync(ct);
-        var diskTask = CollectDiskMetricsAsync(ct);
-        var networkTask = Task.Run(() => CollectNetworkMetrics(), ct);
-        var systemTask = CollectSystemMetricsAsync(ct);
-        var gpuTask = Task.Run(() => CollectGpuMetrics(), ct);
+        var tasks = new List<Task>();
 
-        await Task.WhenAll(cpuTask, ramTask, diskTask, networkTask, systemTask, gpuTask);
+        // Only collect the requested metric categories
+        Task<CpuMetrics>? cpuTask = null;
+        Task<RamMetrics>? ramTask = null;
+        Task<List<DiskMetrics>>? diskTask = null;
+        Task<List<NetworkMetrics>>? networkTask = null;
+        Task<SystemMetrics>? systemTask = null;
+        Task<GpuMetrics>? gpuTask = null;
 
-        rawData.Cpu = await cpuTask;
-        rawData.Ram = await ramTask;
-        rawData.Disks = await diskTask;
-        rawData.Networks = await networkTask;
-        rawData.System = await systemTask;
-        rawData.Gpu = await gpuTask;
+        if (metricTypes.Contains("cpu"))
+        {
+            cpuTask = CollectCpuMetricsAsync(ct);
+            tasks.Add(cpuTask);
+        }
+
+        if (metricTypes.Contains("memory"))
+        {
+            ramTask = CollectRamMetricsAsync(ct);
+            tasks.Add(ramTask);
+        }
+
+        if (metricTypes.Contains("disk"))
+        {
+            diskTask = CollectDiskMetricsAsync(ct);
+            tasks.Add(diskTask);
+        }
+
+        if (metricTypes.Contains("network"))
+        {
+            networkTask = Task.Run(() => CollectNetworkMetrics(), ct);
+            tasks.Add(networkTask);
+        }
+
+        if (metricTypes.Contains("system"))
+        {
+            systemTask = CollectSystemMetricsAsync(ct);
+            tasks.Add(systemTask);
+        }
+
+        if (metricTypes.Contains("gpu"))
+        {
+            gpuTask = Task.Run(() => CollectGpuMetrics(), ct);
+            tasks.Add(gpuTask);
+        }
+
+        if (tasks.Count > 0)
+        {
+            await Task.WhenAll(tasks);
+        }
+
+        // Assign results from completed tasks
+        if (cpuTask != null) rawData.Cpu = await cpuTask;
+        if (ramTask != null) rawData.Ram = await ramTask;
+        if (diskTask != null) rawData.Disks = await diskTask;
+        if (networkTask != null) rawData.Networks = await networkTask;
+        if (systemTask != null) rawData.System = await systemTask;
+        if (gpuTask != null) rawData.Gpu = await gpuTask;
 
         return rawData;
     }
@@ -229,6 +284,7 @@ public class SystemResourceCollector
             {
                 var memInfo = await ReadLinuxMemInfoAsync(ct);
 
+                metrics.MemTotalBytes = memInfo.GetValueOrDefault("MemTotal", 0) * 1024;
                 metrics.MemAvailableBytes = memInfo.GetValueOrDefault("MemAvailable", 0) * 1024;
                 metrics.MemFreeBytes = memInfo.GetValueOrDefault("MemFree", 0) * 1024;
                 metrics.BuffersBytes = memInfo.GetValueOrDefault("Buffers", 0) * 1024;
@@ -240,6 +296,7 @@ public class SystemResourceCollector
             {
                 // Cross-platform fallback using GC info
                 var gcInfo = GC.GetGCMemoryInfo();
+                metrics.MemTotalBytes = gcInfo.TotalAvailableMemoryBytes;
                 metrics.MemAvailableBytes = gcInfo.TotalAvailableMemoryBytes;
                 metrics.MemFreeBytes = gcInfo.TotalAvailableMemoryBytes - Process.GetCurrentProcess().WorkingSet64;
             }
@@ -383,6 +440,8 @@ public class SystemResourceCollector
                     InterfaceName = SanitizeInterfaceName(iface.Name),
                     ReceiveBytesTotal = stats.BytesReceived,
                     TransmitBytesTotal = stats.BytesSent,
+                    ReceivePacketsTotal = stats.UnicastPacketsReceived + stats.NonUnicastPacketsReceived,
+                    TransmitPacketsTotal = stats.UnicastPacketsSent + stats.NonUnicastPacketsSent,
                     ReceiveErrsTotal = stats.IncomingPacketsWithErrors,
                     TransmitErrsTotal = stats.OutgoingPacketsWithErrors
                 });

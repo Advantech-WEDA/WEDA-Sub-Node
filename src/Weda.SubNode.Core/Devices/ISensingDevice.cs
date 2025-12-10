@@ -9,25 +9,25 @@ namespace Weda.SubNode.Core.Devices;
 
 /// <summary>
 /// ISensing protocol device implementation.
-/// Inherits from MessageBrokerDeviceBase for Publish-Subscribe communication pattern.
+/// Inherits from PubSubDeviceBase for Pub/Sub communication pattern.
 /// Adds ISensing-specific functionality like sensor control and configuration.
 ///
 /// Architecture: Device -> Parser -> Communication
-/// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> MessageBrokerDeviceBase -> DeviceBase
+/// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> PubSubDeviceBase -> DeviceBase
 /// </summary>
-public class ISensingDevice : MessageBrokerDeviceBase, ISensorControl
+public class ISensingDevice : PubSubDeviceBase, ISensorControl
 {
     /// <summary>
     /// Initializes a new instance of ISensingDevice.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing ISensing settings.</param>
-    /// <param name="messageBroker">Message broker instance (MQTT, NATS, etc.).</param>
+    /// <param name="pubSub">Pub/Sub communication instance (MQTT, NATS, etc.).</param>
     public ISensingDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        IMessageBroker messageBroker)
-        : base(context, configuration, CreateParser(configuration, messageBroker, context.GetLogger<ISensingPubSubParser>()))
+        IPubSub pubSub)
+        : base(context, configuration, CreateParser(configuration, pubSub, context.GetLogger<ISensingPubSubParser>()))
     {
     }
 
@@ -36,10 +36,10 @@ public class ISensingDevice : MessageBrokerDeviceBase, ISensorControl
     /// </summary>
     private static ISensingPubSubParser CreateParser(
         DeviceConfiguration configuration,
-        IMessageBroker messageBroker,
+        IPubSub pubSub,
         ILogger<ISensingPubSubParser> logger)
     {
-        return new ISensingPubSubParser(configuration, messageBroker, logger);
+        return new ISensingPubSubParser(configuration, pubSub, logger);
     }
 
     #region ISensorControl Implementation

@@ -20,7 +20,6 @@ public class TelemetryClient : ITelemetryClient
 {
     private readonly ILogger<TelemetryClient> _logger;
     private readonly NatsClient _client;
-    private readonly INatsJSContext _jetStream;
     private readonly ConcurrentDictionary<string, NatsTopicAssignments> _deviceTopics = new();
 
     public TelemetryClient(
@@ -28,7 +27,6 @@ public class TelemetryClient : ITelemetryClient
         ILogger<TelemetryClient>? logger = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
-        _jetStream = _client.CreateJetStreamContext();
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<TelemetryClient>();
     }
 
@@ -127,64 +125,6 @@ public class TelemetryClient : ITelemetryClient
             "Telemetry sent successfully: MeasureCount={MeasureCount}, Topic={Topic}",
             telemetryData.Measures.Count,
             topicAssignments.TelemetryTopic);
-
-        return response;
-    }
-
-    public async Task<TelemetrySendResponse> SendBatchTelemetryAsync(
-        string deviceId,
-        List<TelemetryData> telemetryDataList,
-        CancellationToken cancellationToken = default)
-    {
-        var topicAssignments = FindTopicsByDeviceId(deviceId);
-        if (topicAssignments?.BatchTelemetryTopic == null)
-        {
-            throw new InvalidOperationException(
-                $"Telemetry topics not configured for device {deviceId}. " +
-                "Call ConfigureTopics() after device registration.");
-        }
-
-        var totalMeasures = telemetryDataList.Sum(td => td.Measures.Count);
-
-        _logger.LogInformation(
-            "Sending batch telemetry: DeviceId={DeviceId}, BatchCount={BatchCount}, TotalMeasures={TotalMeasures}, Topic={Topic}",
-            deviceId,
-            telemetryDataList.Count,
-            totalMeasures,
-            topicAssignments.BatchTelemetryTopic);
-
-        // Send batch telemetry via NATS JetStream with guaranteed delivery
-        var ack = await _jetStream.PublishAsync(
-            subject: topicAssignments.BatchTelemetryTopic,
-            data: telemetryDataList,
-            cancellationToken: cancellationToken);
-
-        // Verify message was persisted
-        ack.EnsureSuccess();
-
-        _logger.LogDebug(
-            "Batch telemetry persisted to stream: Stream={Stream}, Sequence={Sequence}",
-            ack.Stream,
-            ack.Seq);
-
-        var response = new TelemetrySendResponse
-        {
-            ReqSeqId = Guid.NewGuid().ToString(),
-            RspSeqId = Guid.NewGuid().ToString(),
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Code = 0,
-            Message = "Batch telemetry sent successfully",
-            Data = new TelemetrySendResponseData
-            {
-                Status = "success",
-                MeasureCount = totalMeasures
-            }
-        };
-
-        _logger.LogInformation(
-            "Batch telemetry sent successfully: TotalMeasures={TotalMeasures}, Topic={Topic}",
-            totalMeasures,
-            topicAssignments.BatchTelemetryTopic);
 
         return response;
     }

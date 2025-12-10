@@ -13,12 +13,34 @@ namespace Weda.SubNode.Core.Telemetry;
 public interface ITelemetryPipeline
 {
     /// <summary>
-    /// Processes telemetry data through the pipeline.
+    /// Processes telemetry data through the full pipeline (Transform → Filter → Send).
     /// </summary>
     /// <param name="measures">Raw telemetry measures to process.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Success if telemetry was sent, or an error.</returns>
     Task<ErrorOr<Success>> ProcessAsync(
+        List<TelemetryMeasure> measures,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Processes telemetry data through Transform and Filter stages only (no sending).
+    /// Use this for per-sensor collection before batch sending.
+    /// </summary>
+    /// <param name="measures">Raw telemetry measures to process.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Processed measures after transforms and filters, or an error.</returns>
+    Task<ErrorOr<List<TelemetryMeasure>>> TransformAndFilterAsync(
+        List<TelemetryMeasure> measures,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends telemetry data directly to cloud without Transform or Filter stages.
+    /// Use this for batch sending data that has already been processed through TransformAndFilterAsync.
+    /// </summary>
+    /// <param name="measures">Already processed telemetry measures to send.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Success if telemetry was sent, or an error.</returns>
+    Task<ErrorOr<Success>> SendAsync(
         List<TelemetryMeasure> measures,
         CancellationToken cancellationToken = default);
 

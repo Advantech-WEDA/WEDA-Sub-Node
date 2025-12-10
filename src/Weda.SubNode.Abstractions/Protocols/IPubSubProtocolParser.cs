@@ -5,7 +5,7 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Abstractions.Protocols;
 
 /// <summary>
-/// Publish-Subscribe pattern protocol parser.
+/// Pub/Sub pattern protocol parser.
 /// Used for asynchronous protocols where data is pushed to device via subscriptions.
 /// Examples: MQTT, NATS, AMQP, Kafka, WebSocket
 ///
@@ -14,7 +14,7 @@ namespace Weda.SubNode.Abstractions.Protocols;
 /// - Protocol-specific parsing logic
 /// - Mapping protocol fields to ResourceIds (internally using DeviceConfiguration)
 /// </summary>
-public interface IPublishSubscribeProtocolParser : IProtocolParserCore
+public interface IPubSubProtocolParser : IProtocolParserCore
 {
     /// <summary>
     /// Event raised when telemetry data is received from subscription.

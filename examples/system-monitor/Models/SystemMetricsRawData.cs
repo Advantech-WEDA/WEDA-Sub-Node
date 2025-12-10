@@ -1,4 +1,4 @@
-namespace SystemMonitorExample;
+namespace SystemMonitorExample.Models;
 
 /// <summary>
 /// Raw system metrics data collected from operating system APIs.
@@ -121,6 +121,11 @@ public class GpuMetrics
 public class RamMetrics
 {
     /// <summary>
+    /// Total memory in bytes.
+    /// </summary>
+    public long MemTotalBytes { get; set; }
+
+    /// <summary>
     /// Available memory in bytes (including reclaimable cache).
     /// </summary>
     public long MemAvailableBytes { get; set; }
@@ -231,6 +236,16 @@ public class NetworkMetrics
     /// Total bytes transmitted.
     /// </summary>
     public long TransmitBytesTotal { get; set; }
+
+    /// <summary>
+    /// Total packets received.
+    /// </summary>
+    public long ReceivePacketsTotal { get; set; }
+
+    /// <summary>
+    /// Total packets transmitted.
+    /// </summary>
+    public long TransmitPacketsTotal { get; set; }
 
     /// <summary>
     /// Total receive errors.

@@ -45,7 +45,7 @@ static TcpModbusSimulatorConfiguration ConfigureTcpModbusSimulator()
         },
         Simulation = new SimulationSettings
         {
-            GlobalUpdateIntervalSeconds = 5,
+            GlobalUpdateIntervalSeconds = 2,
             EnableValueChanges = true
         },
         Sensors =

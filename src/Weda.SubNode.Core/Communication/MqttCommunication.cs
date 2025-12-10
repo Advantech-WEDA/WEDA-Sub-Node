@@ -9,10 +9,10 @@ using Weda.SubNode.Abstractions.Communication;
 namespace Weda.SubNode.Core.Communication;
 
 /// <summary>
-/// MQTT communication implementation using Message Broker (Pub/Sub) pattern.
+/// MQTT communication implementation using Pub/Sub pattern.
 /// Provides subscribe/publish operations for topic-based messaging.
 /// </summary>
-public class MqttCommunication : MessageBrokerCommunicationBase<byte[]>, IMessageBroker
+public class MqttCommunication : PubSubCommunicationBase<byte[]>, IPubSub
 {
     private readonly string _brokerUrl;
     private readonly int _port;
@@ -40,7 +40,7 @@ public class MqttCommunication : MessageBrokerCommunicationBase<byte[]>, IMessag
         _mqttFactory = new MqttFactory();
     }
 
-    // ===== IMessageBroker Implementation (Native Pub/Sub) =====
+    // ===== IPubSub Implementation =====
 
     /// <summary>
     /// Subscribe to MQTT topic

@@ -158,6 +158,80 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     }
 
     /// <inheritdoc/>
+    public async Task<ErrorOr<List<TelemetryMeasure>>> TransformAndFilterAsync(
+        List<TelemetryMeasure> measures,
+        CancellationToken cancellationToken = default)
+    {
+        if (measures == null || measures.Count == 0)
+        {
+            return new List<TelemetryMeasure>();
+        }
+
+        try
+        {
+            // Stage 1: Transform
+            var transformResult = await ExecuteTransformStageAsync(measures, cancellationToken);
+            if (transformResult.IsError)
+            {
+                return transformResult.Errors;
+            }
+
+            // Stage 2: Filter
+            var filterResult = await ExecuteFilterStageAsync(transformResult.Value, cancellationToken);
+            if (filterResult.IsError)
+            {
+                return filterResult.Errors;
+            }
+
+            _logger.LogTrace(
+                "TransformAndFilter completed for device {DeviceId}: {InputCount} → {OutputCount} measures",
+                _deviceId, measures.Count, filterResult.Value.Count);
+
+            return filterResult.Value;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "TransformAndFilter failed for device {DeviceId}", _deviceId);
+            return Error.Failure(
+                code: "TelemetryPipeline.TransformAndFilterFailed",
+                description: $"TransformAndFilter failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<ErrorOr<Success>> SendAsync(
+        List<TelemetryMeasure> measures,
+        CancellationToken cancellationToken = default)
+    {
+        if (measures == null || measures.Count == 0)
+        {
+            return Result.Success;
+        }
+
+        try
+        {
+            var sendResult = await ExecuteSendStageAsync(measures, cancellationToken);
+            if (sendResult.IsError)
+            {
+                return sendResult.Errors;
+            }
+
+            _logger.LogTrace(
+                "SendAsync completed for device {DeviceId}: {Count} measures sent",
+                _deviceId, measures.Count);
+
+            return Result.Success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SendAsync failed for device {DeviceId}", _deviceId);
+            return Error.Failure(
+                code: "TelemetryPipeline.SendFailed",
+                description: $"SendAsync failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
     public void AddTransform(ITelemetryTransform transform)
     {
         if (transform == null) throw new ArgumentNullException(nameof(transform));

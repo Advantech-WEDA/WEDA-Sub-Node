@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
@@ -11,6 +12,7 @@ using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
+using Weda.SubNode.Core.Telemetry;
 
 namespace Weda.SubNode.Core.Devices;
 
@@ -30,7 +32,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     private CancellationTokenSource? _runningCts;
     private Task? _configSyncTask;
+    private Task? _batchSendTask;
     private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
+
+    /// <summary>
+    /// Batch queue for telemetry measures that have been processed through Transform and Filter.
+    /// Data is enqueued by derived classes via EnqueueTelemetryAsync and sent by the batch send task.
+    /// </summary>
+    protected readonly ConcurrentQueue<TelemetryMeasure> _telemetryBatch = new();
 
     public DeviceConfiguration Configuration { get; }
     public string DeviceId => _orchestrator.DeviceId;
@@ -131,8 +140,55 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _runningCts = new CancellationTokenSource();
         var cts = _runningCts.Token;
 
-        // Start device-specific background tasks
+        // Start device-specific background tasks (polling, subscription, etc.)
         _ = StartBackgroundTasksAsync(cts);
+
+        // Start batch send task - sends collected telemetry at CalculatedSendTelemetryPeriod interval
+        var sendPeriod = CalculatedSendTelemetryPeriod;
+        _batchSendTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting batch send task with period {Period}ms for device {DeviceId}", sendPeriod, DeviceId);
+
+            try
+            {
+                while (!cts.IsCancellationRequested)
+                {
+                    await Task.Delay(sendPeriod, cts);
+
+                    var batch = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        batch.Add(measure);
+                    }
+
+                    if (batch.Count > 0)
+                    {
+                        _logger.LogDebug(
+                            "Sending telemetry batch: {Count} measures for device {DeviceId}",
+                            batch.Count, DeviceId);
+                        await SendTelemetryAsync(batch, cts);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                // Send remaining data before exit
+                var remaining = new List<TelemetryMeasure>();
+                while (_telemetryBatch.TryDequeue(out var measure))
+                {
+                    remaining.Add(measure);
+                }
+                if (remaining.Count > 0)
+                {
+                    _logger.LogDebug("Sending remaining {Count} measures before shutdown for device {DeviceId}", remaining.Count, DeviceId);
+                    await SendTelemetryAsync(remaining, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+            }
+        }, cts);
 
         // Start config sync task (core functionality in DeviceBase)
         var configSyncPeriod = Configuration.Periods.ReportConfiguration;
@@ -198,8 +254,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         try
         {
             // Use Polly pipeline for resilient telemetry sending
+            // SendAsync only sends to cloud, no Transform/Filter (already done before enqueue)
             var result = await _orchestrator.OperationPipeline.ExecuteAsync(
-                async c => await _orchestrator.TelemetryPipeline.ProcessAsync(measures, c),
+                async c => await _orchestrator.TelemetryPipeline.SendAsync(measures, c),
                 ct);
 
             return !result.IsError;
@@ -216,6 +273,38 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         var list = new List<TelemetryMeasure>();
         await foreach (var m in data.WithCancellation(ct)) list.Add(m);
         await SendTelemetryAsync(list, ct);
+    }
+
+    /// <summary>
+    /// Processes telemetry through Transform and Filter pipeline, then enqueues to batch buffer.
+    /// This is the standard method for derived classes to submit collected telemetry data.
+    /// The batch send task will periodically dequeue and send to cloud.
+    /// </summary>
+    /// <param name="measures">Raw telemetry measures to process and enqueue.</param>
+    /// <param name="ct">Cancellation token.</param>
+    protected async Task EnqueueTelemetryAsync(List<TelemetryMeasure> measures, CancellationToken ct = default)
+    {
+        if (measures == null || measures.Count == 0)
+            return;
+
+        var processResult = await _orchestrator.TelemetryPipeline.TransformAndFilterAsync(measures, ct);
+
+        if (processResult.IsError)
+        {
+            _logger.LogWarning(
+                "Transform/Filter failed: {Error}",
+                string.Join(", ", processResult.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        foreach (var processedMeasure in processResult.Value)
+        {
+            _telemetryBatch.Enqueue(processedMeasure);
+        }
+
+        _logger.LogTrace(
+            "Enqueued {Count} processed measures for device {DeviceId}",
+            processResult.Value.Count, DeviceId);
     }
 
     public async Task<DeviceHealth> GetHealthAsync(CancellationToken ct = default)
@@ -265,7 +354,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <summary>
     /// Internal lifecycle hook for starting device background tasks.
     /// This method is sealed and can only be overridden by intermediate framework base classes
-    /// (RequestResponseDeviceBase, StreamingDeviceBase, MessageBrokerDeviceBase).
+    /// (RequestResponseDeviceBase, StreamingDeviceBase, PubSubDeviceBase).
     /// High-level custom devices should NOT override this method directly.
     /// Instead, inherit from one of the framework base classes.
     /// </summary>

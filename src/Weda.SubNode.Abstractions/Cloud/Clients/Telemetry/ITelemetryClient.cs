@@ -29,14 +29,6 @@ public interface ITelemetryClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Send batch telemetry data to cloud (optimized for bulk data)
-    /// </summary>
-    Task<TelemetrySendResponse> SendBatchTelemetryAsync(
-        string deviceId,
-        List<TelemetryData> telemetryDataList,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Report device health to cloud
     /// </summary>
     Task<HealthReportResponse> ReportHealthAsync(

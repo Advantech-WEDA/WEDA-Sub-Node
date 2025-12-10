@@ -31,7 +31,7 @@ public class MqttCommunicationTests
         // Assert
         Assert.NotNull(mqtt);
         Assert.IsAssignableFrom<ICommunication>(mqtt);
-        Assert.IsAssignableFrom<IMessageBroker>(mqtt);
+        Assert.IsAssignableFrom<IPubSub>(mqtt);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class MqttCommunicationTests
 
     #endregion
 
-    #region IMessageBroker Tests
+    #region IPubSub Tests
 
     [Fact]
     public async Task SubscribeAsync_WhenNotConnected_ShouldReturnFalse()

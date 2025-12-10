@@ -8,67 +8,62 @@ using Weda.SubNode.Core.Telemetry;
 namespace Weda.SubNode.Core.Devices;
 
 /// <summary>
-/// Base class for Streaming communication pattern devices.
+/// Base class for Pub/Sub communication pattern devices.
 /// Framework handles ReadTelemetryAsync and StartBackgroundTasksAsync internally.
-/// User only needs to provide an IStreamingProtocolParser implementation.
+/// User only needs to provide an IPubSubProtocolParser implementation.
 ///
-/// Use this class for protocols like: WebSocket, gRPC streaming, SSE
+/// Use this class for protocols like: MQTT, NATS, AMQP, Kafka
 ///
 /// Architecture:
-/// 1. Stream data pushes into SensorCache (like Modbus registers)
+/// 1. External data (MQTT/NATS) pushes into SensorCache (like Modbus registers)
 /// 2. Sensors are grouped by their Config.Interval
 /// 3. Each interval group samples from SensorCache and enqueues via EnqueueTelemetryAsync
 /// 4. Batch send task (in DeviceBase) sends collected data at CalculatedSendTelemetryPeriod
 ///
-/// Telemetry flow: Stream → SensorCache → Interval Group Sample → EnqueueTelemetryAsync → Batch Send
+/// Telemetry flow: Pub/Sub → SensorCache → Interval Group Sample → EnqueueTelemetryAsync → Batch Send
 ///
 /// Inheritance hierarchy example:
-/// MyStreamingDevice -> WebSocketStreamingDevice -> StreamingDeviceBase -> DeviceBase
+/// MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> PubSubDeviceBase -> DeviceBase
 /// </summary>
-public class StreamingDeviceBase : DeviceBase
+public class PubSubDeviceBase : DeviceBase
 {
     /// <summary>
     /// The protocol parser for this device. Protected to allow subclass access.
     /// </summary>
-    protected readonly IStreamingProtocolParser _parser;
+    protected readonly IPubSubProtocolParser _parser;
 
     /// <summary>
-    /// Per-sensor cache for buffering streamed data.
-    /// Acts like Modbus registers - stores latest values from stream.
+    /// Per-sensor cache for buffering pushed data.
+    /// Acts like Modbus registers - stores latest values from external sources.
     /// </summary>
     protected readonly SensorCache _sensorCache = new();
 
     private readonly List<Task> _samplingTasks = new();
-    private Task? _streamTask;
+    private Task? _subscriptionTask;
     private Task? _healthTask;
 
     /// <summary>
-    /// Initializes a new instance of StreamingDeviceBase.
+    /// Initializes a new instance of PubSubDeviceBase.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration.</param>
-    /// <param name="parser">Streaming protocol parser (Parser owns Communication).</param>
-    public StreamingDeviceBase(
+    /// <param name="parser">Pub/Sub protocol parser (Parser owns Communication).</param>
+    public PubSubDeviceBase(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        IStreamingProtocolParser parser)
+        IPubSubProtocolParser parser)
         : base(context, configuration, parser.Communication)
     {
         _parser = parser ?? throw new ArgumentNullException(nameof(parser));
 
         _logger.LogDebug(
-            "StreamingDeviceBase initialized with {ParserType}",
+            "PubSubDeviceBase initialized with {ParserType}",
             _parser.GetType().Name);
     }
 
     /// <summary>
-    /// Current stream state.
-    /// </summary>
-    public StreamState StreamState => _parser.StreamState;
-
-    /// <summary>
     /// Reads telemetry from the sensor cache for all enabled sensors.
-    /// Returns the latest cached data that was pushed from the stream.
+    /// Returns the latest cached data that was pushed from external sources.
     /// Framework implementation - samples from SensorCache.
     /// Sealed to prevent subclasses from overriding framework logic.
     /// </summary>
@@ -134,12 +129,13 @@ public class StreamingDeviceBase : DeviceBase
     }
 
     /// <summary>
-    /// Starts background tasks for streaming, sampling, and health reporting.
-    /// Framework implementation with automatic stream handling.
+    /// Starts background tasks for message broker subscription, sampling, and health reporting.
+    /// Framework implementation with automatic event handling.
+    /// Internal sealed to prevent high-level devices from overriding framework logic.
     /// Batch send task is started by DeviceBase.
     ///
     /// Tasks:
-    /// 1. Stream task - maintains stream connection, pushes data into SensorCache
+    /// 1. Subscription task - maintains connection to message broker, pushes data into SensorCache
     /// 2. Interval-grouped sampling tasks - sample from SensorCache and enqueue via EnqueueTelemetryAsync
     /// 3. Health task - periodic health reporting
     /// </summary>
@@ -152,42 +148,41 @@ public class StreamingDeviceBase : DeviceBase
             .ToList();
 
         _logger.LogDebug(
-            "Starting streaming device: Groups={GroupCount}, TotalSensors={SensorCount}",
+            "Starting message broker device: Groups={GroupCount}, TotalSensors={SensorCount}",
             sensorsByInterval.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
 
-        // Subscribe to parser's events - pushes into SensorCache
+        // Subscribe to parser's OnTelemetryReceived event - pushes into SensorCache
         _parser.OnTelemetryReceived += OnTelemetryReceived;
-        _parser.OnStreamStateChanged += OnStreamStateChanged;
 
-        // 1. Stream task - maintains stream connection
-        _streamTask = Task.Run(async () =>
+        // 1. Subscription task - maintains message broker connection
+        _subscriptionTask = Task.Run(async () =>
         {
             try
             {
-                _logger.LogDebug("Starting stream connection");
-                await _parser.StartStreamAsync(cancellationToken);
-                _logger.LogInformation("Stream connection established");
+                _logger.LogDebug("Starting message broker subscription");
+                await _parser.StartAsync(cancellationToken);
+                _logger.LogInformation("Message broker subscription established");
 
-                // Keep task alive to maintain stream
+                // Keep task alive to maintain subscription
                 await Task.Delay(Timeout.Infinite, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Stream task cancelled for device {DeviceId}", DeviceId);
+                _logger.LogInformation("Subscription task cancelled for device {DeviceId}", DeviceId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in stream task for device {DeviceId}", DeviceId);
+                _logger.LogError(ex, "Error in subscription task for device {DeviceId}", DeviceId);
             }
             finally
             {
                 try
                 {
-                    await _parser.StopStreamAsync(CancellationToken.None);
+                    await _parser.StopAsync(CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Error stopping stream");
+                    _logger.LogWarning(ex, "Error stopping parser subscription");
                 }
             }
         }, cancellationToken);
@@ -240,14 +235,15 @@ public class StreamingDeviceBase : DeviceBase
 
     /// <summary>
     /// Runs the sampling loop for an interval group using Task.Delay loop.
-    /// Samples from SensorCache and enqueues via EnqueueTelemetryAsync.
+    /// Samples from SensorCache, processes through transforms and DSP filters, then enqueues to batch.
+    /// Task.Delay loop ensures no overlap - waits for previous iteration to complete before starting next.
     /// </summary>
     private async Task RunIntervalGroupSamplingAsync(
         List<Sensor> sensors,
         int intervalMs,
         CancellationToken cancellationToken)
     {
-        // Wait for initial interval to allow stream data to arrive
+        // Wait for initial interval to allow message broker data to arrive
         try
         {
             await Task.Delay(intervalMs, cancellationToken);
@@ -303,7 +299,7 @@ public class StreamingDeviceBase : DeviceBase
     }
 
     /// <summary>
-    /// Handles telemetry data received from stream.
+    /// Handles telemetry data received from parser subscription.
     /// Pushes data into SensorCache (like writing to Modbus registers).
     /// </summary>
     private void OnTelemetryReceived(List<TelemetryMeasure> measures)
@@ -314,30 +310,12 @@ public class StreamingDeviceBase : DeviceBase
             _sensorCache.Push(measures);
 
             _logger.LogDebug(
-                "Pushed {Count} telemetry measures into sensor cache from stream",
+                "Pushed {Count} telemetry measures into sensor cache",
                 measures.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error pushing telemetry into cache for device {DeviceId}", DeviceId);
-        }
-    }
-
-    /// <summary>
-    /// Handles stream state changes.
-    /// </summary>
-    private void OnStreamStateChanged(StreamState state)
-    {
-        _logger.LogInformation(
-            "Stream state changed to {State} for device {DeviceId}",
-            state, DeviceId);
-
-        // Could trigger reconnection logic here if needed
-        if (state == StreamState.Error || state == StreamState.Disconnected)
-        {
-            _logger.LogWarning(
-                "Stream disconnected for device {DeviceId}, may need reconnection",
-                DeviceId);
         }
     }
 }

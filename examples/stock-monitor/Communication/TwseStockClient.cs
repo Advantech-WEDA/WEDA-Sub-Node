@@ -1,11 +1,13 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
+using StockMonitor.Models;
 
-namespace StockMonitor;
+namespace StockMonitor.Communication;
 
 /// <summary>
 /// Client for Taiwan Stock Exchange (TWSE) real-time stock quote API.
 /// Responsible for HTTP communication with TWSE API.
+/// Part of the Communication layer.
 /// </summary>
 public class TwseStockClient
 {

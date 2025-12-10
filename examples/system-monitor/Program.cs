@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Serilog;
+using SystemMonitorExample.Devices;
 using Weda.SubNode.Host.Context;
-using SystemMonitorExample;
 
 try
 {
@@ -13,7 +13,7 @@ try
     using var context = new WedaApplicationContext(configuration, deviceConfigKey: "SystemMonitorDeviceConfig");
     var config = context.DeviceConfiguration ?? throw new InvalidOperationException("Device configuration not found");
 
-    var device = new SystemMonitorDevice(context, config);
+    var device = new LocalSystemMonitorDevice(context, config);
 
     if (!await device.InitializeAsync())
     {

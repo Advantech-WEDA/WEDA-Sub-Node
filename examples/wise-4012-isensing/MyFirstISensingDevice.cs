@@ -20,9 +20,11 @@ public class MyFirstISensingDevice : MqttISensingDevice
         : base(context)
     {
         // Subscribe to DataReceived event to process telemetry
+        EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;
 
         // Subscribe to ConnectionStateChanged event to monitor MQTT connection
+        EnableConnectionStateTracking = true;
         ConnectionStateChanged += OnConnectionStateChanged;
     }
 

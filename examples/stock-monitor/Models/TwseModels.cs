@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace StockMonitor;
+namespace StockMonitor.Models;
 
 /// <summary>
 /// TWSE stock quote API response model.

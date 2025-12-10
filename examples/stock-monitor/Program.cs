@@ -15,8 +15,8 @@ var builder = WedaApplication.CreateBuilder(args)
     // .AddConfigUpdates() // Stock monitor doesn't need config updates
     .UseMockCloud();       // Use mock server for demo (no Weda.Core needed)
 
-// Register StockMonitorDevice
-builder.AddDevice<StockMonitorDevice>("StockMonitorConfig");
+// Register TwseStockMonitorDevice (uses TWSE HTTP API)
+builder.AddDevice<TwseStockMonitorDevice>("StockMonitorConfig");
 
 // Build and run the application
 var app = builder.Build();

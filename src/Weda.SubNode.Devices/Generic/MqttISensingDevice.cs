@@ -33,7 +33,7 @@ public class MqttISensingDevice : Core.Devices.ISensingDevice
     {
     }
 
-    private static IMessageBroker CreateMqttCommunication(
+    private static IPubSub CreateMqttCommunication(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
     {

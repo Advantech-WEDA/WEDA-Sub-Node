@@ -13,13 +13,13 @@ using Weda.SubNode.Core.Protocols.ISensing.Models;
 namespace Weda.SubNode.Core.Protocols.ISensing;
 
 /// <summary>
-/// ISensing protocol parser implementing Publish-Subscribe pattern.
+/// ISensing protocol parser implementing Pub/Sub pattern.
 /// Handles MQTT-based ISensing protocol for devices like WISE-4012SE.
 /// Parser owns DeviceConfiguration and handles all mapping logic internally.
 /// </summary>
-public class ISensingPubSubParser : IPublishSubscribeProtocolParser
+public class ISensingPubSubParser : IPubSubProtocolParser
 {
-    private readonly IMessageBroker _communication;
+    private readonly IPubSub _communication;
     private readonly DeviceConfiguration _configuration;
     private readonly ILogger<ISensingPubSubParser> _logger;
     private readonly string _dataTopic;
@@ -35,7 +35,7 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
 
     public ISensingPubSubParser(
         DeviceConfiguration configuration,
-        IMessageBroker communication,
+        IPubSub communication,
         ILogger<ISensingPubSubParser> logger)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -73,7 +73,7 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
 
     #endregion
 
-    #region IPublishSubscribeProtocolParser Implementation
+    #region IPubSubProtocolParser Implementation
 
     /// <summary>
     /// Start subscription to receive telemetry data.

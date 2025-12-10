@@ -89,7 +89,7 @@ public class ISensingDeviceTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithNullMessageBroker_ShouldThrowArgumentNullException()
+    public void Constructor_WithNullPubSub_ShouldThrowArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>

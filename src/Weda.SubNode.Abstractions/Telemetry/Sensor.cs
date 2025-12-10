@@ -8,7 +8,7 @@ public class Sensor
     /// <summary>
     /// Sensor Resource ID, following Device Capability UUID Generation Guideline (e.g., "21af0dc4-5389-a7dd-df64d7cf782c")
     /// </summary>
-    public required string ResourceId { get; set; }
+    public string ResourceId { get; set; } = string.Empty;
 
     /// <summary>
     /// Sensor name or channel identifier (e.g., "ai.channel[0]")

@@ -5,14 +5,14 @@ using Weda.SubNode.Abstractions.Events;
 namespace Weda.SubNode.Core.Communication;
 
 /// <summary>
-/// Base class for Message Broker (Pub/Sub) communication pattern implementations.
+/// Base class for Pub/Sub communication pattern implementations.
 /// Suitable for protocols like MQTT, NATS, RabbitMQ where messages are published to topics and received via subscriptions.
 /// </summary>
 /// <typeparam name="TMessage">Message payload type (e.g., byte[] for MQTT, string for text-based protocols)</typeparam>
-public abstract class MessageBrokerCommunicationBase<TMessage>
-    : CommunicationBase, IMessageBrokerCommunication<TMessage>
+public abstract class PubSubCommunicationBase<TMessage>
+    : CommunicationBase, IPubSubCommunication<TMessage>
 {
-    protected MessageBrokerCommunicationBase(
+    protected PubSubCommunicationBase(
         ConnectionSettings? settings = null,
         ILogger<CommunicationBase>? logger = null)
         : base(settings, logger)

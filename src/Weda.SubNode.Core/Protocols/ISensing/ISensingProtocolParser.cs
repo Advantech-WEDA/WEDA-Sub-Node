@@ -16,14 +16,14 @@ namespace Weda.SubNode.Core.Protocols.ISensing;
 /// </summary>
 public class ISensingProtocolParser : IProtocolParser
 {
-    private readonly IMessageBroker _communication;
+    private readonly IPubSub _communication;
 
     /// <summary>
     /// Gets the underlying communication instance (MQTT communication for ISensing)
     /// </summary>
     public ICommunication Communication => _communication;
 
-    public ISensingProtocolParser(IMessageBroker communication)
+    public ISensingProtocolParser(IPubSub communication)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
     }
