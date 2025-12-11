@@ -22,10 +22,10 @@ PowerAggregatorDevice → AggregatorDevice → PubSubDeviceBase → DeviceBase
 |------|------|------|
 | Device | `AggregatorDevice` | 基類，負責建立 Parser、Communication、註冊 Sensors |
 | Device | `PowerAggregatorDevice` | 子類，只需提供 `DefinitionFactory` |
-| Parser | `Aggregation.AggregatorProtocolParser` | 管理 `IAggregatorDefinition`，路由資料到定義 |
-| Parser | `Protocols.AggregatorProtocolParser` | 實作 `IPubSubProtocolParser`，轉發遙測事件 |
+| Parser | `AggregatorProtocolParser` | 實作 `IPubSubProtocolParser`，管理 Definitions，路由資料 |
 | Communication | `AggregatorCommunication` | 訂閱來源裝置的 `DataProcessed` 事件，處理 ResourceId → SourceKey 映射 |
-| Definition | `IAggregatorDefinition` | 純聚合計算邏輯 (如 P = V × I) |
+| Definition | `AggregatorDefinitionBase` | 基類，處理參數解析、快取、時間同步 |
+| Definition | `PowerAggregatorDefinition` | 子類，只需實作 `Calculate()` 方法 |
 
 ### 資料流程
 
@@ -34,14 +34,12 @@ PowerAggregatorDevice → AggregatorDevice → PubSubDeviceBase → DeviceBase
     ↓ DataProcessed 事件 (ResourceId = UUID 格式)
 AggregatorCommunication
     ↓ ResourceId → SourceKey 映射轉換
-    ↓ 轉發至 Aggregation.AggregatorProtocolParser
-Aggregation.AggregatorProtocolParser
+    ↓ OnDataReceived 事件
+AggregatorProtocolParser
     ↓ 路由資料到對應的 IAggregatorDefinition
 PowerAggregatorDefinition (快取 + 時間同步)
     ↓ 當 V 和 I 都準備好時計算 P = V × I
     ↓ OnTelemetryReceived 事件
-Protocols.AggregatorProtocolParser
-    ↓ 轉發至 PubSubDeviceBase
 PubSubDeviceBase.SensorCache
     ↓ 定時取樣
 EnqueueTelemetryAsync
@@ -62,26 +60,27 @@ NATS
 
 ```
 power-aggregation/
-├── Aggregation/                      # 聚合邏輯層 (中間層)
-│   ├── IAggregatorDefinition.cs      # 聚合邏輯介面
-│   ├── AggregatorProtocolParser.cs   # 管理 Definitions，路由資料
-│   ├── PowerAggregatorDefinition.cs  # P = V × I 實作
-│   └── ExternalDataSource.cs         # 外部資料來源設定 (SourceKey)
-├── Communication/                    # 通訊層 (中間層)
-│   └── AggregatorCommunication.cs    # 訂閱來源裝置，處理 ResourceId 映射
-├── Protocols/                        # 協議層 (中間層)
-│   └── AggregatorProtocolParser.cs   # PubSub 協定解析器
-├── Devices/                          # 裝置基類 (中間層)
-│   └── AggregatorDevice.cs           # 聚合裝置基類
+├── Aggregation/                       # 聚合邏輯層 (中間層)
+│   ├── IAggregatorDefinition.cs       # 聚合邏輯介面
+│   ├── AggregatorDefinitionBase.cs    # 聚合定義基類 (處理快取、時間同步)
+│   ├── PowerAggregatorDefinition.cs   # P = V × I 實作 (繼承基類)
+│   ├── AggregatorDataEntry.cs         # 快取資料項目
+│   └── ExternalDataSource.cs          # 外部資料來源設定 (SourceKey)
+├── Communication/                     # 通訊層 (中間層)
+│   └── AggregatorCommunication.cs     # 訂閱來源裝置，處理 ResourceId 映射
+├── Protocols/                         # 協議層 (中間層)
+│   └── AggregatorProtocolParser.cs    # PubSub 協定解析器，管理 Definitions
+├── Devices/                           # 裝置基類 (中間層)
+│   └── AggregatorDevice.cs            # 聚合裝置基類
 ├── Simulators/
-│   └── SimulatorFactory.cs           # Modbus 模擬器工廠
-├── assets/dtdl/                      # DTDL 定義檔案
-├── CurrentSensorDevice.cs            # 電流感測器裝置 (應用層)
-├── VoltageSensorDevice.cs            # 電壓感測器裝置 (應用層)
-├── PowerAggregatorDevice.cs          # 功率計算裝置 (應用層)
-├── Program.cs                        # 主程式進入點
-├── appsettings.json                  # 設定檔
-└── README.md                         # 本文件
+│   └── SimulatorFactory.cs            # Modbus 模擬器工廠
+├── assets/dtdl/                       # DTDL 定義檔案
+├── CurrentSensorDevice.cs             # 電流感測器裝置 (應用層)
+├── VoltageSensorDevice.cs             # 電壓感測器裝置 (應用層)
+├── PowerAggregatorDevice.cs           # 功率計算裝置 (應用層)
+├── Program.cs                         # 主程式進入點
+├── appsettings.json                   # 設定檔
+└── README.md                          # 本文件
 ```
 
 ### 分層說明
@@ -110,20 +109,50 @@ public interface IAggregatorDefinition
 }
 ```
 
+### AggregatorDefinitionBase
+
+聚合定義的抽象基類，封裝了所有共用邏輯：
+
+- **參數解析**：自動從 `Sensor.Parameters` 讀取來源設定
+- **ExternalSources 建立**：自動解析 `"DeviceName/SensorName"` 格式
+- **資料快取**：執行緒安全的快取機制
+- **時間同步**：確保所有來源資料的時間戳在 `SyncTimeWindow` (預設 5 秒) 內
+- **防重複計算**：使用 `IsConsumed` 標記避免產生中間值
+
+子類只需：
+1. 在建構子中指定所需的參數 keys
+2. 實作 `Calculate()` 方法
+
 ### PowerAggregatorDefinition
 
-實作 P = V × I 計算，具備以下特性：
+繼承 `AggregatorDefinitionBase`，實作 P = V × I 計算：
 
-- **時間同步**：確保電壓和電流資料的時間戳在 `SyncTimeWindow` (預設 5 秒) 內
-- **防重複計算**：使用 `IsConsumed` 標記避免產生中間值 (IV, IV', I'V')
-- **SourceKey 識別**：使用 "voltage" 和 "current" 字串識別來源，而非固定的 enum
+```csharp
+public class PowerAggregatorDefinition : AggregatorDefinitionBase
+{
+    private const string VoltageSourceKey = "VoltageSource";
+    private const string CurrentSourceKey = "CurrentSource";
+
+    public PowerAggregatorDefinition(Sensor sensor, ILogger<PowerAggregatorDefinition>? logger = null)
+        : base(sensor, logger, VoltageSourceKey, CurrentSourceKey)
+    {
+    }
+
+    protected override double Calculate(IReadOnlyDictionary<string, double> values)
+    {
+        var voltage = values[VoltageSourceKey];
+        var current = values[CurrentSourceKey];
+        return voltage * current;  // P = V × I
+    }
+}
+```
 
 ### AggregatorDevice
 
 聚合裝置的基類，負責：
-- 建立 `Aggregation.AggregatorProtocolParser` 並註冊所有 Sensors
+- 建立 `AggregatorProtocolParser` 並註冊所有 Sensors
 - 建立 `AggregatorCommunication` 處理來源裝置訂閱
-- 建立 `Protocols.AggregatorProtocolParser` 包裝為 PubSub 協定
+- 設定 external sources 並連接各層元件
 
 ```csharp
 public class AggregatorDevice : PubSubDeviceBase
@@ -230,48 +259,47 @@ dotnet run
 
 ### 建立自訂聚合器
 
-只需 **兩個步驟**：
+只需 **三個步驟**：
 
-#### 步驟 1：實作 `IAggregatorDefinition`
+#### 步驟 1：繼承 `AggregatorDefinitionBase`
 
-從 `Sensor.Parameters` 讀取來源設定：
+只需定義參數 keys 並實作 `Calculate()` 方法：
 
 ```csharp
-public class MyAggregatorDefinition : IAggregatorDefinition
+public class MyAggregatorDefinition : AggregatorDefinitionBase
 {
-    private readonly Sensor _sensor;
-    private readonly List<ExternalDataSource> _externalSources = new();
+    // 定義參數 keys (對應 Sensor.Parameters 中的 key)
+    private const string SourceAKey = "SourceA";
+    private const string SourceBKey = "SourceB";
 
-    public MyAggregatorDefinition(Sensor sensor, ILogger logger)
+    public MyAggregatorDefinition(Sensor sensor, ILogger? logger = null)
+        : base(sensor, logger, SourceAKey, SourceBKey)  // 傳入所需的參數 keys
     {
-        _sensor = sensor;
-
-        // 從 Sensor.Parameters 讀取來源
-        var sourceA = sensor.Parameters["SourceA"]?.ToString();
-        var sourceB = sensor.Parameters["SourceB"]?.ToString();
-
-        if (!string.IsNullOrEmpty(sourceA))
-            _externalSources.Add(ParseSource(sourceA));
-        if (!string.IsNullOrEmpty(sourceB))
-            _externalSources.Add(ParseSource(sourceB));
     }
 
-    private static ExternalDataSource ParseSource(string sourceKey)
+    // 實作計算邏輯
+    protected override double Calculate(IReadOnlyDictionary<string, double> values)
     {
-        var parts = sourceKey.Split('/');
-        return new ExternalDataSource
-        {
-            DeviceName = parts[0],
-            SensorName = parts[1]
-        };
+        var a = values[SourceAKey];
+        var b = values[SourceBKey];
+        return a + b;  // 你的公式
     }
 
-    public IReadOnlyList<ExternalDataSource> ExternalSources => _externalSources;
-    public TimeSpan SyncTimeWindow => TimeSpan.FromSeconds(5);
-
-    // ... 實作其他方法
+    // 可選：自訂日誌輸出
+    protected override void LogCalculation(IReadOnlyDictionary<string, double> values, double result)
+    {
+        Logger.LogInformation("[MyAggregator] {A} + {B} = {Result}",
+            values[SourceAKey], values[SourceBKey], result);
+    }
 }
 ```
+
+基類自動處理：
+- 從 `Sensor.Parameters` 讀取來源設定
+- 建立 `ExternalSources` 列表
+- 執行緒安全的資料快取
+- 時間同步檢查
+- 重複計算防護
 
 #### 步驟 2：建立 Device 子類
 
@@ -314,6 +342,10 @@ public class MyAggregatorDevice : AggregatorDevice
   }
 }
 ```
+
+### 進階用法
+
+如果需要更複雜的邏輯（例如三個以上的來源、動態來源數量），可以直接實作 `IAggregatorDefinition` 介面。
 
 ## 相關文件
 

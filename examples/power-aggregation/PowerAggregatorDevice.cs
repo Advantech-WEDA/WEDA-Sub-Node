@@ -1,7 +1,12 @@
+using Microsoft.Extensions.Logging;
+
 using PowerAggregationExample.Aggregation;
 using PowerAggregationExample.Devices;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Events;
+
+using DefinitionFactory = PowerAggregationExample.Protocols.AggregatorProtocolParser.DefinitionFactory;
 
 namespace PowerAggregationExample;
 
@@ -36,6 +41,18 @@ public class PowerAggregatorDevice : AggregatorDevice
     public PowerAggregatorDevice(IWedaApplicationContext context, DeviceConfiguration configuration)
         : base(context, configuration, CreateDefinitionFactory(context))
     {
+        EnableDataReceivedTracking = true;
+        DataReceived += OnDataReceived;
+    }
+
+    private void OnDataReceived(object? sender, DataReceivedEvent e)
+    {
+        foreach (var measure in e.Data)
+        {
+            _logger.LogInformation(
+                "[PowerSensor] DataReceived: ResourceId={ResourceId}, Value={Value}, Timestamp={Timestamp}",
+                measure.ResourceId, measure.Value, e.Timestamp);
+        }
     }
 
     /// <summary>

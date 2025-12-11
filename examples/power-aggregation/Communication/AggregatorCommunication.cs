@@ -10,26 +10,29 @@ namespace PowerAggregationExample.Communication;
 
 /// <summary>
 /// PubSub-style aggregator communication that subscribes to multiple external devices
-/// and delegates data routing to AggregatorProtocolParser.
+/// and forwards data to AggregatorProtocolParser via OnDataReceived event.
 ///
 /// Architecture:
 /// - Communication layer (AggregatorCommunication): Subscribes to external devices via DeviceRegistry
-/// - Parser layer (AggregatorProtocolParser): Routes data to Definitions, manages per-sensor aggregation
+/// - Parser layer (AggregatorProtocolParser): Routes data to Definitions, manages aggregation
 /// - Definition layer (IAggregatorDefinition): Pure calculation logic (e.g., P = V × I)
 ///
-/// This communication pattern:
-/// 1. Gets ExternalSources from AggregatorProtocolParser (aggregated from all Definitions)
-/// 2. Subscribes to DataProcessed events from those external source devices
-/// 3. Builds ResourceId → SourceKey mapping for data routing
-/// 4. Forwards received data to AggregatorProtocolParser for routing
-/// 5. Propagates OnTelemetryReceived events from parser to PubSubDeviceBase
+/// This communication:
+/// 1. Subscribes to DataProcessed events from source devices
+/// 2. Builds ResourceId → SourceKey mapping for data routing
+/// 3. Transforms incoming data (ResourceId → SourceKey)
+/// 4. Raises OnDataReceived event for AggregatorProtocolParser to consume
 /// </summary>
 public class AggregatorCommunication : ICommunication
 {
     private readonly ILogger<AggregatorCommunication> _logger;
     private readonly IDeviceRegistry _deviceRegistry;
-    private readonly AggregatorProtocolParser _protocolParser;
     private readonly Dictionary<string, IDevice> _sourceDevices = new();
+
+    /// <summary>
+    /// External sources to subscribe to.
+    /// </summary>
+    private readonly List<ExternalDataSource> _externalSources = new();
 
     /// <summary>
     /// Maps ResourceId (UUID) to SourceKey (DeviceName/SensorName).
@@ -43,51 +46,58 @@ public class AggregatorCommunication : ICommunication
     public event EventHandler<ConnectionStateChangedEvent>? StateChanged;
 
     /// <summary>
-    /// Event raised when aggregated telemetry data is ready.
-    /// This mimics the IPubSubProtocolParser.OnTelemetryReceived pattern.
+    /// Event raised when data is received from source devices.
+    /// AggregatorProtocolParser subscribes to this event.
+    /// Parameters: sourceName, data (with SourceKey as ResourceId), timestamp
     /// </summary>
-    public event Action<List<TelemetryMeasure>>? OnTelemetryReceived;
+    public event Action<string, IReadOnlyList<TelemetryMeasure>, DateTimeOffset>? OnDataReceived;
 
     /// <summary>
-    /// Creates an AggregatorCommunication with a protocol parser.
+    /// Creates an AggregatorCommunication.
     /// </summary>
     /// <param name="deviceRegistry">Device registry for discovering source devices</param>
-    /// <param name="protocolParser">The protocol parser that manages definitions and routes data</param>
     /// <param name="logger">Logger instance</param>
     public AggregatorCommunication(
         IDeviceRegistry deviceRegistry,
-        AggregatorProtocolParser protocolParser,
         ILogger<AggregatorCommunication>? logger = null)
     {
         _deviceRegistry = deviceRegistry ?? throw new ArgumentNullException(nameof(deviceRegistry));
-        _protocolParser = protocolParser ?? throw new ArgumentNullException(nameof(protocolParser));
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance
             .CreateLogger<AggregatorCommunication>();
-
-        // Subscribe to parser's telemetry events
-        _protocolParser.OnTelemetryReceived += OnParserTelemetryReceived;
     }
 
     /// <summary>
-    /// Handles telemetry events from the protocol parser.
+    /// Adds an external source to subscribe to.
+    /// Call this before ConnectAsync.
     /// </summary>
-    private void OnParserTelemetryReceived(List<TelemetryMeasure> data)
+    public void AddExternalSource(ExternalDataSource source)
     {
-        OnTelemetryReceived?.Invoke(data);
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (!_externalSources.Any(s => s.SourceKey.Equals(source.SourceKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            _externalSources.Add(source);
+            _logger.LogDebug(
+                "[AggregatorCommunication] Added external source: {SourceKey}",
+                source.SourceKey);
+        }
     }
+
+    /// <summary>
+    /// Gets all registered external sources.
+    /// </summary>
+    public IReadOnlyList<ExternalDataSource> ExternalSources => _externalSources;
 
     public async Task<bool> ConnectAsync(CancellationToken ct = default)
     {
         try
         {
-            var externalSources = _protocolParser.AllExternalSources;
-
             _logger.LogInformation(
                 "[AggregatorCommunication] ConnectAsync starting with {Count} external sources",
-                externalSources.Count);
+                _externalSources.Count);
 
             // Subscribe to all external sources
-            foreach (var source in externalSources)
+            foreach (var source in _externalSources)
             {
                 // Skip if already subscribed (deduplicated by DeviceName)
                 if (_sourceDevices.ContainsKey(source.DeviceName))
@@ -153,11 +163,14 @@ public class AggregatorCommunication : ICommunication
             _logger.LogInformation(
                 "[AggregatorCommunication] Connected: subscribed to {SourceCount} external sources: {Sources}",
                 _sourceDevices.Count,
-                string.Join(", ", externalSources.Select(s => s.SourceKey)));
+                string.Join(", ", _externalSources.Select(s => s.SourceKey)));
 
-            _logger.LogInformation(
-                "[AggregatorCommunication] ResourceId mappings: {Mappings}",
-                string.Join(", ", _resourceIdToSourceKey.Select(kvp => $"{kvp.Value}={kvp.Key[..8]}...")));
+            if (_resourceIdToSourceKey.Count > 0)
+            {
+                _logger.LogInformation(
+                    "[AggregatorCommunication] ResourceId mappings: {Mappings}",
+                    string.Join(", ", _resourceIdToSourceKey.Select(kvp => $"{kvp.Value}={kvp.Key[..Math.Min(8, kvp.Key.Length)]}...")));
+            }
 
             State = CommunicationState.Connected;
             StateChanged?.Invoke(this, new ConnectionStateChangedEvent(
@@ -222,7 +235,6 @@ public class AggregatorCommunication : ICommunication
 
         _sourceDevices.Clear();
         _resourceIdToSourceKey.Clear();
-        _protocolParser.Reset();
 
         var previousState = State;
         State = CommunicationState.Disconnected;
@@ -240,7 +252,7 @@ public class AggregatorCommunication : ICommunication
 
     /// <summary>
     /// Handles DataProcessed events from source devices.
-    /// Transforms ResourceId to SourceKey and forwards to AggregatorProtocolParser.
+    /// Transforms ResourceId to SourceKey and raises OnDataReceived event.
     /// </summary>
     private void OnSourceDataProcessed(object? sender, DataProcessedEvent e)
     {
@@ -287,14 +299,13 @@ public class AggregatorCommunication : ICommunication
 
         if (transformedData.Count > 0)
         {
-            // Forward transformed data to the protocol parser for routing to definitions
-            _protocolParser.OnDataReceived(sourceName, transformedData, e.Timestamp);
+            // Raise OnDataReceived event for AggregatorProtocolParser
+            OnDataReceived?.Invoke(sourceName, transformedData, e.Timestamp);
         }
     }
 
     public void Dispose()
     {
-        _protocolParser.OnTelemetryReceived -= OnParserTelemetryReceived;
         DisconnectAsync().GetAwaiter().GetResult();
         GC.SuppressFinalize(this);
     }

@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
-using PowerAggregationExample.Aggregation;
 using PowerAggregationExample.Communication;
+using PowerAggregationExample.Protocols;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Devices;
+using DefinitionFactory = PowerAggregationExample.Protocols.AggregatorProtocolParser.DefinitionFactory;
 
 namespace PowerAggregationExample.Devices;
 
@@ -33,11 +33,6 @@ namespace PowerAggregationExample.Devices;
 /// </summary>
 public class AggregatorDevice : PubSubDeviceBase
 {
-    /// <summary>
-    /// Factory delegate for creating IAggregatorDefinition from a Sensor.
-    /// </summary>
-    public delegate IAggregatorDefinition DefinitionFactory(Sensor sensor);
-
     /// <summary>
     /// Initializes a new instance of AggregatorDevice.
     /// Uses DeviceConfiguration from ApplicationContext.
@@ -76,24 +71,18 @@ public class AggregatorDevice : PubSubDeviceBase
     /// <summary>
     /// Creates the AggregatorProtocolParser with communication setup.
     /// Handles:
-    /// 1. Creating AggregatorProtocolParser with definition factory
-    /// 2. Registering all sensors from configuration
-    /// 3. Creating AggregatorCommunication
-    /// 4. Wrapping in Protocols.AggregatorProtocolParser for PubSubDeviceBase
+    /// 1. Creating AggregatorCommunication
+    /// 2. Creating AggregatorProtocolParser
+    /// 3. Registering all sensors and their external sources
     /// </summary>
-    private static Protocols.AggregatorProtocolParser CreateParser(
+    private static AggregatorProtocolParser CreateParser(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         DefinitionFactory definitionFactory)
     {
         var logger = context.LoggerFactory.CreateLogger<AggregatorDevice>();
 
-        // Create the aggregation protocol parser with definition factory
-        var aggregationParser = new AggregatorProtocolParser(
-            sensor => definitionFactory(sensor),
-            context.LoggerFactory.CreateLogger<AggregatorProtocolParser>());
-
-        // Register all sensors from configuration
+        // Validate configuration
         if (configuration.Sensors.Count == 0)
         {
             throw new InvalidOperationException(
@@ -101,28 +90,36 @@ public class AggregatorDevice : PubSubDeviceBase
                 $"DeviceName: {configuration.DeviceName}");
         }
 
+        // Create AggregatorCommunication (handles device subscriptions)
+        var communication = new AggregatorCommunication(
+            context.DeviceRegistry,
+            context.LoggerFactory.CreateLogger<AggregatorCommunication>());
+
+        // Create the protocol parser
+        var parser = new AggregatorProtocolParser(
+            communication,
+            context.LoggerFactory);
+
+        // Register all sensors and collect external sources
         foreach (var sensor in configuration.Sensors)
         {
-            aggregationParser.RegisterSensor(sensor);
+            parser.RegisterSensor(sensor, definitionFactory);
             logger.LogDebug(
                 "Registered sensor '{SensorName}' with aggregator",
                 sensor.Name);
         }
 
+        // Add external sources to communication
+        foreach (var source in parser.AllExternalSources)
+        {
+            communication.AddExternalSource(source);
+        }
+
         logger.LogInformation(
             "Created AggregatorProtocolParser: Definitions={DefinitionCount}, ExternalSources={SourceCount}",
-            aggregationParser.DefinitionCount,
-            aggregationParser.AllExternalSources.Count);
+            parser.DefinitionCount,
+            parser.AllExternalSources.Count);
 
-        // Create AggregatorCommunication with the parser
-        var communication = new AggregatorCommunication(
-            context.DeviceRegistry,
-            aggregationParser,
-            context.LoggerFactory.CreateLogger<AggregatorCommunication>());
-
-        // Wrap in protocol parser for PubSubDeviceBase
-        return new Protocols.AggregatorProtocolParser(
-            communication,
-            context.LoggerFactory);
+        return parser;
     }
 }
