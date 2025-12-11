@@ -202,6 +202,17 @@ public class DeviceCapabilities
 public class BackgroundTaskPeriods
 {
     /// <summary>
+    /// Minimum allowed value for ReportConfiguration (1 minute = 60000ms).
+    /// Values below this threshold are not allowed to prevent excessive network traffic.
+    /// </summary>
+    public const int MinReportConfigurationPeriod = 60_000;
+
+    /// <summary>
+    /// Default value for ReportConfiguration (30 minutes = 1800000ms).
+    /// </summary>
+    public const int DefaultReportConfigurationPeriod = 1_800_000;
+
+    /// <summary>
     /// Health reporting period (default: 60000ms)
     /// </summary>
     public int ReportHealth { get; set; } = 60000;
@@ -215,9 +226,11 @@ public class BackgroundTaskPeriods
     /// Configuration sync/report period (default: 1800000ms = 30 minutes).
     /// Periodically reports device configuration to cloud
     /// to ensure reported state is synchronized even if update response fails.
-    /// Valid range: 300000ms (5 min) ~ 86400000ms (24 hours), or 0 to disable.
+    ///
+    /// This is a REQUIRED feature and cannot be disabled.
+    /// Minimum value: 60000ms (1 minute) to prevent excessive network traffic.
     /// </summary>
-    public int ReportConfiguration { get; set; } = 1_800_000;
+    public int ReportConfiguration { get; set; } = DefaultReportConfigurationPeriod;
 }
 
 /// <summary>
@@ -230,6 +243,4 @@ public class BackgroundTaskPeriods
 ///   }
 /// }
 /// </summary>
-public class DeviceConfigurations : Dictionary<string, DeviceConfiguration>
-{
-}
+public class DeviceConfigurations : Dictionary<string, DeviceConfiguration>;

@@ -37,7 +37,6 @@ public class RequestResponseDeviceBase : DeviceBase
     protected readonly IRequestResponseProtocolParser _parser;
     private readonly ResiliencePipeline<bool> _reconnectionPipeline;
     private readonly List<Task> _pollingTasks = new();
-    private Task? _healthTask;
 
     /// <summary>
     /// Initializes a new instance of RequestResponseDeviceBase.
@@ -106,138 +105,66 @@ public class RequestResponseDeviceBase : DeviceBase
     /// </summary>
     internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
-        // Group sensors by their interval
-        var sensorsByInterval = Configuration.Sensors
-            .Where(s => s.Config.Enabled)
-            .GroupBy(s => (int)s.Config.Interval)
-            .ToList();
+        // Clear previous tasks reference (for restart scenarios)
+        _pollingTasks.Clear();
+
+        // Group sensors by their interval (using helper from DeviceBase)
+        var sensorGroups = GroupSensorsByInterval();
 
         _logger.LogDebug(
             "Starting request-response device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorsByInterval.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
+            sensorGroups.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
 
-        // Create a Task.Delay loop for each interval group
-        foreach (var group in sensorsByInterval)
+        // Create interval loop tasks for each group (using helper from DeviceBase)
+        foreach (var (intervalMs, sensors) in sensorGroups)
         {
-            var interval = group.Key;
-            var sensors = group.ToList();
-
-            // Start polling task for this interval group
-            var pollingTask = RunIntervalGroupPollingAsync(sensors, interval, cancellationToken);
+            // Use RunIntervalLoopAsync with initialDelay=false (immediate first read for polling)
+            var pollingTask = RunIntervalLoopAsync(sensors, intervalMs, initialDelay: false, cancellationToken);
             _pollingTasks.Add(pollingTask);
 
             _logger.LogDebug(
                 "Created polling task for interval {Interval}ms with {SensorCount} sensors: [{SensorNames}]",
-                interval, sensors.Count, string.Join(", ", sensors.Select(s => s.Name)));
+                intervalMs, sensors.Count, string.Join(", ", sensors.Select(s => s.Name)));
         }
 
-        // Health reporting task using Task.Delay loop
-        var healthPeriod = Configuration.Periods.ReportHealth;
-
-        _healthTask = Task.Run(async () =>
-        {
-            _logger.LogDebug("Starting health reporting task with period {Period}ms", healthPeriod);
-
-            try
-            {
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await ReportHealthAsync(cancellationToken);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in health reporting task for device {DeviceId}", DeviceId);
-                    }
-
-                    await Task.Delay(healthPeriod, cancellationToken);
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogDebug("Health reporting task cancelled for device {DeviceId}", DeviceId);
-            }
-        }, cancellationToken);
-
+        // Health task is now started by DeviceBase.StartAllBackgroundTasks()
         return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Runs the polling loop for an interval group using Task.Delay loop.
-    /// Task.Delay loop ensures no overlap - waits for previous iteration to complete before starting next.
+    /// Reads sensors from the physical device for interval group processing.
+    /// Implements the abstract method from DeviceBase (Template Method pattern).
+    /// Includes reconnection handling and timing measurement.
     /// </summary>
-    private async Task RunIntervalGroupPollingAsync(
-        List<Sensor> sensors,
-        int intervalMs,
+    protected override async Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+        List<string> sensorResourceIds,
         CancellationToken cancellationToken)
     {
-        try
+        // Check connection state, attempt reconnection if needed
+        if (ConnectionState == CommunicationState.Error ||
+            ConnectionState == CommunicationState.Disconnected)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            if (_communication is CommunicationBase commBase)
             {
-                await ProcessIntervalGroupAsync(sensors, cancellationToken);
-                await Task.Delay(intervalMs, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogDebug("Polling task cancelled for interval group with {SensorCount} sensors", sensors.Count);
-        }
-    }
+                var reconnected = await _reconnectionPipeline.ExecuteAsync(
+                    async ct => await commBase.ReconnectAsync(ct),
+                    cancellationToken);
 
-    /// <summary>
-    /// Processes an interval group: reads all sensors and enqueues via EnqueueTelemetryAsync.
-    /// </summary>
-    private async Task ProcessIntervalGroupAsync(List<Sensor> sensors, CancellationToken cancellationToken)
-    {
-        if (cancellationToken.IsCancellationRequested)
-            return;
-
-        try
-        {
-            // Check connection state, attempt reconnection if needed
-            if (ConnectionState == CommunicationState.Error ||
-                ConnectionState == CommunicationState.Disconnected)
-            {
-                if (_communication is CommunicationBase commBase)
+                if (!reconnected)
                 {
-                    var reconnected = await _reconnectionPipeline.ExecuteAsync(
-                        async ct => await commBase.ReconnectAsync(ct),
-                        cancellationToken);
-
-                    if (!reconnected)
-                    {
-                        _logger.LogWarning("Skipping interval group read - reconnection failed");
-                        return;
-                    }
+                    _logger.LogWarning("Skipping interval group read - reconnection failed");
+                    return new IntervalGroupReadResult([], TimeSpan.Zero);
                 }
             }
-
-            var stopwatch = Stopwatch.StartNew();
-
-            // Step 1: Collect - Read all sensors in the group
-            var sensorResourceIds = sensors.Select(s => s.ResourceId).ToList();
-            var measures = await _parser.ReadTelemetryAsync(sensorResourceIds, cancellationToken);
-
-            stopwatch.Stop();
-            _orchestrator.HealthMonitor.RecordTelemetryReadDuration(stopwatch.Elapsed);
-
-            if (measures.Count == 0)
-            {
-                return;
-            }
-
-            // RaiseDataReceived fires with RAW data before transform/filter
-            RaiseDataReceived(measures);
-
-            // Step 2: Transform, Filter, and Enqueue (handled by DeviceBase)
-            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
-            await EnqueueTelemetryAsync(measures, cancellationToken);
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error reading interval group with {SensorCount} sensors", sensors.Count);
-        }
+
+        var stopwatch = Stopwatch.StartNew();
+
+        // Read sensors from parser
+        var measures = await _parser.ReadTelemetryAsync(sensorResourceIds, cancellationToken);
+
+        stopwatch.Stop();
+
+        return new IntervalGroupReadResult(measures, stopwatch.Elapsed);
     }
 }

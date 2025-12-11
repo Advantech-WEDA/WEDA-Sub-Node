@@ -306,7 +306,7 @@ SDK 支援以下四種 NATS 認證策略：
 | `SendTelemetry` | number | 遙測上傳模式控制（見下方說明） | 0 |
 | `ReportHealth` | number | 健康狀態報告週期（毫秒） | 60000 |
 | `PollCommands` | number | 命令輪詢週期（毫秒） | 5000 |
-| `ReportConfiguration` | number | 配置報告週期（毫秒） | 300000 |
+| `ReportConfiguration` | number | 配置同步週期（毫秒），詳見下方說明 | 1800000 (30分鐘) |
 
 #### ReadTelemetry 採樣週期
 
@@ -465,6 +465,42 @@ SDK 採用統一的 **SensorCache 架構**，無論是 Pull 模式（如 Modbus�
   }
 }
 ```
+
+#### ReportConfiguration 配置同步週期
+
+`ReportConfiguration` 控制設備定期向雲端回報當前配置狀態的週期。這是 **Digital Twin (數位雙胞胎)** 架構中維持 **Reported State** 同步的重要機制。
+
+**為什麼需要配置同步？**
+
+在雲端下發配置更新的流程中，可能發生以下情況：
+1. 雲端下發新配置 → 設備成功套用 → **回報成功時網路斷線**
+2. 此時雲端的 Desired State 與 Reported State 不一致
+3. 透過定期配置同步，設備會主動上報當前配置，確保最終一致性
+
+**配置限制**:
+
+| 限制 | 值 | 說明 |
+|------|-----|------|
+| 最小值 | 60000ms (1分鐘) | 避免過於頻繁的回報造成網路負擔 |
+| 預設值 | 1800000ms (30分鐘) | 平衡即時性與資源消耗 |
+| 最大值 | 86400000ms (24小時) | 建議不超過此值以確保同步效果 |
+| 停用 | ❌ 不允許 | 此功能為必要功能，不可停用 |
+
+**範例配置**:
+
+```json
+{
+  "Periods": {
+    "ReportConfiguration": 1800000  // 每 30 分鐘同步一次（預設值）
+  }
+}
+```
+
+**驗證規則**:
+
+SDK 在啟動時會驗證 `ReportConfiguration` 的值：
+- 若值小於 60000ms，會拋出 `InvalidOperationException` 並終止啟動
+- 錯誤訊息會明確指出允許的範圍
 
 ---
 

@@ -12,7 +12,6 @@ using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
-using Weda.SubNode.Core.Telemetry;
 
 namespace Weda.SubNode.Core.Devices;
 
@@ -31,8 +30,10 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly DeviceInitializer _initializer;
 
     private CancellationTokenSource? _runningCts;
+    private CancellationTokenSource? _samplingCts;
     private Task? _configSyncTask;
     private Task? _batchSendTask;
+    private Task? _healthTask;
     private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
 
     /// <summary>
@@ -67,8 +68,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
-        // Validate sensor intervals and calculate send period
-        ValidateSensorIntervals(configuration);
+        // Validate configuration and calculate send period
+        ValidateConfiguration(configuration);
         CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(configuration);
 
         Configuration.LoadDtdl();
@@ -137,103 +138,40 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStartAsync(CancellationToken ct)
     {
+        // _runningCts is for lifecycle tasks (config sync) that don't need restart on config update
         _runningCts = new CancellationTokenSource();
-        var cts = _runningCts.Token;
+        var lifecycleCts = _runningCts.Token;
 
-        // Start device-specific background tasks (polling, subscription, etc.)
-        _ = StartBackgroundTasksAsync(cts);
+        // _samplingCts is for tasks that may need restart on config update (polling, sampling, batch send, health)
+        _samplingCts = new CancellationTokenSource();
 
-        // Start batch send task - sends collected telemetry at CalculatedSendTelemetryPeriod interval
-        var sendPeriod = CalculatedSendTelemetryPeriod;
-        _batchSendTask = Task.Run(async () =>
-        {
-            _logger.LogDebug("Starting batch send task with period {Period}ms for device {DeviceId}", sendPeriod, DeviceId);
+        // Start background tasks (polling/sampling + batch send + health)
+        StartAllBackgroundTasks(_samplingCts.Token);
 
-            try
-            {
-                while (!cts.IsCancellationRequested)
-                {
-                    await Task.Delay(sendPeriod, cts);
-
-                    var batch = new List<TelemetryMeasure>();
-                    while (_telemetryBatch.TryDequeue(out var measure))
-                    {
-                        batch.Add(measure);
-                    }
-
-                    if (batch.Count > 0)
-                    {
-                        _logger.LogDebug(
-                            "Sending telemetry batch: {Count} measures for device {DeviceId}",
-                            batch.Count, DeviceId);
-                        await SendTelemetryAsync(batch, cts);
-                    }
-                }
-            }
-            catch (OperationCanceledException) when (cts.IsCancellationRequested)
-            {
-                // Send remaining data before exit
-                var remaining = new List<TelemetryMeasure>();
-                while (_telemetryBatch.TryDequeue(out var measure))
-                {
-                    remaining.Add(measure);
-                }
-                if (remaining.Count > 0)
-                {
-                    _logger.LogDebug("Sending remaining {Count} measures before shutdown for device {DeviceId}", remaining.Count, DeviceId);
-                    await SendTelemetryAsync(remaining, CancellationToken.None);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
-            }
-        }, cts);
-
-        // Start config sync task (core functionality in DeviceBase)
-        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
-        if (configSyncPeriod > 0)
-        {
-            _configSyncTask = Task.Run(async () =>
-            {
-                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
-
-                while (!cts.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await ReportConfigurationAsync(cts);
-                        _logger.LogDebug("Configuration sync completed for device {DeviceId}", DeviceId);
-                    }
-                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
-                    {
-                        _logger.LogInformation("Configuration sync task cancelled for device {DeviceId}", DeviceId);
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in configuration sync task for device {DeviceId}", DeviceId);
-                    }
-
-                    await Task.Delay(configSyncPeriod, cts);
-                }
-            }, cts);
-        }
-        else
-        {
-            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
-        }
+        // Start config sync task (not restarted on config update)
+        StartConfigSyncTask(lifecycleCts);
 
         return await Task.FromResult(Result.Success);
     }
 
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStopAsync(CancellationToken ct)
     {
+        // Cancel sampling/polling tasks first
+        if (_samplingCts != null)
+        {
+            await _samplingCts.CancelAsync();
+            _samplingCts.Dispose();
+            _samplingCts = null;
+        }
+
+        // Cancel lifecycle tasks (config sync)
         if (_runningCts != null)
         {
             await _runningCts.CancelAsync();
+            _runningCts.Dispose();
             _runningCts = null;
         }
+
         await _orchestrator.ConnectionManager.DisconnectAsync(ct);
         return Result.Success;
     }
@@ -241,6 +179,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     async Task<ErrorOr<Success>> ILifecycleHooks.OnDisposeAsync(CancellationToken ct)
     {
         if (_communication is IDisposable disp) disp.Dispose();
+        _samplingCts?.Dispose();
         _runningCts?.Dispose();
         return await Task.FromResult(Result.Success);
     }
@@ -368,6 +307,123 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// Instead, inherit from one of the framework base classes.
     /// </summary>
     internal virtual Task StartBackgroundTasksAsync(CancellationToken ct) => Task.CompletedTask;
+
+    // ===== Interval Group Processing (Template Method Pattern) =====
+
+    /// <summary>
+    /// Result of reading sensors for an interval group.
+    /// Contains the telemetry measures and the duration of the read operation.
+    /// </summary>
+    /// <param name="Measures">The telemetry measures read from sensors</param>
+    /// <param name="Duration">The duration of the read operation (TimeSpan.Zero for cache-based reads)</param>
+    protected readonly record struct IntervalGroupReadResult(
+        List<TelemetryMeasure> Measures,
+        TimeSpan Duration);
+
+    /// <summary>
+    /// Template method for processing an interval group.
+    /// Handles the common flow: read sensors → record health → raise events → enqueue telemetry.
+    /// Each device type only needs to implement ReadSensorsForIntervalGroupAsync for data collection.
+    /// </summary>
+    /// <param name="sensors">Sensors in this interval group</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    protected async Task ProcessIntervalGroupAsync(List<Sensor> sensors, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        try
+        {
+            var sensorResourceIds = sensors.Select(s => s.ResourceId).ToList();
+
+            // Step 1: Read sensors (abstract - each device type implements its own data collection)
+            var result = await ReadSensorsForIntervalGroupAsync(sensorResourceIds, cancellationToken);
+
+            if (result.Measures.Count == 0)
+                return;
+
+            // Step 2: Record health metrics
+            _orchestrator.HealthMonitor.RecordTelemetryReadDuration(result.Duration);
+
+            // Step 3: Raise raw data event (before transform/filter)
+            RaiseDataReceived(result.Measures);
+
+            // Step 4: Transform, Filter, and Enqueue (handled by DeviceBase)
+            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
+            await EnqueueTelemetryAsync(result.Measures, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error processing interval group with {SensorCount} sensors", sensors.Count);
+        }
+    }
+
+    /// <summary>
+    /// Reads sensors for an interval group. Each device type implements its own data collection logic.
+    /// - StreamingDeviceBase/PubSubDeviceBase: Reads from SensorCache (Duration = TimeSpan.Zero)
+    /// - RequestResponseDeviceBase: Reads from parser with timing (Duration = actual read time)
+    /// </summary>
+    /// <param name="sensorResourceIds">ResourceIds of sensors to read</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>IntervalGroupReadResult containing measures and read duration</returns>
+    protected abstract Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+        List<string> sensorResourceIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Groups enabled sensors by their configured interval.
+    /// Used by all device types to create interval-based polling/sampling tasks.
+    /// </summary>
+    /// <returns>List of (interval in ms, sensors in that group)</returns>
+    protected List<(int IntervalMs, List<Sensor> Sensors)> GroupSensorsByInterval()
+    {
+        return Configuration.Sensors
+            .Where(s => s.Config.Enabled)
+            .GroupBy(s => (int)s.Config.Interval)
+            .Select(g => (IntervalMs: g.Key, Sensors: g.ToList()))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Runs a polling/sampling loop for an interval group.
+    /// Common loop structure used by all device types.
+    /// </summary>
+    /// <param name="sensors">Sensors in this interval group</param>
+    /// <param name="intervalMs">Polling/sampling interval in milliseconds</param>
+    /// <param name="initialDelay">Whether to wait for initial interval before first iteration</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    protected async Task RunIntervalLoopAsync(
+        List<Sensor> sensors,
+        int intervalMs,
+        bool initialDelay,
+        CancellationToken cancellationToken)
+    {
+        // Optional initial delay (for cache-based devices to allow data to arrive)
+        if (initialDelay)
+        {
+            try
+            {
+                await Task.Delay(intervalMs, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await ProcessIntervalGroupAsync(sensors, cancellationToken);
+                await Task.Delay(intervalMs, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Interval loop cancelled for group with {SensorCount} sensors", sensors.Count);
+        }
+    }
 
     // ===== Downlink Hooks =====
 
@@ -505,6 +561,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                 _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
 
+                // Record pre-update state for detecting interval/period changes
+                var previousIntervalGroups = Configuration.Sensors
+                    .Where(s => s.Config.Enabled)
+                    .GroupBy(s => (int)s.Config.Interval)
+                    .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
+                var previousHealthPeriod = Configuration.Periods.ReportHealth;
+
                 // Apply sensor configuration updates (PATCH semantics - only update provided fields)
                 var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
                     Configuration, desiredConfig.Sensors);
@@ -578,6 +641,23 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Recalculate send telemetry period if sensor intervals changed
                 CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
                 _logger.LogDebug("Recalculated SendTelemetry period: {Period}ms", CalculatedSendTelemetryPeriod);
+
+                // Detect if background tasks need restart due to interval/period changes
+                var currentIntervalGroups = Configuration.Sensors
+                    .Where(s => s.Config.Enabled)
+                    .GroupBy(s => (int)s.Config.Interval)
+                    .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
+
+                var intervalsChanged = !AreIntervalGroupsEqual(previousIntervalGroups, currentIntervalGroups);
+                var healthPeriodChanged = previousHealthPeriod != Configuration.Periods.ReportHealth;
+
+                if (intervalsChanged || healthPeriodChanged)
+                {
+                    _logger.LogInformation(
+                        "Background task config changed (intervals={IntervalsChanged}, healthPeriod={HealthChanged}), restarting tasks",
+                        intervalsChanged, healthPeriodChanged);
+                    await RestartBackgroundTasksAsync();
+                }
 
                 // Step 5: Persist configuration to cache for restart persistence
                 await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
@@ -901,11 +981,23 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         GC.SuppressFinalize(this);
     }
 
-    // ===== Sensor Interval Validation & Calculation =====
+    // ===== Configuration Validation =====
 
     /// <summary>
-    /// Validates that all enabled sensors have a valid Interval configured (> 0).
-    /// Throws InvalidOperationException if any enabled sensor has Interval <= 0.
+    /// Validates the device configuration at startup.
+    /// Throws InvalidOperationException for any invalid configuration.
+    /// </summary>
+    /// <param name="configuration">Device configuration to validate</param>
+    /// <exception cref="InvalidOperationException">Thrown when configuration is invalid</exception>
+    private static void ValidateConfiguration(DeviceConfiguration configuration)
+    {
+        ValidateSensorIntervals(configuration);
+        ValidateBackgroundTaskPeriods(configuration);
+    }
+
+    /// <summary>
+    /// Validates that all enabled sensors have a valid Interval configured (greater than 0).
+    /// Throws InvalidOperationException if any enabled sensor has Interval less than or equal to 0.
     /// </summary>
     /// <param name="configuration">Device configuration to validate</param>
     /// <exception cref="InvalidOperationException">Thrown when any enabled sensor has invalid Interval</exception>
@@ -922,6 +1014,37 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 $"All enabled sensors must have Config.Interval > 0. " +
                 $"Invalid sensors: [{string.Join(", ", invalidSensors)}]. " +
                 $"Please configure the Interval property for each sensor in appsettings.json.");
+        }
+    }
+
+    /// <summary>
+    /// Validates background task period settings.
+    /// Throws InvalidOperationException for any invalid period configuration.
+    /// </summary>
+    /// <param name="configuration">Device configuration to validate</param>
+    /// <exception cref="InvalidOperationException">Thrown when period configuration is invalid</exception>
+    private static void ValidateBackgroundTaskPeriods(DeviceConfiguration configuration)
+    {
+        var periods = configuration.Periods;
+
+        // ReportConfiguration is a REQUIRED feature and cannot be disabled
+        // Minimum value is 1 minute (60000ms) to prevent excessive network traffic
+        if (periods.ReportConfiguration < BackgroundTaskPeriods.MinReportConfigurationPeriod)
+        {
+            throw new InvalidOperationException(
+                $"Periods.ReportConfiguration must be at least {BackgroundTaskPeriods.MinReportConfigurationPeriod}ms (1 minute). " +
+                $"Current value: {periods.ReportConfiguration}ms. " +
+                $"This is a required feature for Digital Twin synchronization and cannot be disabled. " +
+                $"Please set a value >= {BackgroundTaskPeriods.MinReportConfigurationPeriod}ms in appsettings.json.");
+        }
+
+        // ReportHealth should also have a reasonable minimum (optional, but warn if too low)
+        if (periods.ReportHealth > 0 && periods.ReportHealth < 1000)
+        {
+            throw new InvalidOperationException(
+                $"Periods.ReportHealth must be at least 1000ms (1 second) if enabled. " +
+                $"Current value: {periods.ReportHealth}ms. " +
+                $"Please set a value >= 1000ms in appsettings.json.");
         }
     }
 
@@ -944,5 +1067,198 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         }
 
         return enabledIntervals.Min();
+    }
+
+    // ===== Background Task Management (for dynamic restart on config update) =====
+
+    /// <summary>
+    /// Starts all background tasks that may need to be restarted on config update.
+    /// This includes: device-specific tasks (polling/sampling), batch send task, and health task.
+    /// </summary>
+    private void StartAllBackgroundTasks(CancellationToken ct)
+    {
+        // Start device-specific background tasks (polling, subscription, etc.)
+        _ = StartBackgroundTasksAsync(ct);
+
+        // Start batch send task
+        StartBatchSendTask(ct);
+
+        // Start health task
+        StartHealthTask(ct);
+    }
+
+    /// <summary>
+    /// Starts the batch send task with current CalculatedSendTelemetryPeriod.
+    /// </summary>
+    private void StartBatchSendTask(CancellationToken ct)
+    {
+        var sendPeriod = CalculatedSendTelemetryPeriod;
+        _batchSendTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting batch send task with period {Period}ms for device {DeviceId}", sendPeriod, DeviceId);
+
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(sendPeriod, ct);
+
+                    var batch = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        batch.Add(measure);
+                    }
+
+                    if (batch.Count > 0)
+                    {
+                        _logger.LogDebug(
+                            "Sending telemetry batch: {Count} measures for device {DeviceId}",
+                            batch.Count, DeviceId);
+                        await SendTelemetryAsync(batch, ct);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Send remaining data before exit
+                var remaining = new List<TelemetryMeasure>();
+                while (_telemetryBatch.TryDequeue(out var measure))
+                {
+                    remaining.Add(measure);
+                }
+                if (remaining.Count > 0)
+                {
+                    _logger.LogDebug("Sending remaining {Count} measures before shutdown for device {DeviceId}", remaining.Count, DeviceId);
+                    await SendTelemetryAsync(remaining, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in batch send task for device {DeviceId}", DeviceId);
+            }
+        }, ct);
+    }
+
+    /// <summary>
+    /// Starts the health reporting task with current ReportHealth period.
+    /// </summary>
+    private void StartHealthTask(CancellationToken ct)
+    {
+        var healthPeriod = Configuration.Periods.ReportHealth;
+
+        _healthTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting health reporting task with period {Period}ms for device {DeviceId}", healthPeriod, DeviceId);
+
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await ReportHealthAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in health reporting task for device {DeviceId}", DeviceId);
+                    }
+
+                    await Task.Delay(healthPeriod, ct);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                _logger.LogDebug("Health reporting task cancelled for device {DeviceId}", DeviceId);
+            }
+        }, ct);
+    }
+
+    /// <summary>
+    /// Starts the configuration sync task.
+    /// This task is NOT restarted on config update since ReportConfiguration period changes are rare.
+    /// </summary>
+    private void StartConfigSyncTask(CancellationToken ct)
+    {
+        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
+        if (configSyncPeriod > 0)
+        {
+            _configSyncTask = Task.Run(async () =>
+            {
+                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
+
+                while (!ct.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await ReportConfigurationAsync(ct);
+                        _logger.LogDebug("Configuration sync completed for device {DeviceId}", DeviceId);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        _logger.LogInformation("Configuration sync task cancelled for device {DeviceId}", DeviceId);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in configuration sync task for device {DeviceId}", DeviceId);
+                    }
+
+                    await Task.Delay(configSyncPeriod, ct);
+                }
+            }, ct);
+        }
+        else
+        {
+            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
+        }
+    }
+
+    /// <summary>
+    /// Restarts background tasks when sensor intervals or periods change.
+    /// Called from ApplyBaseConfigurationUpdateAsync after config is updated.
+    /// </summary>
+    protected virtual async Task RestartBackgroundTasksAsync()
+    {
+        _logger.LogInformation("Restarting background tasks due to config changes for device {DeviceId}", DeviceId);
+
+        // Step 1: Cancel existing sampling/polling tasks and health task
+        if (_samplingCts != null)
+        {
+            await _samplingCts.CancelAsync();
+            _samplingCts.Dispose();
+        }
+
+        // Step 2: Wait briefly for tasks to complete gracefully
+        await Task.Delay(100);
+
+        // Step 3: Create new CancellationTokenSource
+        _samplingCts = new CancellationTokenSource();
+
+        // Step 4: Start new background tasks with updated intervals/periods
+        StartAllBackgroundTasks(_samplingCts.Token);
+
+        _logger.LogInformation("Background tasks restarted successfully for device {DeviceId}", DeviceId);
+    }
+
+    /// <summary>
+    /// Compares two interval group dictionaries for equality.
+    /// Used to detect if sensor interval configuration has changed.
+    /// </summary>
+    private static bool AreIntervalGroupsEqual(
+        Dictionary<int, HashSet<string>> previous,
+        Dictionary<int, HashSet<string>> current)
+    {
+        if (previous.Count != current.Count)
+            return false;
+
+        foreach (var (interval, sensorIds) in previous)
+        {
+            if (!current.TryGetValue(interval, out var currentSensorIds))
+                return false;
+            if (!sensorIds.SetEquals(currentSensorIds))
+                return false;
+        }
+
+        return true;
     }
 }

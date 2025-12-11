@@ -40,7 +40,6 @@ public class PubSubDeviceBase : DeviceBase
 
     private readonly List<Task> _samplingTasks = new();
     private Task? _subscriptionTask;
-    private Task? _healthTask;
 
     /// <summary>
     /// Initializes a new instance of PubSubDeviceBase.
@@ -145,15 +144,18 @@ public class PubSubDeviceBase : DeviceBase
     /// </summary>
     internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
-        // Group sensors by their interval
-        var sensorsByInterval = Configuration.Sensors
-            .Where(s => s.Config.Enabled)
-            .GroupBy(s => (int)s.Config.Interval)
-            .ToList();
+        // Clear previous tasks reference (for restart scenarios)
+        _samplingTasks.Clear();
+
+        // Unsubscribe first to avoid duplicate subscriptions on restart
+        _parser.OnTelemetryReceived -= OnTelemetryReceived;
+
+        // Group sensors by their interval (using helper from DeviceBase)
+        var sensorGroups = GroupSensorsByInterval();
 
         _logger.LogDebug(
             "Starting message broker device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorsByInterval.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
+            sensorGroups.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
 
         // Subscribe to parser's OnTelemetryReceived event - pushes into SensorCache
         _parser.OnTelemetryReceived += OnTelemetryReceived;
@@ -191,118 +193,32 @@ public class PubSubDeviceBase : DeviceBase
             }
         }, cancellationToken);
 
-        // 2. Create a Task.Delay loop for each interval group (samples from SensorCache)
-        foreach (var group in sensorsByInterval)
+        // 2. Create interval loop tasks for each group (using helper from DeviceBase)
+        foreach (var (intervalMs, sensors) in sensorGroups)
         {
-            var interval = group.Key;
-            var sensors = group.ToList();
-
-            var samplingTask = RunIntervalGroupSamplingAsync(sensors, interval, cancellationToken);
+            // Use RunIntervalLoopAsync with initialDelay=true to allow message broker data to arrive
+            var samplingTask = RunIntervalLoopAsync(sensors, intervalMs, initialDelay: true, cancellationToken);
             _samplingTasks.Add(samplingTask);
 
             _logger.LogDebug(
                 "Created sampling task for interval {Interval}ms with {SensorCount} sensors: [{SensorNames}]",
-                interval, sensors.Count, string.Join(", ", sensors.Select(s => s.Name)));
+                intervalMs, sensors.Count, string.Join(", ", sensors.Select(s => s.Name)));
         }
 
-        // 3. Health reporting task using Task.Delay loop
-        var healthPeriod = Configuration.Periods.ReportHealth;
-
-        _healthTask = Task.Run(async () =>
-        {
-            _logger.LogDebug("Starting health reporting task with period {Period}ms", healthPeriod);
-
-            try
-            {
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await ReportHealthAsync(cancellationToken);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in health reporting task for device {DeviceId}", DeviceId);
-                    }
-
-                    await Task.Delay(healthPeriod, cancellationToken);
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogDebug("Health reporting task cancelled for device {DeviceId}", DeviceId);
-            }
-        }, cancellationToken);
-
+        // Health task is now started by DeviceBase.StartAllBackgroundTasks()
         return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Runs the sampling loop for an interval group using Task.Delay loop.
-    /// Samples from SensorCache, processes through transforms and DSP filters, then enqueues to batch.
-    /// Task.Delay loop ensures no overlap - waits for previous iteration to complete before starting next.
+    /// Reads sensors from the SensorCache for interval group processing.
+    /// Implements the abstract method from DeviceBase (Template Method pattern).
     /// </summary>
-    private async Task RunIntervalGroupSamplingAsync(
-        List<Sensor> sensors,
-        int intervalMs,
+    protected override Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+        List<string> sensorResourceIds,
         CancellationToken cancellationToken)
     {
-        // Wait for initial interval to allow message broker data to arrive
-        try
-        {
-            await Task.Delay(intervalMs, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                await ProcessIntervalGroupAsync(sensors, cancellationToken);
-                await Task.Delay(intervalMs, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogDebug("Sampling task cancelled for interval group with {SensorCount} sensors", sensors.Count);
-        }
-    }
-
-    /// <summary>
-    /// Processes an interval group: samples from cache and enqueues via EnqueueTelemetryAsync.
-    /// </summary>
-    private async Task ProcessIntervalGroupAsync(List<Sensor> sensors, CancellationToken cancellationToken)
-    {
-        if (cancellationToken.IsCancellationRequested)
-            return;
-
-        try
-        {
-            // Step 1: Sample from SensorCache for all sensors in the group
-            var sensorResourceIds = sensors.Select(s => s.ResourceId).ToList();
-            var measures = _sensorCache.Read(sensorResourceIds);
-
-            if (measures.Count == 0)
-            {
-                return;
-            }
-
-            _orchestrator.HealthMonitor.RecordTelemetryReadDuration(TimeSpan.Zero);
-
-            // RaiseDataReceived fires with RAW data before transform/filter
-            RaiseDataReceived(measures);
-
-            // Step 2: Transform, Filter, and Enqueue (handled by DeviceBase)
-            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
-            await EnqueueTelemetryAsync(measures, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error sampling interval group with {SensorCount} sensors", sensors.Count);
-        }
+        var measures = _sensorCache.Read(sensorResourceIds);
+        return Task.FromResult(new IntervalGroupReadResult(measures, TimeSpan.Zero));
     }
 
     /// <summary>
