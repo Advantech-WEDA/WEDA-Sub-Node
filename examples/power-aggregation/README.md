@@ -20,22 +20,28 @@ PowerAggregatorDevice → AggregatorDevice → PubSubDeviceBase → DeviceBase
 
 | 層級 | 類別 | 職責 |
 |------|------|------|
-| Device | `AggregatorDevice` | 建立 Parser (協定層) |
-| Device | `PowerAggregatorDevice` | 建立 Communication (傳輸層) + `IAggregatorDefinition` (聚合邏輯) |
-| Parser | `AggregatorProtocolParser` | 實作 `IPubSubProtocolParser`，轉發遙測事件 |
-| Communication | `AggregatorCommunication` | 訂閱來源裝置的 `DataProcessed` 事件 |
+| Device | `AggregatorDevice` | 基類，負責建立 Parser、Communication、註冊 Sensors |
+| Device | `PowerAggregatorDevice` | 子類，只需提供 `DefinitionFactory` |
+| Parser | `Aggregation.AggregatorProtocolParser` | 管理 `IAggregatorDefinition`，路由資料到定義 |
+| Parser | `Protocols.AggregatorProtocolParser` | 實作 `IPubSubProtocolParser`，轉發遙測事件 |
+| Communication | `AggregatorCommunication` | 訂閱來源裝置的 `DataProcessed` 事件，處理 ResourceId → SourceKey 映射 |
+| Definition | `IAggregatorDefinition` | 純聚合計算邏輯 (如 P = V × I) |
 
 ### 資料流程
 
 ```
 來源裝置 (VoltageSensor, CurrentSensor)
-    ↓ DataProcessed 事件
+    ↓ DataProcessed 事件 (ResourceId = UUID 格式)
 AggregatorCommunication
-    ↓ 轉發至 IAggregatorDefinition
-PowerAggregatorDefinition (快取 + 同步)
+    ↓ ResourceId → SourceKey 映射轉換
+    ↓ 轉發至 Aggregation.AggregatorProtocolParser
+Aggregation.AggregatorProtocolParser
+    ↓ 路由資料到對應的 IAggregatorDefinition
+PowerAggregatorDefinition (快取 + 時間同步)
     ↓ 當 V 和 I 都準備好時計算 P = V × I
-AggregatorProtocolParser
     ↓ OnTelemetryReceived 事件
+Protocols.AggregatorProtocolParser
+    ↓ 轉發至 PubSubDeviceBase
 PubSubDeviceBase.SensorCache
     ↓ 定時取樣
 EnqueueTelemetryAsync
@@ -43,16 +49,26 @@ EnqueueTelemetryAsync
 NATS
 ```
 
+### ResourceId vs SourceKey
+
+| 概念 | 格式 | 說明 |
+|------|------|------|
+| ResourceId | UUID (`bea9c0bc-6e47-58b2-...`) | 系統產生的識別碼，裝置註冊雲端後才有 |
+| SourceKey | `DeviceName/SensorName` (`VoltageSensor/voltage001`) | 設定檔定義的識別碼，用於資料匹配 |
+
+`AggregatorCommunication` 負責在 `ConnectAsync` 時建立 ResourceId → SourceKey 映射，並在收到資料時自動轉換。
+
 ## 專案結構
 
 ```
 power-aggregation/
-├── Aggregation/                      # 聚合邏輯 (中間層)
+├── Aggregation/                      # 聚合邏輯層 (中間層)
 │   ├── IAggregatorDefinition.cs      # 聚合邏輯介面
+│   ├── AggregatorProtocolParser.cs   # 管理 Definitions，路由資料
 │   ├── PowerAggregatorDefinition.cs  # P = V × I 實作
-│   └── ExternalDataSource.cs         # 外部資料來源設定
+│   └── ExternalDataSource.cs         # 外部資料來源設定 (SourceKey)
 ├── Communication/                    # 通訊層 (中間層)
-│   └── AggregatorCommunication.cs    # 訂閱來源裝置事件
+│   └── AggregatorCommunication.cs    # 訂閱來源裝置，處理 ResourceId 映射
 ├── Protocols/                        # 協議層 (中間層)
 │   └── AggregatorProtocolParser.cs   # PubSub 協定解析器
 ├── Devices/                          # 裝置基類 (中間層)
@@ -104,38 +120,59 @@ public interface IAggregatorDefinition
 
 ### AggregatorDevice
 
-聚合裝置的基類，負責建立 Parser 層：
+聚合裝置的基類，負責：
+- 建立 `Aggregation.AggregatorProtocolParser` 並註冊所有 Sensors
+- 建立 `AggregatorCommunication` 處理來源裝置訂閱
+- 建立 `Protocols.AggregatorProtocolParser` 包裝為 PubSub 協定
 
 ```csharp
 public class AggregatorDevice : PubSubDeviceBase
 {
+    /// <summary>
+    /// Factory delegate for creating IAggregatorDefinition from a Sensor.
+    /// </summary>
+    public delegate IAggregatorDefinition DefinitionFactory(Sensor sensor);
+
+    /// <summary>
+    /// 建構子遵循 WedaApplicationBuilder 慣例：
+    /// (IWedaApplicationContext context, DeviceConfiguration configuration)
+    /// </summary>
     public AggregatorDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        AggregatorCommunication communication)
-        : base(context, configuration, CreateParser(context, communication))
+        DefinitionFactory definitionFactory)
+        : base(context, configuration, CreateParser(context, configuration, definitionFactory))
     { }
 }
 ```
 
 ### PowerAggregatorDevice
 
-功率計算裝置，繼承自 `AggregatorDevice`，負責建立 Communication 層和聚合定義：
+功率計算裝置，**只需提供 `DefinitionFactory`**：
 
 ```csharp
 public class PowerAggregatorDevice : AggregatorDevice
 {
-    public PowerAggregatorDevice(IWedaApplicationContext context)
-        : this(context, context.DeviceConfiguration)
-    { }
+    /// <summary>
+    /// 建構子遵循 WedaApplicationBuilder 慣例。
+    /// 必須為 public (IWedaApplicationContext, DeviceConfiguration) 簽名。
+    /// </summary>
+    public PowerAggregatorDevice(IWedaApplicationContext context, DeviceConfiguration configuration)
+        : base(context, configuration, CreateDefinitionFactory(context))
+    {
+    }
 
-    public PowerAggregatorDevice(
-        IWedaApplicationContext context,
-        DeviceConfiguration configuration)
-        : base(context, configuration, CreateAggregatorCommunication(context, configuration))
-    { }
+    /// <summary>
+    /// 建立 PowerAggregatorDefinition 的 Factory。
+    /// </summary>
+    private static DefinitionFactory CreateDefinitionFactory(IWedaApplicationContext context)
+        => sensor => new PowerAggregatorDefinition(
+            sensor,
+            context.GetLogger<PowerAggregatorDefinition>());
 }
 ```
+
+**重點**：子類只需實作 `CreateDefinitionFactory`，所有 Parser/Communication 邏輯由 `AggregatorDevice` 處理。
 
 ## 設定
 
@@ -149,35 +186,17 @@ public class PowerAggregatorDevice : AggregatorDevice
       "DeviceName": "PowerAggregator",
       "DeviceTypeName": "PowerAggregatorDevice",
       "DeviceType": "CustomDevice",
-      "Communication": {
-        "ExternalSources": [
-          {
-            "DeviceName": "VoltageSensor",
-            "SourceKey": "voltage",
-            "ResourceIds": []
-          },
-          {
-            "DeviceName": "CurrentSensor",
-            "SourceKey": "current",
-            "ResourceIds": []
-          }
-        ]
-      },
       "Sensors": [
         {
-          "Name": "voltage",
-          "Dtmi": "dtmi:custom:voltage;1",
-          "Config": { "Enabled": true, "Interval": 5000 }
-        },
-        {
-          "Name": "current",
-          "Dtmi": "dtmi:custom:current;1",
-          "Config": { "Enabled": true, "Interval": 5000 }
-        },
-        {
-          "Name": "power",
+          "Name": "power001",
           "Dtmi": "dtmi:custom:power;1",
-          "Config": { "Enabled": true, "Interval": 5000 }
+          "SensorGroup": "PWR",
+          "Parameters": {
+            "DataType": "Float64",
+            "VoltageSource": "VoltageSensor/voltage001",
+            "CurrentSource": "CurrentSensor/current001"
+          },
+          "Config": { "Enabled": true, "Interval": 3000 }
         }
       ]
     }
@@ -185,14 +204,17 @@ public class PowerAggregatorDevice : AggregatorDevice
 }
 ```
 
-### ExternalDataSource 設定
+### Sensor.Parameters 設定
 
-| 屬性 | 說明 |
+外部來源在 Sensor 的 `Parameters` 中定義，格式為 `"DeviceName/SensorName"`：
+
+| 參數 | 說明 |
 |------|------|
-| `DeviceName` | 來源裝置名稱，必須與 DeviceConfigs 中的裝置名稱一致 |
-| `SourceKey` | 來源識別字串，用於 `IAggregatorDefinition` 識別資料來源 |
-| `ResourceIds` | 選用，指定要訂閱的特定 ResourceId 列表 |
-| `FriendlyName` | 選用，顯示用的友善名稱 |
+| `VoltageSource` | 電壓來源，格式 `"DeviceName/SensorName"` (e.g., `"VoltageSensor/voltage001"`) |
+| `CurrentSource` | 電流來源，格式 `"DeviceName/SensorName"` (e.g., `"CurrentSensor/current001"`) |
+| `DataType` | 輸出資料類型 (選用) |
+
+`IAggregatorDefinition` 從 `Sensor.Parameters` 讀取來源設定，並建立 `ExternalDataSource` 列表。
 
 ## 執行
 
@@ -208,42 +230,88 @@ dotnet run
 
 ### 建立自訂聚合器
 
-1. 實作 `IAggregatorDefinition` 介面
-2. 建立繼承自 `AggregatorDevice` 的裝置類別
-3. 在設定檔中定義 `ExternalSources`
+只需 **兩個步驟**：
 
-範例：平均值聚合器
+#### 步驟 1：實作 `IAggregatorDefinition`
+
+從 `Sensor.Parameters` 讀取來源設定：
 
 ```csharp
-public class AverageAggregatorDefinition : IAggregatorDefinition
+public class MyAggregatorDefinition : IAggregatorDefinition
 {
-    public IReadOnlyList<ExternalDataSource> ExternalSources { get; }
-    public TimeSpan SyncTimeWindow => TimeSpan.FromSeconds(10);
+    private readonly Sensor _sensor;
+    private readonly List<ExternalDataSource> _externalSources = new();
 
-    private readonly List<AggregatorDataEntry> _entries = new();
-
-    public void OnDataReceived(string sourceName, IReadOnlyList<TelemetryMeasure> data, DateTimeOffset timestamp)
+    public MyAggregatorDefinition(Sensor sensor, ILogger logger)
     {
-        // 快取資料
+        _sensor = sensor;
+
+        // 從 Sensor.Parameters 讀取來源
+        var sourceA = sensor.Parameters["SourceA"]?.ToString();
+        var sourceB = sensor.Parameters["SourceB"]?.ToString();
+
+        if (!string.IsNullOrEmpty(sourceA))
+            _externalSources.Add(ParseSource(sourceA));
+        if (!string.IsNullOrEmpty(sourceB))
+            _externalSources.Add(ParseSource(sourceB));
     }
 
-    public bool CanAggregate()
+    private static ExternalDataSource ParseSource(string sourceKey)
     {
-        // 檢查是否有足夠的資料
-        return _entries.Count >= ExternalSources.Count;
-    }
-
-    public IReadOnlyList<TelemetryMeasure>? Aggregate()
-    {
-        // 計算平均值
-        var average = _entries.Average(e => e.Value);
-        return new List<TelemetryMeasure>
+        var parts = sourceKey.Split('/');
+        return new ExternalDataSource
         {
-            new() { ResourceId = "average", Value = average, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+            DeviceName = parts[0],
+            SensorName = parts[1]
         };
     }
 
-    public void Reset() => _entries.Clear();
+    public IReadOnlyList<ExternalDataSource> ExternalSources => _externalSources;
+    public TimeSpan SyncTimeWindow => TimeSpan.FromSeconds(5);
+
+    // ... 實作其他方法
+}
+```
+
+#### 步驟 2：建立 Device 子類
+
+只需提供 `DefinitionFactory`：
+
+```csharp
+public class MyAggregatorDevice : AggregatorDevice
+{
+    public MyAggregatorDevice(IWedaApplicationContext context, DeviceConfiguration configuration)
+        : base(context, configuration, CreateDefinitionFactory(context))
+    {
+    }
+
+    private static DefinitionFactory CreateDefinitionFactory(IWedaApplicationContext context)
+        => sensor => new MyAggregatorDefinition(
+            sensor,
+            context.GetLogger<MyAggregatorDefinition>());
+}
+```
+
+#### 步驟 3：設定 appsettings.json
+
+```json
+{
+  "DeviceConfigs": {
+    "MyAggregator": {
+      "DeviceName": "MyAggregator",
+      "DeviceTypeName": "MyAggregatorDevice",
+      "DeviceType": "CustomDevice",
+      "Sensors": [
+        {
+          "Name": "output001",
+          "Parameters": {
+            "SourceA": "DeviceA/sensorA",
+            "SourceB": "DeviceB/sensorB"
+          }
+        }
+      ]
+    }
+  }
 }
 ```
 

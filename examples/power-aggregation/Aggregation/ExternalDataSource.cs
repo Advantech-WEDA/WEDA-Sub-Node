@@ -2,6 +2,7 @@ namespace PowerAggregationExample.Aggregation;
 
 /// <summary>
 /// Defines an external data source that the aggregator subscribes to.
+/// Uses DeviceName + SensorName to uniquely identify the source sensor.
 /// </summary>
 public record ExternalDataSource
 {
@@ -11,26 +12,27 @@ public record ExternalDataSource
     public required string DeviceName { get; init; }
 
     /// <summary>
-    /// A unique key to identify this source in the aggregation definition.
-    /// Used by IAggregatorDefinition to reference data from this source.
-    /// Examples: "voltage", "current", "temperature", "pressure"
+    /// The name of the sensor within the device.
+    /// Combined with DeviceName to form the SourceKey: "{DeviceName}/{SensorName}".
     /// </summary>
-    public required string SourceKey { get; init; }
-
-    /// <summary>
-    /// The ResourceIds to extract from this device's telemetry.
-    /// If empty, all telemetry from the device will be forwarded.
-    /// </summary>
-    public IReadOnlyList<string> ResourceIds { get; init; } = [];
+    public required string SensorName { get; init; }
 
     /// <summary>
     /// Optional friendly name for this source (used in logging and debugging).
-    /// Defaults to DeviceName if not specified.
+    /// Defaults to "{DeviceName}/{SensorName}" if not specified.
     /// </summary>
     public string? FriendlyName { get; init; }
 
     /// <summary>
+    /// Gets the unique key for this external data source.
+    /// Format: "{DeviceName}/{SensorName}"
+    /// Note: This is NOT the system-generated ResourceId (UUID format),
+    /// but a configuration-based identifier for matching incoming telemetry.
+    /// </summary>
+    public string SourceKey => $"{DeviceName}/{SensorName}";
+
+    /// <summary>
     /// Gets the display name for this source.
     /// </summary>
-    public string GetDisplayName() => FriendlyName ?? DeviceName;
+    public string GetDisplayName() => FriendlyName ?? SourceKey;
 }

@@ -5,83 +5,143 @@ namespace PowerAggregationExample.Aggregation;
 
 /// <summary>
 /// Power aggregator definition that calculates Power = Voltage × Current.
-/// Subscribes to voltage and current source devices and aggregates their readings.
+/// Reads voltage and current source mappings from Sensor.Parameters:
+/// - VoltageSource: "DeviceName/SensorName" format (e.g., "VoltageSensor/voltage001")
+/// - CurrentSource: "DeviceName/SensorName" format (e.g., "CurrentSensor/current001")
 /// </summary>
 public class PowerAggregatorDefinition : IAggregatorDefinition
 {
     private readonly ILogger<PowerAggregatorDefinition> _logger;
     private readonly object _lock = new();
 
-    // Source keys for voltage and current
-    private const string VoltageKey = "voltage";
-    private const string CurrentKey = "current";
+    // Parameter keys for source configuration
+    private const string VoltageSourceKey = "VoltageSource";
+    private const string CurrentSourceKey = "CurrentSource";
+
+    // Hold reference to sensor for lazy ResourceId access
+    // (ResourceId is populated after device registration with cloud service)
+    private readonly Sensor _sensor;
+
+    // External source keys (parsed from Sensor.Parameters)
+    // Format: "DeviceName/SensorName" - NOT system-generated ResourceId
+    private readonly string _voltageSourceKey;
+    private readonly string _currentSourceKey;
 
     // Cached data entries
     private AggregatorDataEntry? _voltageEntry;
     private AggregatorDataEntry? _currentEntry;
 
+    /// <summary>
+    /// The sensor name (available at construction time).
+    /// </summary>
+    public string SensorName { get; }
+
+    /// <summary>
+    /// The ResourceId for the output power sensor.
+    /// Note: This is populated after device registration with cloud service,
+    /// so it may be empty during construction but will be available at aggregation time.
+    /// </summary>
+    public string OutputResourceId => _sensor.ResourceId;
+
+    /// <summary>
+    /// The external sources required by this aggregator (derived from Sensor.Parameters).
+    /// </summary>
     public IReadOnlyList<ExternalDataSource> ExternalSources { get; }
+
     public TimeSpan SyncTimeWindow { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Creates a PowerAggregatorDefinition with configured external sources.
+    /// Creates a PowerAggregatorDefinition from a Sensor configuration.
+    /// Reads VoltageSource and CurrentSource from Sensor.Parameters.
     /// </summary>
-    /// <param name="externalSources">
-    /// List of external data sources. Must contain exactly 2 sources with SourceKeys "voltage" and "current".
+    /// <param name="sensor">
+    /// The sensor configuration containing:
+    /// - Name: Sensor name (available immediately)
+    /// - ResourceId: Output power sensor ResourceId (populated after cloud registration)
+    /// - Parameters["VoltageSource"]: "DeviceName/SensorName" for voltage
+    /// - Parameters["CurrentSource"]: "DeviceName/SensorName" for current
     /// </param>
     /// <param name="logger">Logger instance</param>
     public PowerAggregatorDefinition(
-        IReadOnlyList<ExternalDataSource> externalSources,
+        Sensor sensor,
         ILogger<PowerAggregatorDefinition>? logger = null)
     {
-        ExternalSources = externalSources ?? throw new ArgumentNullException(nameof(externalSources));
+        ArgumentNullException.ThrowIfNull(sensor);
+
+        _sensor = sensor;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance
             .CreateLogger<PowerAggregatorDefinition>();
 
-        // Validate that we have voltage and current sources
-        var voltageSource = ExternalSources.FirstOrDefault(s =>
-            s.SourceKey.Equals(VoltageKey, StringComparison.OrdinalIgnoreCase));
-        var currentSource = ExternalSources.FirstOrDefault(s =>
-            s.SourceKey.Equals(CurrentKey, StringComparison.OrdinalIgnoreCase));
+        SensorName = sensor.Name;
 
-        if (voltageSource == null)
-        {
-            throw new ArgumentException(
-                $"PowerAggregatorDefinition requires an external source with SourceKey='{VoltageKey}'",
-                nameof(externalSources));
-        }
+        // Parse VoltageSource and CurrentSource from Parameters
+        _voltageSourceKey = GetRequiredParameter(sensor, VoltageSourceKey);
+        _currentSourceKey = GetRequiredParameter(sensor, CurrentSourceKey);
 
-        if (currentSource == null)
-        {
-            throw new ArgumentException(
-                $"PowerAggregatorDefinition requires an external source with SourceKey='{CurrentKey}'",
-                nameof(externalSources));
-        }
+        // Build ExternalSources list from parsed source keys
+        ExternalSources = BuildExternalSources(_voltageSourceKey, _currentSourceKey);
 
         _logger.LogInformation(
-            "PowerAggregatorDefinition initialized with voltage source '{VoltageDevice}' and current source '{CurrentDevice}'",
-            voltageSource.DeviceName, currentSource.DeviceName);
+            "PowerAggregatorDefinition initialized: Sensor='{SensorName}', VoltageSource='{VoltageSource}', CurrentSource='{CurrentSource}'",
+            SensorName, _voltageSourceKey, _currentSourceKey);
+    }
+
+    /// <summary>
+    /// Gets a required parameter from Sensor.Parameters.
+    /// </summary>
+    private static string GetRequiredParameter(Sensor sensor, string key)
+    {
+        if (sensor.Parameters == null || !sensor.Parameters.TryGetValue(key, out var value))
+        {
+            var availableKeys = sensor.Parameters?.Keys != null
+                ? string.Join(", ", sensor.Parameters.Keys)
+                : "(none)";
+            throw new InvalidOperationException(
+                $"PowerAggregatorDefinition requires '{key}' in Sensor.Parameters. " +
+                $"Sensor: {sensor.Name}, Available parameters: [{availableKeys}]");
+        }
+
+        var resourceId = value?.ToString();
+        if (string.IsNullOrWhiteSpace(resourceId))
+        {
+            throw new InvalidOperationException(
+                $"'{key}' parameter cannot be empty in Sensor.Parameters. Sensor: {sensor.Name}");
+        }
+
+        return resourceId;
+    }
+
+    /// <summary>
+    /// Builds ExternalDataSource list from SourceKey strings.
+    /// SourceKey format: "DeviceName/SensorName"
+    /// </summary>
+    private static List<ExternalDataSource> BuildExternalSources(params string[] sourceKeys)
+    {
+        var sources = new List<ExternalDataSource>();
+        foreach (var sourceKey in sourceKeys)
+        {
+            var parts = sourceKey.Split('/');
+            if (parts.Length != 2)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid source key format: '{sourceKey}'. Expected 'DeviceName/SensorName' format.");
+            }
+
+            sources.Add(new ExternalDataSource
+            {
+                DeviceName = parts[0],
+                SensorName = parts[1]
+            });
+        }
+        return sources;
     }
 
     public void OnDataReceived(string sourceName, IReadOnlyList<TelemetryMeasure> data, DateTimeOffset timestamp)
     {
-        // Find which source this data is from
-        var source = ExternalSources.FirstOrDefault(s => s.DeviceName == sourceName);
-        if (source == null)
-        {
-            _logger.LogWarning("Received data from unknown source: {SourceName}", sourceName);
-            return;
-        }
-
-        // Process each measure
+        // sourceName is the DeviceName from external source
+        // We need to check if this device is one of our sources and match by ResourceId
         foreach (var measure in data)
         {
-            // Apply ResourceIds filter if specified
-            if (source.ResourceIds.Count > 0 && !source.ResourceIds.Contains(measure.ResourceId))
-            {
-                continue;
-            }
-
             // Convert to double
             double value;
             try
@@ -107,17 +167,18 @@ public class PowerAggregatorDefinition : IAggregatorDefinition
 
             lock (_lock)
             {
-                if (source.SourceKey.Equals(VoltageKey, StringComparison.OrdinalIgnoreCase))
+                // Match by SourceKey (DeviceName/SensorName format)
+                if (measure.ResourceId.Equals(_voltageSourceKey, StringComparison.OrdinalIgnoreCase))
                 {
                     _voltageEntry = entry;
                     _logger.LogDebug("[PowerAggregator] Cached Voltage: {Value:F2} V from {Source}",
-                        value, source.GetDisplayName());
+                        value, _voltageSourceKey);
                 }
-                else if (source.SourceKey.Equals(CurrentKey, StringComparison.OrdinalIgnoreCase))
+                else if (measure.ResourceId.Equals(_currentSourceKey, StringComparison.OrdinalIgnoreCase))
                 {
                     _currentEntry = entry;
                     _logger.LogDebug("[PowerAggregator] Cached Current: {Value:F2} A from {Source}",
-                        value, source.GetDisplayName());
+                        value, _currentSourceKey);
                 }
             }
         }
@@ -175,15 +236,13 @@ public class PowerAggregatorDefinition : IAggregatorDefinition
                 : _currentEntry.Timestamp;
 
             _logger.LogInformation(
-                "[PowerAggregator] ⚡ POWER CALCULATED: {Voltage:F2} V × {Current:F2} A = {Power:F2} W",
+                "[PowerAggregator] POWER CALCULATED: {Voltage:F2} V x {Current:F2} A = {Power:F2} W",
                 voltage, current, power);
 
-            return new List<TelemetryMeasure>
-            {
-                new() { ResourceId = "voltage", Value = voltage, Timestamp = aggregationTimestamp.ToUnixTimeMilliseconds() },
-                new() { ResourceId = "current", Value = current, Timestamp = aggregationTimestamp.ToUnixTimeMilliseconds() },
-                new() { ResourceId = "power", Value = power, Timestamp = aggregationTimestamp.ToUnixTimeMilliseconds() }
-            };
+            return
+            [
+                new() { ResourceId = OutputResourceId, Value = power, Timestamp = aggregationTimestamp.ToUnixTimeMilliseconds() }
+            ];
         }
     }
 
