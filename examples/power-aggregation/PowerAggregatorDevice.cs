@@ -11,35 +11,15 @@ namespace PowerAggregationExample;
 
 /// <summary>
 /// Pre-configured power aggregator device that calculates P = V × I from voltage and current sensors.
-/// Automatically creates AggregatorCommunication and PowerAggregatorDefinition.
-///
-/// Architecture: Device -> Parser -> Communication
-/// Inheritance: PowerAggregatorDevice -> AggregatorDevice -> PubSubDeviceBase -> DeviceBase
-///
-/// Layered Responsibility (following TwseStockMonitorDevice pattern):
-/// - AggregatorDevice: Creates Parser (protocol layer)
-/// - PowerAggregatorDevice: Creates Communication (transport layer) + PowerAggregatorDefinition (aggregation logic)
-///
-/// Telemetry flow:
-/// Source Devices → DataProcessed → PowerAggregatorDefinition (cache + sync) →
-/// OnTelemetryReceived → SensorCache → Interval Sample → EnqueueTelemetryAsync → Batch Send
 /// </summary>
 public class PowerAggregatorDevice : AggregatorDevice
 {
-    /// <summary>
-    /// Creates a PowerAggregatorDevice with ApplicationContext only.
-    /// Automatically retrieves configuration from context and creates communication.
-    /// </summary>
     public PowerAggregatorDevice(IWedaApplicationContext context)
         : this(context, context.DeviceConfiguration
             ?? throw new InvalidOperationException("DeviceConfiguration not found in ApplicationContext"))
     {
     }
 
-    /// <summary>
-    /// Creates a PowerAggregatorDevice with explicit configuration.
-    /// Automatically creates AggregatorCommunication with PowerAggregatorDefinition.
-    /// </summary>
     public PowerAggregatorDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)

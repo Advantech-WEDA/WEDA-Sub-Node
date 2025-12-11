@@ -385,8 +385,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     /// <summary>
-    /// Runs a polling/sampling loop for an interval group.
-    /// Common loop structure used by all device types.
+    /// Runs a polling/sampling loop for an interval group using PeriodicTimer.
     /// </summary>
     /// <param name="sensors">Sensors in this interval group</param>
     /// <param name="intervalMs">Polling/sampling interval in milliseconds</param>
@@ -411,12 +410,22 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             }
         }
 
+        // Use PeriodicTimer to avoid drift and prevent task accumulation
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
+
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            // Execute first iteration immediately (for non-initialDelay case, this is the first read)
+            // For initialDelay case, we already waited above
+            if (!initialDelay)
             {
                 await ProcessIntervalGroupAsync(sensors, cancellationToken);
-                await Task.Delay(intervalMs, cancellationToken);
+            }
+
+            // Then wait for subsequent ticks
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await ProcessIntervalGroupAsync(sensors, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
