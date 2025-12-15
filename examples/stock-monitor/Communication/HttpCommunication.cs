@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using StockMonitor.Models;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
 
 namespace StockMonitor.Communication;
 

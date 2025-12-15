@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 
-namespace Weda.SubNode.Core.Communication;
+namespace Weda.SubNode.Core.Communication.Common;
 
 /// <summary>
 /// Base class for Streaming communication pattern implementations.

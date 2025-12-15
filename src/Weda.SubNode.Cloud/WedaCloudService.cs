@@ -18,7 +18,7 @@ namespace Weda.SubNode.Cloud;
 /// Weda Cloud Service implementation
 /// Application service layer that coordinates Client layer operations
 /// Delegates protocol-specific communication to DeviceAgentClient and TelemetryClient
-/// Supports multiple devices with per-device topic assignments and registration storage.
+/// In SubNode architecture, only one SubNode registration is stored.
 /// Sealed to prevent inheritance and ensure template method pattern integrity
 /// </summary>
 public sealed class WedaCloudService : IWedaCloudService
@@ -27,7 +27,7 @@ public sealed class WedaCloudService : IWedaCloudService
     private readonly NatsClient _client;
     private readonly IDeviceAgentClient _deviceAgentClient;
     private readonly ITelemetryClient _telemetryClient;
-    private readonly IMultiDeviceRegistrationStorage _registrationStorage;
+    private readonly IDeviceRegistrationStorage _registrationStorage;
     private readonly ConcurrentDictionary<string, NatsTopicAssignments> _deviceTopics = new();
     private bool _isConnected;
     private bool _disposed;
@@ -36,13 +36,13 @@ public sealed class WedaCloudService : IWedaCloudService
         NatsClient client,
         IDeviceAgentClient deviceAgentClient,
         ITelemetryClient telemetryClient,
-        IMultiDeviceRegistrationStorage? registrationStorage = null,
+        IDeviceRegistrationStorage? registrationStorage = null,
         ILogger<WedaCloudService>? logger = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _deviceAgentClient = deviceAgentClient ?? throw new ArgumentNullException(nameof(deviceAgentClient));
         _telemetryClient = telemetryClient ?? throw new ArgumentNullException(nameof(telemetryClient));
-        _registrationStorage = registrationStorage ?? new JsonMultiDeviceRegistrationStorage();
+        _registrationStorage = registrationStorage ?? new JsonDeviceRegistrationStorage();
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<WedaCloudService>();
     }
 
@@ -129,16 +129,16 @@ public sealed class WedaCloudService : IWedaCloudService
         CancellationToken cancellationToken = default)
     {
         var deviceName = info.DeviceName;
-        _logger.LogInformation("Getting or registering device ID: DeviceName={DeviceName}", deviceName);
+        _logger.LogInformation("Getting or registering SubNode: DeviceName={DeviceName}", deviceName);
 
-        // 1. Try to get existing registration from storage (includes NATS topics)
+        // 1. Try to get existing SubNode registration from storage (includes NATS topics)
         try
         {
-            var existingRegistration = await _registrationStorage.GetRegistrationAsync(deviceName, cancellationToken);
+            var existingRegistration = await _registrationStorage.GetRegistrationAsync(cancellationToken);
             if (existingRegistration != null && !string.IsNullOrEmpty(existingRegistration.DeviceId))
             {
                 _logger.LogInformation(
-                    "Found existing device registration: DeviceName={DeviceName}, DeviceId={DeviceId}",
+                    "Found existing SubNode registration: DeviceName={DeviceName}, DeviceId={DeviceId}",
                     deviceName, existingRegistration.DeviceId);
 
                 info.DeviceId = existingRegistration.DeviceId;
@@ -152,13 +152,12 @@ public sealed class WedaCloudService : IWedaCloudService
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Failed to read device registration from storage for {DeviceName}, falling back to Cloud registration",
-                deviceName);
+                "Failed to read SubNode registration from storage, falling back to Cloud registration");
             // Fall through to Cloud registration
         }
 
-        // 2. Device not in storage or read failed, register device with Cloud
-        _logger.LogInformation("Registering device {DeviceName} with Cloud", deviceName);
+        // 2. SubNode not in storage or read failed, register with Cloud
+        _logger.LogInformation("Registering SubNode {DeviceName} with Cloud", deviceName);
 
         var response = await _deviceAgentClient.RegisterDeviceAsync(
             info,
@@ -167,32 +166,30 @@ public sealed class WedaCloudService : IWedaCloudService
         if (response.Code != 0 || response.Data?.DeviceId == null)
         {
             _logger.LogError(
-                "Failed to register device {DeviceName} with Cloud: Code={Code}, Message={Message}",
+                "Failed to register SubNode {DeviceName} with Cloud: Code={Code}, Message={Message}",
                 deviceName, response.Code, response.Message);
             return null;
         }
 
         var deviceId = response.Data.DeviceId;
         _logger.LogInformation(
-            "Device registered with Cloud: DeviceName={DeviceName}, DeviceId={DeviceId}, Status={Status}",
+            "SubNode registered with Cloud: DeviceName={DeviceName}, DeviceId={DeviceId}, Status={Status}",
             deviceName, deviceId, response.Data.RegistrationStatus);
 
         // 3. Configure NATS topics from registration response
         ConfigureTopics(deviceName, response.Data.NatsTopicAssignments);
 
-        // 4. Try to save complete registration data to storage for future use
+        // 4. Try to save SubNode registration data to storage for future use
         try
         {
-            await _registrationStorage.SaveRegistrationAsync(deviceName, response.Data, cancellationToken);
+            await _registrationStorage.SaveRegistrationAsync(response.Data, cancellationToken);
             _logger.LogInformation(
-                "Device registration saved to storage: DeviceName={DeviceName} (includes NATS topic assignments)",
-                deviceName);
+                "SubNode registration saved to storage (includes NATS topic assignments)");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Failed to save device registration to storage for {DeviceName} (device will re-register on restart)",
-                deviceName);
+                "Failed to save SubNode registration to storage (will re-register on restart)");
             // Non-critical failure, continue with deviceId
         }
 

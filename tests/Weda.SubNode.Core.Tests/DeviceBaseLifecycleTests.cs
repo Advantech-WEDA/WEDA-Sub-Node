@@ -725,6 +725,13 @@ internal class TestDevice : DeviceBase
         return Task.FromResult(true);
     }
 
+    protected override Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+        List<string> sensorResourceIds,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new IntervalGroupReadResult(new List<TelemetryMeasure>(), TimeSpan.Zero));
+    }
+
     protected override Task OnBeforeInitializeAsync(CancellationToken cancellationToken)
     {
         OnBeforeInitializeCalled = true;

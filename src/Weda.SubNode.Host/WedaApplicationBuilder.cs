@@ -8,6 +8,7 @@ using NATS.Net;
 using Serilog;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
@@ -16,6 +17,7 @@ using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host;
@@ -139,7 +141,7 @@ public class WedaApplicationBuilder
     /// Add a device by type with explicit configuration section name.
     ///
     /// Configuration loading priority:
-    /// 1. .weda/{DeviceName}.config.json (if exists and --no-cache not specified)
+    /// 1. .weda/config.cache.json (if exists and --no-cache not specified) - merges with appsettings.json
     /// 2. appsettings.json DeviceConfigs section (fallback)
     ///
     /// Example for AddDevice&lt;MyCustomDevice&gt;("MyFirstDevice"):
@@ -165,7 +167,7 @@ public class WedaApplicationBuilder
             throw new ArgumentException("Section name cannot be null or whitespace", nameof(sectionName));
         }
 
-        // First, read from appsettings.json to get the DeviceName
+        // First, read from appsettings.json as the base configuration
         var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
         if (!deviceConfigSection.Exists())
         {
@@ -174,37 +176,39 @@ public class WedaApplicationBuilder
                 $"Please ensure the configuration exists.");
         }
 
-        var appSettingsConfig = deviceConfigSection.Get<DeviceConfiguration>()
+        var config = deviceConfigSection.Get<DeviceConfiguration>()
             ?? throw new InvalidOperationException(
                 $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
                 $"Please check your appsettings.json format.");
 
         // Use DeviceName from appsettings.json, or fallback to sectionName if not specified
-        var deviceName = !string.IsNullOrWhiteSpace(appSettingsConfig.DeviceName)
-            ? appSettingsConfig.DeviceName
+        var deviceName = !string.IsNullOrWhiteSpace(config.DeviceName)
+            ? config.DeviceName
             : sectionName;
 
-        // Try loading from cache first (if enabled)
         var configSource = "appsettings.json";
-        var config = appSettingsConfig;
 
+        // Try applying cached cloud configuration (if enabled)
         if (_useCache)
         {
             try
             {
-                var cachedConfig = _configurationCache.GetConfigurationAsync(deviceName).GetAwaiter().GetResult();
-                if (cachedConfig != null)
+                var cachedMessage = _configurationCache.GetRawConfigurationAsync().GetAwaiter().GetResult();
+                if (cachedMessage != null)
                 {
-                    config = cachedConfig;
-                    configSource = _configurationCache.GetCacheFilePath(deviceName);
-                    Log.Information("Loaded device '{DeviceName}' configuration from cache: {CachePath}",
-                        deviceName, configSource);
+                    // Apply cached cloud config to the base config (PATCH semantics)
+                    var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
+                    if (applied)
+                    {
+                        configSource = $"appsettings.json + {_configurationCache.CacheFilePath}";
+                        Log.Information("Applied cached cloud configuration to device '{DeviceName}': {CachePath}",
+                            deviceName, _configurationCache.CacheFilePath);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Failed to load configuration from cache for device '{DeviceName}', falling back to appsettings.json",
-                    deviceName);
+                Log.Warning(ex, "Failed to load configuration from cache, using appsettings.json only");
             }
         }
 

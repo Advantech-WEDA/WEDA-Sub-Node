@@ -13,6 +13,7 @@ using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
 
@@ -88,6 +89,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly DeviceConfiguration? _deviceConfiguration;
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly IConfigurationCache _configurationCache;
+    private readonly SubNodeInfo _subNodeInfo;
     private bool _disposed;
 
     /// <summary>
@@ -185,6 +187,9 @@ public class WedaApplicationContext : IWedaApplicationContext
             }
         }
 
+        // Load SubNode configuration
+        _subNodeInfo = LoadSubNodeInfo();
+
         // Load device configuration if Configuration is provided
         _deviceConfiguration = LoadDeviceConfiguration();
 
@@ -278,6 +283,9 @@ public class WedaApplicationContext : IWedaApplicationContext
     }
 
     /// <inheritdoc />
+    public SubNodeInfo SubNodeInfo => _subNodeInfo;
+
+    /// <inheritdoc />
     public IWedaCloudService CloudService => _cloudService;
 
     /// <inheritdoc />
@@ -331,12 +339,40 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #region Private Methods
 
+    /// <summary>
+    /// Loads SubNode configuration from appsettings.json or uses defaults.
+    /// </summary>
+    private SubNodeInfo LoadSubNodeInfo()
+    {
+        // Try to load from configuration
+        if (_configuration != null)
+        {
+            var subNodeSection = _configuration.GetSection(SubNodeConfiguration.SectionName);
+            if (subNodeSection.Exists())
+            {
+                var config = subNodeSection.Get<SubNodeConfiguration>() ?? new SubNodeConfiguration();
+                var fallbackName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name;
+                return config.ToSubNodeInfo(fallbackName);
+            }
+        }
+
+        // Default: use entry assembly name as SubNode name
+        var assemblyName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "SubNode";
+        return new SubNodeInfo
+        {
+            Name = assemblyName,
+            Manufacturer = "Advantech",
+            Model = "SubNode-SDK",
+            Version = "1.0.0"
+        };
+    }
+
     private const string DeviceConfigurationSectionName = "DeviceConfigs";
     private DeviceConfiguration? LoadDeviceConfiguration()
     {
         var logger = _loggerFactory.CreateLogger<WedaApplicationContext>();
 
-        // Step 1: Load from appsettings.json to get DeviceName
+        // Step 1: Load from appsettings.json as base configuration
         if (_configuration == null)
             return null;
 
@@ -363,39 +399,39 @@ public class WedaApplicationContext : IWedaApplicationContext
                 ? appSettingsConfig.DeviceName
                 : _options.DeviceConfigurationKey;
 
-            // Step 2: Try loading from cache (cloud-updated config) with deviceName
+            var configSource = "appsettings.json";
+
+            // Step 2: Try applying cached cloud configuration
             try
             {
-                if (_configurationCache.ExistsAsync(deviceName).GetAwaiter().GetResult())
+                if (_configurationCache.ExistsAsync().GetAwaiter().GetResult())
                 {
-                    var cachedConfig = _configurationCache.GetConfigurationAsync(deviceName).GetAwaiter().GetResult();
-                    if (cachedConfig != null)
+                    var cachedMessage = _configurationCache.GetRawConfigurationAsync().GetAwaiter().GetResult();
+                    if (cachedMessage != null)
                     {
-                        var cacheFilePath = _configurationCache.GetCacheFilePath(deviceName);
-                        logger.LogInformation(
-                            "Using cached configuration (cloud-updated): DeviceName={DeviceName}, CachePath={CachePath}",
-                            cachedConfig.DeviceName,
-                            cacheFilePath);
-
-                        // Auto-load DTDL if enabled
-                        LoadDtdlIfEnabled(cachedConfig, logger);
-
-                        return cachedConfig;
+                        // Apply cached cloud config to the base config (PATCH semantics)
+                        var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(appSettingsConfig, cachedMessage);
+                        if (applied)
+                        {
+                            configSource = $"appsettings.json + {_configurationCache.CacheFilePath}";
+                            logger.LogInformation(
+                                "Applied cached cloud configuration: DeviceName={DeviceName}, CachePath={CachePath}",
+                                deviceName,
+                                _configurationCache.CacheFilePath);
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex,
-                    "Failed to load configuration from cache for device '{DeviceName}', falling back to appsettings.json",
-                    deviceName);
+                    "Failed to load configuration from cache, using appsettings.json only");
             }
 
-            // Step 3: Fallback to appsettings.json configuration
             logger.LogInformation(
-                "Using appsettings.json configuration: DeviceName={DeviceName}, ConfigKey={ConfigKey}",
-                appSettingsConfig.DeviceName,
-                _options.DeviceConfigurationKey);
+                "Using device configuration: DeviceName={DeviceName}, Source={Source}",
+                deviceName,
+                configSource);
 
             // Auto-load DTDL if enabled
             LoadDtdlIfEnabled(appSettingsConfig, logger);

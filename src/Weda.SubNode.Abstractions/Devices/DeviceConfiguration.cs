@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.DigitalTwin;
@@ -73,8 +72,15 @@ public class DeviceConfiguration
     public List<Sensor> Sensors { get; set; } = [];
 
     /// <summary>
-    /// Communication settings (not part of registration payload, for internal use)
-    /// e.g., Modbus: { "Host": "192.168.1.10", "Port": 502, "SlaveId": 1 }
+    /// Communication/transport layer settings (not part of registration payload, for internal use).
+    /// Contains connection parameters like host, port, etc.
+    /// e.g., TCP: { "Host": "192.168.1.10", "Port": 502 }
+    /// e.g., MQTT: { "BrokerUrl": "mqtt://localhost:1883", "ClientId": "device-1" }
+    /// Note: Protocol-specific settings (e.g., Modbus SlaveId) should go in Properties, not here.
+    /// Use DictionaryValueConverter extension methods to safely read values:
+    /// - Communication.GetString("Host", "localhost")
+    /// - Communication.GetInt32("Port", 502)
+    /// - Communication.GetBoolean("UseTls", false)
     /// </summary>
     public Dictionary<string, object> Communication { get; set; } = [];
 

@@ -71,6 +71,11 @@ public class MockApplicationContext : IWedaApplicationContext
     public IConfigurationCache MockConfigurationCache { get; }
 
     /// <summary>
+    /// Gets or sets the SubNode information for testing.
+    /// </summary>
+    public SubNodeInfo SubNodeInfo { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of MockApplicationContext with default mocks.
     /// </summary>
     public MockApplicationContext()
@@ -82,6 +87,14 @@ public class MockApplicationContext : IWedaApplicationContext
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
         DeviceRegistry = new DeviceRegistry();
+        SubNodeInfo = new SubNodeInfo
+        {
+            Name = "TestSubNode",
+            DeviceId = "test-device-id-12345",
+            Manufacturer = "Test",
+            Model = "MockSubNode",
+            Version = "1.0.0"
+        };
 
         // Setup default behaviors
         SetupDefaultBehaviors();
@@ -107,6 +120,14 @@ public class MockApplicationContext : IWedaApplicationContext
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
         DeviceRegistry = new DeviceRegistry();
+        SubNodeInfo = new SubNodeInfo
+        {
+            Name = "TestSubNode",
+            DeviceId = "test-device-id-12345",
+            Manufacturer = "Test",
+            Model = "MockSubNode",
+            Version = "1.0.0"
+        };
     }
 
     #region IWedaApplicationContext Implementation
@@ -171,6 +192,11 @@ public class MockApplicationContext : IWedaApplicationContext
         // Default: Cloud service is connected
         MockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         MockCloudService.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        // Default: Configuration cache paths
+        MockConfigurationCache.CacheDirectoryPath.Returns(".weda");
+        MockConfigurationCache.CacheFilePath.Returns(".weda/config.cache.json");
+        MockConfigurationCache.ExistsAsync(Arg.Any<CancellationToken>()).Returns(false);
     }
 
     /// <summary>

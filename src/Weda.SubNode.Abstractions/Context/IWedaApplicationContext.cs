@@ -11,8 +11,26 @@ namespace Weda.SubNode.Abstractions.Context;
 /// Manages the lifecycle of framework-level services (cloud, logging, etc.).
 /// Provides device registry for cross-device communication.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Sub-Node Architecture:</b>
+/// A Sub-Node is a single dotnet program that may manage multiple internal devices.
+/// From the cloud's perspective, the entire Sub-Node is treated as a single "virtual device"
+/// with one globally unique DeviceId (see <see cref="SubNodeInfo"/>).
+/// </para>
+/// <para>
+/// Internal devices are identified by their DeviceName (unique within the Sub-Node).
+/// Sensor ResourceIds are generated using: sha1(SubNode.DeviceId + DeviceName + SensorName).
+/// </para>
+/// </remarks>
 public interface IWedaApplicationContext : IDisposable
 {
+    /// <summary>
+    /// Gets the Sub-Node information including name and cloud-assigned DeviceId.
+    /// The Sub-Node represents this entire application as a single device to the cloud.
+    /// </summary>
+    SubNodeInfo SubNodeInfo { get; }
+
     /// <summary>
     /// Gets the cloud service instance.
     /// </summary>

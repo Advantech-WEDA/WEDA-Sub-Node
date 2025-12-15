@@ -117,6 +117,37 @@ public static class ResourceIdGenerator
     }
 
     /// <summary>
+    /// Generate a resource ID for a sensor in SubNode architecture using UUID5 algorithm.
+    /// Algorithm: uuid.uuid5(namespace, f"{subnode_device_id}.{device_name}.{sensor_name}")
+    /// </summary>
+    /// <param name="subNodeDeviceId">SubNode's globally unique DeviceId from cloud registration</param>
+    /// <param name="deviceName">Device name, unique within the SubNode</param>
+    /// <param name="sensorName">Sensor name, unique within the device</param>
+    /// <param name="groupId">Unique identifier for the organization or tenant (4-char alphanumeric)</param>
+    /// <returns>Resource ID in UUID format</returns>
+    /// <remarks>
+    /// In SubNode architecture:
+    /// - SubNodeDeviceId is globally unique (assigned by cloud during SubNode registration)
+    /// - DeviceName is unique within the SubNode
+    /// - SensorName is unique within the device
+    /// - The combination ensures globally unique ResourceIds: sha1(subNodeDeviceId + deviceName + sensorName)
+    /// </remarks>
+    public static string GenerateSensorResourceId(
+        string subNodeDeviceId,
+        string deviceName,
+        string sensorName,
+        string groupId = "weda")
+    {
+        ArgumentException.ThrowIfNullOrEmpty(subNodeDeviceId);
+        ArgumentException.ThrowIfNullOrEmpty(deviceName);
+        ArgumentException.ThrowIfNullOrEmpty(sensorName);
+
+        var namespaceUuid = GroupIdToUuid(groupId);
+        var name = $"{subNodeDeviceId}.{deviceName}.{sensorName}";
+        return GenerateUuid5(namespaceUuid, name).ToString();
+    }
+
+    /// <summary>
     /// Convert 4-char groupId to UUID namespace
     /// Uses the groupId as a seed to generate a deterministic UUID
     /// </summary>

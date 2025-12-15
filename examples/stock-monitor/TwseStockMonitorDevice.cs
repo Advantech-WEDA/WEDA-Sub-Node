@@ -5,7 +5,7 @@ using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
 
 namespace StockMonitor;
 

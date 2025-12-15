@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
+using Weda.SubNode.Core.Communication.Tcp;
+using Weda.SubNode.Core.Communication.WebSocket;
 
 namespace Weda.SubNode.Core;
 

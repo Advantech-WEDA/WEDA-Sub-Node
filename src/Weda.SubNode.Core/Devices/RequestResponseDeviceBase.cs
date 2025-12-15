@@ -6,7 +6,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core.Devices;

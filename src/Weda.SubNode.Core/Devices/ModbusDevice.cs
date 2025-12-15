@@ -25,19 +25,32 @@ public class ModbusDevice : RequestResponseDeviceBase
     /// <param name="communication">Communication instance for Modbus protocol.</param>
     /// <param name="useBatchOptimization">Enable batch reading optimization (default: true)</param>
     /// <param name="batchOptions">Batch optimization options (optional)</param>
+    /// <param name="slaveId">Modbus slave ID (default: 1)</param>
+    /// <param name="byteOrder">Byte order for multi-register data types (default: BigEndian)</param>
     public ModbusDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         IRequestResponseCommunication<byte[], byte[]> communication,
         bool useBatchOptimization = true,
-        ModbusBatchOptimizationOptions? batchOptions = null)
-        : base(context, configuration, CreateModbusParser(context, configuration, communication, useBatchOptimization, batchOptions))
+        ModbusBatchOptimizationOptions? batchOptions = null,
+        byte slaveId = 1,
+        ModbusByteOrder byteOrder = ModbusByteOrder.BigEndian)
+        : base(context, configuration, CreateModbusParser(context, configuration, communication, useBatchOptimization, batchOptions, slaveId, byteOrder))
     {
+        _slaveId = slaveId;
         _logger.LogDebug(
-            "ModbusDevice initialized ({SensorCount} sensors, BatchOptimization={BatchOptimization})",
+            "ModbusDevice initialized ({SensorCount} sensors, BatchOptimization={BatchOptimization}, SlaveId={SlaveId})",
             configuration.Sensors.Count,
-            useBatchOptimization);
+            useBatchOptimization,
+            slaveId);
     }
+
+    private readonly byte _slaveId;
+
+    /// <summary>
+    /// Gets the Modbus slave ID for this device.
+    /// </summary>
+    protected byte SlaveId => _slaveId;
 
     /// <summary>
     /// Creates the ModbusRequestResponseParser for this device.
@@ -47,7 +60,9 @@ public class ModbusDevice : RequestResponseDeviceBase
         DeviceConfiguration configuration,
         IRequestResponseCommunication<byte[], byte[]> communication,
         bool useBatchOptimization,
-        ModbusBatchOptimizationOptions? batchOptions)
+        ModbusBatchOptimizationOptions? batchOptions,
+        byte slaveId,
+        ModbusByteOrder byteOrder)
     {
         var logger = context.LoggerFactory.CreateLogger<ModbusRequestResponseParser>();
         return new ModbusRequestResponseParser(
@@ -55,7 +70,9 @@ public class ModbusDevice : RequestResponseDeviceBase
             communication,
             logger,
             useBatchOptimization,
-            batchOptions);
+            batchOptions,
+            slaveId: slaveId,
+            byteOrder: byteOrder);
     }
 
     #region Modbus-Specific Methods
@@ -72,8 +89,7 @@ public class ModbusDevice : RequestResponseDeviceBase
         var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
             ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");
 
-        var slaveId = Configuration.GetModbusSlaveId();
-        var scanner = new ModbusScanner(communication, slaveId, _logger);
+        var scanner = new ModbusScanner(communication, _slaveId, _logger);
         var results = await scanner.ScanHoldingRegistersAsync(config, cancellationToken);
 
         scanner.PrintScanResults(results, _logger);
@@ -89,8 +105,7 @@ public class ModbusDevice : RequestResponseDeviceBase
         var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
             ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");
 
-        var slaveId = Configuration.GetModbusSlaveId();
-        var scanner = new ModbusScanner(communication, slaveId, _logger);
+        var scanner = new ModbusScanner(communication, _slaveId, _logger);
         return scanner.GenerateSensorSuggestions(scanResults);
     }
 
@@ -105,8 +120,7 @@ public class ModbusDevice : RequestResponseDeviceBase
         var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
             ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");
 
-        var slaveId = Configuration.GetModbusSlaveId();
-        var scanner = new ModbusScanner(communication, slaveId, _logger);
+        var scanner = new ModbusScanner(communication, _slaveId, _logger);
 
         var deviceInfo = new Dictionary<string, object>
         {

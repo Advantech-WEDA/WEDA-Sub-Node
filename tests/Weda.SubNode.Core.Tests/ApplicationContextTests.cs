@@ -2,7 +2,7 @@ using System.Net.Sockets;
 
 using Shouldly;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Host.Context;
 using Weda.SubNode.TestBase.Builders;

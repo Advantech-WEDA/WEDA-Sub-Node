@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Events;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
+using Weda.SubNode.Core.Communication.Mqtt;
 using Xunit;
 
 namespace Weda.SubNode.Core.Tests.Communication;

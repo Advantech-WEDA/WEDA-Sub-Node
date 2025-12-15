@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Events;
 
-namespace Weda.SubNode.Core.Communication;
+namespace Weda.SubNode.Core.Communication.Common;
 
 /// <summary>
 /// Base class for Pub/Sub communication pattern implementations.

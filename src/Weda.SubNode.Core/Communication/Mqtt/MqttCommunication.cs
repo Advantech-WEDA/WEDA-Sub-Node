@@ -5,8 +5,9 @@ using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Client;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Core.Communication.Common;
 
-namespace Weda.SubNode.Core.Communication;
+namespace Weda.SubNode.Core.Communication.Mqtt;
 
 /// <summary>
 /// MQTT communication implementation using Pub/Sub pattern.

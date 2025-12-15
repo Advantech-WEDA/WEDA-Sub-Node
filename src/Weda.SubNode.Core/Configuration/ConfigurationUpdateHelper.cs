@@ -659,6 +659,85 @@ public static class ConfigurationUpdateHelper
     }
 
     /// <summary>
+    /// Applies cached cloud configuration to a base DeviceConfiguration.
+    /// This method merges the cloud configuration (from cache) with the base configuration
+    /// (from appsettings.json), updating only the fields present in the cloud config.
+    /// </summary>
+    /// <param name="baseConfig">The base device configuration from appsettings.json</param>
+    /// <param name="cachedMessage">The cached cloud configuration message</param>
+    /// <returns>True if configuration was found and applied, false otherwise</returns>
+    public static bool ApplyCachedConfiguration(
+        DeviceConfiguration baseConfig,
+        SubNodeConfigurationUpdateMessage cachedMessage)
+    {
+        if (cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs == null)
+            return false;
+
+        var deviceConfigs = cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs;
+
+        // Find matching device config by DeviceName
+        SubNodeDeviceConfigDto? matchingConfig = null;
+        foreach (var (_, config) in deviceConfigs)
+        {
+            if (string.Equals(config.DeviceName, baseConfig.DeviceName, StringComparison.OrdinalIgnoreCase))
+            {
+                matchingConfig = config;
+                break;
+            }
+        }
+
+        if (matchingConfig == null)
+            return false;
+
+        // Apply sensor configuration updates
+        ApplySensorConfigUpdates(baseConfig, matchingConfig.Sensors);
+
+        // Apply pipeline updates (Transform and DSP filters)
+        ApplyAllPipelineUpdates(baseConfig, matchingConfig.Sensors);
+
+        // Apply background task periods if provided
+        if (matchingConfig.Periods != null)
+        {
+            if (matchingConfig.Periods.ReportHealth > 0)
+            {
+                baseConfig.Periods.ReportHealth = matchingConfig.Periods.ReportHealth;
+            }
+            if (matchingConfig.Periods.ReportConfiguration >= 0)
+            {
+                baseConfig.Periods.ReportConfiguration = matchingConfig.Periods.ReportConfiguration;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Gets the device configuration DTO from a cached cloud message by device name.
+    /// </summary>
+    /// <param name="cachedMessage">The cached cloud configuration message</param>
+    /// <param name="deviceName">The device name to search for</param>
+    /// <returns>The matching device configuration DTO, or null if not found</returns>
+    public static SubNodeDeviceConfigDto? GetDeviceConfigFromCachedMessage(
+        SubNodeConfigurationUpdateMessage? cachedMessage,
+        string deviceName)
+    {
+        if (cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs == null)
+            return null;
+
+        var deviceConfigs = cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs;
+
+        foreach (var (_, config) in deviceConfigs)
+        {
+            if (string.Equals(config.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase))
+            {
+                return config;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Converts a DeviceConfiguration to SubNodeDeviceConfigDto for reporting.
     /// </summary>
     public static SubNodeDeviceConfigDto ToSubNodeDeviceConfigDto(

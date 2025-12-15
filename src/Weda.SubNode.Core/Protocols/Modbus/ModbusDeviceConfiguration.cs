@@ -1,32 +1,13 @@
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Utilities;
 
 namespace Weda.SubNode.Core.Protocols.Modbus;
 
 /// <summary>
-/// Modbus-specific configuration extensions for DeviceConfiguration
+/// Modbus-specific configuration extensions for DeviceConfiguration.
 /// </summary>
 public static class ModbusDeviceConfigurationExtensions
 {
-    /// <summary>
-    /// Get Modbus SlaveId (protocol layer setting)
-    /// </summary>
-    public static byte GetModbusSlaveId(this DeviceConfiguration config)
-    {
-        return Convert.ToByte(config.Communication.GetValueOrDefault("SlaveId", 1));
-    }
-
-    /// <summary>
-    /// Get Modbus ByteOrder (protocol layer setting)
-    /// Default: BigEndian (standard Modbus)
-    /// </summary>
-    public static ModbusByteOrder GetModbusByteOrder(this DeviceConfiguration config)
-    {
-        var byteOrderStr = config.Communication.GetValueOrDefault("ByteOrder")?.ToString() ?? "BigEndian";
-        return Enum.Parse<ModbusByteOrder>(byteOrderStr);
-    }
-
     /// <summary>
     /// Get Modbus sensor register from Sensor
     /// </summary>

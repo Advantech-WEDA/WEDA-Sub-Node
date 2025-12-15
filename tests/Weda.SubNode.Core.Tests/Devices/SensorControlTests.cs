@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
+using Weda.SubNode.Core.Communication.Mqtt;
 using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Devices.Generic;
 using Weda.SubNode.TestBase;

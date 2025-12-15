@@ -52,7 +52,7 @@ public class MqttISensingDevice : Core.Devices.ISensingDevice
 
         // Create MQTT communication directly
         // Connection will be established automatically by DeviceBase.InitializeAsync via ConnectionManager
-        var logger = context.GetLogger<Core.Communication.CommunicationBase>();
-        return new Core.Communication.MqttCommunication(host, port, clientId, null, logger);
+        var logger = context.GetLogger<Core.Communication.Common.CommunicationBase>();
+        return new Core.Communication.Mqtt.MqttCommunication(host, port, clientId, null, logger);
     }
 }

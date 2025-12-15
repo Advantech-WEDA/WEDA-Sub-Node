@@ -45,13 +45,17 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     /// <param name="useBatchOptimization">Enable batch reading optimization (default: true)</param>
     /// <param name="batchOptions">Batch optimization options (optional)</param>
     /// <param name="defaultCommandTimeoutMs">Default command execution timeout in milliseconds (default: 30000)</param>
+    /// <param name="slaveId">Modbus slave ID (default: 1)</param>
+    /// <param name="byteOrder">Byte order for multi-register data types (default: BigEndian)</param>
     public ModbusRequestResponseParser(
         DeviceConfiguration configuration,
         IRequestResponseCommunication<byte[], byte[]> communication,
         ILogger logger,
         bool useBatchOptimization = true,
         ModbusBatchOptimizationOptions? batchOptions = null,
-        int defaultCommandTimeoutMs = 30000)
+        int defaultCommandTimeoutMs = 30000,
+        byte slaveId = 1,
+        ModbusByteOrder byteOrder = ModbusByteOrder.BigEndian)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
@@ -59,9 +63,9 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         _useBatchOptimization = useBatchOptimization;
         _defaultCommandTimeoutMs = defaultCommandTimeoutMs;
 
-        // Extract Modbus protocol settings (SlaveId, ByteOrder)
-        _slaveId = configuration.GetModbusSlaveId();
-        _byteOrder = configuration.GetModbusByteOrder();
+        // Use provided protocol settings
+        _slaveId = slaveId;
+        _byteOrder = byteOrder;
 
         // Convert sensors to Modbus registers and create metadata dictionary
         _sensorMetadata = configuration.Sensors

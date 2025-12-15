@@ -4,7 +4,7 @@ using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 
-namespace Weda.SubNode.Core.Communication;
+namespace Weda.SubNode.Core.Communication.Common;
 
 /// <summary>
 /// Base communication implementation with built-in retry and reconnection mechanism

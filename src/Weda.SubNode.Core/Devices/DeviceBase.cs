@@ -82,9 +82,10 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             configuration, // Pass full configuration for sensor-level transform/filter support
             configuration.DeviceId); // Pass deviceId from configuration
 
-        // Single initializer handles registration
+        // Single initializer handles SubNode registration and device configuration
         _initializer = new DeviceInitializer(
             context.CloudService,
+            context.SubNodeInfo,
             context.GetLogger<DeviceInitializer>());
 
         // Wire events
@@ -668,10 +669,10 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     await RestartBackgroundTasksAsync();
                 }
 
-                // Step 5: Persist configuration to cache for restart persistence
-                await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
-                var cacheFilePath = _context.ConfigurationCache.GetCacheFilePath(Configuration.DeviceName);
-                _logger.LogInformation("Configuration cached to: {CachePath}", cacheFilePath);
+                // Step 5: Persist raw cloud message to cache for restart persistence
+                // By storing the raw message, we preserve original JSON structure and data types
+                await _context.ConfigurationCache.SaveRawConfigurationAsync(message, ct);
+                _logger.LogInformation("Configuration cached to: {CachePath}", _context.ConfigurationCache.CacheFilePath);
 
                 // Step 6: Send success response with updated configuration
                 _logger.LogInformation("Configuration update successful, sending success response");

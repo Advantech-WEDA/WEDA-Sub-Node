@@ -2,8 +2,9 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Core.Communication.Common;
 
-namespace Weda.SubNode.Core.Communication;
+namespace Weda.SubNode.Core.Communication.Tcp;
 
 /// <summary>
 /// Static factory for creating TCP communication instances
