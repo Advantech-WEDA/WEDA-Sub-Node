@@ -89,6 +89,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly DeviceConfiguration? _deviceConfiguration;
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly IConfigurationCache _configurationCache;
+    private readonly IDeviceRegistrationStorage _registrationStorage;
     private readonly SubNodeInfo _subNodeInfo;
     private bool _disposed;
 
@@ -114,6 +115,10 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         // Initialize configuration cache (for UC9868 cloud-driven config updates)
         _configurationCache = new JsonConfigurationCache(
+            logger: null); // Logger not available yet
+
+        // Initialize registration storage (for SubNode registration persistence)
+        _registrationStorage = new JsonDeviceRegistrationStorage(
             logger: null); // Logger not available yet
 
         // Auto-load configuration from appsettings.json if not provided
@@ -340,31 +345,66 @@ public class WedaApplicationContext : IWedaApplicationContext
     #region Private Methods
 
     /// <summary>
-    /// Loads SubNode configuration from appsettings.json or uses defaults.
+    /// Loads SubNode configuration from registration cache first, then appsettings.json.
+    /// Priority:
+    /// 1. Registration cache (.weda/subnode.registration.json) - for DeviceId
+    /// 2. appsettings.json SubNode section - for Name, DeviceType, Manufacturer, etc.
+    /// 3. Default values
     /// </summary>
     private SubNodeInfo LoadSubNodeInfo()
     {
-        // Try to load from configuration
+        var assemblyName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "SubNode";
+        SubNodeInfo subNodeInfo;
+
+        // Step 1: Load base configuration from appsettings.json
         if (_configuration != null)
         {
             var subNodeSection = _configuration.GetSection(SubNodeConfiguration.SectionName);
             if (subNodeSection.Exists())
             {
                 var config = subNodeSection.Get<SubNodeConfiguration>() ?? new SubNodeConfiguration();
-                var fallbackName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name;
-                return config.ToSubNodeInfo(fallbackName);
+                subNodeInfo = config.ToSubNodeInfo(assemblyName);
+            }
+            else
+            {
+                // Default: use entry assembly name as SubNode name
+                subNodeInfo = new SubNodeInfo
+                {
+                    Name = assemblyName,
+                    Manufacturer = "Advantech",
+                    Model = "SubNode-SDK",
+                    Version = "1.0.0"
+                };
             }
         }
-
-        // Default: use entry assembly name as SubNode name
-        var assemblyName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "SubNode";
-        return new SubNodeInfo
+        else
         {
-            Name = assemblyName,
-            Manufacturer = "Advantech",
-            Model = "SubNode-SDK",
-            Version = "1.0.0"
-        };
+            subNodeInfo = new SubNodeInfo
+            {
+                Name = assemblyName,
+                Manufacturer = "Advantech",
+                Model = "SubNode-SDK",
+                Version = "1.0.0"
+            };
+        }
+
+        // Step 2: Try to load DeviceId from registration cache
+        try
+        {
+            var registration = _registrationStorage.GetRegistrationAsync().GetAwaiter().GetResult();
+            if (registration != null && !string.IsNullOrEmpty(registration.DeviceId))
+            {
+                subNodeInfo.DeviceId = registration.DeviceId;
+                // Log will be available after logger factory is initialized
+            }
+        }
+        catch
+        {
+            // If registration cache read fails, continue without DeviceId
+            // Device will register on first connection
+        }
+
+        return subNodeInfo;
     }
 
     private const string DeviceConfigurationSectionName = "DeviceConfigs";

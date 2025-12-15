@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Net;
@@ -18,7 +17,8 @@ namespace Weda.SubNode.Cloud;
 /// Weda Cloud Service implementation
 /// Application service layer that coordinates Client layer operations
 /// Delegates protocol-specific communication to DeviceAgentClient and TelemetryClient
-/// In SubNode architecture, only one SubNode registration is stored.
+/// In SubNode architecture, only one SubNode registration is stored with a single DeviceId
+/// and corresponding NATS topic assignments.
 /// Sealed to prevent inheritance and ensure template method pattern integrity
 /// </summary>
 public sealed class WedaCloudService : IWedaCloudService
@@ -28,7 +28,12 @@ public sealed class WedaCloudService : IWedaCloudService
     private readonly IDeviceAgentClient _deviceAgentClient;
     private readonly ITelemetryClient _telemetryClient;
     private readonly IDeviceRegistrationStorage _registrationStorage;
-    private readonly ConcurrentDictionary<string, NatsTopicAssignments> _deviceTopics = new();
+
+    /// <summary>
+    /// Single topic assignment for the SubNode (one SubNode = one DeviceId = one set of topics)
+    /// </summary>
+    private NatsTopicAssignments? _topicAssignments;
+
     private bool _isConnected;
     private bool _disposed;
 
@@ -54,22 +59,21 @@ public sealed class WedaCloudService : IWedaCloudService
         ArgumentNullException.ThrowIfNull(topicAssignments);
 
         _logger.LogInformation(
-            "Configuring NATS topic assignments for device {DeviceName}: TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}, CommandTopic={CommandTopic}",
-            deviceName,
+            "Configuring NATS topic assignments for SubNode: TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}, CommandTopic={CommandTopic}",
             topicAssignments.TelemetryTopic,
             topicAssignments.HealthTopic,
             topicAssignments.CommandTopic);
 
-        _deviceTopics[deviceName] = topicAssignments;
+        _topicAssignments = topicAssignments;
 
-        // Configure telemetry client with the device's topics
+        // Configure telemetry client with the SubNode's topics
         _telemetryClient.ConfigureTopics(deviceName, topicAssignments);
     }
 
     public NatsTopicAssignments? GetTopics(string deviceName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
-        return _deviceTopics.TryGetValue(deviceName, out var topics) ? topics : null;
+        // In SubNode architecture, there's only one set of topics for the entire SubNode
+        return _topicAssignments;
     }
 
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
@@ -536,34 +540,20 @@ public sealed class WedaCloudService : IWedaCloudService
     }
 
     /// <summary>
-    /// Find topic assignments by deviceId.
-    /// Since topics are keyed by deviceName, we need to search through all registered devices.
-    /// Returns null if no matching device is found.
+    /// Get topic assignments for the SubNode.
+    /// In SubNode architecture, there's only one DeviceId and one set of topics.
+    /// Returns null if topics haven't been configured yet.
     /// </summary>
     private NatsTopicAssignments? FindTopicsByDeviceId(string deviceId)
     {
-        // Search through all device topics to find one whose topic contains the deviceId
-        // This is a fallback mechanism; ideally we should use deviceName directly
-        foreach (var kvp in _deviceTopics)
+        if (_topicAssignments == null)
         {
-            // Check if this device's telemetry topic contains the deviceId
-            if (kvp.Value.TelemetryTopic.Contains(deviceId, StringComparison.OrdinalIgnoreCase))
-            {
-                return kvp.Value;
-            }
+            _logger.LogWarning(
+                "Topic assignments not configured for SubNode. DeviceId={DeviceId}",
+                deviceId);
         }
 
-        // If not found by deviceId, try using deviceId as deviceName directly
-        if (_deviceTopics.TryGetValue(deviceId, out var topics))
-        {
-            return topics;
-        }
-
-        _logger.LogWarning(
-            "Could not find topic assignments for deviceId={DeviceId}. Available devices: {Devices}",
-            deviceId, string.Join(", ", _deviceTopics.Keys));
-
-        return null;
+        return _topicAssignments;
     }
 
     /// <summary>

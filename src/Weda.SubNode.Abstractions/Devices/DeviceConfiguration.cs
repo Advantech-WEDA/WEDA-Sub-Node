@@ -117,7 +117,6 @@ public class DeviceConfiguration
     /// </summary>
     /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
-    /// <exception cref="JsonException">Thrown when the JSON is invalid or cannot be deserialized.</exception>
     public void LoadDtdl(string? basePath = null)
     {
         if (string.IsNullOrEmpty(DtdlPath))

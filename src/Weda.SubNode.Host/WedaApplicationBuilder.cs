@@ -508,14 +508,22 @@ public class WedaApplicationBuilder
             return new TelemetryClient(natsClient, logger);
         });
 
+        // Register storage services as singletons to ensure consistent paths
+        Services.AddSingleton<IDeviceRegistrationStorage>(sp =>
+        {
+            var logger = sp.GetService<ILogger<JsonDeviceRegistrationStorage>>();
+            return new JsonDeviceRegistrationStorage(logger: logger);
+        });
+
         // Register WedaCloudService
         Services.AddSingleton<IWedaCloudService>(sp =>
         {
             var natsClient = sp.GetRequiredService<NatsClient>();
             var deviceAgentClient = sp.GetRequiredService<IDeviceAgentClient>();
             var telemetryClient = sp.GetRequiredService<ITelemetryClient>();
+            var registrationStorage = sp.GetRequiredService<IDeviceRegistrationStorage>();
             var logger = sp.GetService<ILogger<WedaCloudService>>();
-            return new WedaCloudService(natsClient, deviceAgentClient, telemetryClient, logger: logger);
+            return new WedaCloudService(natsClient, deviceAgentClient, telemetryClient, registrationStorage, logger);
         });
 
         return this;

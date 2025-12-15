@@ -30,13 +30,19 @@ public class JsonDeviceRegistrationStorage : IDeviceRegistrationStorage
         string? filePath = null,
         ILogger<JsonDeviceRegistrationStorage>? logger = null)
     {
-        _filePath = filePath ?? Path.Combine(
-            FindProjectRoot() ?? Directory.GetCurrentDirectory(),
-            StorageDirectory,
-            RegistrationFileName);
-
         _logger = logger ?? NullLoggerFactory.Instance
             .CreateLogger<JsonDeviceRegistrationStorage>();
+
+        var projectRoot = FindProjectRoot();
+        var baseDir = projectRoot ?? Directory.GetCurrentDirectory();
+
+        _filePath = filePath ?? Path.Combine(baseDir, StorageDirectory, RegistrationFileName);
+
+        _logger.LogInformation(
+            "DeviceRegistrationStorage initialized: ProjectRoot={ProjectRoot}, CurrentDir={CurrentDir}, FilePath={FilePath}",
+            projectRoot ?? "(not found)",
+            Directory.GetCurrentDirectory(),
+            _filePath);
 
         _jsonOptions = new JsonSerializerOptions
         {

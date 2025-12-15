@@ -29,30 +29,29 @@ public sealed class DeviceInitializer
 
     /// <summary>
     /// Step 1: Ensure SubNode is registered with cloud service.
-    /// If SubNodeInfo already has a DeviceId, it returns that.
-    /// Otherwise, registers the SubNode and updates SubNodeInfo.DeviceId.
+    /// Always calls GetOrRegisterDeviceIdAsync to ensure topics are configured,
+    /// even when DeviceId already exists in SubNodeInfo (from registration cache).
     /// </summary>
     /// <returns>The SubNode's globally unique DeviceId</returns>
     public async Task<string> EnsureSubNodeRegisteredAsync(CancellationToken ct = default)
     {
-        // If already registered, return the existing DeviceId
-        if (_subNodeInfo.IsRegistered)
-        {
-            _logger.LogDebug("SubNode already registered with DeviceId: {DeviceId}", _subNodeInfo.DeviceId);
-            return _subNodeInfo.DeviceId!;
-        }
-
-        _logger.LogDebug("Registering SubNode '{SubNodeName}' with cloud service", _subNodeInfo.Name);
+        _logger.LogDebug("Ensuring SubNode '{SubNodeName}' is registered with cloud service", _subNodeInfo.Name);
 
         // Create DeviceInfo for SubNode registration using configured DeviceType
+        // If SubNodeInfo already has a DeviceId (from cache), include it in the request
         var subNodeDeviceInfo = new DeviceInfo
         {
             DeviceName = _subNodeInfo.Name,
             DeviceType = _subNodeInfo.DeviceType,
             Manufacturer = _subNodeInfo.Manufacturer,
-            Model = $"{_subNodeInfo.Model} v{_subNodeInfo.Version}"
+            Model = $"{_subNodeInfo.Model} v{_subNodeInfo.Version}",
+            DeviceId = _subNodeInfo.DeviceId // Pass existing DeviceId if available
         };
 
+        // Always call GetOrRegisterDeviceIdAsync to:
+        // 1. Load registration from cache (including topics) if exists
+        // 2. Or register with cloud if not exists
+        // This ensures topics are always configured
         var deviceId = await _cloudService.GetOrRegisterDeviceIdAsync(subNodeDeviceInfo, ct);
 
         if (string.IsNullOrEmpty(deviceId))
@@ -61,9 +60,6 @@ public sealed class DeviceInitializer
             _logger.LogError("{Message}", errorMsg);
             throw new InvalidOperationException(errorMsg);
         }
-
-        // Update SubNodeInfo with the assigned DeviceId
-        _subNodeInfo.DeviceId = deviceId;
 
         _logger.LogInformation(
             "SubNode '{SubNodeName}' registered successfully with DeviceId: {DeviceId}",
