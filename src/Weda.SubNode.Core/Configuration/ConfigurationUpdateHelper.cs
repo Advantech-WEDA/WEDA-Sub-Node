@@ -171,6 +171,14 @@ public static class ConfigurationUpdateHelper
             }
         }
 
+        // Validate Transform and DSP Filter parameters (if enabled)
+        if (options.ValidatePipelineParameters && desiredConfig.Sensors != null)
+        {
+            var pipelineValidationResult = ValidatePipelineParameters(currentConfig, desiredConfig.Sensors);
+            if (!pipelineValidationResult.IsValid)
+                return pipelineValidationResult;
+        }
+
         return ConfigurationValidationResult.Success;
     }
 
@@ -827,6 +835,150 @@ public static class ConfigurationUpdateHelper
                 }
             }
         };
+    }
+
+    /// <summary>
+    /// Validates Transform and DSP Filter pipeline parameters without applying updates.
+    /// This method is called during validation phase to detect invalid parameters early.
+    /// </summary>
+    /// <param name="currentConfig">The current device configuration containing runtime instances</param>
+    /// <param name="desiredSensors">The desired sensor configurations from cloud</param>
+    /// <returns>Validation result indicating success or failure with error message</returns>
+    private static ConfigurationValidationResult ValidatePipelineParameters(
+        DeviceConfiguration currentConfig,
+        IReadOnlyList<SubNodeSensorConfigDto> desiredSensors)
+    {
+        foreach (var desiredSensor in desiredSensors)
+        {
+            // Find matching sensor by name
+            var sensor = currentConfig.Sensors.FirstOrDefault(s =>
+                s.Name.Equals(desiredSensor.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (sensor == null)
+                continue;
+
+            // Validate DSP pipeline parameters
+            if (desiredSensor.Config?.DspPipeline != null)
+            {
+                var dspValidationResult = ValidateDspPipelineParameters(
+                    sensor.Name,
+                    sensor.Config.RuntimeDspFilters,
+                    sensor.Config.DspPipeline,
+                    desiredSensor.Config.DspPipeline);
+
+                if (!dspValidationResult.IsValid)
+                    return dspValidationResult;
+            }
+
+            // Validate Transform pipeline parameters
+            if (desiredSensor.Config?.TransformPipeline != null)
+            {
+                var transformValidationResult = ValidateTransformPipelineParameters(
+                    sensor.Name,
+                    sensor.Config.RuntimeTransforms,
+                    sensor.Config.TransformPipeline,
+                    desiredSensor.Config.TransformPipeline);
+
+                if (!transformValidationResult.IsValid)
+                    return transformValidationResult;
+            }
+        }
+
+        return ConfigurationValidationResult.Success;
+    }
+
+    /// <summary>
+    /// Validates DSP filter pipeline parameters without applying updates.
+    /// </summary>
+    private static ConfigurationValidationResult ValidateDspPipelineParameters(
+        string sensorName,
+        List<IDspFilter> runtimeFilters,
+        List<DspFilterConfig> configFilters,
+        IReadOnlyList<SubNodeDspFilterConfigDto> desiredPipeline)
+    {
+        for (int i = 0; i < desiredPipeline.Count; i++)
+        {
+            var desired = desiredPipeline[i];
+
+            // Check config-based filter type match
+            if (i < configFilters.Count)
+            {
+                var configFilter = configFilters[i];
+                if (!string.Equals(configFilter.Type, desired.Type, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ConfigurationValidationResult.Failure(
+                        $"Sensor '{sensorName}': DSP filter at index {i} type mismatch " +
+                        $"(expected '{configFilter.Type}', got '{desired.Type}')");
+                }
+            }
+
+            // Validate runtime filter parameters if exists
+            if (i < runtimeFilters.Count)
+            {
+                var runtimeFilter = runtimeFilters[i];
+                var parameters = desired.Parameters ?? new Dictionary<string, object>();
+
+                if (TryGetConfigurableDspFilter(runtimeFilter, out var validateParams, out _))
+                {
+                    var validationResult = validateParams(parameters);
+                    if (validationResult.IsError)
+                    {
+                        return ConfigurationValidationResult.Failure(
+                            $"Sensor '{sensorName}': DSP filter '{desired.Type}' at index {i}: " +
+                            $"{validationResult.FirstError.Description}");
+                    }
+                }
+            }
+        }
+
+        return ConfigurationValidationResult.Success;
+    }
+
+    /// <summary>
+    /// Validates Transform pipeline parameters without applying updates.
+    /// </summary>
+    private static ConfigurationValidationResult ValidateTransformPipelineParameters(
+        string sensorName,
+        List<ITelemetryTransform> runtimeTransforms,
+        List<TransformConfig> configTransforms,
+        IReadOnlyList<SubNodeTransformConfigDto> desiredPipeline)
+    {
+        for (int i = 0; i < desiredPipeline.Count; i++)
+        {
+            var desired = desiredPipeline[i];
+
+            // Check config-based transform type match
+            if (i < configTransforms.Count)
+            {
+                var configTransform = configTransforms[i];
+                if (!string.Equals(configTransform.Type, desired.Type, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ConfigurationValidationResult.Failure(
+                        $"Sensor '{sensorName}': Transform at index {i} type mismatch " +
+                        $"(expected '{configTransform.Type}', got '{desired.Type}')");
+                }
+            }
+
+            // Validate runtime transform parameters if exists
+            if (i < runtimeTransforms.Count)
+            {
+                var runtimeTransform = runtimeTransforms[i];
+                var parameters = desired.Parameters ?? new Dictionary<string, object>();
+
+                if (TryGetConfigurableTransform(runtimeTransform, out var validateParams, out _))
+                {
+                    var validationResult = validateParams(parameters);
+                    if (validationResult.IsError)
+                    {
+                        return ConfigurationValidationResult.Failure(
+                            $"Sensor '{sensorName}': Transform '{desired.Type}' at index {i}: " +
+                            $"{validationResult.FirstError.Description}");
+                    }
+                }
+            }
+        }
+
+        return ConfigurationValidationResult.Success;
     }
 
     /// <summary>

@@ -13,7 +13,8 @@ try
         .AddLogging()
         .AddTelemetry()
         .AddHealthReporting()
-        .UseMockCloud();
+        // .UseMockCloud();
+        ;
 
     builder.AddDevice<CurrentSensorDevice>("CurrentSensor");
     builder.AddDevice<VoltageSensorDevice>("VoltageSensor");

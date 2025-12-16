@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubNode Config Manager</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 20px; }
+        h2 { color: #555; margin: 20px 0 10px; font-size: 1.2em; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        h3 { color: #666; margin: 15px 0 10px; font-size: 1em; }
+        h4 { color: #777; margin: 10px 0 5px; font-size: 0.9em; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group.inline { display: flex; align-items: center; gap: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 13px; }
+        input[type="text"], input[type="password"], input[type="number"], select, textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #007bff; }
+        input[readonly], select[readonly] { background: #f5f5f5; color: #666; cursor: not-allowed; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-info { background: #cce5ff; color: #004085; }
+        .sensor-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 15px; margin-bottom: 10px; }
+        .sensor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .sensor-name { font-weight: 600; color: #333; }
+        .sensor-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .readonly-info { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; font-size: 13px; color: #666; border: 1px solid #e9ecef; }
+        .readonly-info .label { font-weight: 500; color: #555; }
+        .parameters-section { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #e9ecef; border-radius: 4px; }
+        .parameters-section h4 { margin-bottom: 8px; color: #666; font-size: 12px; text-transform: uppercase; }
+        .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+        .param-item { display: flex; justify-content: space-between; padding: 4px 8px; background: #f8f9fa; border-radius: 3px; font-size: 12px; }
+        .param-key { color: #666; }
+        .param-value { color: #333; font-weight: 500; }
+        .pipeline-section { margin-top: 10px; padding: 10px; background: #fff5e6; border: 1px solid #ffe0b3; border-radius: 4px; }
+        .pipeline-section.dsp { background: #e6f3ff; border-color: #b3d9ff; }
+        .pipeline-item { padding: 12px; background: white; border-radius: 4px; margin-bottom: 8px; border: 1px solid #ddd; }
+        .pipeline-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .pipeline-item-header select { font-weight: 500; min-width: 150px; }
+        .pipeline-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding-top: 8px; border-top: 1px dashed #eee; }
+        .pipeline-params .param-field { display: flex; flex-direction: column; }
+        .pipeline-params .param-field label { font-size: 11px; color: #666; margin-bottom: 2px; }
+        .pipeline-params .param-field input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; }
+        .collapsible { cursor: pointer; user-select: none; }
+        .collapsible:hover { color: #007bff; }
+        .collapse-content { display: none; }
+        .collapse-content.show { display: block; }
+        .log { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto; }
+        .log-entry { margin-bottom: 5px; }
+        .log-time { color: #6a9955; }
+        .log-info { color: #569cd6; }
+        .log-error { color: #f14c4c; }
+        .log-success { color: #4ec9b0; }
+        .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .two-column { grid-template-columns: 1fr; } }
+        .add-btn { background: #e9ecef; border: 1px dashed #adb5bd; color: #495057; padding: 8px; text-align: center; border-radius: 4px; cursor: pointer; margin-top: 5px; }
+        .add-btn:hover { background: #dee2e6; }
+        /* Tab styles */
+        .tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 0; border-bottom: 2px solid #007bff; }
+        .tab { padding: 10px 20px; background: #e9ecef; border: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; color: #495057; transition: all 0.2s; }
+        .tab:hover { background: #dee2e6; }
+        .tab.active { background: #007bff; color: white; }
+        .tab-content { display: none; padding: 20px; background: #fff; border: 1px solid #e9ecef; border-top: none; border-radius: 0 0 8px 8px; }
+        .tab-content.active { display: block; }
+        .device-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px; }
+        .device-info-item { background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid #007bff; }
+        .device-info-item .label { font-size: 11px; color: #6c757d; text-transform: uppercase; margin-bottom: 3px; }
+        .device-info-item .value { font-size: 14px; color: #212529; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SubNode Config Manager</h1>
+
+        <!-- Connection Settings -->
+        <div class="card">
+            <h2>Connection Settings</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Project Path</label>
+                    <input type="text" id="projectPath" placeholder="/path/to/your/subnode/project">
+                </div>
+                <div class="form-group">
+                    <label>NATS URL</label>
+                    <input type="text" id="natsUrl" value="nats://localhost:4222">
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="natsUsername" placeholder="(optional)">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="natsPassword" placeholder="(optional)">
+                </div>
+            </div>
+            <button class="btn-primary" onclick="loadConfig()">Load Configuration</button>
+            <button class="btn-secondary" onclick="clearConfig()">Clear</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="two-column">
+            <!-- Left: SubNode & Registration -->
+            <div>
+                <!-- SubNode Info -->
+                <div class="card" id="subNodeCard" style="display: none;">
+                    <div class="section-header">
+                        <h2>SubNode Configuration</h2>
+                        <span class="badge badge-info">appsettings.json</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="subNodeName">
+                        </div>
+                        <div class="form-group">
+                            <label>Device Type</label>
+                            <select id="subNodeDeviceType">
+                                <option value="AdamEthernet">AdamEthernet</option>
+                                <option value="SerialDevice">SerialDevice</option>
+                                <option value="DaqDevice">DaqDevice</option>
+                                <option value="SystemMonitor">SystemMonitor</option>
+                                <option value="CustomDevice">CustomDevice</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Manufacturer</label>
+                            <input type="text" id="subNodeManufacturer">
+                        </div>
+                        <div class="form-group">
+                            <label>Model</label>
+                            <input type="text" id="subNodeModel">
+                        </div>
+                        <div class="form-group">
+                            <label>Version</label>
+                            <input type="text" id="subNodeVersion">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Registration Info -->
+                <div class="card" id="registrationCard" style="display: none;">
+                    <div class="section-header">
+                        <h2>Registration Status</h2>
+                        <span class="badge badge-success" id="regStatusBadge">-</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Device ID</label>
+                            <input type="text" id="deviceId" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Config Update Topic</label>
+                            <input type="text" id="configTopic" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log -->
+                <div class="card">
+                    <h2>Activity Log</h2>
+                    <div class="log" id="logContainer">
+                        <div class="log-entry"><span class="log-time">[Ready]</span> <span class="log-info">Enter project path and click Load Configuration</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Device Configs -->
+            <div>
+                <div class="card" id="deviceConfigCard" style="display: none;">
+                    <div class="section-header">
+                        <h2>Device Configurations</h2>
+                    </div>
+                    <div id="deviceConfigsContainer"></div>
+
+                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+                        <button class="btn-success" onclick="applyConfig()">Apply Configuration</button>
+                        <button class="btn-secondary" onclick="loadConfig()">Reload</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // SensorGroup enum values
+        const SENSOR_GROUPS = ['AI', 'AO', 'DI', 'DO', 'TEMP', 'PWR', 'SYS'];
+
+        // Transform types with default parameters
+        const TRANSFORM_TYPES = {
+            'Calibration': { slope: 1, offset: 0 },
+            'UnitConversion': { fromUnit: '', toUnit: '' },
+            'Scale': { factor: 1 },
+            'Offset': { value: 0 },
+            'Clamp': { min: 0, max: 100 },
+            'Map': { inputMin: 0, inputMax: 100, outputMin: 0, outputMax: 100 }
+        };
+
+        // DSP Filter types with default parameters
+        const DSP_FILTER_TYPES = {
+            'movingAverage': { windowSize: 5 },
+            'kalman': { processNoise: 0.01, measurementNoise: 0.1 },
+            'lowPass': { cutoffFrequency: 10, sampleRate: 100 },
+            'highPass': { cutoffFrequency: 1, sampleRate: 100 },
+            'median': { windowSize: 5 },
+            'exponentialSmoothing': { alpha: 0.3 }
+        };
+
+        let appSettings = null;
+        let registration = null;
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            container.innerHTML = `<div class="log-entry"><span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span></div>` + container.innerHTML;
+        }
+
+        function getProp(obj, ...keys) {
+            if (!obj) return undefined;
+            for (const key of keys) {
+                if (obj[key] !== undefined) return obj[key];
+                const lowerKey = key.charAt(0).toLowerCase() + key.slice(1);
+                if (obj[lowerKey] !== undefined) return obj[lowerKey];
+                const upperKey = key.charAt(0).toUpperCase() + key.slice(1);
+                if (obj[upperKey] !== undefined) return obj[upperKey];
+            }
+            return undefined;
+        }
+
+        function normalizeKeys(obj) {
+            if (Array.isArray(obj)) return obj.map(normalizeKeys);
+            if (obj !== null && typeof obj === 'object') {
+                return Object.keys(obj).reduce((acc, key) => {
+                    const camelKey = key.charAt(0).toLowerCase() + key.slice(1);
+                    acc[camelKey] = normalizeKeys(obj[key]);
+                    return acc;
+                }, {});
+            }
+            return obj;
+        }
+
+        async function loadConfig() {
+            const path = document.getElementById('projectPath').value;
+            if (!path) {
+                log('Please enter project path', 'error');
+                return;
+            }
+
+            try {
+                log(`Loading configuration from: ${path}...`);
+                const response = await fetch(`/api/config?path=${encodeURIComponent(path)}`);
+
+                const text = await response.text();
+                if (!text) {
+                    throw new Error('Empty response from server');
+                }
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+                }
+
+                if (!response.ok) throw new Error(data.error || 'Failed to load config');
+
+                appSettings = data.appSettings;
+
+                // Load SubNode configuration
+                const subNode = getProp(appSettings, 'SubNode', 'subNode');
+                if (subNode) {
+                    document.getElementById('subNodeName').value = getProp(subNode, 'Name', 'name') || '';
+                    document.getElementById('subNodeDeviceType').value = getProp(subNode, 'DeviceType', 'deviceType') || 'CustomDevice';
+                    document.getElementById('subNodeManufacturer').value = getProp(subNode, 'Manufacturer', 'manufacturer') || '';
+                    document.getElementById('subNodeModel').value = getProp(subNode, 'Model', 'model') || '';
+                    document.getElementById('subNodeVersion').value = getProp(subNode, 'Version', 'version') || '';
+                    document.getElementById('subNodeCard').style.display = 'block';
+                    log('SubNode configuration loaded', 'success');
+                }
+
+                // Load NATS settings
+                const nats = getProp(appSettings, 'Nats', 'nats');
+                if (nats) {
+                    const url = getProp(nats, 'Url', 'url');
+                    const username = getProp(nats, 'Username', 'username');
+                    const password = getProp(nats, 'Password', 'password');
+                    if (url) document.getElementById('natsUrl').value = url;
+                    if (username) document.getElementById('natsUsername').value = username;
+                    if (password) document.getElementById('natsPassword').value = password;
+                }
+
+                // Load Registration
+                if (data.registration) {
+                    registration = data.registration;
+                    document.getElementById('deviceId').value = registration.deviceId || '';
+                    document.getElementById('configTopic').value = registration.natsTopicAssignments?.configUpdateTopic || '';
+                    document.getElementById('regStatusBadge').textContent = registration.registrationStatus || '-';
+                    document.getElementById('registrationCard').style.display = 'block';
+                    log(`Registration loaded: ${registration.deviceId}`, 'success');
+                } else {
+                    document.getElementById('registrationCard').style.display = 'none';
+                    log('No registration found (device not yet registered)', 'info');
+                }
+
+                // Load DeviceConfigs
+                const deviceConfigs = getProp(appSettings, 'DeviceConfigs', 'deviceConfigs');
+                if (deviceConfigs) {
+                    appSettings.deviceConfigs = normalizeKeys(deviceConfigs);
+                    renderDeviceConfigs(appSettings.deviceConfigs);
+                    document.getElementById('deviceConfigCard').style.display = 'block';
+                    log('Device configurations loaded', 'success');
+                }
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        function getVal(obj, key) {
+            // Handle both camelCase and PascalCase
+            if (!obj) return undefined;
+            if (obj[key] !== undefined) return obj[key];
+            const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+            if (obj[pascal] !== undefined) return obj[pascal];
+            const camel = key.charAt(0).toLowerCase() + key.slice(1);
+            return obj[camel];
+        }
+
+        function escapeHtml(str) {
+            if (typeof str !== 'string') str = JSON.stringify(str || {});
+            return str.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function renderDeviceConfigs(deviceConfigs) {
+            const container = document.getElementById('deviceConfigsContainer');
+            container.innerHTML = '';
+
+            const entries = Object.entries(deviceConfigs);
+            if (entries.length === 0) {
+                container.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">No device configurations found</div>';
+                return;
+            }
+
+            // Create tabs
+            const tabsHtml = entries.map(([deviceKey, device], index) =>
+                `<button class="tab ${index === 0 ? 'active' : ''}" onclick="switchDeviceTab('${deviceKey}')" data-device="${deviceKey}">
+                    ${device.deviceName || deviceKey}
+                </button>`
+            ).join('');
+
+            // Create tab contents
+            const contentsHtml = entries.map(([deviceKey, device], index) => `
+                <div id="device-tab-${deviceKey}" class="tab-content ${index === 0 ? 'active' : ''}">
+                    <!-- Device Info (readonly) -->
+                    <div class="device-info-grid">
+                        <div class="device-info-item">
+                            <div class="label">Device Name</div>
+                            <div class="value">${device.deviceName || '-'}</div>
+                        </div>
+                        <div class="device-info-item">
+                            <div class="label">Device Type</div>
+                            <div class="value">${device.deviceType || '-'}</div>
+                        </div>
+                        <div class="device-info-item">
+                            <div class="label">Config Key</div>
+                            <div class="value">${deviceKey}</div>
+                        </div>
+                        ${device.communication?.host ? `
+                        <div class="device-info-item">
+                            <div class="label">Host</div>
+                            <div class="value">${device.communication.host}:${device.communication.port || ''}</div>
+                        </div>` : ''}
+                        ${device.communication?.brokerUrl ? `
+                        <div class="device-info-item">
+                            <div class="label">Broker URL</div>
+                            <div class="value">${device.communication.brokerUrl}</div>
+                        </div>` : ''}
+                        ${device.communication?.macAddress ? `
+                        <div class="device-info-item">
+                            <div class="label">MAC Address</div>
+                            <div class="value">${device.communication.macAddress}</div>
+                        </div>` : ''}
+                    </div>
+                    <h4 style="margin-bottom:15px; color:#333;">Sensors (${(device.sensors || []).length})</h4>
+                    ${renderSensors(deviceKey, device.sensors || [])}
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="tabs">${tabsHtml}</div>
+                ${contentsHtml}
+            `;
+        }
+
+        function switchDeviceTab(deviceKey) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.device === deviceKey);
+            });
+            // Update tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `device-tab-${deviceKey}`);
+            });
+        }
+
+        function renderSensors(deviceKey, sensors) {
+            return sensors.map((sensor, index) => `
+                <div class="sensor-card">
+                    <div class="sensor-header">
+                        <div>
+                            <span class="sensor-name">${sensor.name}</span>
+                            <span style="color:#888; font-size:12px; margin-left:10px;">${sensor.dtmi || ''}</span>
+                        </div>
+                        <div class="form-group inline" style="margin:0;">
+                            <label style="margin:0;">Enabled</label>
+                            <input type="checkbox" ${sensor.config?.enabled ? 'checked' : ''}
+                                   onchange="updateSensorField('${deviceKey}', ${index}, 'config.enabled', this.checked)">
+                        </div>
+                    </div>
+                    <div class="sensor-fields">
+                        <div class="form-group">
+                            <label>Sensor Group</label>
+                            <select onchange="updateSensorField('${deviceKey}', ${index}, 'sensorGroup', this.value)">
+                                ${SENSOR_GROUPS.map(g => `<option value="${g}" ${sensor.sensorGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Interval (ms)</label>
+                            <input type="number" value="${sensor.config?.interval || 1000}"
+                                   onchange="updateSensorField('${deviceKey}', ${index}, 'config.interval', parseInt(this.value))">
+                        </div>
+                        <div class="form-group">
+                            <label>Unit</label>
+                            <input type="text" value="${sensor.config?.unit || ''}"
+                                   onchange="updateSensorField('${deviceKey}', ${index}, 'config.unit', this.value)">
+                        </div>
+                    </div>
+
+                    <!-- Parameters (readonly, display only) -->
+                    ${sensor.parameters ? `
+                    <div class="parameters-section">
+                        <h4>Parameters (read-only)</h4>
+                        <div class="param-grid">
+                            ${Object.entries(sensor.parameters).map(([k, v]) => `
+                                <div class="param-item">
+                                    <span class="param-key">${k}:</span>
+                                    <span class="param-value">${v}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Transform Pipeline -->
+                    <div class="pipeline-section">
+                        <h4>Transform Pipeline</h4>
+                        <div id="transforms-${deviceKey}-${index}">
+                            ${renderTransformPipeline(deviceKey, index, getVal(sensor.config || {}, 'transformPipeline') || [])}
+                        </div>
+                        <div class="add-btn" onclick="addTransform('${deviceKey}', ${index})">+ Add Transform</div>
+                    </div>
+
+                    <!-- DSP Filters -->
+                    <div class="pipeline-section dsp">
+                        <h4>DSP Filters</h4>
+                        <div id="dsp-${deviceKey}-${index}">
+                            ${renderDspPipeline(deviceKey, index, getVal(sensor.config || {}, 'dspPipeline') || [])}
+                        </div>
+                        <div class="add-btn" onclick="addDspFilter('${deviceKey}', ${index})">+ Add DSP Filter</div>
+                    </div>
+
+                    <!-- Thresholds -->
+                    <div class="parameters-section" style="margin-top:10px;">
+                        <h4>Thresholds</h4>
+                        <div class="sensor-fields">
+                            <div class="form-group">
+                                <label>Upper Critical</label>
+                                <input type="number" step="any" value="${sensor.config?.thresholds?.upperCritical ?? ''}"
+                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperCritical', this.value ? parseFloat(this.value) : null)">
+                            </div>
+                            <div class="form-group">
+                                <label>Upper Warning</label>
+                                <input type="number" step="any" value="${sensor.config?.thresholds?.upperWarning ?? ''}"
+                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperWarning', this.value ? parseFloat(this.value) : null)">
+                            </div>
+                            <div class="form-group">
+                                <label>Lower Warning</label>
+                                <input type="number" step="any" value="${sensor.config?.thresholds?.lowerWarning ?? ''}"
+                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerWarning', this.value ? parseFloat(this.value) : null)">
+                            </div>
+                            <div class="form-group">
+                                <label>Lower Critical</label>
+                                <input type="number" step="any" value="${sensor.config?.thresholds?.lowerCritical ?? ''}"
+                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerCritical', this.value ? parseFloat(this.value) : null)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderPipelineParams(deviceKey, sensorIndex, pipelineType, itemIndex, params, defaultParams) {
+            const allParams = { ...defaultParams, ...params };
+            return Object.entries(allParams).map(([key, value]) => {
+                const inputType = typeof value === 'number' ? 'number' : 'text';
+                const step = typeof value === 'number' && !Number.isInteger(value) ? '0.01' : '1';
+                return `
+                    <div class="param-field">
+                        <label>${key}</label>
+                        <input type="${inputType}" ${inputType === 'number' ? `step="${step}"` : ''}
+                               value="${escapeHtml(String(value))}"
+                               onchange="updatePipelineParam('${deviceKey}', ${sensorIndex}, '${pipelineType}', ${itemIndex}, '${key}', this.value, '${inputType}')">
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTransformPipeline(deviceKey, sensorIndex, pipeline) {
+            if (!pipeline || pipeline.length === 0) return '<div style="color:#888; font-size:12px;">No transforms configured</div>';
+            return pipeline.map((t, i) => {
+                const enabled = getVal(t, 'enabled');
+                const type = getVal(t, 'type') || Object.keys(TRANSFORM_TYPES)[0];
+                const params = getVal(t, 'parameters') || {};
+                const defaultParams = TRANSFORM_TYPES[type] || {};
+                return `
+                <div class="pipeline-item">
+                    <div class="pipeline-item-header">
+                        <input type="checkbox" ${enabled !== false ? 'checked' : ''}
+                               onchange="updatePipelineItem('${deviceKey}', ${sensorIndex}, 'transformPipeline', ${i}, 'enabled', this.checked)">
+                        <select onchange="onPipelineTypeChange('${deviceKey}', ${sensorIndex}, 'transformPipeline', ${i}, this.value)">
+                            ${Object.keys(TRANSFORM_TYPES).map(tp => `<option value="${tp}" ${type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
+                        </select>
+                        <button class="btn-sm btn-danger" onclick="removePipelineItem('${deviceKey}', ${sensorIndex}, 'transformPipeline', ${i})">Remove</button>
+                    </div>
+                    <div class="pipeline-params">
+                        ${renderPipelineParams(deviceKey, sensorIndex, 'transformPipeline', i, params, defaultParams)}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function renderDspPipeline(deviceKey, sensorIndex, pipeline) {
+            if (!pipeline || pipeline.length === 0) return '<div style="color:#888; font-size:12px;">No DSP filters configured</div>';
+            return pipeline.map((f, i) => {
+                const enabled = getVal(f, 'enabled');
+                const type = getVal(f, 'type') || Object.keys(DSP_FILTER_TYPES)[0];
+                const params = getVal(f, 'parameters') || {};
+                const defaultParams = DSP_FILTER_TYPES[type] || {};
+                return `
+                <div class="pipeline-item">
+                    <div class="pipeline-item-header">
+                        <input type="checkbox" ${enabled !== false ? 'checked' : ''}
+                               onchange="updatePipelineItem('${deviceKey}', ${sensorIndex}, 'dspPipeline', ${i}, 'enabled', this.checked)">
+                        <select onchange="onPipelineTypeChange('${deviceKey}', ${sensorIndex}, 'dspPipeline', ${i}, this.value)">
+                            ${Object.keys(DSP_FILTER_TYPES).map(tp => `<option value="${tp}" ${type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
+                        </select>
+                        <button class="btn-sm btn-danger" onclick="removePipelineItem('${deviceKey}', ${sensorIndex}, 'dspPipeline', ${i})">Remove</button>
+                    </div>
+                    <div class="pipeline-params">
+                        ${renderPipelineParams(deviceKey, sensorIndex, 'dspPipeline', i, params, defaultParams)}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function toggleCollapse(id) {
+            document.getElementById(id).classList.toggle('show');
+        }
+
+        function updateSensorField(deviceKey, sensorIndex, path, value) {
+            const parts = path.split('.');
+            let target = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!target[parts[i]]) target[parts[i]] = {};
+                target = target[parts[i]];
+            }
+            target[parts[parts.length - 1]] = value;
+            log(`Updated ${deviceKey}.sensors[${sensorIndex}].${path} = ${value}`);
+        }
+
+        function updatePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex, field, value) {
+            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.config) sensor.config = {};
+            if (!sensor.config[pipelineType]) sensor.config[pipelineType] = [];
+            sensor.config[pipelineType][itemIndex][field] = value;
+            log(`Updated ${pipelineType}[${itemIndex}].${field} = ${value}`);
+        }
+
+        function updatePipelineParam(deviceKey, sensorIndex, pipelineType, itemIndex, paramKey, value, inputType) {
+            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.config) sensor.config = {};
+            if (!sensor.config[pipelineType]) sensor.config[pipelineType] = [];
+            if (!sensor.config[pipelineType][itemIndex].parameters) {
+                sensor.config[pipelineType][itemIndex].parameters = {};
+            }
+            // Convert value based on input type
+            const convertedValue = inputType === 'number' ? parseFloat(value) : value;
+            sensor.config[pipelineType][itemIndex].parameters[paramKey] = convertedValue;
+            log(`Updated ${pipelineType}[${itemIndex}].parameters.${paramKey} = ${convertedValue}`);
+        }
+
+        function onPipelineTypeChange(deviceKey, sensorIndex, pipelineType, itemIndex, newType) {
+            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const item = sensor.config[pipelineType][itemIndex];
+            item.type = newType;
+            // Reset parameters to defaults for new type
+            const defaults = pipelineType === 'transformPipeline' ? TRANSFORM_TYPES[newType] : DSP_FILTER_TYPES[newType];
+            item.parameters = { ...defaults };
+            renderDeviceConfigs(appSettings.deviceConfigs);
+            log(`Changed ${pipelineType}[${itemIndex}] type to ${newType}`);
+        }
+
+        function addTransform(deviceKey, sensorIndex) {
+            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.config) sensor.config = {};
+            if (!sensor.config.transformPipeline) sensor.config.transformPipeline = [];
+            const defaultType = Object.keys(TRANSFORM_TYPES)[0];
+            sensor.config.transformPipeline.push({
+                type: defaultType,
+                enabled: true,
+                parameters: { ...TRANSFORM_TYPES[defaultType] }
+            });
+            renderDeviceConfigs(appSettings.deviceConfigs);
+            log(`Added transform to ${deviceKey}.sensors[${sensorIndex}]`);
+        }
+
+        function addDspFilter(deviceKey, sensorIndex) {
+            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.config) sensor.config = {};
+            if (!sensor.config.dspPipeline) sensor.config.dspPipeline = [];
+            const defaultType = Object.keys(DSP_FILTER_TYPES)[0];
+            sensor.config.dspPipeline.push({
+                type: defaultType,
+                enabled: true,
+                parameters: { ...DSP_FILTER_TYPES[defaultType] }
+            });
+            renderDeviceConfigs(appSettings.deviceConfigs);
+            log(`Added DSP filter to ${deviceKey}.sensors[${sensorIndex}]`);
+        }
+
+        function removePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex) {
+            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            sensor.config[pipelineType].splice(itemIndex, 1);
+            renderDeviceConfigs(appSettings.deviceConfigs);
+            log(`Removed ${pipelineType}[${itemIndex}]`);
+        }
+
+        function clearConfig() {
+            appSettings = null;
+            registration = null;
+            document.getElementById('subNodeCard').style.display = 'none';
+            document.getElementById('registrationCard').style.display = 'none';
+            document.getElementById('deviceConfigCard').style.display = 'none';
+            document.getElementById('subNodeName').value = '';
+            document.getElementById('subNodeDeviceType').value = 'CustomDevice';
+            document.getElementById('subNodeManufacturer').value = '';
+            document.getElementById('subNodeModel').value = '';
+            document.getElementById('subNodeVersion').value = '';
+            document.getElementById('deviceId').value = '';
+            document.getElementById('configTopic').value = '';
+            document.getElementById('regStatusBadge').textContent = '-';
+            document.getElementById('deviceConfigsContainer').innerHTML = '';
+            document.getElementById('natsUrl').value = 'nats://localhost:4222';
+            document.getElementById('natsUsername').value = '';
+            document.getElementById('natsPassword').value = '';
+            log('Configuration cleared', 'info');
+        }
+
+        async function applyConfig() {
+            if (!registration || !registration.deviceId) {
+                log('No registration found. Device must be registered first.', 'error');
+                return;
+            }
+
+            const request = {
+                natsUrl: document.getElementById('natsUrl').value,
+                natsUsername: document.getElementById('natsUsername').value || null,
+                natsPassword: document.getElementById('natsPassword').value || null,
+                registration: registration,
+                deviceConfigs: appSettings.deviceConfigs
+            };
+
+            try {
+                log('Sending configuration update via NATS...');
+                const response = await fetch('/api/config/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    log(`Configuration sent! Topic: ${result.topic}`, 'success');
+                    log(`MessageId: ${result.messageId}`, 'success');
+                } else {
+                    throw new Error(result.error || 'Failed to send configuration');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

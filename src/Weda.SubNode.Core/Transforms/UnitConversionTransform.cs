@@ -32,8 +32,9 @@ public class UnitConversionTransform : ITelemetryTransform, IConfigurableTransfo
 
     private static string GetStringParameter(Dictionary<string, object> parameters, string key, string defaultValue)
     {
-        if (parameters.TryGetValue(key, out var value))
-            return value?.ToString() ?? defaultValue;
+        var entry = parameters.FirstOrDefault(p => p.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        if (entry.Key != null)
+            return entry.Value?.ToString() ?? defaultValue;
         return defaultValue;
     }
 
@@ -58,16 +59,18 @@ public class UnitConversionTransform : ITelemetryTransform, IConfigurableTransfo
     /// <inheritdoc/>
     public ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters)
     {
-        if (parameters.TryGetValue("FromUnit", out var from))
+        var fromEntry = parameters.FirstOrDefault(p => p.Key.Equals("FromUnit", StringComparison.OrdinalIgnoreCase));
+        if (fromEntry.Key != null)
         {
-            var fromUnit = from?.ToString();
+            var fromUnit = fromEntry.Value?.ToString();
             if (string.IsNullOrWhiteSpace(fromUnit))
                 return Error.Validation("UnitConversionTransform.FromUnit", "FromUnit cannot be empty");
         }
 
-        if (parameters.TryGetValue("ToUnit", out var to))
+        var toEntry = parameters.FirstOrDefault(p => p.Key.Equals("ToUnit", StringComparison.OrdinalIgnoreCase));
+        if (toEntry.Key != null)
         {
-            var toUnit = to?.ToString();
+            var toUnit = toEntry.Value?.ToString();
             if (string.IsNullOrWhiteSpace(toUnit))
                 return Error.Validation("UnitConversionTransform.ToUnit", "ToUnit cannot be empty");
         }
@@ -78,11 +81,13 @@ public class UnitConversionTransform : ITelemetryTransform, IConfigurableTransfo
     /// <inheritdoc/>
     public void UpdateParameters(Dictionary<string, object> parameters)
     {
-        if (parameters.TryGetValue("FromUnit", out var from))
-            _fromUnit = NormalizeUnit(from?.ToString() ?? _fromUnit);
+        var fromEntry = parameters.FirstOrDefault(p => p.Key.Equals("FromUnit", StringComparison.OrdinalIgnoreCase));
+        if (fromEntry.Key != null)
+            _fromUnit = NormalizeUnit(fromEntry.Value?.ToString() ?? _fromUnit);
 
-        if (parameters.TryGetValue("ToUnit", out var to))
-            _toUnit = NormalizeUnit(to?.ToString() ?? _toUnit);
+        var toEntry = parameters.FirstOrDefault(p => p.Key.Equals("ToUnit", StringComparison.OrdinalIgnoreCase));
+        if (toEntry.Key != null)
+            _toUnit = NormalizeUnit(toEntry.Value?.ToString() ?? _toUnit);
     }
 
     public Task<List<TelemetryMeasure>> TransformAsync(
