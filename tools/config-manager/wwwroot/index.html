@@ -6,7 +6,8 @@
     <title>SubNode Config Manager</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; transition: padding-right 0.3s ease; }
+        body.panel-open { padding-right: 470px; }
         .container { max-width: 1400px; margin: 0 auto; }
         h1 { color: #333; margin-bottom: 20px; }
         h2 { color: #555; margin: 20px 0 10px; font-size: 1.2em; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
@@ -84,6 +85,53 @@
         .device-info-item { background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid #007bff; }
         .device-info-item .label { font-size: 11px; color: #6c757d; text-transform: uppercase; margin-bottom: 3px; }
         .device-info-item .value { font-size: 14px; color: #212529; font-weight: 500; }
+        /* Payload panel styles */
+        .payload-panel { position: fixed; top: 0; right: 0; height: 100vh; width: 450px; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s ease; z-index: 999; display: flex; flex-direction: column; }
+        .payload-panel.open { transform: translateX(0); }
+        .payload-toggle { position: fixed; top: 50%; right: 0; transform: translateY(-50%); background: #17a2b8; color: white; border: none; padding: 15px 8px; cursor: pointer; border-radius: 8px 0 0 8px; font-size: 12px; writing-mode: vertical-rl; text-orientation: mixed; box-shadow: -2px 0 8px rgba(0,0,0,0.15); z-index: 998; transition: right 0.3s ease; }
+        .payload-toggle:hover { background: #138496; }
+        .payload-toggle.panel-open { right: 450px; }
+        .payload-toggle .badge-count { display: inline-block; background: #ffc107; color: #000; border-radius: 10px; padding: 2px 6px; font-size: 10px; margin-top: 5px; writing-mode: horizontal-tb; }
+        .payload-header { padding: 15px 20px; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; background: #17a2b8; color: white; }
+        .payload-header h3 { margin: 0; font-size: 16px; }
+        .payload-body { flex: 1; overflow-y: auto; padding: 0; }
+        .payload-item { border-bottom: 1px solid #e9ecef; }
+        .payload-item-header { padding: 12px 15px; background: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .payload-item-header:hover { background: #e9ecef; }
+        .payload-item-time { font-size: 12px; color: #6c757d; }
+        .payload-item-topic { font-size: 13px; font-weight: 500; color: #333; word-break: break-all; }
+        .payload-item-content { display: none; padding: 15px; background: #1e1e1e; }
+        .payload-item-content.show { display: block; }
+        .payload-item-content pre { margin: 0; color: #d4d4d4; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+        .payload-item-arrow { transition: transform 0.2s; color: #6c757d; }
+        .payload-item-arrow.expanded { transform: rotate(90deg); }
+        /* Modal styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: white; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { margin: 0; font-size: 16px; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 0; line-height: 1; }
+        .modal-close:hover { color: #333; }
+        .modal-body { padding: 15px 20px; overflow-y: auto; flex: 1; }
+        .modal-footer { padding: 15px 20px; border-top: 1px solid #e9ecef; display: flex; justify-content: flex-end; gap: 10px; }
+        .current-path { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; margin-bottom: 10px; word-break: break-all; display: flex; align-items: center; gap: 8px; }
+        .current-path input { flex: 1; border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px; font-family: monospace; font-size: 13px; }
+        .current-path button { padding: 6px 12px; }
+        .folder-list { max-height: 300px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 4px; }
+        .folder-item { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; }
+        .folder-item:last-child { border-bottom: none; }
+        .folder-item:hover { background: #f8f9fa; }
+        .folder-item.parent { color: #666; }
+        .folder-icon { margin-right: 10px; font-size: 16px; }
+        .folder-name { flex: 1; font-size: 14px; }
+        /* Advanced settings toggle */
+        .advanced-toggle { display: flex; align-items: center; gap: 6px; margin-top: 12px; padding: 8px 0; border-top: 1px dashed #ddd; cursor: pointer; color: #6c757d; font-size: 13px; user-select: none; }
+        .advanced-toggle:hover { color: #007bff; }
+        .advanced-toggle-icon { transition: transform 0.2s; font-size: 10px; }
+        .advanced-toggle-icon.open { transform: rotate(90deg); }
+        .advanced-content { display: none; margin-top: 10px; }
+        .advanced-content.show { display: block; }
     </style>
 </head>
 <body>
@@ -94,10 +142,15 @@
         <div class="card">
             <h2>Connection Settings</h2>
             <div class="form-row">
-                <div class="form-group">
-                    <label>Project Path</label>
-                    <input type="text" id="projectPath" placeholder="/path/to/your/subnode/project">
+                <div class="form-group" style="flex: 2;">
+                    <label>Project Path (folder containing appsettings.json)</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="projectPath" placeholder="e.g., /Users/you/projects/edge_subnode/examples/testdevice" style="flex: 1;">
+                        <button class="btn-secondary" onclick="openFolderBrowser()">Browse...</button>
+                    </div>
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label>NATS URL</label>
                     <input type="text" id="natsUrl" value="nats://localhost:4222">
@@ -174,14 +227,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Log -->
-                <div class="card">
-                    <h2>Activity Log</h2>
-                    <div class="log" id="logContainer">
-                        <div class="log-entry"><span class="log-time">[Ready]</span> <span class="log-info">Enter project path and click Load Configuration</span></div>
-                    </div>
-                </div>
             </div>
 
             <!-- Right: Device Configs -->
@@ -197,6 +242,60 @@
                         <button class="btn-secondary" onclick="loadConfig()">Reload</button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Activity Log - Bottom of window -->
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-header">
+                <h2>Activity Log</h2>
+                <button class="btn-sm btn-secondary" onclick="document.getElementById('logContainer').innerHTML = ''">Clear Log</button>
+            </div>
+            <div class="log" id="logContainer">
+                <div class="log-entry"><span class="log-time">[Ready]</span> <span class="log-info">Enter project path and click Load Configuration</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NATS Payload Panel Toggle -->
+    <button class="payload-toggle" id="payloadToggle" onclick="togglePayloadPanel()">
+        NATS Payloads <span class="badge-count" id="payloadCount">0</span>
+    </button>
+
+    <!-- NATS Payload Panel -->
+    <div class="payload-panel" id="payloadPanel">
+        <div class="payload-header">
+            <h3>NATS Published Payloads</h3>
+            <button class="btn-sm btn-secondary" style="margin: 0;" onclick="clearPayloads()">Clear</button>
+        </div>
+        <div class="payload-body" id="payloadList">
+            <div style="padding: 40px 20px; text-align: center; color: #888;">
+                No payloads sent yet.<br>
+                <small>Payloads will appear here when you click "Apply Configuration"</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Browser Modal -->
+    <div class="modal-overlay" id="folderBrowserModal" onclick="closeFolderBrowser(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Select Project Folder</h3>
+                <button class="modal-close" onclick="closeFolderBrowser()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="current-path">
+                    <input type="text" id="browserPathInput" placeholder="Enter path..." onkeypress="if(event.key==='Enter') goToPath()">
+                    <button class="btn-sm btn-primary" onclick="goToPath()">Go</button>
+                </div>
+                <div id="browserStatus" style="margin-bottom: 10px; font-size: 13px;"></div>
+                <div class="folder-list" id="folderList">
+                    <div style="padding: 20px; text-align: center; color: #888;">Loading...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeFolderBrowser()">Cancel</button>
+                <button class="btn-primary" id="selectFolderBtn" onclick="selectCurrentFolder()" disabled>Select This Folder</button>
             </div>
         </div>
     </div>
@@ -227,6 +326,132 @@
 
         let appSettings = null;
         let registration = null;
+        let payloads = [];
+        let browserCurrentPath = '';
+
+        // Payload panel functions
+        function togglePayloadPanel() {
+            const panel = document.getElementById('payloadPanel');
+            const toggle = document.getElementById('payloadToggle');
+            panel.classList.toggle('open');
+            toggle.classList.toggle('panel-open');
+            document.body.classList.toggle('panel-open');
+        }
+
+        function addPayload(topic, payload) {
+            const time = new Date().toLocaleTimeString();
+            payloads.unshift({ time, topic, payload });
+            renderPayloads();
+        }
+
+        function renderPayloads() {
+            const container = document.getElementById('payloadList');
+            const countBadge = document.getElementById('payloadCount');
+            countBadge.textContent = payloads.length;
+
+            if (payloads.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 40px 20px; text-align: center; color: #888;">
+                        No payloads sent yet.<br>
+                        <small>Payloads will appear here when you click "Apply Configuration"</small>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = payloads.map((p, i) => `
+                <div class="payload-item">
+                    <div class="payload-item-header" onclick="togglePayloadItem(${i})">
+                        <div>
+                            <div class="payload-item-time">${p.time}</div>
+                            <div class="payload-item-topic">${escapeHtml(p.topic)}</div>
+                        </div>
+                        <span class="payload-item-arrow" id="arrow-${i}">&#9654;</span>
+                    </div>
+                    <div class="payload-item-content" id="payload-content-${i}">
+                        <pre>${escapeHtml(JSON.stringify(p.payload, null, 2))}</pre>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function togglePayloadItem(index) {
+            const content = document.getElementById(`payload-content-${index}`);
+            const arrow = document.getElementById(`arrow-${index}`);
+            content.classList.toggle('show');
+            arrow.classList.toggle('expanded');
+        }
+
+        function clearPayloads() {
+            payloads = [];
+            renderPayloads();
+        }
+
+        // Folder browser functions
+        async function openFolderBrowser() {
+            document.getElementById('folderBrowserModal').classList.add('show');
+            const startPath = document.getElementById('projectPath').value || '';
+            await browseTo(startPath);
+        }
+
+        function closeFolderBrowser(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('folderBrowserModal').classList.remove('show');
+        }
+
+        function goToPath() {
+            const path = document.getElementById('browserPathInput').value;
+            if (path) browseTo(path);
+        }
+
+        async function browseTo(path) {
+            try {
+                const url = path ? `/api/config/browse?path=${encodeURIComponent(path)}` : '/api/config/browse';
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    document.getElementById('folderList').innerHTML = `<div style="padding: 20px; color: #dc3545;">${data.error || 'Error loading directory'}</div>`;
+                    return;
+                }
+
+                browserCurrentPath = data.currentPath;
+                document.getElementById('browserPathInput').value = data.currentPath;
+
+                // Update status and select button
+                const selectBtn = document.getElementById('selectFolderBtn');
+                const statusDiv = document.getElementById('browserStatus');
+                if (data.hasAppSettings) {
+                    statusDiv.innerHTML = '<span style="color: #28a745;">&#10004; appsettings.json found - can select this folder</span>';
+                    selectBtn.disabled = false;
+                } else {
+                    statusDiv.innerHTML = '<span style="color: #6c757d;">No appsettings.json in this folder</span>';
+                    selectBtn.disabled = true;
+                }
+
+                // Render folder list
+                if (data.directories.length === 0) {
+                    document.getElementById('folderList').innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No subdirectories</div>';
+                    return;
+                }
+
+                const html = data.directories.map(dir => `
+                    <div class="folder-item ${dir.isParent ? 'parent' : ''}" onclick="browseTo('${escapeHtml(dir.path)}')">
+                        <span class="folder-icon">${dir.isParent ? '&#8593;' : '&#128193;'}</span>
+                        <span class="folder-name">${escapeHtml(dir.name)}</span>
+                    </div>
+                `).join('');
+
+                document.getElementById('folderList').innerHTML = html;
+            } catch (error) {
+                document.getElementById('folderList').innerHTML = `<div style="padding: 20px; color: #dc3545;">Error: ${error.message}</div>`;
+            }
+        }
+
+        function selectCurrentFolder() {
+            document.getElementById('projectPath').value = browserCurrentPath;
+            closeFolderBrowser();
+            loadConfig();
+        }
 
         function log(message, type = 'info') {
             const container = document.getElementById('logContainer');
@@ -297,15 +522,21 @@
                     log('SubNode configuration loaded', 'success');
                 }
 
-                // Load NATS settings
+                // Load NATS settings from appsettings.json
                 const nats = getProp(appSettings, 'Nats', 'nats');
                 if (nats) {
                     const url = getProp(nats, 'Url', 'url');
-                    const username = getProp(nats, 'Username', 'username');
+                    const username = getProp(nats, 'Username', 'username', 'UserName');
                     const password = getProp(nats, 'Password', 'password');
-                    if (url) document.getElementById('natsUrl').value = url;
+                    if (url) {
+                        document.getElementById('natsUrl').value = url;
+                        log(`NATS URL loaded: ${url}`, 'success');
+                    }
                     if (username) document.getElementById('natsUsername').value = username;
                     if (password) document.getElementById('natsPassword').value = password;
+                    if (username || password) {
+                        log('NATS credentials loaded from appsettings.json', 'success');
+                    }
                 }
 
                 // Load Registration
@@ -437,6 +668,8 @@
                                    onchange="updateSensorField('${deviceKey}', ${index}, 'config.enabled', this.checked)">
                         </div>
                     </div>
+
+                    <!-- Basic Settings -->
                     <div class="sensor-fields">
                         <div class="form-group">
                             <label>Sensor Group</label>
@@ -456,67 +689,83 @@
                         </div>
                     </div>
 
-                    <!-- Parameters (readonly, display only) -->
-                    ${sensor.parameters ? `
-                    <div class="parameters-section">
-                        <h4>Parameters (read-only)</h4>
-                        <div class="param-grid">
-                            ${Object.entries(sensor.parameters).map(([k, v]) => `
-                                <div class="param-item">
-                                    <span class="param-key">${k}:</span>
-                                    <span class="param-value">${v}</span>
+                    <!-- Advanced Settings Toggle -->
+                    <div class="advanced-toggle" onclick="toggleAdvanced('${deviceKey}-${index}')">
+                        <span class="advanced-toggle-icon" id="adv-icon-${deviceKey}-${index}">&#9654;</span>
+                        <span>Advanced Settings</span>
+                    </div>
+
+                    <!-- Advanced Settings Content -->
+                    <div class="advanced-content" id="adv-content-${deviceKey}-${index}">
+                        <!-- Parameters (readonly, display only) -->
+                        ${sensor.parameters ? `
+                        <div class="parameters-section">
+                            <h4>Parameters (read-only)</h4>
+                            <div class="param-grid">
+                                ${Object.entries(sensor.parameters).map(([k, v]) => `
+                                    <div class="param-item">
+                                        <span class="param-key">${k}:</span>
+                                        <span class="param-value">${v}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        <!-- Thresholds -->
+                        <div class="parameters-section" style="margin-top:10px;">
+                            <h4>Thresholds</h4>
+                            <div class="sensor-fields">
+                                <div class="form-group">
+                                    <label>Upper Critical</label>
+                                    <input type="number" step="any" value="${sensor.config?.thresholds?.upperCritical ?? ''}"
+                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperCritical', this.value ? parseFloat(this.value) : null)">
                                 </div>
-                            `).join('')}
+                                <div class="form-group">
+                                    <label>Upper Warning</label>
+                                    <input type="number" step="any" value="${sensor.config?.thresholds?.upperWarning ?? ''}"
+                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperWarning', this.value ? parseFloat(this.value) : null)">
+                                </div>
+                                <div class="form-group">
+                                    <label>Lower Warning</label>
+                                    <input type="number" step="any" value="${sensor.config?.thresholds?.lowerWarning ?? ''}"
+                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerWarning', this.value ? parseFloat(this.value) : null)">
+                                </div>
+                                <div class="form-group">
+                                    <label>Lower Critical</label>
+                                    <input type="number" step="any" value="${sensor.config?.thresholds?.lowerCritical ?? ''}"
+                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerCritical', this.value ? parseFloat(this.value) : null)">
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    ` : ''}
 
-                    <!-- Transform Pipeline -->
-                    <div class="pipeline-section">
-                        <h4>Transform Pipeline</h4>
-                        <div id="transforms-${deviceKey}-${index}">
-                            ${renderTransformPipeline(deviceKey, index, getVal(sensor.config || {}, 'transformPipeline') || [])}
+                        <!-- Transform Pipeline -->
+                        <div class="pipeline-section">
+                            <h4>Transform Pipeline</h4>
+                            <div id="transforms-${deviceKey}-${index}">
+                                ${renderTransformPipeline(deviceKey, index, getVal(sensor.config || {}, 'transformPipeline') || [])}
+                            </div>
+                            <div class="add-btn" onclick="addTransform('${deviceKey}', ${index})">+ Add Transform</div>
                         </div>
-                        <div class="add-btn" onclick="addTransform('${deviceKey}', ${index})">+ Add Transform</div>
-                    </div>
 
-                    <!-- DSP Filters -->
-                    <div class="pipeline-section dsp">
-                        <h4>DSP Filters</h4>
-                        <div id="dsp-${deviceKey}-${index}">
-                            ${renderDspPipeline(deviceKey, index, getVal(sensor.config || {}, 'dspPipeline') || [])}
-                        </div>
-                        <div class="add-btn" onclick="addDspFilter('${deviceKey}', ${index})">+ Add DSP Filter</div>
-                    </div>
-
-                    <!-- Thresholds -->
-                    <div class="parameters-section" style="margin-top:10px;">
-                        <h4>Thresholds</h4>
-                        <div class="sensor-fields">
-                            <div class="form-group">
-                                <label>Upper Critical</label>
-                                <input type="number" step="any" value="${sensor.config?.thresholds?.upperCritical ?? ''}"
-                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperCritical', this.value ? parseFloat(this.value) : null)">
+                        <!-- DSP Filters -->
+                        <div class="pipeline-section dsp">
+                            <h4>DSP Filters</h4>
+                            <div id="dsp-${deviceKey}-${index}">
+                                ${renderDspPipeline(deviceKey, index, getVal(sensor.config || {}, 'dspPipeline') || [])}
                             </div>
-                            <div class="form-group">
-                                <label>Upper Warning</label>
-                                <input type="number" step="any" value="${sensor.config?.thresholds?.upperWarning ?? ''}"
-                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperWarning', this.value ? parseFloat(this.value) : null)">
-                            </div>
-                            <div class="form-group">
-                                <label>Lower Warning</label>
-                                <input type="number" step="any" value="${sensor.config?.thresholds?.lowerWarning ?? ''}"
-                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerWarning', this.value ? parseFloat(this.value) : null)">
-                            </div>
-                            <div class="form-group">
-                                <label>Lower Critical</label>
-                                <input type="number" step="any" value="${sensor.config?.thresholds?.lowerCritical ?? ''}"
-                                       onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerCritical', this.value ? parseFloat(this.value) : null)">
-                            </div>
+                            <div class="add-btn" onclick="addDspFilter('${deviceKey}', ${index})">+ Add DSP Filter</div>
                         </div>
                     </div>
                 </div>
             `).join('');
+        }
+
+        function toggleAdvanced(id) {
+            const content = document.getElementById(`adv-content-${id}`);
+            const icon = document.getElementById(`adv-icon-${id}`);
+            content.classList.toggle('show');
+            icon.classList.toggle('open');
         }
 
         function renderPipelineParams(deviceKey, sensorIndex, pipelineType, itemIndex, params, defaultParams) {
@@ -713,6 +962,19 @@
                 if (result.success) {
                     log(`Configuration sent! Topic: ${result.topic}`, 'success');
                     log(`MessageId: ${result.messageId}`, 'success');
+
+                    // Add payload to the panel
+                    if (result.payload) {
+                        addPayload(result.topic, result.payload);
+                        // Auto-open the panel to show the new payload
+                        const panel = document.getElementById('payloadPanel');
+                        const toggle = document.getElementById('payloadToggle');
+                        if (!panel.classList.contains('open')) {
+                            panel.classList.add('open');
+                            toggle.classList.add('panel-open');
+                            document.body.classList.add('panel-open');
+                        }
+                    }
                 } else {
                     throw new Error(result.error || 'Failed to send configuration');
                 }

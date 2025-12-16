@@ -48,4 +48,5 @@ public class ApplyConfigResponse
     public string? MessageId { get; set; }
     public long Timestamp { get; set; }
     public string? Error { get; set; }
+    public object? Payload { get; set; }
 }
