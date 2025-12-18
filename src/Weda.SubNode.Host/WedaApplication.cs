@@ -3,7 +3,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Weda.SubNode.Abstractions.Devices;
 
 namespace Weda.SubNode.Host;
 
@@ -17,12 +16,10 @@ namespace Weda.SubNode.Host;
 public class WedaApplication : IAsyncDisposable
 {
     private readonly IHost _host;
-    private readonly IReadOnlyList<DeviceConfiguration> _deviceConfigurations;
 
-    internal WedaApplication(IHost host, IReadOnlyList<DeviceConfiguration> deviceConfigurations)
+    internal WedaApplication(IHost host)
     {
         _host = host;
-        _deviceConfigurations = deviceConfigurations;
         Services = host.Services;
     }
 
@@ -37,8 +34,10 @@ public class WedaApplication : IAsyncDisposable
     /// - Serilog logging from appsettings.json (with console output)
     /// - Configuration from appsettings.json, environment variables, and command-line arguments
     /// - Default cloud service
-    /// - Automatic device scanning from appsettings.json
     /// - Telemetry and health reporting
+    ///
+    /// NOTE: Devices must be explicitly registered via AddDevice&lt;TDevice&gt;().
+    /// Auto-scanning (ScanDevicesFromConfiguration) has been removed for explicit device registration.
     ///
     /// Command-line arguments can override any configuration value:
     /// - --Nats:Url=nats://localhost:4222          (override NATS URL)
@@ -104,9 +103,6 @@ public class WedaApplication : IAsyncDisposable
         // User can override by calling .UseMockCloud() for testing
         builder.UseDefaultCloud();
 
-        // Auto-scan devices from configuration
-        builder.ScanDevicesFromConfiguration();
-
         // Enable all features by default (uplink + downlink)
         builder.AddTelemetry();           // Uplink: Send telemetry data
         builder.AddHealthReporting();     // Uplink: Send health status
@@ -125,7 +121,7 @@ public class WedaApplication : IAsyncDisposable
     ///
     /// User is responsible for:
     /// - Adding logging (call .AddLogging() to configure from appsettings.json)
-    /// - Adding devices (manually or via ScanDevicesFromConfiguration)
+    /// - Adding devices via AddDevice&lt;TDevice&gt;()
     /// - Adding telemetry and health reporting (if needed)
     ///
     /// Command-line arguments can override any configuration value:
@@ -171,7 +167,6 @@ public class WedaApplication : IAsyncDisposable
         {
             var logger = Services.GetRequiredService<ILogger<WedaApplication>>();
             logger.LogInformation("Starting Weda SubNode Application");
-            logger.LogInformation("Registered {DeviceCount} device(s)", _deviceConfigurations.Count);
 
             await _host.RunAsync(cancellationToken);
         }

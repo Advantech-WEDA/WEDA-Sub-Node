@@ -57,10 +57,34 @@ public interface IWedaApplicationContext : IDisposable
     IConfiguration? Configuration { get; }
 
     /// <summary>
-    /// Gets the device configuration loaded from IConfiguration.
-    /// Returns null if no configuration was provided or device config not found.
+    /// Gets all device configurations loaded from appsettings.json "DeviceConfigs" section.
+    /// Key is the config key (e.g., "MyFirstDevice"), value is the DeviceConfiguration.
     /// </summary>
-    DeviceConfiguration? DeviceConfiguration { get; }
+    /// <example>
+    /// <code>
+    /// // List all available configs
+    /// foreach (var key in context.DeviceConfigs.Keys)
+    ///     Console.WriteLine($"Available: {key}");
+    ///
+    /// // Access specific config
+    /// var config = context.DeviceConfigs["MyFirstDevice"];
+    /// </code>
+    /// </example>
+    IReadOnlyDictionary<string, DeviceConfiguration> DeviceConfigs { get; }
+
+    /// <summary>
+    /// Gets a device configuration by config key.
+    /// Shortcut for DeviceConfigs[configKey].
+    /// </summary>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    /// <returns>The device configuration</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when config key is not found</exception>
+    /// <example>
+    /// <code>
+    /// var device = new TcpModbusDevice(context, context["MyFirstDevice"]);
+    /// </code>
+    /// </example>
+    DeviceConfiguration this[string configKey] { get; }
 
     /// <summary>
     /// Gets the device registry for managing and discovering devices.

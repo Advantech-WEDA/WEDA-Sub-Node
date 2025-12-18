@@ -156,7 +156,7 @@ public class SubNodeDeviceConfigDto
     /// Device type (e.g., "adamEthernet")
     /// </summary>
     [JsonPropertyName("deviceType")]
-    public string DeviceType { get; set; } = string.Empty;
+    public string SubNodeType { get; set; } = string.Empty;
 
     /// <summary>
     /// Path to DTDL file

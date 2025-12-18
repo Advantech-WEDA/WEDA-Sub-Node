@@ -37,14 +37,14 @@ public sealed class DeviceInitializer
     {
         _logger.LogDebug("Ensuring SubNode '{SubNodeName}' is registered with cloud service", _subNodeInfo.Name);
 
-        // Create DeviceInfo for SubNode registration using configured DeviceType
+        // Create DeviceInfo for SubNode registration using configured SubNodeType
         // If SubNodeInfo already has a DeviceId (from cache), include it in the request
         var subNodeDeviceInfo = new DeviceInfo
         {
             DeviceName = _subNodeInfo.Name,
-            DeviceType = _subNodeInfo.DeviceType,
+            SubNodeType = _subNodeInfo.SubNodeType,
             Manufacturer = _subNodeInfo.Manufacturer,
-            Model = $"{_subNodeInfo.Model} v{_subNodeInfo.Version}",
+            Model = $"{_subNodeInfo.Model} v{_subNodeInfo.SwVersion}",
             DeviceId = _subNodeInfo.DeviceId // Pass existing DeviceId if available
         };
 

@@ -39,9 +39,9 @@ internal class DeviceHostedService : IHostedService
         {
             try
             {
-                _logger.LogDebug("Initializing device: {DeviceName} ({DeviceType})",
+                _logger.LogDebug("Initializing device: {DeviceName} ({SubNodeType})",
                     device.Configuration.DeviceName,
-                    device.DeviceType);
+                    device.SubNodeType);
 
                 // Initialize device (connect + register)
                 var initialized = await device.InitializeAsync(cancellationToken);

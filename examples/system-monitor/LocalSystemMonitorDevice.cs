@@ -16,12 +16,13 @@ namespace SystemMonitorExample;
 public class LocalSystemMonitorDevice : SystemMonitorDevice
 {
     /// <summary>
-    /// Creates a local system monitor device with ApplicationContext only.
-    /// Automatically retrieves configuration from context and creates local communication.
+    /// Creates a local system monitor device with config key.
+    /// Automatically retrieves configuration from context.DeviceConfigs[configKey].
     /// </summary>
-    public LocalSystemMonitorDevice(IWedaApplicationContext context)
-        : this(context, context.DeviceConfiguration
-            ?? throw new InvalidOperationException("DeviceConfiguration not found in ApplicationContext"))
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public LocalSystemMonitorDevice(IWedaApplicationContext context, string configKey)
+        : this(context, context[configKey])
     {
     }
 

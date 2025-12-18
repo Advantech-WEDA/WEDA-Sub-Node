@@ -387,7 +387,7 @@ config.AddSensor(sensor);
   "DeviceConfigs": {
     "MyDevice": {
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": {
         "Host": "192.168.1.100",
         "Port": 502,
@@ -895,7 +895,7 @@ await app.RunAsync();
     "MyDevice": {
       "Enabled": true,
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",

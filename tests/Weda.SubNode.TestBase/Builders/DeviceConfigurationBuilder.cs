@@ -1,3 +1,4 @@
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -12,15 +13,7 @@ public class DeviceConfigurationBuilder
     private bool _enabled = true;
     private string _deviceId = "test-device-001";
     private string _deviceName = "Test Device";
-    private DeviceType _deviceType = DeviceType.AdamEthernet;
     private object? _dtdl = null;
-    private DeviceCapabilities _capabilities = new()
-    {
-        Manufacturer = "Test Corp",
-        Model = "TEST-001",
-        SubNodeSwVersion = "1.0.0",
-        DeviceInfo = new Dictionary<string, object>()
-    };
     private List<Sensor> _sensors = new()
     {
         new Sensor
@@ -43,7 +36,7 @@ public class DeviceConfigurationBuilder
             }
         }
     };
-    private Dictionary<string, object> _communication = new()
+    private Dictionary<string, object> _deviceCommunication = new()
     {
         ["Host"] = "127.0.0.1",
         ["Port"] = 502,
@@ -55,6 +48,14 @@ public class DeviceConfigurationBuilder
         PollCommands = 1000
     };
     private Dictionary<string, object> _properties = new();
+    private SubNodeInfo _subNodeInfo = new()
+    {
+        Name = "TestSubNode",
+        Manufacturer = "Test Corp",
+        Model = "TEST-001",
+        SwVersion = "1.0.0",
+        SubNodeType = SubNodeType.AdamEthernet
+    };
 
     public DeviceConfigurationBuilder WithEnabled(bool enabled)
     {
@@ -74,21 +75,21 @@ public class DeviceConfigurationBuilder
         return this;
     }
 
-    public DeviceConfigurationBuilder WithDeviceType(DeviceType deviceType)
+    public DeviceConfigurationBuilder WithSubNodeInfo(SubNodeInfo subNodeInfo)
     {
-        _deviceType = deviceType;
+        _subNodeInfo = subNodeInfo;
+        return this;
+    }
+
+    public DeviceConfigurationBuilder WithSubNodeType(SubNodeType deviceType)
+    {
+        _subNodeInfo.SubNodeType = deviceType;
         return this;
     }
 
     public DeviceConfigurationBuilder WithDtdl(object? dtdl)
     {
         _dtdl = dtdl;
-        return this;
-    }
-
-    public DeviceConfigurationBuilder WithCapabilities(DeviceCapabilities capabilities)
-    {
-        _capabilities = capabilities;
         return this;
     }
 
@@ -104,9 +105,9 @@ public class DeviceConfigurationBuilder
         return this;
     }
 
-    public DeviceConfigurationBuilder WithCommunication(Dictionary<string, object> communication)
+    public DeviceConfigurationBuilder WithDeviceCommunication(Dictionary<string, object> communication)
     {
-        _communication = communication;
+        _deviceCommunication = communication;
         return this;
     }
 
@@ -129,11 +130,10 @@ public class DeviceConfigurationBuilder
             Enabled = _enabled,
             DeviceId = _deviceId,
             DeviceName = _deviceName,
-            DeviceType = _deviceType,
+            SubNodeInfo = _subNodeInfo,
             Dtdl = _dtdl,
-            DeviceCapabilities = _capabilities,
             Sensors = _sensors,
-            Communication = _communication,
+            DeviceCommunication = _deviceCommunication,
             Periods = _periods,
             Properties = _properties
         };

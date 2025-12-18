@@ -70,11 +70,11 @@ public class MockCloudService : IWedaCloudService
     public Task<bool> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Device registration (simulated): DeviceName={DeviceId}, Type={DeviceType}, Manufacturer={Manufacturer}, Model={Model}",
+            "Device registration (simulated): DeviceName={DeviceId}, Type={SubNodeType}, Manufacturer={Manufacturer}, Model={Model}",
             configuration.DeviceId,
-            configuration.DeviceType,
-            configuration.DeviceCapabilities.Manufacturer,
-            configuration.DeviceCapabilities.Model);
+            configuration.SubNodeType,
+            configuration.Manufacturer,
+            configuration.Model);
 
         _logger.LogDebug(
             "Sensors count: {SensorCount}",

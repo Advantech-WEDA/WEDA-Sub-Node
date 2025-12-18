@@ -20,7 +20,7 @@ public interface IDevice : IDisposable
     /// <summary>
     /// Device type (e.g., "adamEthernet", "modbusRTU")
     /// </summary>
-    DeviceType DeviceType { get; }
+    SubNodeType SubNodeType { get; }
 
     /// <summary>
     /// Device configuration

@@ -76,6 +76,11 @@ public class MockApplicationContext : IWedaApplicationContext
     public SubNodeInfo SubNodeInfo { get; set; }
 
     /// <summary>
+    /// Gets or sets the device configurations for testing.
+    /// </summary>
+    public Dictionary<string, DeviceConfiguration> DeviceConfigsInternal { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of MockApplicationContext with default mocks.
     /// </summary>
     public MockApplicationContext()
@@ -87,13 +92,14 @@ public class MockApplicationContext : IWedaApplicationContext
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
         DeviceRegistry = new DeviceRegistry();
+        DeviceConfigsInternal = new Dictionary<string, DeviceConfiguration>(StringComparer.OrdinalIgnoreCase);
         SubNodeInfo = new SubNodeInfo
         {
             Name = "TestSubNode",
             DeviceId = "test-device-id-12345",
             Manufacturer = "Test",
             Model = "MockSubNode",
-            Version = "1.0.0"
+            SwVersion = "1.0.0"
         };
 
         // Setup default behaviors
@@ -120,13 +126,14 @@ public class MockApplicationContext : IWedaApplicationContext
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
         DeviceRegistry = new DeviceRegistry();
+        DeviceConfigsInternal = new Dictionary<string, DeviceConfiguration>(StringComparer.OrdinalIgnoreCase);
         SubNodeInfo = new SubNodeInfo
         {
             Name = "TestSubNode",
             DeviceId = "test-device-id-12345",
             Manufacturer = "Test",
             Model = "MockSubNode",
-            Version = "1.0.0"
+            SwVersion = "1.0.0"
         };
     }
 
@@ -142,7 +149,13 @@ public class MockApplicationContext : IWedaApplicationContext
     public IConfiguration? Configuration => null;
 
     /// <inheritdoc />
-    public DeviceConfiguration? DeviceConfiguration { get; set; }
+    public IReadOnlyDictionary<string, DeviceConfiguration> DeviceConfigs => DeviceConfigsInternal;
+
+    /// <inheritdoc />
+    public DeviceConfiguration this[string configKey] =>
+        DeviceConfigsInternal.TryGetValue(configKey, out var config)
+            ? config
+            : throw new KeyNotFoundException($"Device configuration '{configKey}' not found. Available keys: {string.Join(", ", DeviceConfigsInternal.Keys)}");
 
     /// <inheritdoc />
     public IConfigurationCache ConfigurationCache => MockConfigurationCache;

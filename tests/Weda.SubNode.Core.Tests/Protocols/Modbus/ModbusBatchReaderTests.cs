@@ -29,6 +29,7 @@ public class ModbusBatchReaderTests
         var batchReader = new ModbusBatchReader(
             mockComm,
             slaveId: 1,
+            ModbusByteOrder.BigEndian,
             _logger,
             new ModbusBatchOptimizationOptions { MaxGapSize = 2, MaxBatchSize = 125 });
 
@@ -64,6 +65,7 @@ public class ModbusBatchReaderTests
         var batchReader = new ModbusBatchReader(
             mockComm,
             slaveId: 1,
+            ModbusByteOrder.BigEndian,
             _logger,
             new ModbusBatchOptimizationOptions { MaxGapSize = 1, MaxBatchSize = 125 });
 
@@ -96,6 +98,7 @@ public class ModbusBatchReaderTests
         var batchReader = new ModbusBatchReader(
             mockComm,
             slaveId: 1,
+            ModbusByteOrder.BigEndian,
             _logger,
             ModbusBatchOptimizationOptions.Default);
 
@@ -126,6 +129,7 @@ public class ModbusBatchReaderTests
         var batchReader = new ModbusBatchReader(
             mockComm,
             slaveId: 1,
+            ModbusByteOrder.BigEndian,
             _logger,
             ModbusBatchOptimizationOptions.Default);
 

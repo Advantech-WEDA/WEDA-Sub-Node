@@ -13,12 +13,13 @@ namespace Weda.SubNode.Devices.Generic;
 public class MqttISensingDevice : Core.Devices.ISensingDevice
 {
     /// <summary>
-    /// Creates an ISensing device with MQTT communication using ApplicationContext only.
-    /// Automatically retrieves configuration from context and creates MQTT communication.
+    /// Creates an ISensing device with MQTT communication using config key.
+    /// Automatically retrieves configuration from context.DeviceConfigs[configKey].
     /// </summary>
-    public MqttISensingDevice(IWedaApplicationContext context)
-        : this(context, context.DeviceConfiguration
-            ?? throw new InvalidOperationException("DeviceConfiguration not found in ApplicationContext"))
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public MqttISensingDevice(IWedaApplicationContext context, string configKey)
+        : this(context, context[configKey])
     {
     }
 
@@ -37,11 +38,11 @@ public class MqttISensingDevice : Core.Devices.ISensingDevice
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
     {
-        var brokerUrl = configuration.Communication.TryGetValue("BrokerUrl", out var url)
+        var brokerUrl = configuration.DeviceCommunication.TryGetValue("BrokerUrl", out var url)
             ? url?.ToString() ?? "mqtt://localhost:1883"
             : "mqtt://localhost:1883";
 
-        var clientId = configuration.Communication.TryGetValue("ClientId", out var id)
+        var clientId = configuration.DeviceCommunication.TryGetValue("ClientId", out var id)
             ? id?.ToString() ?? $"mqtt-client-{Guid.NewGuid():N}"
             : $"mqtt-client-{Guid.NewGuid():N}";
 

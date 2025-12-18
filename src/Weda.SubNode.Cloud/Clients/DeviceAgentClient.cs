@@ -36,9 +36,9 @@ public class DeviceAgentClient : IDeviceAgentClient
         var request = DeviceRegistrationRequest.Create(info);
 
         _logger.LogInformation(
-            "Registering device: DeviceName={DeviceName}, DeviceType={DeviceType}, ReqSeqId={ReqSeqId}",
+            "Registering device: DeviceName={DeviceName}, SubNodeType={SubNodeType}, ReqSeqId={ReqSeqId}",
             info.DeviceName,
-            info.DeviceType,
+            info.SubNodeType,
             request.ReqSeqId);
 
         var response = await _client.RequestAsync<DeviceRegistrationRequest, DeviceRegistrationResponse>(

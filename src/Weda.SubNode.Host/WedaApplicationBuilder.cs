@@ -13,6 +13,9 @@ using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+
+// NOTE: ScanDevicesFromConfiguration() and ISubNodeTypeNameResolver have been removed.
+// Use explicit device registration with AddDevice<TDevice>() instead.
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
@@ -35,9 +38,7 @@ namespace Weda.SubNode.Host;
 public class WedaApplicationBuilder
 {
     private readonly HostApplicationBuilder _hostBuilder;
-    private readonly List<DeviceConfiguration> _deviceConfigurations = new();
     private readonly List<Func<IWedaApplicationContext, IDevice>> _deviceFactories = [];
-    private IDeviceTypeNameResolver _deviceTypeNameResolver = new DefaultDeviceTypeNameResolver();
     private readonly bool _useCache;
     private readonly IConfigurationCache _configurationCache;
 
@@ -67,17 +68,6 @@ public class WedaApplicationBuilder
     /// Gets the environment information
     /// </summary>
     public IHostEnvironment Environment => _hostBuilder.Environment;
-
-    /// <summary>
-    /// Add a device configuration to the application
-    /// </summary>
-    /// <param name="deviceConfiguration">Device configuration to add</param>
-    /// <returns>The builder for chaining</returns>
-    public WedaApplicationBuilder AddDevice(DeviceConfiguration deviceConfiguration)
-    {
-        _deviceConfigurations.Add(deviceConfiguration);
-        return this;
-    }
 
     /// <summary>
     /// Add a custom device with strongly-typed configuration (e.g., TcpModbusDeviceConfiguration).
@@ -182,10 +172,12 @@ public class WedaApplicationBuilder
                 $"Please check your appsettings.json format.");
 
         // Use DeviceName from appsettings.json, or fallback to sectionName if not specified
-        var deviceName = !string.IsNullOrWhiteSpace(config.DeviceName)
-            ? config.DeviceName
-            : sectionName;
+        if (string.IsNullOrWhiteSpace(config.DeviceName))
+        {
+            config.DeviceName = sectionName;
+        }
 
+        var deviceName = config.DeviceName;
         var configSource = "appsettings.json";
 
         // Try applying cached cloud configuration (if enabled)
@@ -213,12 +205,6 @@ public class WedaApplicationBuilder
         }
 
         Log.Information("Using device '{DeviceName}' configuration from {Source}", deviceName, configSource);
-
-        // Ensure DeviceTypeName is set for factory resolution
-        if (string.IsNullOrEmpty(config.DeviceTypeName))
-        {
-            config.DeviceTypeName = typeof(TDevice).Name;
-        }
 
         // Create factory that will instantiate the device with the loaded configuration
         return AddDevice<TDevice>(context =>
@@ -256,67 +242,6 @@ public class WedaApplicationBuilder
     }
 
     /// <summary>
-    /// Scan and add devices from appsettings.json configuration
-    /// Supports two formats:
-    ///
-    /// 1. Dictionary format (recommended) - Key is used as DeviceTypeName if not specified:
-    /// {
-    ///   "DeviceConfigs": {
-    ///     "TcpModbusDevice": { "DeviceName": "My Device", ... },
-    ///     "MyFirstDevice": { "DeviceName": "Custom Device", ... }
-    ///   }
-    /// }
-    /// Note: The key ("TcpModbusDevice", "MyFirstDevice") automatically becomes the DeviceTypeName
-    ///       unless explicitly overridden with a "DeviceTypeName" property.
-    ///
-    /// 2. Legacy array format (requires explicit DeviceTypeName):
-    /// {
-    ///   "Devices": [
-    ///     { "Enabled": true, "DeviceTypeName": "TcpModbusDevice", ... }
-    ///   ]
-    /// }
-    /// </summary>
-    /// <returns>The builder for chaining</returns>
-    public WedaApplicationBuilder ScanDevicesFromConfiguration()
-    {
-        // Try DeviceConfigs (dictionary) format first
-        var deviceConfigsSection = Configuration.GetSection("DeviceConfigs");
-        if (deviceConfigsSection.Exists())
-        {
-            foreach (var deviceSection in deviceConfigsSection.GetChildren())
-            {
-                var device = deviceSection.Get<DeviceConfiguration>();
-                if (device != null && device.Enabled)
-                {
-                    // Use the config key as DeviceTypeName if not specified
-                    // e.g., "MyFirstDevice" from DeviceConfigs["MyFirstDevice"]
-                    if (string.IsNullOrEmpty(device.DeviceTypeName))
-                    {
-                        device.DeviceTypeName = deviceSection.Key;
-                    }
-                    _deviceConfigurations.Add(device);
-                }
-            }
-        }
-        else
-        {
-            // Fallback to legacy Devices (array) format
-            var devicesSection = Configuration.GetSection("Devices");
-            var devices = devicesSection.Get<List<DeviceConfiguration>>();
-
-            if (devices != null && devices.Count > 0)
-            {
-                foreach (var device in devices.Where(d => d.Enabled))
-                {
-                    _deviceConfigurations.Add(device);
-                }
-            }
-        }
-
-        return this;
-    }
-
-    /// <summary>
     /// Configure NATS connection settings
     /// </summary>
     /// <param name="configureAction">Action to configure NATS settings</param>
@@ -324,18 +249,6 @@ public class WedaApplicationBuilder
     public WedaApplicationBuilder ConfigureNats(Action<NatsConnectionSettings> configureAction)
     {
         Services.Configure(configureAction);
-        return this;
-    }
-
-    /// <summary>
-    /// Configure custom device type name resolver
-    /// Allows custom logic for resolving device type names to Type instances
-    /// </summary>
-    /// <param name="resolver">Custom resolver implementation</param>
-    /// <returns>The builder for chaining</returns>
-    public WedaApplicationBuilder UseDeviceTypeNameResolver(IDeviceTypeNameResolver resolver)
-    {
-        _deviceTypeNameResolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         return this;
     }
 
@@ -605,10 +518,6 @@ public class WedaApplicationBuilder
     /// <returns>A configured WedaApplication instance</returns>
     public WedaApplication Build()
     {
-        // Register device configurations as IReadOnlyList<DeviceConfiguration>
-        var readOnlyConfigs = _deviceConfigurations.AsReadOnly();
-        Services.AddSingleton<IReadOnlyList<DeviceConfiguration>>(readOnlyConfigs);
-
         // Register WedaApplicationContext
         Services.AddSingleton<IWedaApplicationContext>(sp =>
         {
@@ -638,69 +547,22 @@ public class WedaApplicationBuilder
         Services.AddSingleton<IDeviceFactory, DeviceFactory>();
 
         // Register hosted service for device management
-        // Combine both auto-scan devices and manually added devices into a single HostedService
-        if (readOnlyConfigs.Count > 0 || _deviceFactories.Count > 0)
+        // All devices are registered via AddDevice<TDevice>() factory methods
+        if (_deviceFactories.Count > 0)
         {
             Services.AddHostedService(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<DeviceHostedService>>();
                 var context = sp.GetRequiredService<IWedaApplicationContext>();
-                var allDevices = new List<IDevice>();
 
-                // Add devices from auto-scan configurations
-                if (readOnlyConfigs.Count > 0)
-                {
-                    foreach (var config in readOnlyConfigs)
-                    {
-                        // DeviceTypeName should have been set in ScanDevicesFromConfiguration()
-                        // using the config key if not explicitly specified
-                        if (string.IsNullOrEmpty(config.DeviceTypeName))
-                        {
-                            throw new InvalidOperationException(
-                                $"Device '{config.DeviceName}' has no DeviceTypeName. " +
-                                $"This should have been automatically set from the DeviceConfigs key. " +
-                                $"Please check your configuration or use AddDevice<TDevice>() instead.");
-                        }
+                // Create devices via registered factory methods
+                var devices = _deviceFactories.Select(factory => factory(context)).ToList();
 
-                        // Resolve device type using the configured resolver
-                        var deviceType = _deviceTypeNameResolver.Resolve(config.DeviceTypeName)
-                            ?? throw new InvalidOperationException(
-                                $"Unable to resolve device type '{config.DeviceTypeName}'. " +
-                                $"Search priority:\n" +
-                                $"  1. Fully qualified name (with assembly)\n" +
-                                $"  2. Your project assembly (PRIORITY)\n" +
-                                $"  3. SDK built-in devices (Weda.SubNode.Devices.Generic)\n" +
-                                $"  4. Other loaded assemblies\n" +
-                                $"Ensure the type exists and the assembly is referenced.");
-
-                        // Create device instance using constructor
-                        // This works for both base classes and derived classes (e.g., MyFirstDevice : TcpModbusDevice)
-                        try
-                        {
-                            var device = (IDevice)Activator.CreateInstance(deviceType, context, config)!;
-                            allDevices.Add(device);
-                        }
-                        catch (MissingMethodException)
-                        {
-                            throw new InvalidOperationException(
-                                $"Device type '{deviceType.FullName}' must have a public constructor with signature: " +
-                                $"public {deviceType.Name}(IWedaApplicationContext context, DeviceConfiguration configuration)");
-                        }
-                    }
-                }
-
-                // Add manually registered devices via AddDevice<TDevice>()
-                if (_deviceFactories.Count > 0)
-                {
-                    var manualDevices = _deviceFactories.Select(factory => factory(context));
-                    allDevices.AddRange(manualDevices);
-                }
-
-                return new DeviceHostedService(logger, allDevices);
+                return new DeviceHostedService(logger, devices);
             });
         }
 
         var host = _hostBuilder.Build();
-        return new WedaApplication(host, readOnlyConfigs);
+        return new WedaApplication(host);
     }
 }

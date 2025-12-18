@@ -23,7 +23,7 @@ public class TelemetryTransformPipelineTests
             Timestamp = DateTimeOffset.UtcNow,
             Metadata = new Dictionary<string, object>
             {
-                ["DeviceType"] = "modbus-tcp"
+                ["SubNodeType"] = "modbus-tcp"
             }
         };
     }

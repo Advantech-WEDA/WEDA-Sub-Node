@@ -14,7 +14,7 @@
           "DeviceConfigs": {
             "MyFirstDevice": {
               "DeviceName": "Wise4012",
-              "DeviceType": "adamEthernet",
+              "SubNodeType": "adamEthernet",
               "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
               "DeviceCapabilities": {
                 "Manufacturer": "Advantech",

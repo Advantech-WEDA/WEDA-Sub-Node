@@ -89,7 +89,7 @@ public record ConfigUpdateReportDto(
         var deviceStatus = new DeviceStatusDto(
             State: "connected",
             LastConnectedTime: DateTimeOffset.UtcNow,
-            FirmwareVersion: deviceConfig.DeviceCapabilities.SubNodeSwVersion,
+            FirmwareVersion: deviceConfig.SwVersion,
             CpuUsage: null,
             MemoryUsage: null,
             Temperature: null);

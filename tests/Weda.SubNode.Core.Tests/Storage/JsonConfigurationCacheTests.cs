@@ -410,7 +410,7 @@ public class JsonConfigurationCacheTests : IDisposable
         {
             Enabled = true,
             DeviceName = "SecondDevice",
-            DeviceType = "adamEthernet",
+            SubNodeType = "adamEthernet",
             Sensors = new List<SubNodeSensorConfigDto>
             {
                 new SubNodeSensorConfigDto
@@ -461,7 +461,7 @@ public class JsonConfigurationCacheTests : IDisposable
                                 {
                                     Enabled = true,
                                     DeviceName = "TestDevice",
-                                    DeviceType = "adamEthernet",
+                                    SubNodeType = "adamEthernet",
                                     DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
                                     {
                                         Manufacturer = "Test",

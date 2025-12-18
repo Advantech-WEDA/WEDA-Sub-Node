@@ -86,7 +86,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly ILoggerFactory _loggerFactory;
     private readonly NatsClient? _natsClient;
     private readonly IConfiguration? _configuration;
-    private readonly DeviceConfiguration? _deviceConfiguration;
+    private readonly IReadOnlyDictionary<string, DeviceConfiguration> _deviceConfigs;
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly IConfigurationCache _configurationCache;
     private readonly IDeviceRegistrationStorage _registrationStorage;
@@ -195,8 +195,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         // Load SubNode configuration
         _subNodeInfo = LoadSubNodeInfo();
 
-        // Load device configuration if Configuration is provided
-        _deviceConfiguration = LoadDeviceConfiguration();
+        // Load all device configurations from "DeviceConfigs" section
+        _deviceConfigs = LoadAllDeviceConfigurations();
 
         // Setup cloud service
         if (_options.CloudService != null)
@@ -314,11 +314,14 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// </summary>
     public IConfiguration? Configuration => _configuration;
 
-    /// <summary>
-    /// Gets the device configuration loaded from IConfiguration.
-    /// Returns null if no configuration was provided or device config not found.
-    /// </summary>
-    public DeviceConfiguration? DeviceConfiguration => _deviceConfiguration;
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, DeviceConfiguration> DeviceConfigs => _deviceConfigs;
+
+    /// <inheritdoc />
+    public DeviceConfiguration this[string configKey] =>
+        _deviceConfigs.TryGetValue(configKey, out var config)
+            ? config
+            : throw new KeyNotFoundException($"Device configuration '{configKey}' not found. Available keys: {string.Join(", ", _deviceConfigs.Keys)}");
 
     /// <inheritdoc />
     public IDeviceRegistry DeviceRegistry => _deviceRegistry;
@@ -348,7 +351,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// Loads SubNode configuration from registration cache first, then appsettings.json.
     /// Priority:
     /// 1. Registration cache (.weda/subnode.registration.json) - for DeviceId
-    /// 2. appsettings.json SubNode section - for Name, DeviceType, Manufacturer, etc.
+    /// 2. appsettings.json SubNode section - for Name, SubNodeType, Manufacturer, etc.
     /// 3. Default values
     /// </summary>
     private SubNodeInfo LoadSubNodeInfo()
@@ -373,7 +376,7 @@ public class WedaApplicationContext : IWedaApplicationContext
                     Name = assemblyName,
                     Manufacturer = "Advantech",
                     Model = "SubNode-SDK",
-                    Version = "1.0.0"
+                    SwVersion = "1.0.0"
                 };
             }
         }
@@ -384,7 +387,7 @@ public class WedaApplicationContext : IWedaApplicationContext
                 Name = assemblyName,
                 Manufacturer = "Advantech",
                 Model = "SubNode-SDK",
-                Version = "1.0.0"
+                SwVersion = "1.0.0"
             };
         }
 
@@ -408,80 +411,107 @@ public class WedaApplicationContext : IWedaApplicationContext
     }
 
     private const string DeviceConfigurationSectionName = "DeviceConfigs";
-    private DeviceConfiguration? LoadDeviceConfiguration()
+
+    /// <summary>
+    /// Loads all device configurations from the "DeviceConfigs" section.
+    /// Each configuration is enriched with DeviceName (from key) and SubNodeInfo.
+    /// </summary>
+    private IReadOnlyDictionary<string, DeviceConfiguration> LoadAllDeviceConfigurations()
     {
         var logger = _loggerFactory.CreateLogger<WedaApplicationContext>();
+        var configs = new Dictionary<string, DeviceConfiguration>(StringComparer.OrdinalIgnoreCase);
 
-        // Step 1: Load from appsettings.json as base configuration
         if (_configuration == null)
-            return null;
-
-        var configs = _configuration.GetSection(DeviceConfigurationSectionName).GetChildren().FirstOrDefault();
-        if (configs == null)
-            return null;
-
-        _options.DeviceConfigurationKey = configs.Key;
-
-        try
         {
-            var appSettingsConfig = _configuration
-                .GetSection(DeviceConfigurationSectionName)
-                .GetSection(_options.DeviceConfigurationKey)
-                .Get<DeviceConfiguration>();
+            logger.LogDebug("No configuration provided, DeviceConfigs will be empty");
+            return configs;
+        }
 
-            if (appSettingsConfig == null)
-            {
-                return null;
-            }
+        var deviceConfigsSection = _configuration.GetSection(DeviceConfigurationSectionName);
+        if (!deviceConfigsSection.Exists())
+        {
+            logger.LogDebug("No '{SectionName}' section found in configuration", DeviceConfigurationSectionName);
+            return configs;
+        }
 
-            // Use DeviceName from appsettings.json, or fallback to ConfigKey
-            var deviceName = !string.IsNullOrWhiteSpace(appSettingsConfig.DeviceName)
-                ? appSettingsConfig.DeviceName
-                : _options.DeviceConfigurationKey;
+        foreach (var configSection in deviceConfigsSection.GetChildren())
+        {
+            var configKey = configSection.Key;
 
-            var configSource = "appsettings.json";
-
-            // Step 2: Try applying cached cloud configuration
             try
             {
-                if (_configurationCache.ExistsAsync().GetAwaiter().GetResult())
+                var deviceConfig = configSection.Get<DeviceConfiguration>();
+                if (deviceConfig == null)
                 {
-                    var cachedMessage = _configurationCache.GetRawConfigurationAsync().GetAwaiter().GetResult();
-                    if (cachedMessage != null)
-                    {
-                        // Apply cached cloud config to the base config (PATCH semantics)
-                        var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(appSettingsConfig, cachedMessage);
-                        if (applied)
-                        {
-                            configSource = $"appsettings.json + {_configurationCache.CacheFilePath}";
-                            logger.LogInformation(
-                                "Applied cached cloud configuration: DeviceName={DeviceName}, CachePath={CachePath}",
-                                deviceName,
-                                _configurationCache.CacheFilePath);
-                        }
-                    }
+                    logger.LogWarning("Failed to bind configuration for key '{ConfigKey}'", configKey);
+                    continue;
                 }
+
+                // Auto-enrich: DeviceName defaults to config key
+                if (string.IsNullOrWhiteSpace(deviceConfig.DeviceName))
+                {
+                    deviceConfig.DeviceName = configKey;
+                }
+
+                // Auto-enrich: Attach SubNodeInfo
+                deviceConfig.SubNodeInfo = _subNodeInfo;
+
+                // Try applying cached cloud configuration (PATCH semantics)
+                ApplyCachedConfigurationIfExists(deviceConfig, logger);
+
+                // Auto-load DTDL if enabled
+                LoadDtdlIfEnabled(deviceConfig, logger);
+
+                configs[configKey] = deviceConfig;
+
+                logger.LogDebug(
+                    "Loaded device configuration: Key={ConfigKey}, DeviceName={DeviceName}, Enabled={Enabled}, Sensors={SensorCount}",
+                    configKey,
+                    deviceConfig.DeviceName,
+                    deviceConfig.Enabled,
+                    deviceConfig.Sensors.Count);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex,
-                    "Failed to load configuration from cache, using appsettings.json only");
+                logger.LogError(ex, "Failed to load device configuration for key '{ConfigKey}'", configKey);
             }
+        }
 
-            logger.LogInformation(
-                "Using device configuration: DeviceName={DeviceName}, Source={Source}",
-                deviceName,
-                configSource);
+        logger.LogInformation("Loaded {Count} device configuration(s): [{Keys}]",
+            configs.Count,
+            string.Join(", ", configs.Keys));
 
-            // Auto-load DTDL if enabled
-            LoadDtdlIfEnabled(appSettingsConfig, logger);
+        return configs;
+    }
 
-            return appSettingsConfig;
+    /// <summary>
+    /// Applies cached cloud configuration to a device config if cache exists.
+    /// </summary>
+    private void ApplyCachedConfigurationIfExists(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        try
+        {
+            if (!_configurationCache.ExistsAsync().GetAwaiter().GetResult())
+                return;
+
+            var cachedMessage = _configurationCache.GetRawConfigurationAsync().GetAwaiter().GetResult();
+            if (cachedMessage == null)
+                return;
+
+            var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(deviceConfig, cachedMessage);
+            if (applied)
+            {
+                logger.LogInformation(
+                    "Applied cached cloud configuration to '{DeviceName}' from {CachePath}",
+                    deviceConfig.DeviceName,
+                    _configurationCache.CacheFilePath);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to load device configuration from: {ConfigKey}", _options.DeviceConfigurationKey);
-            return null;
+            logger.LogWarning(ex,
+                "Failed to apply cached configuration to '{DeviceName}'",
+                deviceConfig.DeviceName);
         }
     }
 

@@ -101,7 +101,7 @@ public abstract class CommunicationBase : ICommunication
 
         var @event = new ConnectionStateChangedEvent(
             DeviceId: "Unknown", // Will be set by device
-            DeviceType: DeviceType.CustomDevice,
+            SubNodeType: SubNodeType.CustomDevice,
             PreviousState: previousState,
             CurrentState: currentState,
             Timestamp: DateTimeOffset.UtcNow)

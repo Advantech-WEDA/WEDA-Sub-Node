@@ -148,8 +148,8 @@ examples/stock-monitor/
     "YourDeviceConfigKey": {
       "Enabled": true,
       "DeviceName": "YourDevice-001",
-      "DeviceType": "CustomDevice",
-      "DeviceTypeName": "YourDeviceType",
+      "SubNodeType": "CustomDevice",
+      "SubNodeTypeName": "YourSubNodeType",
       "DtdlPath": "path/to/dtdl/file.json",
       "DeviceCapabilities": { },
       "Communication": { },

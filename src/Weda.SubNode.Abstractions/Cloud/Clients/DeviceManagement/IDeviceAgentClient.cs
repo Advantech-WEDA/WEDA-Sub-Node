@@ -13,7 +13,7 @@ public interface IDeviceAgentClient
     /// Register device with cloud
     /// Sends device name and type to cloud, receives device ID and NATS topic assignments
     /// </summary>
-    /// <param name="info">Device info (DeviceName and DeviceType)</param>
+    /// <param name="info">Device info (DeviceName and SubNodeType)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Device registration response with device ID and topic assignments</returns>
     Task<DeviceRegistrationResponse> RegisterDeviceAsync(

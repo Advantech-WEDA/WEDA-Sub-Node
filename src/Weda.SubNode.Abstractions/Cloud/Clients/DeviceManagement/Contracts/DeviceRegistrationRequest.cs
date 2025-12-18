@@ -13,20 +13,20 @@ public class DeviceRegistrationRequest : Request<DeviceRegistrationDto>
 {
     /// <summary>
     /// Create a new device registration request from DeviceConfiguration
-    /// Only DeviceName and DeviceType are used for registration
+    /// Only DeviceName and SubNodeType are used for registration
     /// </summary>
     public static DeviceRegistrationRequest Create(DeviceInfo info)
     {
-        var dto = new DeviceRegistrationDto(info.DeviceId, info.DeviceName, info.DeviceType.ToStringValue());
+        var dto = new DeviceRegistrationDto(info.DeviceId, info.DeviceName, info.SubNodeType.ToStringValue());
         return Create<DeviceRegistrationRequest>(dto);
     }
 }
 
 /// <summary>
 /// Device registration data
-/// Contains DeviceName and DeviceType
+/// Contains DeviceName and SubNodeType
 /// </summary>
 public record DeviceRegistrationDto(
     [property: JsonPropertyName("deviceId")] string? DeviceId,
     [property: JsonPropertyName("deviceName")] string DeviceName,
-    [property: JsonPropertyName("deviceType")] string DeviceType);
+    [property: JsonPropertyName("deviceType")] string SubNodeType);

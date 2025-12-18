@@ -45,7 +45,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public DeviceConfiguration Configuration { get; }
     public string DeviceId => _orchestrator.DeviceId;
     public string DeviceName => Configuration.DeviceInfo.DeviceName;
-    public DeviceType DeviceType => Configuration.DeviceInfo.DeviceType;
+    public SubNodeType SubNodeType => Configuration.DeviceInfo.SubNodeType;
     public DeviceInfo DeviceInfo => Configuration.DeviceInfo;
     public IReadOnlyDictionary<string, object> Properties => Configuration.Properties;
     public DeviceStatus Status => _orchestrator.StateMachine.CurrentStatus;
@@ -278,7 +278,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public async Task<bool> ReportConfigurationAsync(CancellationToken ct = default)
     {
         var deviceId = DeviceId ?? "unknown";
-        var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+        var deviceTypeName = Configuration.SubNodeType.ToString();
 
         // Use default groupId for periodic reports (groupId is mainly for multi-tenant scenarios)
         var groupId = "default";
@@ -510,8 +510,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 return;
             }
 
-            // Determine device type name for reporting (use DeviceTypeName or DeviceType.ToString())
-            var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+            // Determine device type name for reporting
+            var deviceTypeName = Configuration.SubNodeType.ToString();
 
             // Step 1: Validate the configuration update using virtual method
             _logger.LogInformation("Validating configuration update for device: {DeviceName}", Configuration.DeviceName);
@@ -742,7 +742,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         DataReceived?.Invoke(this, new DataReceivedEvent(
             DeviceId: DeviceId ?? "unknown",
-            DeviceType: DeviceType,
+            SubNodeType: SubNodeType,
             Data: measures,
             Timestamp: DateTimeOffset.UtcNow));
     }
@@ -758,7 +758,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         DataProcessed?.Invoke(this, new DataProcessedEvent(
             DeviceId: DeviceId ?? "unknown",
-            DeviceType: DeviceType,
+            SubNodeType: SubNodeType,
             Data: measures,
             Timestamp: DateTimeOffset.UtcNow));
     }
@@ -815,7 +815,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _orchestrator.StatusChanged += (s, e) =>
         {
             if (EnableDeviceStatusTracking)
-                DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+                DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", SubNodeType, e.FromStatus, e.ToStatus, e.Timestamp));
         };
 
         // Forward pipeline value change events to device level

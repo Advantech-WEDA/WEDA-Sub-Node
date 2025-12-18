@@ -755,16 +755,16 @@ public static class ConfigurationUpdateHelper
         {
             Enabled = true,
             DeviceName = config.DeviceName,
-            DeviceType = config.DeviceType.ToString(),
+            SubNodeType = config.SubNodeType.ToString(),
             DtdlPath = config.DtdlPath,
             DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
             {
-                Manufacturer = config.DeviceCapabilities.Manufacturer,
-                Model = config.DeviceCapabilities.Model,
-                SubNodeSwVersion = config.DeviceCapabilities.SubNodeSwVersion,
-                DeviceInfo = config.DeviceCapabilities.DeviceInfo
+                Manufacturer = config.Manufacturer,
+                Model = config.Model,
+                SubNodeSwVersion = config.SwVersion,
+                DeviceInfo = config.Metadata
             },
-            Communication = config.Communication,
+            Communication = config.DeviceCommunication,
             Periods = new SubNodePeriodsDto
             {
                 ReportHealth = config.Periods.ReportHealth,

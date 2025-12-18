@@ -1,115 +1,92 @@
 using System.Text.Json.Serialization;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Abstractions.Devices;
 
 /// <summary>
-/// Device configuration (matches DMA registration payload)
+/// Device configuration for appsettings.json binding.
+/// DeviceName is derived from DeviceConfigs key.
+/// Manufacturer, Model, SwVersion are inherited from SubNode section.
 /// </summary>
 public class DeviceConfiguration
 {
-    /// <summary>
-    /// Whether this device configuration is enabled (default: true)
-    /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Device ID, derived from DMA or DeviceIdStorage (e.g., "74fe488d5d54-ffff")
+    /// Auto-populated during device initialization.
     /// </summary>
     public string? DeviceId { get; set; }
 
     /// <summary>
-    /// Device name (e.g., "adam4612", "temp-sensor-1")
+    /// Auto-set from DeviceConfigs key (e.g., "MyFirstDevice").
     /// </summary>
-    public required string DeviceName { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Device type (e.g., "adamEthernet", "modbusRTU")
-    /// </summary>
-    public required DeviceType DeviceType { get; set; }
-
-    /// <summary>
-    /// Device type name - OPTIONAL, defaults to DeviceConfigs key if not specified
-    ///
-    /// When using ScanDevicesFromConfiguration():
-    /// - If empty/null: Uses the configuration key name (e.g., "MyFirstDevice" from DeviceConfigs["MyFirstDevice"])
-    /// - If specified: Uses the provided value (supports short names and fully qualified names)
-    ///
-    /// Examples:
-    /// - Config key: "TcpModbusDevice" → Automatically resolves to TcpModbusDevice class
-    /// - Config key: "MyFirstDevice" → Searches in YOUR project first
-    /// - Explicit: "Weda.SubNode.Devices.Generic.TcpModbusDevice, Weda.SubNode.Devices" → Full qualified name
-    ///
-    /// Resolution priority:
-    /// 1. Fully qualified name (if assembly specified)
-    /// 2. Your project assembly (PRIORITY - avoids naming conflicts)
-    /// 3. SDK built-in devices (Weda.SubNode.Devices.Generic)
-    /// 4. Other dependencies
-    /// </summary>
-    public string? DeviceTypeName { get; set; }
-
-    /// <summary>
-    /// Path to the DTDL JSON file (optional, for configuration).
+    /// Path to DTDL JSON file. Only used when SubNode.AutoGenDtdl is false.
     /// </summary>
     public string? DtdlPath { get; set; }
 
     /// <summary>
-    /// DTDL (Digital Twin Definition Language) object.
-    /// Can be a DtdlInterface or any other structured object.
+    /// DTDL object - auto-generated or loaded from DtdlPath.
     /// </summary>
     public object? Dtdl { get; set; }
 
-    /// <summary>
-    /// Device capabilities
-    /// </summary>
-    public required DeviceCapabilities DeviceCapabilities { get; set; }
-
-    /// <summary>
-    /// Sensors list
-    /// </summary>
     public List<Sensor> Sensors { get; set; } = [];
 
     /// <summary>
-    /// Communication/transport layer settings (not part of registration payload, for internal use).
-    /// Contains connection parameters like host, port, etc.
-    /// e.g., TCP: { "Host": "192.168.1.10", "Port": 502 }
-    /// e.g., MQTT: { "BrokerUrl": "mqtt://localhost:1883", "ClientId": "device-1" }
-    /// Note: Protocol-specific settings (e.g., Modbus SlaveId) should go in Properties, not here.
-    /// Use DictionaryValueConverter extension methods to safely read values:
-    /// - Communication.GetString("Host", "localhost")
-    /// - Communication.GetInt32("Port", 502)
-    /// - Communication.GetBoolean("UseTls", false)
+    /// Transport layer settings (Host, Port, BrokerUrl, etc.)
     /// </summary>
-    public Dictionary<string, object> Communication { get; set; } = [];
+    public Dictionary<string, object> DeviceCommunication { get; set; } = [];
 
-    /// <summary>
-    /// Connection settings for retry, timeout, and security configuration
-    /// Used by communication layer (TCP, Serial, etc.)
-    /// Can be configured in appsettings.json or received from cloud
-    /// </summary>
     public ConnectionSettings? ConnectionSettings { get; set; }
 
-    /// <summary>
-    /// Background task periods (not part of registration payload, for internal use)
-    /// </summary>
     public BackgroundTaskPeriods Periods { get; set; } = new();
 
     /// <summary>
-    /// Custom properties (not part of registration payload, for internal use)
+    /// Protocol-specific settings (e.g., SlaveId for Modbus)
     /// </summary>
     public Dictionary<string, object> Properties { get; set; } = [];
 
+    /// <summary>
+    /// Device metadata for DTDL generation and cloud reporting.
+    /// </summary>
+    public Dictionary<string, object> Metadata { get; set; } = [];
+
+    #region Runtime Properties
+
+    /// <summary>
+    /// Populated during device initialization from SubNode section.
+    /// </summary>
     [JsonIgnore]
-    public DeviceInfo DeviceInfo => new DeviceInfo
+    public SubNodeInfo? SubNodeInfo { get; set; }
+
+    [JsonIgnore]
+    public string Manufacturer => SubNodeInfo?.Manufacturer ?? "Unknown";
+
+    [JsonIgnore]
+    public string Model => SubNodeInfo?.Model ?? "Unknown";
+
+    [JsonIgnore]
+    public string SwVersion => SubNodeInfo?.SwVersion ?? "1.0.0";
+
+    [JsonIgnore]
+    public SubNodeType SubNodeType => SubNodeInfo?.SubNodeType ?? SubNodeType.CustomDevice;
+
+    [JsonIgnore]
+    public DeviceInfo DeviceInfo => new()
     {
         DeviceId = DeviceId,
         DeviceName = DeviceName,
-        DeviceType = DeviceType,
-        Manufacturer = DeviceCapabilities.Manufacturer,
-        Model = DeviceCapabilities.Model
+        SubNodeType = SubNodeType,
+        Manufacturer = Manufacturer,
+        Model = Model
     };
+
+    #endregion
 
     /// <summary>
     /// Loads and sets the DTDL interface from the configured DtdlPath.
@@ -177,75 +154,3 @@ public class DeviceConfiguration
         return null;
     }
 }
-
-/// <summary>
-/// Device capabilities
-/// </summary>
-public class DeviceCapabilities
-{
-    /// <summary>
-    /// Manufacturer (e.g., "Advantech")
-    /// </summary>
-    public required string Manufacturer { get; set; }
-
-    /// <summary>
-    /// Model (e.g., "SubNode", "ADAM-6052")
-    /// </summary>
-    public required string Model { get; set; }
-
-    /// <summary>
-    /// SubNode software version (e.g., "1.0")
-    /// </summary>
-    public required string SubNodeSwVersion { get; set; }
-
-    public required Dictionary<string, object> DeviceInfo { get; set; } = [];
-}
-
-/// <summary>
-/// Background task execution periods (in milliseconds)
-/// </summary>
-public class BackgroundTaskPeriods
-{
-    /// <summary>
-    /// Minimum allowed value for ReportConfiguration (1 minute = 60000ms).
-    /// Values below this threshold are not allowed to prevent excessive network traffic.
-    /// </summary>
-    public const int MinReportConfigurationPeriod = 60_000;
-
-    /// <summary>
-    /// Default value for ReportConfiguration (30 minutes = 1800000ms).
-    /// </summary>
-    public const int DefaultReportConfigurationPeriod = 1_800_000;
-
-    /// <summary>
-    /// Health reporting period (default: 60000ms)
-    /// </summary>
-    public int ReportHealth { get; set; } = 60000;
-
-    /// <summary>
-    /// Command polling period (default: 1000ms)
-    /// </summary>
-    public int PollCommands { get; set; } = 1000;
-
-    /// <summary>
-    /// Configuration sync/report period (default: 1800000ms = 30 minutes).
-    /// Periodically reports device configuration to cloud
-    /// to ensure reported state is synchronized even if update response fails.
-    ///
-    /// This is a REQUIRED feature and cannot be disabled.
-    /// Minimum value: 60000ms (1 minute) to prevent excessive network traffic.
-    /// </summary>
-    public int ReportConfiguration { get; set; } = DefaultReportConfigurationPeriod;
-}
-
-/// <summary>
-/// Device configurations collection (key-value style)
-/// Example appsettings.json:
-/// {
-///   "Devices": {
-///     "temp-sensor-1": { "DeviceId": "...", "DeviceCapabilities": {...}, ... },
-///     "fan-1": { ... }
-///   }
-/// }
-/// </summary>
-public class DeviceConfigurations : Dictionary<string, DeviceConfiguration>;

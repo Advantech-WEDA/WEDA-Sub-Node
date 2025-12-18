@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication.Common;
@@ -25,15 +26,15 @@ public class SensorControlTests : IDisposable
         {
             DeviceId = "test-device",
             DeviceName = "Test Device",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "Test",
                 Manufacturer = "Advantech",
                 Model = "Test",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>
+            DeviceCommunication = new Dictionary<string, object>
             {
                 ["BrokerUrl"] = "mqtt://localhost:1883",
                 ["ClientId"] = "test-client",

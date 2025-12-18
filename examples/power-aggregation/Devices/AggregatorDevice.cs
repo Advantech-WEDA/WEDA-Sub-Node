@@ -34,19 +34,17 @@ namespace PowerAggregationExample.Devices;
 public class AggregatorDevice : PubSubDeviceBase
 {
     /// <summary>
-    /// Initializes a new instance of AggregatorDevice.
-    /// Uses DeviceConfiguration from ApplicationContext.
+    /// Initializes a new instance of AggregatorDevice with config key.
+    /// Uses DeviceConfiguration from context.DeviceConfigs[configKey].
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section.</param>
     /// <param name="definitionFactory">Factory to create IAggregatorDefinition for each sensor.</param>
     public AggregatorDevice(
         IWedaApplicationContext context,
+        string configKey,
         DefinitionFactory definitionFactory)
-        : this(
-            context,
-            context.DeviceConfiguration
-                ?? throw new InvalidOperationException("DeviceConfiguration not found in ApplicationContext"),
-            definitionFactory)
+        : this(context, context[configKey], definitionFactory)
     {
     }
 

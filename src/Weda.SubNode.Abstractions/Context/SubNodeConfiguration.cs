@@ -11,7 +11,7 @@ namespace Weda.SubNode.Abstractions.Context;
 /// {
 ///   "SubNode": {
 ///     "Name": "MyFactorySubNode",
-///     "DeviceType": "CustomDevice",
+///     "SubNodeType": "CustomDevice",
 ///     "Manufacturer": "Advantech",
 ///     "Model": "SubNode-SDK",
 ///     "Version": "1.0.0"
@@ -40,7 +40,7 @@ public class SubNodeConfiguration
     /// Valid values: AdamEthernet, SerialDevice, DaqDevice, SystemMonitor, CustomDevice
     /// Default is CustomDevice.
     /// </summary>
-    public DeviceType DeviceType { get; set; } = DeviceType.CustomDevice;
+    public SubNodeType SubNodeType { get; set; } = SubNodeType.CustomDevice;
 
     /// <summary>
     /// Gets or sets the manufacturer name.
@@ -55,7 +55,15 @@ public class SubNodeConfiguration
     /// <summary>
     /// Gets or sets the software version.
     /// </summary>
-    public string Version { get; set; } = "1.0.0";
+    public string SwVersion { get; set; } = "1.0.0";
+
+    /// <summary>
+    /// Gets or sets whether to automatically generate DTDL content from sensor definitions.
+    /// When true, DTDL is auto-generated based on Sensors[].SensorGroup and Sensors[].Parameters.
+    /// When false, loads DTDL from the path specified in DeviceConfigs[].DtdlPath.
+    /// Default is false.
+    /// </summary>
+    public bool AutoGenDtdl { get; set; } = false;
 
     /// <summary>
     /// Converts this configuration to a SubNodeInfo instance.
@@ -67,10 +75,10 @@ public class SubNodeConfiguration
         return new SubNodeInfo
         {
             Name = !string.IsNullOrWhiteSpace(Name) ? Name : (fallbackName ?? "SubNode"),
-            DeviceType = DeviceType,
+            SubNodeType = SubNodeType,
             Manufacturer = Manufacturer,
             Model = Model,
-            Version = Version
+            SwVersion = SwVersion
         };
     }
 }

@@ -228,7 +228,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ## 裝置配置 (DeviceConfigs)
 
-`DeviceConfigs` 是一個字典，key 為配置名稱(作為 DeviceTypeName)，value 為裝置配置物件。
+`DeviceConfigs` 是一個字典，key 為配置名稱(作為 SubNodeTypeName)，value 為裝置配置物件。
 
 ```json
 {
@@ -251,7 +251,7 @@ SDK 支援以下四種 NATS 認證策略：
     "MyFirstDevice": {
       "Enabled": true,
       "DeviceName": "MyWiseDevice4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "Periods": {
         "ReadTelemetry": 5000,
@@ -266,14 +266,14 @@ SDK 支援以下四種 NATS 認證策略：
 |------|------|------|------|--------|
 | `Enabled` | boolean | 否 | 是否啟用此裝置（僅在自動掃描時有效） | true |
 | `DeviceName` | string | 是 | 裝置名稱（用於識別）會登錄到 Weda.Core | - |
-| `DeviceType` | string | 是 | 裝置類型（AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice） | - |
+| `SubNodeType` | string | 是 | 裝置類型（AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice） | - |
 | `DtdlPath` | string | 是 | DTDL 檔案路徑（相對於專案根目錄） | - |
 | `Periods` | object | 否 | 背景任務週期設定（見下方說明） | 見預設值 |
 
 #### 重要說明
 
 - **DeviceId**: 不應設定在 appsettings.json，由雲端分配或從 localStorage 取得
-- **DeviceTypeName**: 不應設定在 appsettings.json，自動從 Config Key (如 "MyFirstDevice") 指派
+- **SubNodeTypeName**: 不應設定在 appsettings.json，自動從 Config Key (如 "MyFirstDevice") 指派
 - **Enabled**: 僅在使用自動掃描時有效（見下方說明）
 
 ---
@@ -538,13 +538,13 @@ var app = builder.Build();
     "ProductionDevice": {
       "Enabled": true,      // ✅ 會被加入
       "DeviceName": "WISE-4012-A",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     },
     "TestDevice": {
       "Enabled": false,     // ❌ 不會被加入
       "DeviceName": "WISE-4012-B",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     }
   }
@@ -589,7 +589,7 @@ var app = builder.Build();
     "MyDevice": {
       "Enabled": false,     // ⚠️ 不會被檢查
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": {
         "Host": "192.168.1.100",
         "Port": 502,
@@ -698,9 +698,9 @@ var app = builder.Build();
 
 ### 通訊設定 (Communication)
 
-根據不同 `DeviceType` 需要不同的通訊參數。
+根據不同 `SubNodeType` 需要不同的通訊參數。
 
-#### Modbus TCP (DeviceType: "adamEthernet")
+#### Modbus TCP (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -718,7 +718,7 @@ var app = builder.Build();
 | `Port` | number | 否 | Modbus TCP 通訊埠 | 502 |
 | `SlaveId` | number | 否 | Modbus Slave/Unit ID | 1 |
 
-#### ISensing MQTT (DeviceType: "adamEthernet")
+#### ISensing MQTT (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -1175,7 +1175,7 @@ SDK 會自動檢查數值並回傳閾值等級:
     "MyWiseDevice": {
       "Enabled": true,
       "DeviceName": "WISE-4012-Factory-Floor",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
@@ -1315,7 +1315,7 @@ SDK 會自動檢查數值並回傳閾值等級:
 以下欄位**不應**出現在 appsettings.json 中:
 
 - ❌ `DeviceId` - 由雲端分配或從 localStorage 取得
-- ❌ `DeviceTypeName` - 自動從 DeviceConfigs 的 key 指派
+- ❌ `SubNodeTypeName` - 自動從 DeviceConfigs 的 key 指派
 
 ### 2. DtdlPath 路徑
 

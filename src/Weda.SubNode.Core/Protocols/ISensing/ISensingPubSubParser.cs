@@ -43,11 +43,11 @@ public class ISensingPubSubParser : IPubSubProtocolParser
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         // Extract MQTT settings from configuration
-        var macAddress = configuration.Communication.TryGetValue("MacAddress", out var mac)
+        var macAddress = configuration.DeviceCommunication.TryGetValue("MacAddress", out var mac)
             ? mac?.ToString() ?? throw new InvalidOperationException("MacAddress not found in communication configuration")
             : throw new InvalidOperationException("MacAddress not found in communication configuration");
 
-        var manufacturer = configuration.Communication.TryGetValue("Manufacturer", out var mfg)
+        var manufacturer = configuration.DeviceCommunication.TryGetValue("Manufacturer", out var mfg)
             ? mfg?.ToString() ?? "Advantech"
             : "Advantech";
 

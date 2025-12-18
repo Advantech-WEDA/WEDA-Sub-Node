@@ -16,13 +16,13 @@ namespace Weda.SubNode.Devices.Generic;
 public class TcpModbusDevice : ModbusDevice
 {
     /// <summary>
-    /// Creates a TCP Modbus device with ApplicationContext only.
-    /// Automatically retrieves configuration from context and creates TCP communication.
-    /// Reads SlaveId and ByteOrder from Properties dictionary.
+    /// Creates a TCP Modbus device with ApplicationContext and config key.
+    /// Automatically retrieves configuration from context.DeviceConfigs[configKey].
     /// </summary>
-    public TcpModbusDevice(IWedaApplicationContext context)
-        : this(context, context.DeviceConfiguration
-            ?? throw new InvalidOperationException("DeviceConfiguration not found in ApplicationContext"))
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public TcpModbusDevice(IWedaApplicationContext context, string configKey)
+        : this(context, context[configKey])
     {
     }
 
@@ -47,8 +47,8 @@ public class TcpModbusDevice : ModbusDevice
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
     {
-        // Convert Communication dictionary directly to strongly-typed settings
-        var tcpSettings = configuration.Communication.GetObject<TcpCommunicationSettings>()
+        // Convert DeviceCommunication dictionary directly to strongly-typed settings
+        var tcpSettings = configuration.DeviceCommunication.GetObject<TcpCommunicationSettings>()
             ?? new TcpCommunicationSettings();
 
         // Use ConnectionSettings from configuration (retry, timeout, security)
@@ -62,17 +62,17 @@ public class TcpModbusDevice : ModbusDevice
 
     private static byte GetSlaveId(DeviceConfiguration configuration)
     {
-        // Check Properties first (recommended), then Communication for backwards compatibility
+        // Check Properties first (recommended), then DeviceCommunication for backwards compatibility
         return configuration.Properties.TryGetValue("SlaveId", out _)
             ? (byte)configuration.Properties.GetInt32("SlaveId", 1)
-            : (byte)configuration.Communication.GetInt32("SlaveId", 1);
+            : (byte)configuration.DeviceCommunication.GetInt32("SlaveId", 1);
     }
 
     private static ModbusByteOrder GetByteOrder(DeviceConfiguration configuration)
     {
-        // Check Properties first (recommended), then Communication for backwards compatibility
+        // Check Properties first (recommended), then DeviceCommunication for backwards compatibility
         return configuration.Properties.TryGetValue("ByteOrder", out _)
             ? configuration.Properties.GetEnum("ByteOrder", ModbusByteOrder.BigEndian)
-            : configuration.Communication.GetEnum("ByteOrder", ModbusByteOrder.BigEndian);
+            : configuration.DeviceCommunication.GetEnum("ByteOrder", ModbusByteOrder.BigEndian);
     }
 }

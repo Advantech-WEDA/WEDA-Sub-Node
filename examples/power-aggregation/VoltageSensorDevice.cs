@@ -13,8 +13,8 @@ namespace PowerAggregationExample;
 /// </summary>
 public class VoltageSensorDevice : TcpModbusDevice
 {
-    public VoltageSensorDevice(IWedaApplicationContext context)
-        : base(context)
+    public VoltageSensorDevice(IWedaApplicationContext context, string configKey)
+        : base(context, configKey)
     {
         EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;

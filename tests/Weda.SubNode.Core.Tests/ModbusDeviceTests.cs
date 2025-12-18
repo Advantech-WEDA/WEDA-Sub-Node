@@ -47,7 +47,7 @@ public class ModbusDeviceTests : IDisposable
 
         // Assert
         device.ShouldNotBeNull();
-        device.Configuration.Communication["SlaveId"].ShouldBe(5);
+        device.Configuration.DeviceCommunication["SlaveId"].ShouldBe(5);
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public class ModbusDeviceTests : IDisposable
     {
         // Arrange
         var config = DeviceConfigurationBuilder.Default()
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502,
@@ -133,8 +133,8 @@ public class ModbusDeviceTests : IDisposable
     {
         // Arrange
         var config = DeviceConfigurationBuilder.Default()
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502,
@@ -652,8 +652,8 @@ public class ModbusDeviceTests : IDisposable
         return DeviceConfigurationBuilder.Default()
             .WithDeviceId("modbus-device-001")
             .WithDeviceName("Test Modbus Device")
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502,
@@ -683,8 +683,8 @@ public class ModbusDeviceTests : IDisposable
     {
         return DeviceConfigurationBuilder.Default()
             .WithDeviceId("modbus-device-001")
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502,
@@ -747,8 +747,8 @@ public class ModbusDeviceTests : IDisposable
         return DeviceConfigurationBuilder.Default()
             .WithDeviceId("modbus-device-001")
             .WithDeviceName("Test Modbus Device with DO")
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502,

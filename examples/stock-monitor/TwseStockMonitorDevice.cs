@@ -18,12 +18,13 @@ public class TwseStockMonitorDevice : StockMonitorDevice
     private const int HTTP_TIMEOUT_IN_SECONDS = 30;
 
     /// <summary>
-    /// Creates a TWSE stock monitor device with ApplicationContext only.
-    /// Automatically retrieves configuration from context and creates HTTP communication.
+    /// Creates a TWSE stock monitor device with config key.
+    /// Automatically retrieves configuration from context.DeviceConfigs[configKey].
     /// </summary>
-    public TwseStockMonitorDevice(IWedaApplicationContext context)
-        : this(context, context.DeviceConfiguration
-            ?? throw new InvalidOperationException("DeviceConfiguration not found in ApplicationContext"))
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public TwseStockMonitorDevice(IWedaApplicationContext context, string configKey)
+        : this(context, context[configKey])
     {
     }
 

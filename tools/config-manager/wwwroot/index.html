@@ -185,7 +185,7 @@
                         </div>
                         <div class="form-group">
                             <label>Device Type</label>
-                            <select id="subNodeDeviceType">
+                            <select id="subNodeSubNodeType">
                                 <option value="AdamEthernet">AdamEthernet</option>
                                 <option value="SerialDevice">SerialDevice</option>
                                 <option value="DaqDevice">DaqDevice</option>
@@ -514,7 +514,7 @@
                 const subNode = getProp(appSettings, 'SubNode', 'subNode');
                 if (subNode) {
                     document.getElementById('subNodeName').value = getProp(subNode, 'Name', 'name') || '';
-                    document.getElementById('subNodeDeviceType').value = getProp(subNode, 'DeviceType', 'deviceType') || 'CustomDevice';
+                    document.getElementById('subNodeSubNodeType').value = getProp(subNode, 'SubNodeType', 'deviceType') || 'CustomDevice';
                     document.getElementById('subNodeManufacturer').value = getProp(subNode, 'Manufacturer', 'manufacturer') || '';
                     document.getElementById('subNodeModel').value = getProp(subNode, 'Model', 'model') || '';
                     document.getElementById('subNodeVersion').value = getProp(subNode, 'Version', 'version') || '';
@@ -921,7 +921,7 @@
             document.getElementById('registrationCard').style.display = 'none';
             document.getElementById('deviceConfigCard').style.display = 'none';
             document.getElementById('subNodeName').value = '';
-            document.getElementById('subNodeDeviceType').value = 'CustomDevice';
+            document.getElementById('subNodeSubNodeType').value = 'CustomDevice';
             document.getElementById('subNodeManufacturer').value = '';
             document.getElementById('subNodeModel').value = '';
             document.getElementById('subNodeVersion').value = '';

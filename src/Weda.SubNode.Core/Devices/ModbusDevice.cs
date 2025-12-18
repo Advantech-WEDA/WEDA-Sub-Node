@@ -124,8 +124,8 @@ public class ModbusDevice : RequestResponseDeviceBase
 
         var deviceInfo = new Dictionary<string, object>
         {
-            ["Host"] = Configuration.Communication?.GetValueOrDefault("Host") ?? "Unknown",
-            ["Port"] = Configuration.Communication?.GetValueOrDefault("Port") ?? 502
+            ["Host"] = Configuration.DeviceCommunication?.GetValueOrDefault("Host") ?? "Unknown",
+            ["Port"] = Configuration.DeviceCommunication?.GetValueOrDefault("Port") ?? 502
         };
 
         return scanner.GenerateMarkdownReport(scanResults, config, deviceInfo);

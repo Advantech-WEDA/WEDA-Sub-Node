@@ -213,8 +213,8 @@ public class PowerAggregatorDevice : AggregatorDevice
     "PowerAggregator": {
       "Enabled": true,
       "DeviceName": "PowerAggregator",
-      "DeviceTypeName": "PowerAggregatorDevice",
-      "DeviceType": "CustomDevice",
+      "SubNodeTypeName": "PowerAggregatorDevice",
+      "SubNodeType": "CustomDevice",
       "Sensors": [
         {
           "Name": "power001",
@@ -327,8 +327,8 @@ public class MyAggregatorDevice : AggregatorDevice
   "DeviceConfigs": {
     "MyAggregator": {
       "DeviceName": "MyAggregator",
-      "DeviceTypeName": "MyAggregatorDevice",
-      "DeviceType": "CustomDevice",
+      "SubNodeTypeName": "MyAggregatorDevice",
+      "SubNodeType": "CustomDevice",
       "Sensors": [
         {
           "Name": "output001",

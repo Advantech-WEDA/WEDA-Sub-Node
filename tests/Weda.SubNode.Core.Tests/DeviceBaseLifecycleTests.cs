@@ -34,8 +34,8 @@ public class DeviceBaseLifecycleTests : IDisposable
 
         _testConfig = DeviceConfigurationBuilder.Default()
             .WithDeviceName("test-device")
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502
@@ -489,7 +489,7 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Act - Trigger communication state change by raising the event
         var testEvent = new ConnectionStateChangedEvent(
             DeviceId: "test-device",
-            DeviceType: DeviceType.AdamEthernet,
+            SubNodeType: SubNodeType.AdamEthernet,
             PreviousState: CommunicationState.Disconnected,
             CurrentState: CommunicationState.Connected,
             Timestamp: DateTimeOffset.UtcNow);

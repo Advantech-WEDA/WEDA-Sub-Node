@@ -249,7 +249,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 
 ## Device Configuration (DeviceConfigs)
 
-`DeviceConfigs` is a dictionary where the key is the configuration name (used as DeviceTypeName), and the value is the device configuration object.
+`DeviceConfigs` is a dictionary where the key is the configuration name (used as SubNodeTypeName), and the value is the device configuration object.
 
 ```json
 {
@@ -272,7 +272,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
     "MyFirstDevice": {
       "Enabled": true,
       "DeviceName": "MyWiseDevice4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "Periods": {
         "ReadTelemetry": 5000,
@@ -287,14 +287,14 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 |-------|------|----------|-------------|---------|
 | `Enabled` | boolean | No | Whether to enable this device (only effective with auto-scan) | true |
 | `DeviceName` | string | Yes | Device name (for identification), registered with Weda.Core | - |
-| `DeviceType` | string | Yes | Device type (AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice) | - |
+| `SubNodeType` | string | Yes | Device type (AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice) | - |
 | `DtdlPath` | string | Yes | DTDL file path (relative to project root) | - |
 | `Periods` | object | No | Background task period settings (see below) | See defaults |
 
 #### Important Notes
 
 - **DeviceId**: Should NOT be set in appsettings.json; assigned by cloud or retrieved from localStorage
-- **DeviceTypeName**: Should NOT be set in appsettings.json; automatically assigned from Config Key (e.g., "MyFirstDevice")
+- **SubNodeTypeName**: Should NOT be set in appsettings.json; automatically assigned from Config Key (e.g., "MyFirstDevice")
 - **Enabled**: Only effective when using auto-scan (see below)
 
 ---
@@ -523,13 +523,13 @@ var app = builder.Build();
     "ProductionDevice": {
       "Enabled": true,      // Will be added
       "DeviceName": "WISE-4012-A",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     },
     "TestDevice": {
       "Enabled": false,     // Will NOT be added
       "DeviceName": "WISE-4012-B",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     }
   }
@@ -574,7 +574,7 @@ var app = builder.Build();
     "MyDevice": {
       "Enabled": false,     // Will NOT be checked
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": {
         "Host": "192.168.1.100",
         "Port": 502,
@@ -683,9 +683,9 @@ Describes basic device information and capabilities.
 
 ### Communication Settings
 
-Different `DeviceType` values require different communication parameters.
+Different `SubNodeType` values require different communication parameters.
 
-#### Modbus TCP (DeviceType: "adamEthernet")
+#### Modbus TCP (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -703,7 +703,7 @@ Different `DeviceType` values require different communication parameters.
 | `Port` | number | No | Modbus TCP communication port | 502 |
 | `SlaveId` | number | No | Modbus Slave/Unit ID | 1 |
 
-#### ISensing MQTT (DeviceType: "adamEthernet")
+#### ISensing MQTT (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -1160,7 +1160,7 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
     "MyWiseDevice": {
       "Enabled": true,
       "DeviceName": "WISE-4012-Factory-Floor",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
@@ -1300,7 +1300,7 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
 The following fields should **NOT** appear in appsettings.json:
 
 - `DeviceId` - Assigned by cloud or retrieved from localStorage
-- `DeviceTypeName` - Automatically assigned from DeviceConfigs key
+- `SubNodeTypeName` - Automatically assigned from DeviceConfigs key
 
 ### 2. DtdlPath Paths
 

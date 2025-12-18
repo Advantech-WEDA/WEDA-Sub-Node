@@ -228,17 +228,9 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
             Enabled = Enabled,
             DeviceId = deviceId,
             DeviceName = DeviceName,
-            DeviceType = DeviceType.AdamEthernet, // ISensing devices use MQTT but classified as AdamEthernet type
             DtdlPath = DtdlPath,
-            DeviceCapabilities = new DeviceCapabilities
-            {
-                Manufacturer = Manufacturer,
-                Model = Model,
-                SubNodeSwVersion = SubNodeSwVersion,
-                DeviceInfo = new Dictionary<string, object>()
-            },
             Sensors = sensors,
-            Communication = communication,
+            DeviceCommunication = communication,
             Periods = Periods,
             Properties = Properties
         };

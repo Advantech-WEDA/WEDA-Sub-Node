@@ -26,15 +26,15 @@ public class ISensingDeviceTests : IDisposable
         {
             DeviceId = "test-mqtt-device",
             DeviceName = "Test MQTT ISensing Device",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "Test",
                 Manufacturer = "Advantech",
                 Model = "WISE-4012SE",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>
+            DeviceCommunication = new Dictionary<string, object>
             {
                 ["BrokerUrl"] = "mqtt://localhost:1883",
                 ["ClientId"] = "test-client",
@@ -104,15 +104,15 @@ public class ISensingDeviceTests : IDisposable
         var invalidConfig = new DeviceConfiguration
         {
             DeviceName = "Test",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "Test",
                 Manufacturer = "Advantech",
                 Model = "Test",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>()
+            DeviceCommunication = new Dictionary<string, object>()
         };
 
         // Act & Assert

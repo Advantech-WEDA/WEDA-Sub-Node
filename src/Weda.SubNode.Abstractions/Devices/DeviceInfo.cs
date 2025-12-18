@@ -21,7 +21,7 @@ public class DeviceInfo
     /// Device type (e.g., "adamEthernet", "modbusRTU")
     /// </summary>
     [JsonPropertyName("deviceType")]
-    public required DeviceType DeviceType { get; set; }
+    public required SubNodeType SubNodeType { get; set; }
 
     /// <summary>
     /// Device manufacturer (e.g., "Advantech")

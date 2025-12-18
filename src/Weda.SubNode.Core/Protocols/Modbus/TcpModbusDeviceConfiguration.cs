@@ -186,17 +186,9 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
             Enabled = Enabled,
             DeviceId = deviceId,
             DeviceName = DeviceName,
-            DeviceType = DeviceType.AdamEthernet,
             DtdlPath = DtdlPath,
-            DeviceCapabilities = new DeviceCapabilities
-            {
-                Manufacturer = Manufacturer,
-                Model = Model,
-                SubNodeSwVersion = SubNodeSwVersion,
-                DeviceInfo = new Dictionary<string, object>()
-            },
             Sensors = sensors,
-            Communication = new Dictionary<string, object>
+            DeviceCommunication = new Dictionary<string, object>
             {
                 ["Host"] = Host,
                 ["Port"] = Port,

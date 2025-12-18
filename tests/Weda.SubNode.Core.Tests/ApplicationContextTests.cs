@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Shouldly;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Core.Communication.Common;
+using Weda.SubNode.Core.Communication.Tcp;
 using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Host.Context;
 using Weda.SubNode.TestBase.Builders;
@@ -53,8 +54,8 @@ public class ApplicationContextTests
         var port = 502;
         using var context = new WedaApplicationContext();
         var config = DeviceConfigurationBuilder.Default()
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = host,
                 ["Port"] = port,
@@ -68,7 +69,7 @@ public class ApplicationContextTests
 
         // Assert
         device.ShouldNotBeNull();
-        device.DeviceType.ShouldBe(DeviceType.AdamEthernet);
+        device.SubNodeType.ShouldBe(SubNodeType.AdamEthernet);
     }
 
     [Fact]

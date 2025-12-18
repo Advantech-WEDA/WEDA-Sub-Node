@@ -13,8 +13,8 @@ namespace PowerAggregationExample;
 /// </summary>
 public class CurrentSensorDevice : TcpModbusDevice
 {
-    public CurrentSensorDevice(IWedaApplicationContext context)
-        : base(context)
+    public CurrentSensorDevice(IWedaApplicationContext context, string configKey)
+        : base(context, configKey)
     {
         EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;

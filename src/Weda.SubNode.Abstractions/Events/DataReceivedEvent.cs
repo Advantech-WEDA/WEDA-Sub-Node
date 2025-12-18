@@ -8,11 +8,11 @@ namespace Weda.SubNode.Abstractions.Events;
 /// Fired after successful read from device, before any transformation or filtering.
 /// </summary>
 /// <param name="DeviceId">The device identifier.</param>
-/// <param name="DeviceType">The device type.</param>
+/// <param name="SubNodeType">The device type.</param>
 /// <param name="Data">The raw telemetry measures received.</param>
 /// <param name="Timestamp">The timestamp when data was received.</param>
 public sealed record DataReceivedEvent(
     string DeviceId,
-    DeviceType DeviceType,
+    SubNodeType SubNodeType,
     List<TelemetryMeasure> Data,
     DateTimeOffset Timestamp);

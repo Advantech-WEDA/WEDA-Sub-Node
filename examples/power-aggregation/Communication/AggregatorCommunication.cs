@@ -175,7 +175,7 @@ public class AggregatorCommunication : ICommunication
             State = CommunicationState.Connected;
             StateChanged?.Invoke(this, new ConnectionStateChangedEvent(
                 DeviceId: "aggregator",
-                DeviceType: DeviceType.CustomDevice,
+                SubNodeType: SubNodeType.CustomDevice,
                 PreviousState: CommunicationState.Disconnected,
                 CurrentState: CommunicationState.Connected,
                 Timestamp: DateTimeOffset.UtcNow));
@@ -241,7 +241,7 @@ public class AggregatorCommunication : ICommunication
 
         StateChanged?.Invoke(this, new ConnectionStateChangedEvent(
             DeviceId: "aggregator",
-            DeviceType: DeviceType.CustomDevice,
+            SubNodeType: SubNodeType.CustomDevice,
             PreviousState: previousState,
             CurrentState: CommunicationState.Disconnected,
             Timestamp: DateTimeOffset.UtcNow));

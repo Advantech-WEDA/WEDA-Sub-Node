@@ -139,7 +139,7 @@ nats pub "eco1j.weda.dm.config.{deviceId}.req" '{
       "desired": {
         "subNodeDeviceConfig": {
           "deviceConfigs": {
-            "{DeviceTypeName}": {
+            "{SubNodeTypeName}": {
               "deviceName": "{deviceName}",
               "sensors": [
                 {

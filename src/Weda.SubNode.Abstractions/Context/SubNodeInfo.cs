@@ -50,13 +50,13 @@ public class SubNodeInfo
     /// <summary>
     /// Gets or sets the software version.
     /// </summary>
-    public string Version { get; set; } = "1.0.0";
+    public string SwVersion { get; set; } = "1.0.0";
 
     /// <summary>
     /// Gets or sets the device type for cloud registration.
     /// Default is CustomDevice.
     /// </summary>
-    public DeviceType DeviceType { get; set; } = DeviceType.CustomDevice;
+    public SubNodeType SubNodeType { get; set; } = SubNodeType.CustomDevice;
 
     /// <summary>
     /// Gets whether the Sub-Node has been registered with the cloud.

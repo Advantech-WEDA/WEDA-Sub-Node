@@ -43,14 +43,14 @@ public static class Tcp
 public static class TcpCommunicationExtensions
 {
     /// <summary>
-    /// Create TcpCommunication from DeviceConfiguration.Communication dictionary
+    /// Create TcpCommunication from DeviceConfiguration.DeviceCommunication dictionary
     /// </summary>
     public static TcpCommunication CreateTcpCommunication(
         this DeviceConfiguration config,
         ConnectionSettings? connectionSettings = null,
         ILogger<CommunicationBase>? logger = null)
     {
-        var comm = config.Communication;
+        var comm = config.DeviceCommunication;
         var host = comm.GetValueOrDefault("Host") as string ?? "localhost";
         var port = Convert.ToInt32(comm.GetValueOrDefault("Port", 502));
 

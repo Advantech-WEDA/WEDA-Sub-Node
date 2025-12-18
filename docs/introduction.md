@@ -348,7 +348,7 @@ device.Dispose();
 {
   "SystemMonitorDeviceConfig": {
     "DeviceName": "my-system-monitor",
-    "DeviceType": "systemMonitor",
+    "SubNodeType": "systemMonitor",
     "Periods": {
       "ReadTelemetry": 5000,
       "ReportHealth": 30000
