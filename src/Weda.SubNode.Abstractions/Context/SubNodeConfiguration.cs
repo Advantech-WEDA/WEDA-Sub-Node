@@ -78,7 +78,8 @@ public class SubNodeConfiguration
             SubNodeType = SubNodeType,
             Manufacturer = Manufacturer,
             Model = Model,
-            SwVersion = SwVersion
+            SwVersion = SwVersion,
+            AutoGenDtdl = AutoGenDtdl
         };
     }
 }

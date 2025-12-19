@@ -13,6 +13,7 @@ using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Cloud;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
@@ -110,17 +111,6 @@ public class WedaApplicationContext : IWedaApplicationContext
         _options = new WedaContextOptions();
         configure(_options);
 
-        // Initialize device registry
-        _deviceRegistry = new DeviceRegistry();
-
-        // Initialize configuration cache (for UC9868 cloud-driven config updates)
-        _configurationCache = new JsonConfigurationCache(
-            logger: null); // Logger not available yet
-
-        // Initialize registration storage (for SubNode registration persistence)
-        _registrationStorage = new JsonDeviceRegistrationStorage(
-            logger: null); // Logger not available yet
-
         // Auto-load configuration from appsettings.json if not provided
         if (_options.Configuration == null)
         {
@@ -162,6 +152,36 @@ public class WedaApplicationContext : IWedaApplicationContext
         {
             _loggerFactory = _options.LoggerFactory ?? NullLoggerFactory.Instance;
         }
+
+        // Configure WedaFactory to use the logger factory
+        // This must be done before any WedaFactory.Cloud.Mock calls
+        Core.WedaFactory.UseLoggerFactory(_loggerFactory);
+
+        // If CloudService was set via WedaFactory.Cloud.Mock before logger was configured,
+        // log the warning now since the MockCloudService constructor couldn't log it
+        if (_options.CloudService is MockCloudService)
+        {
+            var mockLogger = _loggerFactory.CreateLogger<MockCloudService>();
+            mockLogger.LogWarning("╔═════════════════════════════════════════════════════════════════════╗");
+            mockLogger.LogWarning("║  MOCK CLOUD SERVICE ACTIVE - No cloud connection established        ║");
+            mockLogger.LogWarning("║  All cloud operations will be simulated locally                     ║");
+            mockLogger.LogWarning("║                                                                     ║");
+            mockLogger.LogWarning("║  To connect to Weda.Node, please remove:                            ║");
+            mockLogger.LogWarning("║    options.CloudService = WedaFactory.Cloud.Mock in subnode mode or ║");
+            mockLogger.LogWarning("║    UseMockCloud() in wedabuilder mode                               ║"); 
+            mockLogger.LogWarning("╚═════════════════════════════════════════════════════════════════════╝");
+        }
+
+        // Initialize device registry
+        _deviceRegistry = new DeviceRegistry();
+
+        // Initialize configuration cache (for UC9868 cloud-driven config updates)
+        _configurationCache = new JsonConfigurationCache(
+            logger: _loggerFactory.CreateLogger<JsonConfigurationCache>());
+
+        // Initialize registration storage (for SubNode registration persistence)
+        _registrationStorage = new JsonDeviceRegistrationStorage(
+            logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
         // Auto-load NATS settings from Configuration if not explicitly set
         if (_configuration != null && _options.NatsConnectionSettings == NatsConnectionSettings.Default)
@@ -517,17 +537,29 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     private void LoadDtdlIfEnabled(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
     {
-        if (_options.AutoLoadDtdl && !string.IsNullOrEmpty(deviceConfig.DtdlPath))
+        if (!_options.AutoLoadDtdl)
+            return;
+
+        try
         {
-            try
-            {
-                deviceConfig.LoadDtdl();
-                logger.LogInformation("DTDL loaded from: {DtdlPath}", deviceConfig.DtdlPath);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to load DTDL from: {DtdlPath}", deviceConfig.DtdlPath);
-            }
+            // Use the new unified DTDL initialization
+            // This handles both auto-generation (AutoGenDtdl=true) and file loading (AutoGenDtdl=false)
+            deviceConfig.InitializeDtdl(basePath: null, logger);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Validation error - re-throw as this is a configuration issue
+            logger.LogError(ex, "DTDL configuration error for device '{DeviceName}'", deviceConfig.DeviceName);
+            throw;
+        }
+        catch (FileNotFoundException ex)
+        {
+            // File not found - warn but don't fail (backwards compatibility)
+            logger.LogWarning(ex, "Failed to load DTDL from: {DtdlPath}", deviceConfig.DtdlPath);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to initialize DTDL for device '{DeviceName}'", deviceConfig.DeviceName);
         }
     }
 

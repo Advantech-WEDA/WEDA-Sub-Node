@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.DigitalTwin;
@@ -87,6 +88,73 @@ public class DeviceConfiguration
     };
 
     #endregion
+
+    /// <summary>
+    /// Initializes DTDL based on SubNodeInfo.AutoGenDtdl setting.
+    /// - When AutoGenDtdl=true: Generates DTDL from Sensor definitions and populates Sensor.Dtmi
+    /// - When AutoGenDtdl=false: Validates DtdlPath and Sensor.Dtmi are specified, loads from file
+    /// </summary>
+    /// <param name="basePath">Optional base path for DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
+    /// <param name="logger">Optional logger for warnings and info.</param>
+    /// <exception cref="InvalidOperationException">Thrown when validation fails (AutoGenDtdl=false without required fields).</exception>
+    /// <exception cref="FileNotFoundException">Thrown when DtdlPath file does not exist (AutoGenDtdl=false).</exception>
+    public void InitializeDtdl(string? basePath = null, ILogger? logger = null)
+    {
+        var autoGen = SubNodeInfo?.AutoGenDtdl ?? false;
+
+        if (autoGen)
+        {
+            // Auto-generate mode: Generate DTDL from sensors
+            GenerateDtdlFromSensors(logger);
+        }
+        else
+        {
+            // Manual mode: Validate and load from file
+            ValidateManualDtdlConfiguration();
+            LoadDtdl(basePath);
+        }
+    }
+
+    /// <summary>
+    /// Generates DTDL interface from sensor definitions.
+    /// Also populates Dtmi for sensors that don't have one.
+    /// </summary>
+    private void GenerateDtdlFromSensors(ILogger? logger = null)
+    {
+        // Populate Dtmi for sensors without one
+        DtdlGenerator.PopulateSensorDtmis(Sensors);
+
+        // Generate the DTDL interface
+        Dtdl = DtdlGenerator.GenerateInterface(
+            DeviceName,
+            Sensors,
+            displayName: null,
+            description: $"Auto-generated DTDL for {DeviceName}");
+
+        logger?.LogInformation(
+            "Auto-generated DTDL for device '{DeviceName}' with {SensorCount} sensors",
+            DeviceName,
+            Sensors.Count);
+    }
+
+    /// <summary>
+    /// Validates configuration when AutoGenDtdl is false.
+    /// Ensures DtdlPath and all Sensor.Dtmi are specified.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when validation fails.</exception>
+    private void ValidateManualDtdlConfiguration()
+    {
+        var errors = DtdlGenerator.ValidateManualDtdlConfiguration(Sensors, DtdlPath);
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"DTDL configuration validation failed for device '{DeviceName}':{Environment.NewLine}" +
+                $"- {string.Join($"{Environment.NewLine}- ", errors)}{Environment.NewLine}" +
+                $"Hint: Set SubNode.AutoGenDtdl=true to auto-generate DTDL, " +
+                $"or provide DtdlPath and Dtmi for each sensor.");
+        }
+    }
 
     /// <summary>
     /// Loads and sets the DTDL interface from the configured DtdlPath.

@@ -59,6 +59,19 @@ public class SubNodeInfo
     public SubNodeType SubNodeType { get; set; } = SubNodeType.CustomDevice;
 
     /// <summary>
+    /// Gets or sets whether to automatically generate DTDL content from sensor definitions.
+    /// When true:
+    /// - DTDL is auto-generated based on Sensor definitions (Schema, DisplayName, Description)
+    /// - Sensor.Dtmi is auto-generated using short ID generator
+    /// - DtdlPath is optional (ignored if specified)
+    /// When false:
+    /// - DTDL must be loaded from DtdlPath
+    /// - Each Sensor must have Dtmi specified
+    /// Default is false for backwards compatibility.
+    /// </summary>
+    public bool AutoGenDtdl { get; set; } = false;
+
+    /// <summary>
     /// Gets whether the Sub-Node has been registered with the cloud.
     /// </summary>
     public bool IsRegistered => !string.IsNullOrEmpty(DeviceId);

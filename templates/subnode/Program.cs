@@ -83,6 +83,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
+    tempSensor.Config.Interval = 5000;
 
     // Add sensor to device
     modbusDeviceConfig.AddSensor(tempSensor);
