@@ -24,7 +24,7 @@ public class Sensor
     /// - When AutoGenDtdl=true: Auto-generated from Name using short ID generator
     /// - When AutoGenDtdl=false: Required field, must be specified in appsettings.json
     /// </summary>
-    public string Dtmi { get; set; } = string.Empty;
+    public string? Dtmi { get; set; }
 
     /// <summary>
     /// Logical grouping of sensor (e.g., AI, DO, DI, SYS, TEMP, PWR)

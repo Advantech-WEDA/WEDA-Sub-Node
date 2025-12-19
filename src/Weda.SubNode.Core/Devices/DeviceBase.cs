@@ -68,11 +68,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
+        // Auto-enrich: Attach SubNodeInfo from context if not already set
+        // This enables AutoGenDtdl and provides Manufacturer/Model/SwVersion
+        Configuration.SubNodeInfo ??= context.SubNodeInfo;
+
         // Validate configuration and calculate send period
         ValidateConfiguration(configuration);
         CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(configuration);
 
-        Configuration.LoadDtdl();
+        // Initialize DTDL (auto-generates when AutoGenDtdl=true, or loads from file)
+        Configuration.InitializeDtdl(basePath: null, _logger);
 
         // Single orchestrator manages all complexity
         _orchestrator = new DeviceOrchestrator(

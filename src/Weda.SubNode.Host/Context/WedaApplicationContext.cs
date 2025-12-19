@@ -368,19 +368,24 @@ public class WedaApplicationContext : IWedaApplicationContext
     #region Private Methods
 
     /// <summary>
-    /// Loads SubNode configuration from registration cache first, then appsettings.json.
-    /// Priority:
-    /// 1. Registration cache (.weda/subnode.registration.json) - for DeviceId
-    /// 2. appsettings.json SubNode section - for Name, SubNodeType, Manufacturer, etc.
-    /// 3. Default values
+    /// Loads SubNode configuration with the following priority:
+    /// 1. Programmatic configuration (options.SubNode) - highest priority
+    /// 2. appsettings.json SubNode section
+    /// 3. Default values (assembly name as SubNode name)
+    /// 4. Registration cache (.weda/subnode.registration.json) - for DeviceId only
     /// </summary>
     private SubNodeInfo LoadSubNodeInfo()
     {
         var assemblyName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "SubNode";
         SubNodeInfo subNodeInfo;
 
-        // Step 1: Load base configuration from appsettings.json
-        if (_configuration != null)
+        // Step 1: Check programmatic configuration first (highest priority)
+        if (_options.SubNode != null)
+        {
+            subNodeInfo = _options.SubNode.ToSubNodeInfo(assemblyName);
+        }
+        // Step 2: Load from appsettings.json
+        else if (_configuration != null)
         {
             var subNodeSection = _configuration.GetSection(SubNodeConfiguration.SectionName);
             if (subNodeSection.Exists())

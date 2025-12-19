@@ -63,4 +63,33 @@ public class WedaContextOptions
     /// Default is true.
     /// </summary>
     public bool AutoLoadDtdl { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the SubNode configuration.
+    /// If set, this takes priority over appsettings.json configuration.
+    /// </summary>
+    public SubNodeConfiguration? SubNode { get; set; }
+
+    /// <summary>
+    /// Configures SubNode settings using fluent API.
+    /// </summary>
+    /// <param name="configure">Action to configure SubNode</param>
+    /// <returns>This options instance for chaining</returns>
+    /// <example>
+    /// <code>
+    /// var context = new WedaApplicationContext(options => options
+    ///     .ConfigureSubNode(subnode =>
+    ///     {
+    ///         subnode.Name = "MySubNode";
+    ///         subnode.SubNodeType = SubNodeType.CustomDevice;
+    ///         subnode.Manufacturer = "Advantech";
+    ///     }));
+    /// </code>
+    /// </example>
+    public WedaContextOptions ConfigureSubNode(Action<SubNodeConfiguration> configure)
+    {
+        SubNode ??= new SubNodeConfiguration();
+        configure(SubNode);
+        return this;
+    }
 }

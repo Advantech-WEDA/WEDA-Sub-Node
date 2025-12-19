@@ -219,7 +219,7 @@ public class ModbusSensorConfiguration
     /// <summary>
     /// Digital Twin Model Identifier (DTMI) (required)
     /// </summary>
-    public required string Dtmi { get; set; }
+    public string? Dtmi { get; set; }
 
     /// <summary>
     /// Sensor group/type (default: AI - Analog Input)
