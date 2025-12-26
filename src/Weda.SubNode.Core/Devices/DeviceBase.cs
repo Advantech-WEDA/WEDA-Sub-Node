@@ -626,18 +626,26 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             }
         };
 
-        // Command: Auto-invoke Pre -> Execute -> Post hooks
+        // Command: Auto-invoke Pre -> Execute -> Post hooks with Command Response
         _orchestrator.ConnectionManager.CommandReceived += async e =>
         {
             var success = false;
+            string? errorCode = null;
+            string? errorMessage = null;
+
             try
             {
-                // Pre-hook
+                // Pre-hook (can be used for validation)
                 await OnBeforeCommandAsync(e, CancellationToken.None);
 
                 // Raise event (for framework monitoring/logging)
                 if (EnableCommandReceivedTracking)
                     CommandReceived?.Invoke(this, e);
+
+                // Send "received" response immediately after validation passes
+                await SendCommandResponseAsync(
+                    e.Command.RespTopic,
+                    CommandResponse.Received(DeviceId!, e.Command.DeviceCmd));
 
                 // Execute command on device
                 _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
@@ -645,13 +653,44 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 _logger.LogInformation("Command execution {Result}: {CommandName}",
                     success ? "succeeded" : "failed",
                     e.Command.DeviceCmd);
+
+                if (!success)
+                {
+                    errorCode = "Command.ExecutionFailed";
+                    errorMessage = $"Command '{e.Command.DeviceCmd}' execution returned false";
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
+                errorCode = "Command.Exception";
+                errorMessage = ex.Message;
             }
             finally
             {
+                // Send final response (success or failed)
+                try
+                {
+                    if (success)
+                    {
+                        await SendCommandResponseAsync(
+                            e.Command.RespTopic,
+                            CommandResponse.Success(DeviceId!, e.Command.DeviceCmd));
+                    }
+                    else
+                    {
+                        await SendCommandResponseAsync(
+                            e.Command.RespTopic,
+                            CommandResponse.Failed(DeviceId!, e.Command.DeviceCmd,
+                                errorCode ?? "Command.Unknown",
+                                errorMessage ?? "Unknown error"));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error sending command response for {CommandName}", e.Command.DeviceCmd);
+                }
+
                 // Post-hook (always called, even on failure)
                 try
                 {
@@ -663,6 +702,28 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 }
             }
         };
+    }
+
+    /// <summary>
+    /// Send command response to cloud (if RespTopic is provided)
+    /// </summary>
+    private async Task SendCommandResponseAsync(string? responseTopic, CommandResponse response)
+    {
+        if (string.IsNullOrEmpty(responseTopic))
+        {
+            _logger.LogDebug("No response topic provided, skipping command response");
+            return;
+        }
+
+        try
+        {
+            await _cloudService.SendCommandResponseAsync(
+                responseTopic, response, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send command response: {Status}", response.Status);
+        }
     }
 
     // ===== Sensor Access =====

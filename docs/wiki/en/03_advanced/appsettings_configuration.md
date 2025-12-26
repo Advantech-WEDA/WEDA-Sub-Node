@@ -113,27 +113,136 @@ Configure NATS messaging connection settings for cloud service communication.
 ```json
 {
   "Nats": {
-    "Url": "nats://172.22.160.197:4224",
-    "CredFile": "",
+    "Url": "nats://localhost:4222",
     "Name": "default",
-    "SerializerType": "json"
+    "SerializerType": "json",
+    "AuthStrategy": "None"
   }
 }
 ```
 
-### Field Descriptions
+### Basic Fields
 
 | Field | Type | Required | Description | Default |
 |-------|------|----------|-------------|---------|
-| `Url` | string | Yes | NATS server address | - |
-| `CredFile` | string | No | NATS credentials file path (.creds file) | "" |
-| `Name` | string | No | Connection name (for identification) | "default" |
-| `SerializerType` | string | No | Serialization type (json/protobuf) | "json" |
+| `Url` | string | Yes | NATS server address | `nats://localhost:4222` |
+| `Name` | string | No | Connection name (for identification) | `default` |
+| `SerializerType` | string | No | Serialization type (json/protobuf) | `json` |
+| `AuthStrategy` | string | No | Authentication strategy | `None` |
+
+### Authentication Strategies (AuthStrategy)
+
+The SDK supports multiple NATS authentication strategies:
+
+| AuthStrategy | Description | Required Fields |
+|--------------|-------------|-----------------|
+| `None` | No authentication (anonymous connection) | - |
+| `UserPassword` | Username and password authentication | `Username`, `Password` |
+| `Token` | Token-based authentication | `Token` |
+| `CredFile` | Credential file authentication (JWT + NKey) | `CredFile` |
+| `TlsCert` | TLS client certificate authentication (Mutual TLS) | `TlsCertPath`, `TlsKeyPath`, (optional: `TlsCaPath`) |
+
+### Configuration Examples
+
+#### 1. No Authentication (None)
+
+```json
+{
+  "Nats": {
+    "Url": "nats://localhost:4222",
+    "Name": "default",
+    "AuthStrategy": "None"
+  }
+}
+```
+
+#### 2. Username and Password Authentication (UserPassword)
+
+```json
+{
+  "Nats": {
+    "Url": "nats://localhost:4222",
+    "Name": "default",
+    "AuthStrategy": "UserPassword",
+    "Username": "myuser",
+    "Password": "mypassword"
+  }
+}
+```
+
+#### 3. Token Authentication (Token)
+
+```json
+{
+  "Nats": {
+    "Url": "nats://localhost:4222",
+    "Name": "default",
+    "AuthStrategy": "Token",
+    "Token": "your-auth-token-here"
+  }
+}
+```
+
+#### 4. Credential File Authentication (CredFile)
+
+Recommended authentication method for production environments. The credential file contains JWT and NKey seed.
+
+```json
+{
+  "Nats": {
+    "Url": "nats://nats.example.com:4222",
+    "Name": "default",
+    "AuthStrategy": "CredFile",
+    "CredFile": "/path/to/credentials.creds"
+  }
+}
+```
+
+#### 5. TLS Client Certificate Authentication (TlsCert)
+
+Use mutual TLS authentication; URL must use `tls://` protocol.
+
+```json
+{
+  "Nats": {
+    "Url": "tls://nats.example.com:4222",
+    "Name": "default",
+    "AuthStrategy": "TlsCert",
+    "TlsCertPath": "/path/to/client-cert.pem",
+    "TlsKeyPath": "/path/to/client-key.pem",
+    "TlsCaPath": "/path/to/ca-cert.pem"
+  }
+}
+```
+
+### Authentication Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Username` | string | Username (for UserPassword strategy) |
+| `Password` | string | Password (for UserPassword strategy) |
+| `Token` | string | Authentication token (for Token strategy) |
+| `CredFile` | string | Credential file path, containing JWT and NKey seed (for CredFile strategy) |
+| `TlsCertPath` | string | TLS client certificate file path (PEM or PFX format) |
+| `TlsKeyPath` | string | TLS client private key file path (PEM format) |
+| `TlsCaPath` | string | CA certificate file path (for server verification) |
 
 ### Use Cases
 
-- **Development environment**: Use `WedaFactory.Cloud.Mock` or `UseMockCloud`, no NATS required
-- **Production environment**: Connect to Weda.Core's NATS server with CredFile authentication
+- **Development environment**: Use `AuthStrategy: "None"` or `WedaFactory.Cloud.Mock`
+- **Testing environment**: Use `UserPassword` or `Token` for simple authentication
+- **Production environment**: Recommended to use `CredFile` or `TlsCert` for secure authentication
+
+> **Security Note**: Avoid hardcoding sensitive information (passwords, tokens) directly in `appsettings.json`. Recommended to use environment variables or secure key management services.
+>
+> Example using environment variables:
+> ```json
+> {
+>   "Nats": {
+>     "Password": "${NATS_PASSWORD}"
+>   }
+> }
+> ```
 
 ---
 
@@ -846,10 +955,10 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
     ]
   },
   "Nats": {
-    "Url": "nats://172.22.160.197:4224",
-    "CredFile": "",
+    "Url": "nats://localhost:4222",
     "Name": "default",
-    "SerializerType": "json"
+    "SerializerType": "json",
+    "AuthStrategy": "None"
   },
   "DeviceConfigs": {
     "MyWiseDevice": {
