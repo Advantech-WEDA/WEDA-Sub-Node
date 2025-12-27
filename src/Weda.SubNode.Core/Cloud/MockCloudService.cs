@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -16,6 +17,7 @@ namespace Weda.SubNode.Core.Cloud;
 public class MockCloudService : IWedaCloudService
 {
     private readonly ILogger<MockCloudService> _logger;
+    private readonly MockSubscriptionManager _subscriptionManager;
     private bool _isConnected;
     private bool _disposed;
     private DeviceConfiguration? _deviceConfiguration;
@@ -23,7 +25,11 @@ public class MockCloudService : IWedaCloudService
     public MockCloudService(ILogger<MockCloudService>? logger = null)
     {
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<MockCloudService>();
+        _subscriptionManager = new MockSubscriptionManager(_logger);
     }
+
+    /// <inheritdoc />
+    public ISubscriptionManager Subscriptions => _subscriptionManager;
 
     public bool IsConnected => _isConnected;
 
@@ -227,12 +233,14 @@ public class MockCloudService : IWedaCloudService
     }
 
     public Task<bool> PublishConfigurationReportAsync(
+        SubscriptionType configType,
         SubNodeConfigurationUpdateMessage report,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Publish configuration report (simulated): DeviceId={DeviceId}, Status={Status}",
+            "Publish configuration report (simulated): DeviceId={DeviceId}, Type={ConfigType}, Status={Status}",
             report.DeviceId,
+            configType.Value,
             report.Data?.Cfg?.Reported?.Status ?? "unknown");
 
         if (report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs != null)

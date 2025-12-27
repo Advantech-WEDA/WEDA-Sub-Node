@@ -5,10 +5,12 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Cloud.Subscriptions;
 using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Cloud;
@@ -28,6 +30,7 @@ public sealed class WedaCloudService : IWedaCloudService
     private readonly IDeviceAgentClient _deviceAgentClient;
     private readonly ITelemetryClient _telemetryClient;
     private readonly IDeviceRegistrationStorage _registrationStorage;
+    private readonly CloudSubscriptionManager _subscriptionManager;
 
     /// <summary>
     /// Single topic assignment for the SubNode (one SubNode = one DeviceId = one set of topics)
@@ -49,7 +52,15 @@ public sealed class WedaCloudService : IWedaCloudService
         _telemetryClient = telemetryClient ?? throw new ArgumentNullException(nameof(telemetryClient));
         _registrationStorage = registrationStorage ?? new JsonDeviceRegistrationStorage();
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<WedaCloudService>();
+        _subscriptionManager = new CloudSubscriptionManager(
+            client,
+            logger != null
+                ? NullLoggerFactory.Instance.CreateLogger<CloudSubscriptionManager>()
+                : null);
     }
+
+    /// <inheritdoc />
+    public ISubscriptionManager Subscriptions => _subscriptionManager;
 
     public bool IsConnected => _isConnected;
 
@@ -281,7 +292,7 @@ public sealed class WedaCloudService : IWedaCloudService
         return false;
     }
 
-    public Task<IDisposable> SubscribeConfigurationUpdatesAsync(
+    public async Task<IDisposable> SubscribeConfigurationUpdatesAsync(
         string deviceId,
         Func<UpdateConfigurationEvent, Task> handler,
         CancellationToken cancellationToken = default)
@@ -297,79 +308,58 @@ public sealed class WedaCloudService : IWedaCloudService
                 "Call ConfigureTopics() before subscribing to configuration updates.");
         }
 
-        var configUpdateTopic = topicAssignments.ConfigUpdateTopic;
-        _logger.LogInformation(
-            "Subscribing to configuration updates: DeviceId={DeviceId}, Topic={Topic}",
-            deviceId,
-            configUpdateTopic);
-
-        // Create a disposable wrapper with its own cancellation token
-        var disposableSubscription = new NatsSubscriptionDisposable();
-
-        // Subscribe to NATS config update topic using pub/sub pattern
-        var subscription = _client.SubscribeAsync<SubNodeConfigurationUpdateMessage>(
-            subject: configUpdateTopic,
-            cancellationToken: disposableSubscription.Token);
-
-        // Start background task to process configuration updates
-        _ = Task.Run(async () =>
+        // Get all configured config subscriptions (system, device, custom)
+        var configSubscriptions = topicAssignments.GetConfigSubscriptions().ToList();
+        if (configSubscriptions.Count == 0)
         {
-            _logger.LogInformation("Configuration update subscription task started for device: {DeviceId}", deviceId);
+            throw new InvalidOperationException(
+                $"No config subscriptions configured for device {deviceId}.");
+        }
 
-            try
-            {
-                await foreach (var msg in subscription.WithCancellation(disposableSubscription.Token))
+        _logger.LogInformation(
+            "Subscribing to {Count} configuration topics: DeviceId={DeviceId}, Types=[{Types}]",
+            configSubscriptions.Count,
+            deviceId,
+            string.Join(", ", configSubscriptions.Select(s => s.Type.Value)));
+
+        // Subscribe to all config topics
+        var disposables = new List<IDisposable>();
+        foreach (var configSub in configSubscriptions)
+        {
+            var subscriptionInfo = await _subscriptionManager.SubscribeAsync<SubNodeConfigurationUpdateMessage>(
+                topic: configSub.DesiredTopic,
+                handler: async msg =>
                 {
-                    try
-                    {
-                        if (msg.Data == null)
-                        {
-                            _logger.LogWarning("Received null configuration update data from topic: {Topic}", configUpdateTopic);
-                            continue;
-                        }
+                    _logger.LogInformation(
+                        "Received configuration update: Type={Type}, DeviceId={DeviceId}, Cmd={Cmd}, SeqId={SeqId}",
+                        configSub.Type.Value,
+                        msg.DeviceId,
+                        msg.Cmd,
+                        msg.SeqId);
 
-                        _logger.LogInformation(
-                            "Received configuration update: DeviceId={DeviceId}, Cmd={Cmd}, SeqId={SeqId}",
-                            msg.Data.DeviceId,
-                            msg.Data.Cmd,
-                            msg.Data.SeqId);
+                    var configEvent = new UpdateConfigurationEvent(
+                        DeviceId: deviceId,
+                        ConfigType: configSub.Type,
+                        Message: msg,
+                        Timestamp: DateTimeOffset.UtcNow);
 
-                        // Create UpdateConfigurationEvent with strongly-typed message
-                        var configEvent = new UpdateConfigurationEvent(
-                            DeviceId: deviceId,
-                            Message: msg.Data,
-                            Timestamp: DateTimeOffset.UtcNow);
+                    await handler(configEvent);
 
-                        // Invoke handler
-                        await handler(configEvent);
+                    _logger.LogDebug("Configuration update handled successfully: Type={Type}, SeqId={SeqId}",
+                        configSub.Type.Value, msg.SeqId);
+                },
+                subscriptionType: configSub.Type,
+                responseTopic: configSub.ReportedTopic,
+                cancellationToken: cancellationToken);
 
-                        _logger.LogDebug("Configuration update handled successfully: SeqId={SeqId}", msg.Data.SeqId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex,
-                            "Error processing configuration update for device: {DeviceId}",
-                            deviceId);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Configuration update subscription cancelled for device: {DeviceId}", deviceId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Configuration update subscription error for device: {DeviceId}", deviceId);
-            }
+            disposables.Add(new SubscriptionDisposable(_subscriptionManager, subscriptionInfo.Topic));
+        }
 
-            _logger.LogInformation("Configuration update subscription task ended for device: {DeviceId}", deviceId);
-        }, disposableSubscription.Token);
-
-        // Return the disposable subscription wrapper
-        return Task.FromResult<IDisposable>(disposableSubscription);
+        // Return a composite disposable that unsubscribes all
+        return new CompositeDisposable(disposables);
     }
 
-    public Task<IDisposable> SubscribeCommandsAsync(
+    public async Task<IDisposable> SubscribeCommandsAsync(
         string deviceId,
         Func<ExecuteCommandEvent, Task> handler,
         CancellationToken cancellationToken = default)
@@ -391,75 +381,39 @@ public sealed class WedaCloudService : IWedaCloudService
             deviceId,
             commandTopic);
 
-        // Create a disposable wrapper with its own cancellation token
-        var disposableSubscription = new NatsSubscriptionDisposable();
-
-        // Subscribe to NATS command topic using pub/sub pattern
-        var subscription = _client.SubscribeAsync<DeviceCommand>(
-            subject: commandTopic,
-            cancellationToken: disposableSubscription.Token);
-
-        // Start background task to process commands
-        _ = Task.Run(async () =>
-        {
-            _logger.LogInformation("Command subscription task started for device: {DeviceId}", deviceId);
-
-            try
+        // Use subscription manager for the actual subscription
+        var subscriptionInfo = await _subscriptionManager.SubscribeAsync<DeviceCommand>(
+            topic: commandTopic,
+            handler: async msg =>
             {
-                await foreach (var msg in subscription.WithCancellation(disposableSubscription.Token))
-                {
-                    try
-                    {
-                        if (msg.Data == null)
-                        {
-                            _logger.LogWarning("Received null command data from topic: {Topic}", commandTopic);
-                            continue;
-                        }
+                _logger.LogInformation(
+                    "Received command: DeviceCmd={DeviceCmd}, Timeout={Timeout}",
+                    msg.DeviceCmd,
+                    msg.Timeout);
 
-                        _logger.LogInformation(
-                            "Received command: DeviceCmd={DeviceCmd}, Timeout={Timeout}",
-                            msg.Data.DeviceCmd,
-                            msg.Data.Timeout);
+                var commandEvent = new ExecuteCommandEvent(
+                    DeviceId: deviceId,
+                    Command: msg,
+                    Timestamp: DateTimeOffset.UtcNow);
 
-                        // Create ExecuteCommandEvent
-                        var commandEvent = new ExecuteCommandEvent(
-                            DeviceId: deviceId,
-                            Command: msg.Data,
-                            Timestamp: DateTimeOffset.UtcNow);
+                await handler(commandEvent);
 
-                        // Invoke handler
-                        await handler(commandEvent);
+                _logger.LogDebug("Command handled successfully: {DeviceCmd}", msg.DeviceCmd);
+            },
+            subscriptionType: SubscriptionTypes.Command,
+            responseTopic: topicAssignments.CommandResponseTopic,
+            cancellationToken: cancellationToken);
 
-                        _logger.LogDebug("Command handled successfully: {DeviceCmd}", msg.Data.DeviceCmd);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex,
-                            "Error processing command for device: {DeviceId}",
-                            deviceId);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Command subscription cancelled for device: {DeviceId}", deviceId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Command subscription error for device: {DeviceId}", deviceId);
-            }
-
-            _logger.LogInformation("Command subscription task ended for device: {DeviceId}", deviceId);
-        }, disposableSubscription.Token);
-
-        // Return the disposable subscription wrapper
-        return Task.FromResult<IDisposable>(disposableSubscription);
+        // Return a disposable that unsubscribes when disposed
+        return new SubscriptionDisposable(_subscriptionManager, subscriptionInfo.Topic);
     }
 
     public async Task<bool> PublishConfigurationReportAsync(
+        SubscriptionType configType,
         SubNodeConfigurationUpdateMessage report,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(configType);
         ArgumentNullException.ThrowIfNull(report);
 
         // Find the device's topic assignments by deviceId in the report
@@ -471,30 +425,41 @@ public sealed class WedaCloudService : IWedaCloudService
                 "Call ConfigureTopics() before publishing configuration reports.");
         }
 
-        var configResponseTopic = topicAssignments.ConfigResponseTopic;
+        // Get the config subscription for the specified type
+        var configSubscription = topicAssignments.GetConfigSubscription(configType);
+        if (configSubscription == null || string.IsNullOrEmpty(configSubscription.ReportedTopic))
+        {
+            throw new InvalidOperationException(
+                $"Configuration type '{configType.Value}' is not configured for device {report.DeviceId}.");
+        }
+
+        var reportedTopic = configSubscription.ReportedTopic;
         _logger.LogInformation(
-            "Publishing configuration report: DeviceId={DeviceId}, Status={Status}, Topic={Topic}",
+            "Publishing configuration report: DeviceId={DeviceId}, Type={ConfigType}, Status={Status}, Topic={Topic}",
             report.DeviceId,
+            configType.Value,
             report.Data?.Cfg?.Reported?.Status ?? "unknown",
-            configResponseTopic);
+            reportedTopic);
 
         try
         {
             await _client.PublishAsync(
-                subject: configResponseTopic,
+                subject: reportedTopic,
                 data: report,
                 cancellationToken: cancellationToken);
 
             _logger.LogDebug(
-                "Configuration report published successfully: DeviceId={DeviceId}",
-                report.DeviceId);
+                "Configuration report published successfully: DeviceId={DeviceId}, Type={ConfigType}",
+                report.DeviceId,
+                configType.Value);
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Failed to publish configuration report: DeviceId={DeviceId}",
-                report.DeviceId);
+                "Failed to publish configuration report: DeviceId={DeviceId}, Type={ConfigType}",
+                report.DeviceId,
+                configType.Value);
             return false;
         }
     }
@@ -557,18 +522,25 @@ public sealed class WedaCloudService : IWedaCloudService
     }
 
     /// <summary>
-    /// Simple disposable wrapper for NATS subscription
+    /// Disposable wrapper that unsubscribes from topic when disposed
     /// </summary>
-    private class NatsSubscriptionDisposable : IDisposable
+    private sealed class SubscriptionDisposable : IDisposable
     {
-        private readonly CancellationTokenSource _cts = new();
+        private readonly ISubscriptionManager _manager;
+        private readonly string _topic;
+        private bool _disposed;
 
-        public CancellationToken Token => _cts.Token;
+        public SubscriptionDisposable(ISubscriptionManager manager, string topic)
+        {
+            _manager = manager;
+            _topic = topic;
+        }
 
         public void Dispose()
         {
-            _cts.Cancel();
-            _cts.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+            _manager.UnsubscribeAsync(_topic).GetAwaiter().GetResult();
         }
     }
 
@@ -578,14 +550,37 @@ public sealed class WedaCloudService : IWedaCloudService
 
         _logger.LogInformation("Disposing WedaCloudService");
 
+        // Dispose subscription manager first
+        _subscriptionManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
         DisconnectAsync().GetAwaiter().GetResult();
 
         _disposed = true;
         GC.SuppressFinalize(this);
     }
 
-    private class NoOpDisposable : IDisposable
+    /// <summary>
+    /// Composite disposable that disposes multiple disposables
+    /// </summary>
+    private sealed class CompositeDisposable : IDisposable
     {
-        public void Dispose() { }
+        private readonly List<IDisposable> _disposables;
+        private bool _disposed;
+
+        public CompositeDisposable(IEnumerable<IDisposable> disposables)
+        {
+            _disposables = disposables.ToList();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            foreach (var disposable in _disposables)
+            {
+                disposable.Dispose();
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -6,11 +7,17 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Abstractions.Cloud;
 
 /// <summary>
-/// Weda cloud service interface (abstraction for NATS or other message brokers)
-/// Internally uses IJetStreamClient for communication
+/// Weda cloud service interface (abstraction for message brokers)
+/// Provides device registration, telemetry, and subscription management
 /// </summary>
 public interface IWedaCloudService : IDisposable
 {
+    /// <summary>
+    /// Gets the subscription manager for dynamic topic subscriptions.
+    /// Use this to subscribe to system config, device config, custom config, and command topics.
+    /// </summary>
+    ISubscriptionManager Subscriptions { get; }
+
     /// <summary>
     /// Is connected to cloud
     /// </summary>
@@ -98,10 +105,12 @@ public interface IWedaCloudService : IDisposable
     /// This is used to report the current device configuration state back to the cloud,
     /// including both the desired configuration (from cloud) and the reported configuration (actual device state).
     /// </summary>
+    /// <param name="configType">The type of configuration (system-config, device-config, or custom-config)</param>
     /// <param name="report">The configuration report message containing desired and reported states</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if published successfully, false otherwise</returns>
     Task<bool> PublishConfigurationReportAsync(
+        SubscriptionType configType,
         SubNodeConfigurationUpdateMessage report,
         CancellationToken cancellationToken = default);
 

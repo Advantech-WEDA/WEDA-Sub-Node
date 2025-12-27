@@ -47,9 +47,11 @@ public class DeviceRegistrationResponse : Response<DeviceRegistrationResponseDat
 /// </summary>
 public class NatsTopicAssignments
 {
+    // ===== Uplink Topics (SubNode → Cloud) =====
+
     /// <summary>
     /// Topic for sending telemetry data
-    /// Format: {groupId}.weda.dm.telemetry.{deviceName}
+    /// Format: {protoVer}.weda.dm.telemetry.{deviceName}
     /// </summary>
     [JsonPropertyName("telemetryTopic")]
     public required string TelemetryTopic { get; set; }
@@ -67,16 +69,12 @@ public class NatsTopicAssignments
     public required string HealthTopic { get; set; }
 
     /// <summary>
-    /// Topic for receiving config update requests
+    /// Topic for sending events
     /// </summary>
-    [JsonPropertyName("configUpdateTopic")]
-    public required string ConfigUpdateTopic { get; set; }
+    [JsonPropertyName("eventTopic")]
+    public required string EventTopic { get; set; }
 
-    /// <summary>
-    /// Topic for sending config update responses
-    /// </summary>
-    [JsonPropertyName("configResponseTopic")]
-    public required string ConfigResponseTopic { get; set; }
+    // ===== Command Topics =====
 
     /// <summary>
     /// Topic for receiving command requests
@@ -90,9 +88,45 @@ public class NatsTopicAssignments
     [JsonPropertyName("commandResponseTopic")]
     public required string CommandResponseTopic { get; set; }
 
+    // ===== System Config Topics =====
+
     /// <summary>
-    /// Topic for sending events
+    /// Topic for receiving system config desired state (delta)
     /// </summary>
-    [JsonPropertyName("eventTopic")]
-    public required string EventTopic { get; set; }
+    [JsonPropertyName("systemConfigDesiredTopic")]
+    public string? SystemConfigDesiredTopic { get; set; }
+
+    /// <summary>
+    /// Topic for publishing system config reported state
+    /// </summary>
+    [JsonPropertyName("systemConfigReportedTopic")]
+    public string? SystemConfigReportedTopic { get; set; }
+
+    // ===== Device Config Topics =====
+
+    /// <summary>
+    /// Topic for receiving device config desired state (delta)
+    /// </summary>
+    [JsonPropertyName("deviceConfigDesiredTopic")]
+    public string? DeviceConfigDesiredTopic { get; set; }
+
+    /// <summary>
+    /// Topic for publishing device config reported state
+    /// </summary>
+    [JsonPropertyName("deviceConfigReportedTopic")]
+    public string? DeviceConfigReportedTopic { get; set; }
+
+    // ===== Custom Config Topics =====
+
+    /// <summary>
+    /// Topic for receiving custom config desired state (delta)
+    /// </summary>
+    [JsonPropertyName("customConfigDesiredTopic")]
+    public string? CustomConfigDesiredTopic { get; set; }
+
+    /// <summary>
+    /// Topic for publishing custom config reported state
+    /// </summary>
+    [JsonPropertyName("customConfigReportedTopic")]
+    public string? CustomConfigReportedTopic { get; set; }
 }

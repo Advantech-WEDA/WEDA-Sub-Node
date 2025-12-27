@@ -3,6 +3,7 @@ using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
@@ -295,7 +296,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             deviceTypeName);
 
         _logger.LogDebug("Reporting configuration for device {DeviceId}", deviceId);
-        return await _cloudService.PublishConfigurationReportAsync(report, ct);
+        return await _cloudService.PublishConfigurationReportAsync(SubscriptionTypes.DeviceConfig, report, ct);
     }
 
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
@@ -529,7 +530,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Send invalid status response
                 var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
                     message, Configuration, deviceTypeName, validationResult.ErrorMessage ?? "Unknown validation error");
-                await _cloudService.PublishConfigurationReportAsync(invalidReport, ct);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, invalidReport, ct);
 
                 return;
             }
@@ -540,7 +541,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             _logger.LogInformation("Sending 'message received' acknowledgment for device: {DeviceName}", Configuration.DeviceName);
             var updatingReport = ConfigurationUpdateHelper.CreateUpdatingReport(
                 message, Configuration, deviceTypeName);
-            await _cloudService.PublishConfigurationReportAsync(updatingReport, ct);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, updatingReport, ct);
 
             // Step 3: Create backup before applying changes
             var backup = ConfigurationUpdateHelper.CreateBackup(Configuration);
@@ -683,7 +684,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 _logger.LogInformation("Configuration update successful, sending success response");
                 var successReport = ConfigurationUpdateHelper.CreateSuccessReport(
                     message, Configuration, deviceTypeName);
-                await _cloudService.PublishConfigurationReportAsync(successReport, ct);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, successReport, ct);
 
                 _logger.LogInformation("Configuration update completed successfully for device: {DeviceName}", Configuration.DeviceName);
             }
@@ -698,7 +699,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Send failure response
                 var failureReport = ConfigurationUpdateHelper.CreateFailedReport(
                     message, Configuration, deviceTypeName, updateEx.Message);
-                await _cloudService.PublishConfigurationReportAsync(failureReport, ct);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
 
                 throw; // Re-throw to let OnAfterConfigUpdateAsync know there was an error
             }
