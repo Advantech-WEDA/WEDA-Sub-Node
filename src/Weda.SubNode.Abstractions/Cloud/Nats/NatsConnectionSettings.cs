@@ -40,11 +40,16 @@ public enum NatsAuthStrategy
 }
 
 /// <summary>
-/// Settings for a named NATS connection
+/// Settings for a named NATS connection.
+/// Configuration section name: "SystemConfig:WedaNode"
 /// </summary>
 public record NatsConnectionSettings
 {
-    public const string SectionName = "Nats";
+    /// <summary>
+    /// Configuration section name.
+    /// Located under SystemConfig section (loaded from systemcfg.json).
+    /// </summary>
+    public const string SectionName = "SystemConfig:WedaNode";
 
     public static readonly NatsConnectionSettings Default = new();
 

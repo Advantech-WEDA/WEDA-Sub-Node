@@ -1,0 +1,51 @@
+{
+  "SubNode": {
+    "Name": "TestDevice789",
+    "SubNodeType": "AdamEthernet",
+    "Manufacturer": "Advantech",
+    "Model": "Demo",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "MyFirstDeviceConfig": {
+      "Enabled": true,
+      "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
+      "DeviceCommunication": {
+        "Host": "127.0.0.1",
+        "Port": 5020
+      },
+      "Properties": {
+        "SlaveId": 1
+      },
+      "Sensors": [
+        {
+          "Name": "temperature.sensor",
+          "SensorGroup": "TEMP",
+          "Dtmi": "dtmi:advantech:EdgeSync:Temperature;1",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 0,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000,
+            "Unit": "celsius",
+            "TransformPipeline": [
+              {
+                "Type": "UnitConversion",
+                "Enabled": true,
+                "Parameters": {
+                  "TargetResourceId": "*",
+                  "FromUnit": "celsius",
+                  "ToUnit": "fahrenheit"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

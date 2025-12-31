@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Core.Storage;
 using Xunit;
 
@@ -9,8 +10,10 @@ namespace Weda.SubNode.Core.Tests.Storage;
 /// <summary>
 /// Unit tests for JsonConfigurationCache.
 /// Tests the configuration cache mechanism for UC9868 (cloud-driven config updates).
-/// Single Cache Design: The entire application uses one cache file (.weda/config.cache.json)
-/// storing the raw SubNodeConfigurationUpdateMessage from cloud.
+/// Multi-Cache Design: Separate cache files per config type:
+/// - .weda/systemcfg.cache.json - System configuration
+/// - .weda/devicecfg.cache.json - Device configuration
+/// - .weda/customcfg.cache.json - Custom configuration
 /// </summary>
 public class JsonConfigurationCacheTests : IDisposable
 {
@@ -43,7 +46,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheNotExists_ReturnsFalse()
     {
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         exists.ShouldBeFalse();
@@ -54,10 +57,10 @@ public class JsonConfigurationCacheTests : IDisposable
     {
         // Arrange
         var message = CreateTestCloudMessage();
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         exists.ShouldBeTrue();
@@ -67,13 +70,27 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheFileIsEmpty_ReturnsFalse()
     {
         // Arrange
-        await File.WriteAllTextAsync(_cache.CacheFilePath, string.Empty);
+        var cachePath = _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+        await File.WriteAllTextAsync(cachePath, string.Empty);
 
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         exists.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ExistsAsync_DifferentConfigTypes_AreIndependent()
+    {
+        // Arrange
+        var message = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+
+        // Act & Assert
+        (await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig)).ShouldBeTrue();
+        (await _cache.ExistsAsync(SubscriptionTypes.SystemConfig)).ShouldBeFalse();
+        (await _cache.ExistsAsync(SubscriptionTypes.CustomConfig)).ShouldBeFalse();
     }
 
     #endregion
@@ -87,10 +104,11 @@ public class JsonConfigurationCacheTests : IDisposable
         var message = CreateTestCloudMessage();
 
         // Act
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Assert
-        File.Exists(_cache.CacheFilePath).ShouldBeTrue();
+        var cachePath = _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+        File.Exists(cachePath).ShouldBeTrue();
     }
 
     [Fact]
@@ -98,7 +116,7 @@ public class JsonConfigurationCacheTests : IDisposable
     {
         // Act & Assert
         await Should.ThrowAsync<ArgumentNullException>(
-            () => _cache.SaveRawConfigurationAsync(null!));
+            () => _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, null!));
     }
 
     [Fact]
@@ -112,8 +130,8 @@ public class JsonConfigurationCacheTests : IDisposable
         desiredConfig.Periods!.ReportHealth = 10000;
 
         // Act
-        await _cache.SaveRawConfigurationAsync(message);
-        var loaded = await _cache.GetRawConfigurationAsync();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loaded.ShouldNotBeNull();
@@ -132,7 +150,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task GetRawConfigurationAsync_WhenCacheNotExists_ReturnsNull()
     {
         // Act
-        var message = await _cache.GetRawConfigurationAsync();
+        var message = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         message.ShouldBeNull();
@@ -143,10 +161,10 @@ public class JsonConfigurationCacheTests : IDisposable
     {
         // Arrange
         var original = CreateTestCloudMessage();
-        await _cache.SaveRawConfigurationAsync(original);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, original);
 
         // Act
-        var loaded = await _cache.GetRawConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loaded.ShouldNotBeNull();
@@ -164,10 +182,10 @@ public class JsonConfigurationCacheTests : IDisposable
         desiredConfig.Sensors![0].Config!.Enabled = false;
         desiredConfig.Sensors![1].Config!.Enabled = true;
         desiredConfig.Sensors[1].Config.Interval = 5000;
-        await _cache.SaveRawConfigurationAsync(original);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, original);
 
         // Act
-        var loaded = await _cache.GetRawConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loaded.ShouldNotBeNull();
@@ -187,21 +205,40 @@ public class JsonConfigurationCacheTests : IDisposable
     {
         // Arrange
         var message = CreateTestCloudMessage();
-        await _cache.SaveRawConfigurationAsync(message);
-        File.Exists(_cache.CacheFilePath).ShouldBeTrue();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        var cachePath = _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+        File.Exists(cachePath).ShouldBeTrue();
 
         // Act
-        await _cache.DeleteCacheAsync();
+        await _cache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        File.Exists(_cache.CacheFilePath).ShouldBeFalse();
+        File.Exists(cachePath).ShouldBeFalse();
     }
 
     [Fact]
     public async Task DeleteCacheAsync_WhenCacheNotExists_DoesNotThrow()
     {
         // Act & Assert - Should not throw
-        await Should.NotThrowAsync(() => _cache.DeleteCacheAsync());
+        await Should.NotThrowAsync(() => _cache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig));
+    }
+
+    [Fact]
+    public async Task DeleteAllCachesAsync_DeletesAllCacheFiles()
+    {
+        // Arrange
+        var message = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.SystemConfig, message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.CustomConfig, message);
+
+        // Act
+        await _cache.DeleteAllCachesAsync();
+
+        // Assert
+        (await _cache.ExistsAsync(SubscriptionTypes.SystemConfig)).ShouldBeFalse();
+        (await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig)).ShouldBeFalse();
+        (await _cache.ExistsAsync(SubscriptionTypes.CustomConfig)).ShouldBeFalse();
     }
 
     #endregion
@@ -212,7 +249,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task GetLastModifiedAsync_WhenCacheNotExists_ReturnsNull()
     {
         // Act
-        var lastModified = await _cache.GetLastModifiedAsync();
+        var lastModified = await _cache.GetLastModifiedAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         lastModified.ShouldBeNull();
@@ -224,11 +261,11 @@ public class JsonConfigurationCacheTests : IDisposable
         // Arrange
         var message = CreateTestCloudMessage();
         var beforeSave = DateTimeOffset.UtcNow.AddSeconds(-1);
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
         var afterSave = DateTimeOffset.UtcNow.AddSeconds(1);
 
         // Act
-        var lastModified = await _cache.GetLastModifiedAsync();
+        var lastModified = await _cache.GetLastModifiedAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         lastModified.ShouldNotBeNull();
@@ -248,10 +285,15 @@ public class JsonConfigurationCacheTests : IDisposable
     }
 
     [Fact]
-    public void CacheFilePath_ReturnsCorrectPath()
+    public void GetCacheFilePath_ReturnsCorrectPathForEachConfigType()
     {
         // Assert
-        _cache.CacheFilePath.ShouldBe(Path.Combine(_testDirectory, JsonConfigurationCache.CacheFileName));
+        _cache.GetCacheFilePath(SubscriptionTypes.SystemConfig)
+            .ShouldBe(Path.Combine(_testDirectory, "systemcfg.cache.json"));
+        _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig)
+            .ShouldBe(Path.Combine(_testDirectory, "devicecfg.cache.json"));
+        _cache.GetCacheFilePath(SubscriptionTypes.CustomConfig)
+            .ShouldBe(Path.Combine(_testDirectory, "customcfg.cache.json"));
     }
 
     [Fact]
@@ -259,13 +301,6 @@ public class JsonConfigurationCacheTests : IDisposable
     {
         // Assert
         JsonConfigurationCache.DefaultCacheDirectory.ShouldBe(".weda");
-    }
-
-    [Fact]
-    public void CacheFileName_IsCorrect()
-    {
-        // Assert
-        JsonConfigurationCache.CacheFileName.ShouldBe("config.cache.json");
     }
 
     #endregion
@@ -286,18 +321,18 @@ public class JsonConfigurationCacheTests : IDisposable
             {
                 var testMessage = CreateTestCloudMessage();
                 testMessage.SeqId = iteration;
-                await _cache.SaveRawConfigurationAsync(testMessage);
-                await _cache.GetRawConfigurationAsync();
+                await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, testMessage);
+                await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
             }));
         }
 
         await Task.WhenAll(tasks);
 
         // Assert - Cache should be valid
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
         exists.ShouldBeTrue();
 
-        var loaded = await _cache.GetRawConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
         loaded.ShouldNotBeNull();
     }
 
@@ -316,14 +351,14 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Act - Simulate cloud update disabling channel.0
         desiredConfig.Sensors[0].Config.Enabled = false;
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart by creating new cache instance
         var newCache = new JsonConfigurationCache(
             _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedMessage = await newCache.GetRawConfigurationAsync();
+        var loadedMessage = await newCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert - Configuration should persist disabled state
         loadedMessage.ShouldNotBeNull();
@@ -342,14 +377,14 @@ public class JsonConfigurationCacheTests : IDisposable
 
         // Act - Simulate cloud update changing interval
         desiredConfig.Sensors[0].Config.Interval = 5000;
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart
         var newCache = new JsonConfigurationCache(
             _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedMessage = await newCache.GetRawConfigurationAsync();
+        var loadedMessage = await newCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loadedMessage.ShouldNotBeNull();
@@ -366,14 +401,14 @@ public class JsonConfigurationCacheTests : IDisposable
         // Act - Simulate cloud update changing periods
         var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
         desiredConfig.Periods!.ReportHealth = 120000;
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart
         var newCache = new JsonConfigurationCache(
             _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedMessage = await newCache.GetRawConfigurationAsync();
+        var loadedMessage = await newCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loadedMessage.ShouldNotBeNull();
@@ -388,16 +423,16 @@ public class JsonConfigurationCacheTests : IDisposable
         var message = CreateTestCloudMessage();
         var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
         desiredConfig.Sensors![0].Config!.Enabled = false;
-        await _cache.SaveRawConfigurationAsync(message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Act - Reset to appsettings.json by deleting cache
-        await _cache.DeleteCacheAsync();
+        await _cache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
         exists.ShouldBeFalse();
 
-        var loaded = await _cache.GetRawConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
         loaded.ShouldBeNull();
     }
 
@@ -423,14 +458,47 @@ public class JsonConfigurationCacheTests : IDisposable
         };
 
         // Act
-        await _cache.SaveRawConfigurationAsync(message);
-        var loaded = await _cache.GetRawConfigurationAsync();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert - Both devices should be in the single cache file
         loaded.ShouldNotBeNull();
         loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!.Count.ShouldBe(2);
         loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs.ContainsKey("TestDevice").ShouldBeTrue();
         loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs.ContainsKey("SecondDevice").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task MultipleConfigTypes_StoreAndRetrieveIndependently()
+    {
+        // Arrange
+        var systemMessage = CreateTestCloudMessage();
+        systemMessage.DeviceId = "system-device";
+
+        var deviceMessage = CreateTestCloudMessage();
+        deviceMessage.DeviceId = "device-device";
+
+        var customMessage = CreateTestCloudMessage();
+        customMessage.DeviceId = "custom-device";
+
+        // Act
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.SystemConfig, systemMessage);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, deviceMessage);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.CustomConfig, customMessage);
+
+        // Assert
+        var loadedSystem = await _cache.GetRawConfigurationAsync(SubscriptionTypes.SystemConfig);
+        var loadedDevice = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
+        var loadedCustom = await _cache.GetRawConfigurationAsync(SubscriptionTypes.CustomConfig);
+
+        loadedSystem.ShouldNotBeNull();
+        loadedSystem.DeviceId.ShouldBe("system-device");
+
+        loadedDevice.ShouldNotBeNull();
+        loadedDevice.DeviceId.ShouldBe("device-device");
+
+        loadedCustom.ShouldNotBeNull();
+        loadedCustom.DeviceId.ShouldBe("custom-device");
     }
 
     #endregion

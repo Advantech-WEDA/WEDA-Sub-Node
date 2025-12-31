@@ -450,7 +450,7 @@ dotnet run
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://production-server:4222",
     "CredFile": "/path/to/nats.creds"
   }

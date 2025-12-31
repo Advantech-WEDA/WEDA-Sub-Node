@@ -14,7 +14,7 @@ namespace Weda.SubNode.Core.Configuration;
 /// Helper class for handling configuration updates from cloud.
 /// Provides validation, mapping, and response building functionality.
 /// </summary>
-public static class ConfigurationUpdateHelper
+public static partial class ConfigurationUpdateHelper
 {
     /// <summary>
     /// Validates the configuration update message structure.
@@ -1156,4 +1156,91 @@ public class PipelineUpdateSummary
     /// Total count of sensors that had transform updates.
     /// </summary>
     public int TotalTransformSensorsUpdated => TransformResults.Count;
+}
+
+// ===== System Config and Custom Config Report Helpers =====
+
+public static partial class ConfigurationUpdateHelper
+{
+    /// <summary>
+    /// Creates a configuration report for system-config updates.
+    /// </summary>
+    /// <param name="originalMessage">The original cloud message</param>
+    /// <param name="deviceTypeName">Device type name</param>
+    /// <param name="status">Update status</param>
+    /// <param name="errorMessage">Error message if failed</param>
+    /// <returns>Configuration report message</returns>
+    public static SubNodeConfigurationUpdateMessage CreateSystemConfigReport(
+        SubNodeConfigurationUpdateMessage originalMessage,
+        string deviceTypeName,
+        string status,
+        string? errorMessage)
+    {
+        return new SubNodeConfigurationUpdateMessage
+        {
+            DeviceId = originalMessage.DeviceId,
+            GroupId = originalMessage.GroupId,
+            Cmd = "configResponse",
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = originalMessage.SeqId.ToString(),
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    // Echo back the desired state
+                    Desired = originalMessage.Data?.Cfg?.Desired,
+                    // Report current system config status
+                    Reported = new SubNodeReportedConfig
+                    {
+                        SystemConfig = originalMessage.Data?.Cfg?.Desired?.SystemConfig,
+                        Status = status,
+                        ErrorMessage = errorMessage,
+                        LastUpdateTime = DateTimeOffset.UtcNow
+                    }
+                }
+            }
+        };
+    }
+
+    /// <summary>
+    /// Creates a configuration report for custom-config updates.
+    /// </summary>
+    /// <param name="originalMessage">The original cloud message</param>
+    /// <param name="deviceTypeName">Device type name</param>
+    /// <param name="status">Update status</param>
+    /// <param name="errorMessage">Error message if failed</param>
+    /// <returns>Configuration report message</returns>
+    public static SubNodeConfigurationUpdateMessage CreateCustomConfigReport(
+        SubNodeConfigurationUpdateMessage originalMessage,
+        string deviceTypeName,
+        string status,
+        string? errorMessage)
+    {
+        return new SubNodeConfigurationUpdateMessage
+        {
+            DeviceId = originalMessage.DeviceId,
+            GroupId = originalMessage.GroupId,
+            Cmd = "configResponse",
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = originalMessage.SeqId.ToString(),
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    // Echo back the desired state
+                    Desired = originalMessage.Data?.Cfg?.Desired,
+                    // Report current custom config status
+                    Reported = new SubNodeReportedConfig
+                    {
+                        CustomConfig = originalMessage.Data?.Cfg?.Desired?.CustomConfig,
+                        Status = status,
+                        ErrorMessage = errorMessage,
+                        LastUpdateTime = DateTimeOffset.UtcNow
+                    }
+                }
+            }
+        };
+    }
 }

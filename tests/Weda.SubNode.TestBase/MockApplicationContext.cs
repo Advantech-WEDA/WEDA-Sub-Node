@@ -6,6 +6,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Core.Context;
 
@@ -208,8 +209,18 @@ public class MockApplicationContext : IWedaApplicationContext
 
         // Default: Configuration cache paths
         MockConfigurationCache.CacheDirectoryPath.Returns(".weda");
-        MockConfigurationCache.CacheFilePath.Returns(".weda/config.cache.json");
-        MockConfigurationCache.ExistsAsync(Arg.Any<CancellationToken>()).Returns(false);
+        MockConfigurationCache.GetCacheFilePath(Arg.Any<SubscriptionType>()).Returns(info =>
+        {
+            var configType = info.Arg<SubscriptionType>();
+            return configType.Value switch
+            {
+                "system-config" => ".weda/systemcfg.cache.json",
+                "device-config" => ".weda/devicecfg.cache.json",
+                "custom-config" => ".weda/customcfg.cache.json",
+                _ => $".weda/{configType.Value}.cache.json"
+            };
+        });
+        MockConfigurationCache.ExistsAsync(Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>()).Returns(false);
     }
 
     /// <summary>

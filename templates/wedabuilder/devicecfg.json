@@ -1,0 +1,41 @@
+{
+  "SubNode": {
+    "Name": "MyModbusDevice",
+    "SubNodeType": "AdamEthernet",
+    "Manufacturer": "Advantech",
+    "Model": "Demo",
+    "SwVersion": "1.0.0",
+    "AutoGenDtdl": true
+  },
+  "DeviceConfigs": {
+    "MyFirstDeviceConfig": {
+      "Enabled": true,
+      "DeviceCommunication": {
+        "Host": "127.0.0.1",
+        "Port": 5020
+      },
+      "Properties": {
+        "SlaveId": 1
+      },
+      "Sensors": [
+        {
+          "Name": "temperature.sensor",
+          "SensorGroup": "TEMP",
+          "DisplayName": "Temperature Sensor",
+          "Description": "Main temperature reading",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 0,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000,
+            "Unit": "celsius"
+          }
+        }
+      ]
+    }
+  }
+}

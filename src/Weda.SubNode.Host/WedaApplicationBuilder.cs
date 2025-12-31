@@ -16,6 +16,7 @@ using Weda.SubNode.Abstractions.Devices;
 
 // NOTE: ScanDevicesFromConfiguration() and ISubNodeTypeNameResolver have been removed.
 // Use explicit device registration with AddDevice<TDevice>() instead.
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
@@ -104,11 +105,13 @@ public class WedaApplicationBuilder
     }
 
     /// <summary>
-    /// Add a device by type, automatically loading configuration from appsettings.json.
-    /// The device configuration will be read from DeviceConfigs section using the type name as key.
+    /// Add a device by type, automatically loading configuration from devicecfg.json.
+    /// The device configuration will be read from DeviceConfig:DeviceConfigs section using the type name as key.
     ///
     /// Example for AddDevice&lt;MyCustomDevice&gt;():
+    /// devicecfg.json:
     /// {
+    ///   "SubNode": { ... },
     ///   "DeviceConfigs": {
     ///     "MyCustomDevice": {  // Uses typeof(TDevice).Name as key
     ///       "Enabled": true,
@@ -131,11 +134,13 @@ public class WedaApplicationBuilder
     /// Add a device by type with explicit configuration section name.
     ///
     /// Configuration loading priority:
-    /// 1. .weda/config.cache.json (if exists and --no-cache not specified) - merges with appsettings.json
-    /// 2. appsettings.json DeviceConfigs section (fallback)
+    /// 1. .weda/device-config.cache.json (if exists and --no-cache not specified) - merges with devicecfg.json
+    /// 2. devicecfg.json DeviceConfigs section (fallback)
     ///
     /// Example for AddDevice&lt;MyCustomDevice&gt;("MyFirstDevice"):
+    /// devicecfg.json:
     /// {
+    ///   "SubNode": { ... },
     ///   "DeviceConfigs": {
     ///     "MyFirstDevice": {  // Uses the specified sectionName as key
     ///       "Enabled": true,
@@ -157,50 +162,54 @@ public class WedaApplicationBuilder
             throw new ArgumentException("Section name cannot be null or whitespace", nameof(sectionName));
         }
 
-        // First, read from appsettings.json as the base configuration
-        var deviceConfigSection = Configuration.GetSection($"DeviceConfigs:{sectionName}");
+        // First, read from devicecfg.json as the base configuration
+        // Configuration is loaded into DeviceConfig section via AddJsonFileToSection
+        var deviceConfigSection = Configuration.GetSection($"DeviceConfig:DeviceConfigs:{sectionName}");
         if (!deviceConfigSection.Exists())
         {
             throw new InvalidOperationException(
-                $"Device configuration section 'DeviceConfigs:{sectionName}' not found in appsettings.json. " +
-                $"Please ensure the configuration exists.");
+                $"Device configuration section 'DeviceConfig:DeviceConfigs:{sectionName}' not found in devicecfg.json. " +
+                $"Please ensure the configuration exists in devicecfg.json under DeviceConfigs.");
         }
 
         var config = deviceConfigSection.Get<DeviceConfiguration>()
             ?? throw new InvalidOperationException(
-                $"Failed to bind configuration from 'DeviceConfigs:{sectionName}'. " +
-                $"Please check your appsettings.json format.");
+                $"Failed to bind configuration from 'DeviceConfig:DeviceConfigs:{sectionName}'. " +
+                $"Please check your devicecfg.json format.");
 
-        // Use DeviceName from appsettings.json, or fallback to sectionName if not specified
+        // Use DeviceName from devicecfg.json, or fallback to sectionName if not specified
         if (string.IsNullOrWhiteSpace(config.DeviceName))
         {
             config.DeviceName = sectionName;
         }
 
         var deviceName = config.DeviceName;
-        var configSource = "appsettings.json";
+        var configSource = "devicecfg.json";
 
         // Try applying cached cloud configuration (if enabled)
+        // Device configurations are stored in device-config cache
         if (_useCache)
         {
             try
             {
-                var cachedMessage = _configurationCache.GetRawConfigurationAsync().GetAwaiter().GetResult();
+                var cachedMessage = _configurationCache.GetRawConfigurationAsync(
+                    SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult();
                 if (cachedMessage != null)
                 {
                     // Apply cached cloud config to the base config (PATCH semantics)
                     var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
                     if (applied)
                     {
-                        configSource = $"appsettings.json + {_configurationCache.CacheFilePath}";
+                        var cachePath = _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+                        configSource = $"devicecfg.json + {cachePath}";
                         Log.Information("Applied cached cloud configuration to device '{DeviceName}': {CachePath}",
-                            deviceName, _configurationCache.CacheFilePath);
+                            deviceName, cachePath);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Failed to load configuration from cache, using appsettings.json only");
+                Log.Warning(ex, "Failed to load configuration from cache, using devicecfg.json only");
             }
         }
 
@@ -381,7 +390,8 @@ public class WedaApplicationBuilder
             Services.Remove(existing);
         }
 
-        Services.Configure<NatsConnectionSettings>(_hostBuilder.Configuration.GetSection("Nats"));
+        // Configure NatsConnectionSettings from "WedaNode" section
+        Services.Configure<NatsConnectionSettings>(_hostBuilder.Configuration.GetSection(NatsConnectionSettings.SectionName));
 
         // Register NatsClient as singleton with configurable authentication strategy
         Services.AddSingleton(sp =>

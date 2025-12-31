@@ -1,0 +1,133 @@
+{
+  "SubNode": {
+    "Name": "MyPowerAggregator",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "Advantech",
+    "Model": "Power-Calculator",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "CurrentSensor": {
+      "Enabled": true,
+      "DeviceName": "CurrentSensor",
+      "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+      "DeviceCommunication": {
+        "Host": "127.0.0.1",
+        "Port": 5020
+      },
+      "Properties": {
+        "SlaveId": 1
+      },
+      "ConnectionSettings": {
+        "ConnectionTimeoutMs": 5000,
+        "OperationTimeoutMs": 3000,
+        "MaxRetryAttempts": 3,
+        "RetryDelayMs": 1000
+      },
+      "Periods": {
+        "ReportHealth": 30000,
+        "ReportConfiguration": 60000
+      },
+      "Sensors": [
+        {
+          "Name": "current001",
+          "Dtmi": "dtmi:custom:current;1",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 40001,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        }
+      ]
+    },
+    "VoltageSensor": {
+      "Enabled": true,
+      "DeviceName": "VoltageSensor",
+      "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+      "DeviceCommunication": {
+        "Host": "127.0.0.1",
+        "Port": 5021
+      },
+      "Properties": {
+        "SlaveId": 1
+      },
+      "ConnectionSettings": {
+        "ConnectionTimeoutMs": 5000,
+        "OperationTimeoutMs": 3000,
+        "MaxRetryAttempts": 3,
+        "RetryDelayMs": 1000
+      },
+      "Periods": {
+        "ReportHealth": 30000,
+        "ReportConfiguration": 60000
+      },
+      "Sensors": [
+        {
+          "Name": "voltage001",
+          "Dtmi": "dtmi:custom:voltage;1",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 40001,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        }
+      ]
+    },
+    "PowerAggregator": {
+      "Enabled": true,
+      "DeviceName": "PowerAggregator",
+      "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+      "DeviceCommunication": {
+        "AggregatorType": "PowerAggregator",
+        "ExternalSources": [
+          {
+            "DeviceName": "VoltageSensor",
+            "SensorName": "voltage001"
+          },
+          {
+            "DeviceName": "CurrentSensor",
+            "SensorName": "current001"
+          }
+        ]
+      },
+      "ConnectionSettings": {
+        "ConnectionTimeoutMs": 5000,
+        "OperationTimeoutMs": 3000,
+        "MaxRetryAttempts": 3,
+        "RetryDelayMs": 1000
+      },
+      "Periods": {
+        "ReportHealth": 30000,
+        "ReportConfiguration": 60000
+      },
+      "Sensors": [
+        {
+          "Name": "power001",
+          "Dtmi": "dtmi:custom:power;1",
+          "SensorGroup": "PWR",
+          "Parameters": {
+            "DataType": "Float64",
+            "VoltageSource": "VoltageSensor/voltage001",
+            "CurrentSource": "CurrentSensor/current001"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        }
+      ]
+    }
+  }
+}

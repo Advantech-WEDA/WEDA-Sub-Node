@@ -143,7 +143,7 @@ examples/stock-monitor/
 ```json
 {
   "Serilog": { },
-  "Nats": { },
+  "WedaNode": { },
   "DeviceConfigs": {
     "YourDeviceConfigKey": {
       "Enabled": true,

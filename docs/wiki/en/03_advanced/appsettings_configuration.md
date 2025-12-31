@@ -43,7 +43,7 @@ The `appsettings.json` file contains three main sections:
 ```json
 {
   "Serilog": { ... },      // Logging configuration
-  "Nats": { ... },         // NATS messaging configuration
+  "WedaNode": { ... },         // NATS messaging configuration
   "DeviceConfigs": { ... } // Device configurations (multiple devices supported)
 }
 ```
@@ -113,7 +113,7 @@ Configure NATS messaging connection settings for cloud service communication.
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "SerializerType": "json",
@@ -149,7 +149,7 @@ The SDK supports multiple NATS authentication strategies:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "AuthStrategy": "None"
@@ -161,7 +161,7 @@ The SDK supports multiple NATS authentication strategies:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "AuthStrategy": "UserPassword",
@@ -175,7 +175,7 @@ The SDK supports multiple NATS authentication strategies:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "AuthStrategy": "Token",
@@ -190,7 +190,7 @@ Recommended authentication method for production environments. The credential fi
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://nats.example.com:4222",
     "Name": "default",
     "AuthStrategy": "CredFile",
@@ -205,7 +205,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "tls://nats.example.com:4222",
     "Name": "default",
     "AuthStrategy": "TlsCert",
@@ -239,7 +239,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 > Example using environment variables:
 > ```json
 > {
->   "Nats": {
+>   "WedaNode": {
 >     "Password": "${NATS_PASSWORD}"
 >   }
 > }
@@ -1150,7 +1150,7 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "SerializerType": "json",

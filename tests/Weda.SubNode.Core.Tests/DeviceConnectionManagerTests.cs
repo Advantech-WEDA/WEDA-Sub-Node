@@ -2,6 +2,7 @@ using NSubstitute;
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Core.Managers;
@@ -271,6 +272,7 @@ public class DeviceConnectionManagerTests
         };
         var testEvent = new UpdateConfigurationEvent(
             DeviceId: "device-001",
+            ConfigType: SubscriptionTypes.DeviceConfig,
             Message: testMessage,
             Timestamp: DateTimeOffset.UtcNow);
 

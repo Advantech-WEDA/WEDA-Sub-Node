@@ -280,7 +280,7 @@ Add the `Nats` configuration section to `appsettings.json`:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "CredFile": "",
     "Name": "default",
@@ -954,7 +954,7 @@ Configure in `appsettings.json`:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://production:4222",
     "CredFile": "/path/to/production.creds",
     "Name": "production",
@@ -1326,7 +1326,7 @@ Add the `Nats` configuration section to `appsettings.json`:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "CredFile": "",
     "Name": "default",

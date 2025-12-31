@@ -1,0 +1,8 @@
+{
+  "WedaNode": {
+    "Url": "nats://localhost:4222",
+    "CredFile": "",
+    "Name": "default",
+    "SerializerType": "json"
+  }
+}

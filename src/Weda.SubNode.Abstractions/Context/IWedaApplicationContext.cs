@@ -57,7 +57,7 @@ public interface IWedaApplicationContext : IDisposable
     IConfiguration? Configuration { get; }
 
     /// <summary>
-    /// Gets all device configurations loaded from appsettings.json "DeviceConfigs" section.
+    /// Gets all device configurations loaded from devicecfg.json "DeviceConfigs" section.
     /// Key is the config key (e.g., "MyFirstDevice"), value is the DeviceConfiguration.
     /// </summary>
     /// <example>
@@ -76,7 +76,7 @@ public interface IWedaApplicationContext : IDisposable
     /// Gets a device configuration by config key.
     /// Shortcut for DeviceConfigs[configKey].
     /// </summary>
-    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    /// <param name="configKey">The configuration key from devicecfg.json DeviceConfigs section</param>
     /// <returns>The device configuration</returns>
     /// <exception cref="KeyNotFoundException">Thrown when config key is not found</exception>
     /// <example>
@@ -95,7 +95,7 @@ public interface IWedaApplicationContext : IDisposable
     /// <summary>
     /// Gets the configuration cache for persisting cloud-updated configurations.
     /// When configuration is updated from cloud (UC9868), changes are cached locally
-    /// so device restart uses the latest cloud-provided config instead of appsettings.json.
+    /// so device restart uses the latest cloud-provided config instead of the local config files.
     /// </summary>
     IConfigurationCache ConfigurationCache { get; }
 

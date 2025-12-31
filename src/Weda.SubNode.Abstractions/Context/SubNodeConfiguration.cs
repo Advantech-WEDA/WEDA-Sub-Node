@@ -3,10 +3,11 @@ using Weda.SubNode.Abstractions.Devices;
 namespace Weda.SubNode.Abstractions.Context;
 
 /// <summary>
-/// Configuration for the Sub-Node loaded from appsettings.json.
+/// Configuration for the Sub-Node loaded from devicecfg.json.
+/// Located under DeviceConfig section (loaded from devicecfg.json).
 /// </summary>
 /// <example>
-/// appsettings.json:
+/// devicecfg.json:
 /// <code>
 /// {
 ///   "SubNode": {
@@ -15,16 +16,18 @@ namespace Weda.SubNode.Abstractions.Context;
 ///     "Manufacturer": "Advantech",
 ///     "Model": "SubNode-SDK",
 ///     "Version": "1.0.0"
-///   }
+///   },
+///   "DeviceConfigs": { ... }
 /// }
 /// </code>
 /// </example>
 public class SubNodeConfiguration
 {
     /// <summary>
-    /// The configuration section name in appsettings.json.
+    /// The configuration section name.
+    /// Located under DeviceConfig section (loaded from devicecfg.json).
     /// </summary>
-    public const string SectionName = "SubNode";
+    public const string SectionName = "DeviceConfig:SubNode";
 
     /// <summary>
     /// Gets or sets the Sub-Node name used for cloud registration.

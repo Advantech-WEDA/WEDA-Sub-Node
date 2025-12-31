@@ -1,0 +1,50 @@
+{
+  "SubNode": {
+    "Name": "MyStockMonitor",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "TWSE",
+    "Model": "RealTimeQuote",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "StockMonitorConfig": {
+      "Enabled": true,
+      "DtdlPath": "examples/stock-monitor/dtdl/stock-price.json",
+      "DeviceCommunication": {
+        "Host": "mis.twse.com.tw",
+        "Port": 443
+      },
+      "Periods": {
+        "ReportHealth": 60000
+      },
+      "Sensors": [
+        {
+          "Name": "2395",
+          "SensorGroup": "AI",
+          "Dtmi": "dtmi:advantech:EdgeSync:StockPrice;1",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "2330",
+          "SensorGroup": "AI",
+          "Dtmi": "dtmi:advantech:EdgeSync:StockPrice;1",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        }
+      ]
+    }
+  }
+}

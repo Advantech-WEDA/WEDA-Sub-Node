@@ -86,7 +86,7 @@ All examples use `appsettings.json` for configuration:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://your-cloud-server:4224"
   },
   "DeviceConfigs": {

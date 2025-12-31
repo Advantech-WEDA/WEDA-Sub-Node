@@ -42,7 +42,7 @@ translations:
 ```json
 {
   "Serilog": { ... },      // 日誌配置
-  "Nats": { ... },         // NATS 訊息傳遞配置
+  "WedaNode": { ... },         // NATS 訊息傳遞配置
   "DeviceConfigs": { ... } // 裝置配置（可多個裝置）
 }
 ```
@@ -112,7 +112,7 @@ translations:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "Name": "default",
     "SerializerType": "json",
@@ -148,7 +148,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "AuthStrategy": "None"
   }
@@ -159,7 +159,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "AuthStrategy": "UserPassword",
     "Username": "myuser",
@@ -172,7 +172,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "AuthStrategy": "Token",
     "Token": "your-auth-token"
@@ -184,7 +184,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://nats.example.com:4222",
     "AuthStrategy": "CredFile",
     "CredFile": "/path/to/credentials.creds"
@@ -196,7 +196,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "tls://nats.example.com:4222",
     "AuthStrategy": "TlsCert",
     "TlsCertPath": "/path/to/client-cert.pem",
@@ -1165,7 +1165,7 @@ SDK 會自動檢查數值並回傳閾值等級:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "CredFile": "",
     "Name": "default",

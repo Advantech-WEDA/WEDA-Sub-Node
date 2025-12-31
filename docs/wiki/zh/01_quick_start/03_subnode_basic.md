@@ -370,7 +370,7 @@ using var context = new WedaApplicationContext(options =>
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://your-nats-server:4222",
     "CredFile": "/path/to/nats.creds"
   }

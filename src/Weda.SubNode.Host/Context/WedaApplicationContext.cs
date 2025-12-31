@@ -9,6 +9,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
@@ -118,12 +119,17 @@ public class WedaApplicationContext : IWedaApplicationContext
             {
                 _configuration = new ConfigurationBuilder()
                     .SetBasePath(Directory.GetCurrentDirectory())
+                    // Legacy config (backward compatibility)
                     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                    // New split config files (override legacy)
+                    .AddJsonFile("systemcfg.json", optional: true, reloadOnChange: true)
+                    .AddJsonFile("devicecfg.json", optional: true, reloadOnChange: true)
+                    .AddJsonFile("customcfg.json", optional: true, reloadOnChange: true)
                     .Build();
             }
             catch
             {
-                // If appsettings.json doesn't exist or fails to load, continue with null configuration
+                // If config files don't exist or fail to load, continue with null configuration
                 _configuration = null;
             }
         }
@@ -232,7 +238,7 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext using IConfiguration.
-    /// Reads configuration from "Nats" section and loads device configuration.
+    /// Reads configuration from "WedaNode" section and loads device configuration.
     ///
     /// Device configuration selection:
     /// - If deviceConfigKey is empty (default): Automatically selects the first device configuration found under "DeviceConfigs" section
@@ -278,29 +284,30 @@ public class WedaApplicationContext : IWedaApplicationContext
 
             options.DeviceConfigurationKey = actualConfigKey;
 
-            // Bind NATS configuration from "Nats" section
-            var natsSection = configuration.GetSection("Nats");
-            if (natsSection.Exists())
+            // Bind NATS configuration from "WedaNode" section
+            var configSection = configuration.GetSection(NatsConnectionSettings.SectionName);
+
+            if (configSection.Exists())
             {
                 options.NatsConnectionSettings = new NatsConnectionSettings
                 {
-                    Url = natsSection["Url"] ?? "nats://localhost:4222",
-                    CredFile = natsSection["CredFile"] ?? string.Empty,
-                    Password = natsSection["Password"] ?? string.Empty,
-                    Name = natsSection["Name"] ?? "default",
-                    NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
+                    Url = configSection["Url"] ?? "nats://localhost:4222",
+                    CredFile = configSection["CredFile"] ?? string.Empty,
+                    Password = configSection["Password"] ?? string.Empty,
+                    Name = configSection["Name"] ?? "default",
+                    NatsSerializerRegistry = configSection["SerializerType"]?.ToLower() switch
                     {
                         "json" => WedaNatsSerializerRegistry.Default,
                         _ => WedaNatsSerializerRegistry.Default
                     },
-                    AuthStrategy = Enum.TryParse<NatsAuthStrategy>(natsSection["AuthStrategy"], true, out var strategy)
+                    AuthStrategy = Enum.TryParse<NatsAuthStrategy>(configSection["AuthStrategy"], true, out var strategy)
                         ? strategy
                         : NatsAuthStrategy.None,
-                    Username = natsSection["Username"],
-                    Token = natsSection["Token"],
-                    TlsCertPath = natsSection["TlsCertPath"],
-                    TlsKeyPath = natsSection["TlsKeyPath"],
-                    TlsCaPath = natsSection["TlsCaPath"]
+                    Username = configSection["Username"],
+                    Token = configSection["Token"],
+                    TlsCertPath = configSection["TlsCertPath"],
+                    TlsKeyPath = configSection["TlsKeyPath"],
+                    TlsCaPath = configSection["TlsCaPath"]
                 };
             }
         })
@@ -435,10 +442,11 @@ public class WedaApplicationContext : IWedaApplicationContext
         return subNodeInfo;
     }
 
-    private const string DeviceConfigurationSectionName = "DeviceConfigs";
+    private const string DeviceConfigurationSectionName = "DeviceConfig:DeviceConfigs";
 
     /// <summary>
-    /// Loads all device configurations from the "DeviceConfigs" section.
+    /// Loads all device configurations from the "DeviceConfig:DeviceConfigs" section.
+    /// Located under DeviceConfig section (loaded from devicecfg.json).
     /// Each configuration is enriched with DeviceName (from key) and SubNodeInfo.
     /// </summary>
     private IReadOnlyDictionary<string, DeviceConfiguration> LoadAllDeviceConfigurations()
@@ -511,15 +519,16 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <summary>
     /// Applies cached cloud configuration to a device config if cache exists.
+    /// Device configurations are stored in the device-config cache.
     /// </summary>
     private void ApplyCachedConfigurationIfExists(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
         {
-            if (!_configurationCache.ExistsAsync().GetAwaiter().GetResult())
+            if (!_configurationCache.ExistsAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult())
                 return;
 
-            var cachedMessage = _configurationCache.GetRawConfigurationAsync().GetAwaiter().GetResult();
+            var cachedMessage = _configurationCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult();
             if (cachedMessage == null)
                 return;
 
@@ -529,7 +538,7 @@ public class WedaApplicationContext : IWedaApplicationContext
                 logger.LogInformation(
                     "Applied cached cloud configuration to '{DeviceName}' from {CachePath}",
                     deviceConfig.DeviceName,
-                    _configurationCache.CacheFilePath);
+                    _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig));
             }
         }
         catch (Exception ex)

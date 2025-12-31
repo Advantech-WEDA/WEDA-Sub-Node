@@ -87,10 +87,22 @@ public class SubNodeConfigState
 public class SubNodeDesiredConfig
 {
     /// <summary>
-    /// SubNode device configuration
+    /// SubNode device configuration (for device-config type)
     /// </summary>
     [JsonPropertyName("subNodeDeviceConfig")]
     public SubNodeDeviceConfigWrapper? SubNodeDeviceConfig { get; set; }
+
+    /// <summary>
+    /// System configuration (for system-config type) - Serilog + WedaNode
+    /// </summary>
+    [JsonPropertyName("systemConfig")]
+    public SubNodeSystemConfigDto? SystemConfig { get; set; }
+
+    /// <summary>
+    /// Custom configuration (for custom-config type) - User-defined settings
+    /// </summary>
+    [JsonPropertyName("customConfig")]
+    public Dictionary<string, object>? CustomConfig { get; set; }
 }
 
 /// <summary>
@@ -99,10 +111,22 @@ public class SubNodeDesiredConfig
 public class SubNodeReportedConfig
 {
     /// <summary>
-    /// SubNode device configuration (current state)
+    /// SubNode device configuration (current state) - for device-config type
     /// </summary>
     [JsonPropertyName("subNodeDeviceConfig")]
     public SubNodeDeviceConfigWrapper? SubNodeDeviceConfig { get; set; }
+
+    /// <summary>
+    /// System configuration (current state) - for system-config type
+    /// </summary>
+    [JsonPropertyName("systemConfig")]
+    public SubNodeSystemConfigDto? SystemConfig { get; set; }
+
+    /// <summary>
+    /// Custom configuration (current state) - for custom-config type
+    /// </summary>
+    [JsonPropertyName("customConfig")]
+    public Dictionary<string, object>? CustomConfig { get; set; }
 
     /// <summary>
     /// Update status
@@ -410,6 +434,81 @@ public class SubNodeThresholdsDto
     /// </summary>
     [JsonPropertyName("lowerCritical")]
     public double? LowerCritical { get; set; }
+}
+
+/// <summary>
+/// System configuration DTO for system-config type.
+/// Contains Serilog logging configuration and WedaNode (NATS) connection settings.
+/// </summary>
+public class SubNodeSystemConfigDto
+{
+    /// <summary>
+    /// Serilog logging configuration
+    /// </summary>
+    [JsonPropertyName("serilog")]
+    public Dictionary<string, object>? Serilog { get; set; }
+
+    /// <summary>
+    /// WedaNode (NATS) connection settings.
+    /// Note: Changes to WedaNode require application restart.
+    /// </summary>
+    [JsonPropertyName("wedaNode")]
+    public SubNodeWedaNodeConfigDto? WedaNode { get; set; }
+}
+
+/// <summary>
+/// WedaNode (NATS) connection configuration DTO.
+/// Maps to the WedaNode section in systemcfg.json.
+/// </summary>
+public class SubNodeWedaNodeConfigDto
+{
+    /// <summary>
+    /// NATS server URL
+    /// </summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    /// <summary>
+    /// Connection name
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Authentication strategy (None, UserPassword, Token, TlsCert, CredFile)
+    /// </summary>
+    [JsonPropertyName("authStrategy")]
+    public string? AuthStrategy { get; set; }
+
+    /// <summary>
+    /// Username for UserPassword authentication
+    /// </summary>
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Password for UserPassword authentication
+    /// </summary>
+    [JsonPropertyName("password")]
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// Token for Token authentication
+    /// </summary>
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+
+    /// <summary>
+    /// Credential file path for CredFile authentication
+    /// </summary>
+    [JsonPropertyName("credFile")]
+    public string? CredFile { get; set; }
+
+    /// <summary>
+    /// Serializer type (json, protobuf, default)
+    /// </summary>
+    [JsonPropertyName("serializerType")]
+    public string? SerializerType { get; set; }
 }
 
 /// <summary>

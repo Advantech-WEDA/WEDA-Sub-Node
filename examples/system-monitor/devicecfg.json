@@ -1,0 +1,250 @@
+{
+  "SubNode": {
+    "Name": "MySysMonitor",
+    "SubNodeType": "SystemMonitor",
+    "Manufacturer": "Advantech",
+    "Model": "SystemMonitor",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "SystemMonitorDeviceConfig": {
+      "Enabled": true,
+      "DtdlPath": "examples/system-monitor/assets/dtdl/dtmi/advantech/edgesync/system-monitor.json",
+      "Periods": {
+        "ReportHealth": 60000
+      },
+      "Sensors": [
+        {
+          "Name": "cpu.usage",
+          "SensorGroup": "SYS",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "usage"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "cpu.load.1m",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:LoadAverage;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "load1"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "cpu.load.5m",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:LoadAverage;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "load5"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "cpu.load.15m",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:LoadAverage;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "load15"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.total",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:MemoryTotal;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "total"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.available",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:MemoryAvailable;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "available"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.used",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "used"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.cached",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:MemoryCached;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "cached"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "disk.root.total",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:DiskTotal;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "total",
+            "MountPoint": "/"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "disk.root.available",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:DiskAvailable;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "available",
+            "MountPoint": "/"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "disk.root.used",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsed;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "used",
+            "MountPoint": "/"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "disk.root.usage_percent",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "usage_percent",
+            "MountPoint": "/"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "network.en0.bytes_sent",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "bytes_sent",
+            "Interface": "en0"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.bytes_received",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesReceived;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "bytes_received",
+            "Interface": "en0"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.packets_sent",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsSent;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "packets_sent",
+            "Interface": "en0"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.packets_received",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsReceived;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "packets_received",
+            "Interface": "en0"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.errors",
+          "Dtmi": "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrors;1",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "errors",
+            "Interface": "en0"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 25000
+          }
+        }
+      ]
+    }
+  }
+}

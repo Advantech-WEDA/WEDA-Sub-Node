@@ -44,7 +44,7 @@ Edit `appsettings.json` to match your WISE-4012 configuration:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://your-cloud-server:4224"
   },
   "DeviceConfigs": {

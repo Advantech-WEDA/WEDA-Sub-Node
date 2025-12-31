@@ -93,7 +93,7 @@ cat > "$TEST_DIR/appsettings.json" << 'EOF'
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "CredFile": "",
     "Name": "test-device",

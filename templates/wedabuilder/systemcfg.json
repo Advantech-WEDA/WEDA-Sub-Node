@@ -1,0 +1,8 @@
+{
+  "WedaNode": {
+    "Url": "nats://localhost:4222",
+    "Name": "default",
+    "SerializerType": "json",
+    "AuthStrategy": "None"
+  }
+}
