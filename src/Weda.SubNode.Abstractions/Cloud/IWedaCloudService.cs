@@ -1,3 +1,5 @@
+using ErrorOr;
+
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
@@ -64,7 +66,7 @@ public interface IWedaCloudService : IDisposable
     /// Upload device configuration to DMA
     /// INTERNAL USE ONLY - Called by DeviceBase.InitializeAsync
     /// </summary>
-    Task<bool> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default);
+    Task<ErrorOr<bool>> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get current device configuration from cloud
@@ -126,4 +128,9 @@ public interface IWedaCloudService : IDisposable
         string responseTopic,
         CommandResponse response,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delete device registration from storage
+    /// </summary>
+    Task DeleteRegistrationAsync(CancellationToken ct = default);
 }

@@ -1,4 +1,7 @@
+using ErrorOr;
+
 using Microsoft.Extensions.Logging;
+
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -7,21 +10,19 @@ using Weda.SubNode.Core.Utilities;
 namespace Weda.SubNode.Core.Devices;
 
 /// <summary>
-/// Handles device-level initialization logic (configuration enrichment and upload).
-/// SubNode registration is now handled by SubNodeManager at the SubNode level.
-///
-/// New architecture (SubNodeManager handles registration):
-/// - SubNodeManager: Cloud connection, SubNode registration, event subscriptions (ONCE for all devices)
-/// - DeviceInitializer: EnrichConfiguration, UploadConfiguration (per device)
-///
-/// The InitializeDeviceAsync method is kept for backward compatibility but should not be used
-/// when SubNodeManager is available. Use EnrichConfiguration + UploadConfigurationAsync directly.
+/// Extracts device registration and initialization logic from DeviceBase.
+/// Handles: GetOrRegister → EnrichConfiguration → Upload flow.
+/// Supports SubNode architecture where all devices share a single SubNode DeviceId.
 /// </summary>
 public sealed class DeviceInitializer
 {
     private readonly IWedaCloudService _cloudService;
     private readonly SubNodeInfo _subNodeInfo;
     private readonly ILogger<DeviceInitializer> _logger;
+    private readonly TimeSpan maxDelay = TimeSpan.FromSeconds(30);
+    private readonly double backoffFactor = 2.0;
+
+    private TimeSpan delay = TimeSpan.FromSeconds(1);
 
     public DeviceInitializer(
         IWedaCloudService cloudService,
@@ -107,23 +108,42 @@ public sealed class DeviceInitializer
     }
 
     /// <summary>
-    /// Step 3: Upload enriched configuration to cloud
+    /// Step 3: Upload enriched configuration to cloud.
     /// </summary>
-    public async Task UploadConfigurationAsync(DeviceConfiguration configuration, CancellationToken ct = default)
+    /// <param name="configuration">The configuration enriched with SubNode Device ID.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// An <see cref="ErrorOr{Success}"/> result indicating the outcome of the operation:
+    /// <list type="bullet">
+    /// <item><description><see cref="Success"/>: If the configuration was successfully accepted by the cloud.</description></item>
+    /// <item><description><see cref="ErrorType.NotFound"/> (or "Device.NotFound"): If the device ID is invalid or not recognized by the cloud.</description></item>
+    /// <item><description>Other <see cref="Error"/>: In case of network issues, validation failures, or server-side errors.</description></item>
+    /// </list>
+    /// </returns>
+    public async Task<ErrorOr<Success>> UploadConfigurationAsync(DeviceConfiguration configuration, CancellationToken ct = default)
     {
         _logger.LogDebug("Uploading device configuration to cloud");
 
-        var success = await _cloudService.UploadDeviceConfigurationAsync(configuration, ct);
+        var result = await _cloudService.UploadDeviceConfigurationAsync(configuration, ct);
 
-        if (!success)
+        if (result.IsError)
         {
-            var errorMsg = $"Failed to upload device configuration for device '{configuration.DeviceId}'";
-            _logger.LogError("{Message}", errorMsg);
-            throw new InvalidOperationException(errorMsg);
+            var errorsText = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+            _logger.LogError("Failed to upload device configuration for device '{DeviceId}'. Errors: {Errors}",
+                configuration.DeviceId, errorsText);
+
+            return result.Errors;
         }
 
-        // Success logging is handled by WedaCloudService and DeviceAgentClient
-        // No need for duplicate log here
+        if (result.Value)
+        {
+            _logger.LogInformation("Device configuration uploaded successfully");
+            return Result.Success;
+        }
+
+        return Error.Failure(
+            code: "Upload.UnexpectedFalse",
+            description: $"Upload returned false for device '{configuration.DeviceId}'");
     }
 
     /// <summary>
@@ -137,20 +157,115 @@ public sealed class DeviceInitializer
     /// <returns>The SubNode's DeviceId (shared by all devices in this SubNode)</returns>
     public async Task<string> InitializeDeviceAsync(DeviceConfiguration configuration, CancellationToken ct = default)
     {
-        // Step 1: Ensure SubNode is registered (only registers once, subsequent calls return cached DeviceId)
-        var subNodeDeviceId = await EnsureSubNodeRegisteredAsync(ct);
+        // Local function signature: returns both ID and the result object
+        async Task<(string Id, ErrorOr<Success> Result)> TryProcessAsync()
+        {
+            // Step 1: Ensure SubNode is registered
+            var id = await EnsureSubNodeRegisteredAsync(ct);
 
-        // Step 2: Enrich configuration using SubNode architecture
-        // resourceId = sha1(subNodeDeviceId + deviceName + sensorName)
-        EnrichConfiguration(configuration, subNodeDeviceId);
+            // Step 2: Enrich configuration
+            EnrichConfiguration(configuration, id);
 
-        // Step 3: Upload device configuration to cloud
-        await UploadConfigurationAsync(configuration, ct);
+            // Step 3: Upload configuration
+            var result = await UploadConfigurationAsync(configuration, ct);
 
-        _logger.LogInformation(
-            "Device '{DeviceName}' initialized under SubNode '{SubNodeName}' (DeviceId: {DeviceId})",
-            configuration.DeviceInfo.DeviceName, _subNodeInfo.Name, subNodeDeviceId);
+            return (id, result);
+        }
 
-        return subNodeDeviceId;
+        var random = new Random();
+        bool justHandledNotFoundImmediateRetry = false;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            bool shouldImmediateRetry = false;
+
+            try
+            {
+                var attempt = await TryProcessAsync();
+
+                if (!attempt.Result.IsError)
+                {
+                    return attempt.Id;
+                }
+
+                // Handle error cases
+                bool isNotFound = attempt.Result.Errors.Any(e =>
+                    e.Type == ErrorType.NotFound ||
+                    string.Equals(e.Code, "Device.NotFound", StringComparison.OrdinalIgnoreCase));
+
+                string errorsText = string.Join("; ", attempt.Result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+
+                if (isNotFound)
+                {
+                    _logger.LogWarning(
+                        "Device not found; deleting registration and retrying. DeviceName={DeviceName}, Errors={Errors}",
+                        configuration.DeviceInfo?.DeviceName,
+                        errorsText);
+
+                    await _cloudService.DeleteRegistrationAsync(ct);
+
+                    if (!justHandledNotFoundImmediateRetry)
+                    {
+                        justHandledNotFoundImmediateRetry = true;
+                        shouldImmediateRetry = true;
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Still failing after immediate retry for NotFound; entering backoff. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
+                            delay.TotalSeconds,
+                            configuration.DeviceInfo?.DeviceName);
+                        justHandledNotFoundImmediateRetry = false;
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Initialize attempt failed; will retry. Errors={Errors}. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
+                        errorsText,
+                        delay.TotalSeconds,
+                        configuration.DeviceInfo?.DeviceName);
+                    justHandledNotFoundImmediateRetry = false;
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Initialize attempt failed due to exception; will retry. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
+                    delay.TotalSeconds,
+                    configuration.DeviceInfo?.DeviceName);
+                justHandledNotFoundImmediateRetry = false;
+            }
+
+            // Unified retry logic: immediate retry for first NotFound, otherwise delay with backoff
+            if (shouldImmediateRetry)
+            {
+                continue;
+            }
+
+            await Task.Delay(GetDelayWithJitter(delay, random), ct);
+            delay = IncreaseDelay(delay, maxDelay, backoffFactor);
+        }
+    }
+
+    private static TimeSpan GetDelayWithJitter(TimeSpan baseDelay, Random random)
+    {
+        var jitterMs = random.Next(
+            (int)(0.10 * baseDelay.TotalMilliseconds),
+            (int)(0.30 * baseDelay.TotalMilliseconds)
+        );
+        return baseDelay + TimeSpan.FromMilliseconds(jitterMs);
+    }
+
+    private static TimeSpan IncreaseDelay(TimeSpan currentDelay, TimeSpan maxDelay, double factor)
+    {
+        var nextMs = Math.Min(maxDelay.TotalMilliseconds, currentDelay.TotalMilliseconds * factor);
+        return TimeSpan.FromMilliseconds(nextMs);
     }
 }
