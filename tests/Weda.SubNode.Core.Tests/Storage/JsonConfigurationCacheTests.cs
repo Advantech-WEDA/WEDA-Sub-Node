@@ -505,9 +505,9 @@ public class JsonConfigurationCacheTests : IDisposable
 
     #region Helper Methods
 
-    private static SubNodeConfigurationUpdateMessage CreateTestCloudMessage()
+    private static SubNodeConfigUpdateMessage CreateTestCloudMessage()
     {
-        return new SubNodeConfigurationUpdateMessage
+        return new SubNodeConfigUpdateMessage
         {
             DeviceId = "device-123",
             GroupId = "default",

@@ -1,5 +1,6 @@
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.TestBase.Builders;
@@ -13,7 +14,7 @@ public class DeviceConfigurationBuilder
     private bool _enabled = true;
     private string _deviceId = "test-device-001";
     private string _deviceName = "Test Device";
-    private object? _dtdl = null;
+    private DtdlConfig _dtdl = new();
     private List<Sensor> _sensors = new()
     {
         new Sensor
@@ -87,7 +88,7 @@ public class DeviceConfigurationBuilder
         return this;
     }
 
-    public DeviceConfigurationBuilder WithDtdl(object? dtdl)
+    public DeviceConfigurationBuilder WithDtdl(DtdlConfig dtdl)
     {
         _dtdl = dtdl;
         return this;

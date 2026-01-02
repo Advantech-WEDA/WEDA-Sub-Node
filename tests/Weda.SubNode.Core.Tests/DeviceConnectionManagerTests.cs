@@ -264,7 +264,7 @@ public class DeviceConnectionManagerTests
         await manager.SubscribeToCloudEventsAsync("device-001");
 
         // Act
-        var testMessage = new SubNodeConfigurationUpdateMessage
+        var testMessage = new SubNodeConfigUpdateMessage
         {
             DeviceId = "device-001",
             Cmd = "updateCmd",
