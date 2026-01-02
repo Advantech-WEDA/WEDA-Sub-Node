@@ -13,7 +13,7 @@ namespace Weda.SubNode.Abstractions.Storage;
 /// - .weda/customcfg.cache.json - Custom user configuration
 ///
 /// Raw Message Storage:
-/// The cache stores the raw SubNodeConfigurationUpdateMessage from cloud directly,
+/// The cache stores the raw SubNodeConfigUpdateMessage from cloud directly,
 /// preserving the original JSON structure and data types.
 ///
 /// Cache Priority:
@@ -28,7 +28,7 @@ public interface IConfigurationCache
     /// <param name="configType">The configuration type (system-config, device-config, custom-config)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Cached cloud configuration message, or null if not found</returns>
-    Task<SubNodeConfigurationUpdateMessage?> GetRawConfigurationAsync(
+    Task<SubNodeConfigUpdateMessage?> GetRawConfigurationAsync(
         SubscriptionType configType,
         CancellationToken cancellationToken = default);
 
@@ -40,7 +40,7 @@ public interface IConfigurationCache
     /// <param name="cancellationToken">Cancellation token</param>
     Task SaveRawConfigurationAsync(
         SubscriptionType configType,
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         CancellationToken cancellationToken = default);
 
     /// <summary>

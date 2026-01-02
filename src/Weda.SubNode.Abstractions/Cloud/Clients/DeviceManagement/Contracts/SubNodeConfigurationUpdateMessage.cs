@@ -6,7 +6,7 @@ namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 /// SubNode configuration update message received from cloud.
 /// This message contains the full device configuration structure following the SubNode config format.
 /// </summary>
-public class SubNodeConfigurationUpdateMessage
+public class SubNodeConfigUpdateMessage
 {
     /// <summary>
     /// Device ID that this configuration update is for
@@ -183,10 +183,17 @@ public class SubNodeDeviceConfigDto
     public string SubNodeType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Path to DTDL file
+    /// Path to DTDL file (for reference only)
     /// </summary>
     [JsonPropertyName("dtdlPath")]
     public string? DtdlPath { get; set; }
+
+    /// <summary>
+    /// DTDL interface object (auto-generated or loaded from file).
+    /// Contains @context, @id, @type, and contents for the device.
+    /// </summary>
+    [JsonPropertyName("dtdl")]
+    public object? Dtdl { get; set; }
 
     /// <summary>
     /// Device capabilities

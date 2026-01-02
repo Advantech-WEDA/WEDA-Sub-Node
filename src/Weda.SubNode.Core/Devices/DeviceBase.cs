@@ -71,14 +71,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _cloudService = context.CloudService;
 
         // Auto-enrich: Attach SubNodeInfo from context if not already set
-        // This enables AutoGenDtdl and provides Manufacturer/Model/SwVersion
+        // This enables AutoGenEnabled and provides Manufacturer/Model/SwVersion
         Configuration.SubNodeInfo ??= context.SubNodeInfo;
 
         // Validate configuration and calculate send period
         ValidateConfiguration(configuration);
         CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(configuration);
 
-        // Initialize DTDL (auto-generates when AutoGenDtdl=true, or loads from file)
+        // Initialize DTDL (auto-generates when AutoGenEnabled=true, or loads from file)
         Configuration.InitializeDtdl(basePath: null, _logger);
 
         // Single orchestrator manages all complexity
@@ -474,7 +474,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <example>
     /// <code>
     /// protected override ConfigurationValidationResult ValidateConfigurationUpdate(
-    ///     SubNodeConfigurationUpdateMessage message)
+    ///     SubNodeConfigUpdateMessage message)
     /// {
     ///     // Call base validation first
     ///     var baseResult = base.ValidateConfigurationUpdate(message);
@@ -491,7 +491,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </code>
     /// </example>
     protected virtual ConfigurationValidationResult ValidateConfigurationUpdate(
-        SubNodeConfigurationUpdateMessage message)
+        SubNodeConfigUpdateMessage message)
     {
         return ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, Configuration, ConfigUpdateOptions);
     }
@@ -551,7 +551,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     private async Task ApplyDeviceConfigurationUpdateAsync(
         UpdateConfigurationEvent e,
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         CancellationToken ct)
     {
         try
@@ -756,7 +756,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     private async Task ApplySystemConfigurationUpdateAsync(
         UpdateConfigurationEvent e,
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         CancellationToken ct)
     {
         var deviceTypeName = Configuration.SubNodeType.ToString();
@@ -842,7 +842,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     private async Task ApplyCustomConfigurationUpdateAsync(
         UpdateConfigurationEvent e,
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         CancellationToken ct)
     {
         var deviceTypeName = Configuration.SubNodeType.ToString();

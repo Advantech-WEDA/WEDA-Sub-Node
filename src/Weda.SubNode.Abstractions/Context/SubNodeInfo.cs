@@ -69,7 +69,7 @@ public class SubNodeInfo
     /// - Each Sensor must have Dtmi specified
     /// Default is false for backwards compatibility.
     /// </summary>
-    public bool AutoGenDtdl { get; set; } = false;
+    public bool AutoGenEnabled { get; set; } = false;
 
     /// <summary>
     /// Gets whether the Sub-Node has been registered with the cloud.

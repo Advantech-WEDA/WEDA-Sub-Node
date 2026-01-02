@@ -4,9 +4,21 @@ namespace Weda.SubNode.Abstractions.Context;
 
 /// <summary>
 /// Configuration for the Sub-Node loaded from devicecfg.json.
-/// Located under DeviceConfig section (loaded from devicecfg.json).
+/// Can be configured programmatically or loaded from configuration files.
 /// </summary>
 /// <example>
+/// Programmatic configuration:
+/// <code>
+/// var subNodeConfig = new SubNodeConfig
+/// {
+///     Name = "MySubNode",
+///     SubNodeType = SubNodeType.AdamEthernet,
+///     Manufacturer = "Advantech",
+///     Model = "WISE-4012",
+///     AutoGenEnabled = true
+/// };
+/// </code>
+///
 /// devicecfg.json:
 /// <code>
 /// {
@@ -15,19 +27,19 @@ namespace Weda.SubNode.Abstractions.Context;
 ///     "SubNodeType": "CustomDevice",
 ///     "Manufacturer": "Advantech",
 ///     "Model": "SubNode-SDK",
-///     "Version": "1.0.0"
+///     "SwVersion": "1.0.0"
 ///   },
 ///   "DeviceConfigs": { ... }
 /// }
 /// </code>
 /// </example>
-public class SubNodeConfiguration
+public class SubNodeConfig
 {
     /// <summary>
-    /// The configuration section name.
-    /// Located under DeviceConfig section (loaded from devicecfg.json).
+    /// The configuration section name within DeviceCfg.
+    /// Full path when using IConfiguration: "DeviceConfig:SubNode"
     /// </summary>
-    public const string SectionName = "DeviceConfig:SubNode";
+    public const string SectionName = "SubNode";
 
     /// <summary>
     /// Gets or sets the Sub-Node name used for cloud registration.
@@ -66,7 +78,7 @@ public class SubNodeConfiguration
     /// When false, loads DTDL from the path specified in DeviceConfigs[].DtdlPath.
     /// Default is false.
     /// </summary>
-    public bool AutoGenDtdl { get; set; } = false;
+    public bool AutoGenEnabled { get; set; } = false;
 
     /// <summary>
     /// Converts this configuration to a SubNodeInfo instance.
@@ -82,7 +94,7 @@ public class SubNodeConfiguration
             Manufacturer = Manufacturer,
             Model = Model,
             SwVersion = SwVersion,
-            AutoGenDtdl = AutoGenDtdl
+            AutoGenEnabled = AutoGenEnabled
         };
     }
 }

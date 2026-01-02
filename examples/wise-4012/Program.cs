@@ -1,6 +1,4 @@
 using Serilog;
-
-using Weda.SubNode.Core.Cloud;
 using Weda.SubNode.Host.Context;
 using Wise4012Example;
 

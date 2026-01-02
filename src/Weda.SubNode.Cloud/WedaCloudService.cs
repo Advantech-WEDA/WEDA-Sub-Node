@@ -326,7 +326,7 @@ public sealed class WedaCloudService : IWedaCloudService
         var disposables = new List<IDisposable>();
         foreach (var configSub in configSubscriptions)
         {
-            var subscriptionInfo = await _subscriptionManager.SubscribeAsync<SubNodeConfigurationUpdateMessage>(
+            var subscriptionInfo = await _subscriptionManager.SubscribeAsync<SubNodeConfigUpdateMessage>(
                 topic: configSub.DesiredTopic,
                 handler: async msg =>
                 {
@@ -410,7 +410,7 @@ public sealed class WedaCloudService : IWedaCloudService
 
     public async Task<bool> PublishConfigurationReportAsync(
         SubscriptionType configType,
-        SubNodeConfigurationUpdateMessage report,
+        SubNodeConfigUpdateMessage report,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configType);

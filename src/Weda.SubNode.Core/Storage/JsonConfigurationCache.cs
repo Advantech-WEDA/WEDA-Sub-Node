@@ -73,7 +73,7 @@ public class JsonConfigurationCache : IConfigurationCache
     }
 
     /// <inheritdoc />
-    public async Task<SubNodeConfigurationUpdateMessage?> GetRawConfigurationAsync(
+    public async Task<SubNodeConfigUpdateMessage?> GetRawConfigurationAsync(
         SubscriptionType configType,
         CancellationToken cancellationToken = default)
     {
@@ -99,7 +99,7 @@ public class JsonConfigurationCache : IConfigurationCache
                 return null;
             }
 
-            var message = JsonSerializer.Deserialize<SubNodeConfigurationUpdateMessage>(
+            var message = JsonSerializer.Deserialize<SubNodeConfigUpdateMessage>(
                 json, _jsonOptions);
 
             if (message != null)
@@ -134,7 +134,7 @@ public class JsonConfigurationCache : IConfigurationCache
     /// <inheritdoc />
     public async Task SaveRawConfigurationAsync(
         SubscriptionType configType,
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configType);

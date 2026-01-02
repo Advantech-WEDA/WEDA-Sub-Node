@@ -228,7 +228,7 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
             Enabled = Enabled,
             DeviceId = deviceId,
             DeviceName = DeviceName,
-            DtdlPath = DtdlPath,
+            Dtdl = new Weda.SubNode.Abstractions.DigitalTwin.DtdlConfig { DtdlPath = DtdlPath },
             Sensors = sensors,
             DeviceCommunication = communication,
             Periods = Periods,

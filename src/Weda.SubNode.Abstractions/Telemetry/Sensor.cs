@@ -21,8 +21,8 @@ public class Sensor
     /// <summary>
     /// Digital Twin Model Identifier (DTMI) for the sensor.
     /// Following DTDL v2 specification (e.g., "dtmi:advantech:EdgeSync:AI;1")
-    /// - When AutoGenDtdl=true: Auto-generated from Name using short ID generator
-    /// - When AutoGenDtdl=false: Required field, must be specified in appsettings.json
+    /// - When AutoGenEnabled=true: Auto-generated from Name using short ID generator
+    /// - When AutoGenEnabled=false: Required field, must be specified in appsettings.json
     /// </summary>
     public string? Dtmi { get; set; }
 
@@ -34,7 +34,7 @@ public class Sensor
 
     /// <summary>
     /// DTDL-related information (Schema, DisplayName, Description).
-    /// Used for auto-generating DTDL when AutoGenDtdl is true.
+    /// Used for auto-generating DTDL when AutoGenEnabled is true.
     /// </summary>
     public SensorInfo Info { get; set; } = new();
 

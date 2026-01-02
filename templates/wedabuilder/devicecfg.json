@@ -5,7 +5,7 @@
     "Manufacturer": "Advantech",
     "Model": "Demo",
     "SwVersion": "1.0.0",
-    "AutoGenDtdl": true
+    "AutoGenEnabled": true
   },
   "DeviceConfigs": {
     "MyFirstDeviceConfig": {

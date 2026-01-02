@@ -14,5 +14,5 @@ namespace Weda.SubNode.Abstractions.Events;
 public sealed record UpdateConfigurationEvent(
     string DeviceId,
     SubscriptionType ConfigType,
-    SubNodeConfigurationUpdateMessage Message,
+    SubNodeConfigUpdateMessage Message,
     DateTimeOffset Timestamp);

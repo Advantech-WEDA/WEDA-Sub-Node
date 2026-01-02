@@ -22,10 +22,11 @@ public class DtdlInterface
     public string Type { get; set; } = "Interface";
 
     /// <summary>
-    /// Optional context for the interface.
+    /// The DTDL context specifying the version of DTDL being used.
+    /// Default is "dtmi:dtdl:context;2" for DTDL v2.
     /// </summary>
     [JsonPropertyName("@context")]
-    public object? Context { get; set; }
+    public object Context { get; set; } = DtdlGenerator.DtdlContext;
 
     /// <summary>
     /// Human-readable display name.

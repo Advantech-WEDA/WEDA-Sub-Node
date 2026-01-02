@@ -234,7 +234,7 @@ public class MockCloudService : IWedaCloudService
 
     public Task<bool> PublishConfigurationReportAsync(
         SubscriptionType configType,
-        SubNodeConfigurationUpdateMessage report,
+        SubNodeConfigUpdateMessage report,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(

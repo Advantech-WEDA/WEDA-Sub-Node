@@ -186,7 +186,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
             Enabled = Enabled,
             DeviceId = deviceId,
             DeviceName = DeviceName,
-            DtdlPath = DtdlPath,
+            Dtdl = new Weda.SubNode.Abstractions.DigitalTwin.DtdlConfig { DtdlPath = DtdlPath },
             Sensors = sensors,
             DeviceCommunication = new Dictionary<string, object>
             {

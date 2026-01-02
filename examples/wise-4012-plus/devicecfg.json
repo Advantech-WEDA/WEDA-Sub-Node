@@ -4,8 +4,10 @@
     "SubNodeType": "AdamEthernet",
     "Manufacturer": "Advantech",
     "Model": "WISE-4012",
-    "SwVersion": "1.0.0",
-    "AutoGenDtdl": true
+    "SwVersion": "1.0.0"
+  },
+  "Dtdl": {
+    "AutoGenEnabled": true
   },
   "DeviceConfigs": {
     "MyModbusDevice": {

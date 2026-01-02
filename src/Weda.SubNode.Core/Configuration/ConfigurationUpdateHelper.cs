@@ -23,7 +23,7 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="options">Validation options (uses Default if null)</param>
     /// <returns>Validation result</returns>
     public static ConfigurationValidationResult ValidateMessage(
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         ConfigUpdateOptions? options = null)
     {
         if (message == null)
@@ -55,7 +55,7 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="options">Validation options controlling which checks are enabled (uses Default if null)</param>
     /// <returns>Validation result</returns>
     public static ConfigurationValidationResult ValidateDeviceConfiguration(
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         DeviceConfiguration currentConfig,
         ConfigUpdateOptions? options = null)
     {
@@ -190,7 +190,7 @@ public static partial class ConfigurationUpdateHelper
     /// <returns>True if valid, false otherwise</returns>
     [Obsolete("Use ValidateMessage() instead which returns ConfigurationValidationResult")]
     public static bool ValidateConfigurationUpdate(
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         out string? errorMessage)
     {
         var result = ValidateMessage(message);
@@ -208,7 +208,7 @@ public static partial class ConfigurationUpdateHelper
     /// <returns>True if valid, false otherwise</returns>
     [Obsolete("Use ValidateDeviceConfiguration() instead which returns ConfigurationValidationResult and accepts ConfigUpdateOptions")]
     public static bool ValidateDeviceConfigurationUpdate(
-        SubNodeConfigurationUpdateMessage message,
+        SubNodeConfigUpdateMessage message,
         DeviceConfiguration currentConfig,
         out string? errorMessage)
     {
@@ -221,8 +221,8 @@ public static partial class ConfigurationUpdateHelper
     /// Creates a configuration report message for the "updating" status (first report).
     /// Contains the new desired state and the current reported state.
     /// </summary>
-    public static SubNodeConfigurationUpdateMessage CreateUpdatingReport(
-        SubNodeConfigurationUpdateMessage incomingMessage,
+    public static SubNodeConfigUpdateMessage CreateUpdatingReport(
+        SubNodeConfigUpdateMessage incomingMessage,
         DeviceConfiguration currentConfig,
         string deviceTypeName)
     {
@@ -238,8 +238,8 @@ public static partial class ConfigurationUpdateHelper
     /// Creates a configuration report message for the "success" status (second report).
     /// Contains the desired state and the updated reported state.
     /// </summary>
-    public static SubNodeConfigurationUpdateMessage CreateSuccessReport(
-        SubNodeConfigurationUpdateMessage incomingMessage,
+    public static SubNodeConfigUpdateMessage CreateSuccessReport(
+        SubNodeConfigUpdateMessage incomingMessage,
         DeviceConfiguration updatedConfig,
         string deviceTypeName)
     {
@@ -254,8 +254,8 @@ public static partial class ConfigurationUpdateHelper
     /// <summary>
     /// Creates a configuration report message for the "failed" status.
     /// </summary>
-    public static SubNodeConfigurationUpdateMessage CreateFailedReport(
-        SubNodeConfigurationUpdateMessage incomingMessage,
+    public static SubNodeConfigUpdateMessage CreateFailedReport(
+        SubNodeConfigUpdateMessage incomingMessage,
         DeviceConfiguration currentConfig,
         string deviceTypeName,
         string errorMessage)
@@ -271,8 +271,8 @@ public static partial class ConfigurationUpdateHelper
     /// <summary>
     /// Creates a configuration report message for the "invalid" status.
     /// </summary>
-    public static SubNodeConfigurationUpdateMessage CreateInvalidReport(
-        SubNodeConfigurationUpdateMessage incomingMessage,
+    public static SubNodeConfigUpdateMessage CreateInvalidReport(
+        SubNodeConfigUpdateMessage incomingMessage,
         DeviceConfiguration currentConfig,
         string deviceTypeName,
         string errorMessage)
@@ -295,7 +295,7 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="currentConfig">Current device configuration</param>
     /// <param name="deviceTypeName">Device type name for the report</param>
     /// <returns>Configuration report message with current reported state</returns>
-    public static SubNodeConfigurationUpdateMessage CreatePeriodicReport(
+    public static SubNodeConfigUpdateMessage CreatePeriodicReport(
         string deviceId,
         string groupId,
         DeviceConfiguration currentConfig,
@@ -303,7 +303,7 @@ public static partial class ConfigurationUpdateHelper
     {
         var reportedDeviceConfig = ToSubNodeDeviceConfigDto(currentConfig);
 
-        return new SubNodeConfigurationUpdateMessage
+        return new SubNodeConfigUpdateMessage
         {
             DeviceId = deviceId,
             GroupId = groupId,
@@ -676,7 +676,7 @@ public static partial class ConfigurationUpdateHelper
     /// <returns>True if configuration was found and applied, false otherwise</returns>
     public static bool ApplyCachedConfiguration(
         DeviceConfiguration baseConfig,
-        SubNodeConfigurationUpdateMessage cachedMessage)
+        SubNodeConfigUpdateMessage cachedMessage)
     {
         if (cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs == null)
             return false;
@@ -726,7 +726,7 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="deviceName">The device name to search for</param>
     /// <returns>The matching device configuration DTO, or null if not found</returns>
     public static SubNodeDeviceConfigDto? GetDeviceConfigFromCachedMessage(
-        SubNodeConfigurationUpdateMessage? cachedMessage,
+        SubNodeConfigUpdateMessage? cachedMessage,
         string deviceName)
     {
         if (cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs == null)
@@ -756,7 +756,8 @@ public static partial class ConfigurationUpdateHelper
             Enabled = true,
             DeviceName = config.DeviceName,
             SubNodeType = config.SubNodeType.ToString(),
-            DtdlPath = config.DtdlPath,
+            DtdlPath = config.Dtdl.DtdlPath,
+            Dtdl = config.DtdlInterface,
             DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
             {
                 Manufacturer = config.Manufacturer,
@@ -795,8 +796,8 @@ public static partial class ConfigurationUpdateHelper
         };
     }
 
-    private static SubNodeConfigurationUpdateMessage CreateReport(
-        SubNodeConfigurationUpdateMessage incomingMessage,
+    private static SubNodeConfigUpdateMessage CreateReport(
+        SubNodeConfigUpdateMessage incomingMessage,
         DeviceConfiguration currentConfig,
         string deviceTypeName,
         string status,
@@ -804,7 +805,7 @@ public static partial class ConfigurationUpdateHelper
     {
         var reportedDeviceConfig = ToSubNodeDeviceConfigDto(currentConfig);
 
-        return new SubNodeConfigurationUpdateMessage
+        return new SubNodeConfigUpdateMessage
         {
             DeviceId = incomingMessage.DeviceId,
             GroupId = incomingMessage.GroupId,
@@ -1170,13 +1171,13 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="status">Update status</param>
     /// <param name="errorMessage">Error message if failed</param>
     /// <returns>Configuration report message</returns>
-    public static SubNodeConfigurationUpdateMessage CreateSystemConfigReport(
-        SubNodeConfigurationUpdateMessage originalMessage,
+    public static SubNodeConfigUpdateMessage CreateSystemConfigReport(
+        SubNodeConfigUpdateMessage originalMessage,
         string deviceTypeName,
         string status,
         string? errorMessage)
     {
-        return new SubNodeConfigurationUpdateMessage
+        return new SubNodeConfigUpdateMessage
         {
             DeviceId = originalMessage.DeviceId,
             GroupId = originalMessage.GroupId,
@@ -1211,13 +1212,13 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="status">Update status</param>
     /// <param name="errorMessage">Error message if failed</param>
     /// <returns>Configuration report message</returns>
-    public static SubNodeConfigurationUpdateMessage CreateCustomConfigReport(
-        SubNodeConfigurationUpdateMessage originalMessage,
+    public static SubNodeConfigUpdateMessage CreateCustomConfigReport(
+        SubNodeConfigUpdateMessage originalMessage,
         string deviceTypeName,
         string status,
         string? errorMessage)
     {
-        return new SubNodeConfigurationUpdateMessage
+        return new SubNodeConfigUpdateMessage
         {
             DeviceId = originalMessage.DeviceId,
             GroupId = originalMessage.GroupId,

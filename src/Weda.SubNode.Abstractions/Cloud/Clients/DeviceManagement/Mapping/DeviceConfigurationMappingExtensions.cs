@@ -25,7 +25,7 @@ public static class DeviceConfigurationMappingExtensions
 
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
-            Dtdl: ConvertDtdl(config.Dtdl),
+            Dtdl: ConvertDtdl(config.DtdlInterface),
             DeviceCapabilities: config.ToDeviceCapabilitiesDto());
     }
 

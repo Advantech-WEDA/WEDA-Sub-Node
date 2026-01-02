@@ -6,7 +6,7 @@ namespace Weda.SubNode.Abstractions.DigitalTwin;
 
 /// <summary>
 /// Generates DTDL (Digital Twin Definition Language) interfaces from sensor definitions.
-/// Used when SubNode.AutoGenDtdl is set to true.
+/// Used when SubNode.AutoGenEnabled is set to true.
 /// </summary>
 public static class DtdlGenerator
 {
@@ -109,7 +109,7 @@ public static class DtdlGenerator
 
     /// <summary>
     /// Populates Dtmi for all sensors that don't have one specified.
-    /// Call this when AutoGenDtdl is true.
+    /// Call this when AutoGenEnabled is true.
     /// </summary>
     /// <param name="sensors">The sensors to populate DTMIs for.</param>
     public static void PopulateSensorDtmis(IEnumerable<Sensor> sensors)
@@ -125,7 +125,7 @@ public static class DtdlGenerator
 
     /// <summary>
     /// Validates that all sensors have required fields for manual DTDL mode.
-    /// Call this when AutoGenDtdl is false.
+    /// Call this when AutoGenEnabled is false.
     /// </summary>
     /// <param name="sensors">The sensors to validate.</param>
     /// <param name="dtdlPath">The DTDL path to validate.</param>
@@ -138,14 +138,14 @@ public static class DtdlGenerator
 
         if (string.IsNullOrWhiteSpace(dtdlPath))
         {
-            errors.Add("DtdlPath is required when AutoGenDtdl is false.");
+            errors.Add("DtdlPath is required when AutoGenEnabled is false.");
         }
 
         foreach (var sensor in sensors)
         {
             if (string.IsNullOrWhiteSpace(sensor.Dtmi))
             {
-                errors.Add($"Sensor '{sensor.Name}' is missing required Dtmi field when AutoGenDtdl is false.");
+                errors.Add($"Sensor '{sensor.Name}' is missing required Dtmi field when AutoGenEnabled is false.");
             }
         }
 

@@ -27,14 +27,16 @@ public class DeviceConfiguration
     public string DeviceName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Path to DTDL JSON file. Only used when SubNode.AutoGenDtdl is false.
+    /// DTDL configuration section containing AutoGenEnabled and DtdlPath settings.
     /// </summary>
-    public string? DtdlPath { get; set; }
+    public DtdlConfig Dtdl { get; set; } = new();
 
     /// <summary>
-    /// DTDL object - auto-generated or loaded from DtdlPath.
+    /// Runtime property: DTDL interface object - auto-generated or loaded from DtdlPath.
+    /// This is populated by InitializeDtdl() method.
     /// </summary>
-    public object? Dtdl { get; set; }
+    [JsonIgnore]
+    public object? DtdlInterface { get; set; }
 
     public List<Sensor> Sensors { get; set; } = [];
 
@@ -90,17 +92,19 @@ public class DeviceConfiguration
     #endregion
 
     /// <summary>
-    /// Initializes DTDL based on SubNodeInfo.AutoGenDtdl setting.
-    /// - When AutoGenDtdl=true: Generates DTDL from Sensor definitions and populates Sensor.Dtmi
-    /// - When AutoGenDtdl=false: Validates DtdlPath and Sensor.Dtmi are specified, loads from file
+    /// Initializes DTDL based on Dtdl.AutoGenEnabled setting.
+    /// Priority: Dtdl.AutoGenEnabled (device-level) > SubNodeInfo.AutoGenEnabled (subnode-level)
+    /// - When AutoGenEnabled=true: Generates DTDL from Sensor definitions and populates Sensor.Dtmi
+    /// - When AutoGenEnabled=false: Validates DtdlPath and Sensor.Dtmi are specified, loads from file
     /// </summary>
     /// <param name="basePath">Optional base path for DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
     /// <param name="logger">Optional logger for warnings and info.</param>
-    /// <exception cref="InvalidOperationException">Thrown when validation fails (AutoGenDtdl=false without required fields).</exception>
-    /// <exception cref="FileNotFoundException">Thrown when DtdlPath file does not exist (AutoGenDtdl=false).</exception>
+    /// <exception cref="InvalidOperationException">Thrown when validation fails (AutoGenEnabled=false without required fields).</exception>
+    /// <exception cref="FileNotFoundException">Thrown when DtdlPath file does not exist (AutoGenEnabled=false).</exception>
     public void InitializeDtdl(string? basePath = null, ILogger? logger = null)
     {
-        var autoGen = SubNodeInfo?.AutoGenDtdl ?? false;
+        // Device-level Dtdl.AutoGenEnabled takes priority over SubNode-level setting
+        var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);
 
         if (autoGen)
         {
@@ -111,7 +115,7 @@ public class DeviceConfiguration
         {
             // Manual mode: Validate and load from file
             ValidateManualDtdlConfiguration();
-            LoadDtdl(basePath);
+            LoadDtdlFromFile(basePath);
         }
     }
 
@@ -125,7 +129,7 @@ public class DeviceConfiguration
         DtdlGenerator.PopulateSensorDtmis(Sensors);
 
         // Generate the DTDL interface
-        Dtdl = DtdlGenerator.GenerateInterface(
+        DtdlInterface = DtdlGenerator.GenerateInterface(
             DeviceName,
             Sensors,
             displayName: null,
@@ -138,33 +142,34 @@ public class DeviceConfiguration
     }
 
     /// <summary>
-    /// Validates configuration when AutoGenDtdl is false.
+    /// Validates configuration when AutoGenEnabled is false.
     /// Ensures DtdlPath and all Sensor.Dtmi are specified.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when validation fails.</exception>
     private void ValidateManualDtdlConfiguration()
     {
-        var errors = DtdlGenerator.ValidateManualDtdlConfiguration(Sensors, DtdlPath);
+        var errors = DtdlGenerator.ValidateManualDtdlConfiguration(Sensors, Dtdl.DtdlPath);
 
         if (errors.Count > 0)
         {
             throw new InvalidOperationException(
                 $"DTDL configuration validation failed for device '{DeviceName}':{Environment.NewLine}" +
                 $"- {string.Join($"{Environment.NewLine}- ", errors)}{Environment.NewLine}" +
-                $"Hint: Set SubNode.AutoGenDtdl=true to auto-generate DTDL, " +
-                $"or provide DtdlPath and Dtmi for each sensor.");
+                $"Hint: Set Dtdl.AutoGenEnabled=true to auto-generate DTDL, " +
+                $"or provide Dtdl.DtdlPath and Dtmi for each sensor.");
         }
     }
 
     /// <summary>
-    /// Loads and sets the DTDL interface from the configured DtdlPath.
+    /// Loads and sets the DTDL interface from the configured Dtdl.DtdlPath.
     /// If DtdlPath is null or empty, this method does nothing.
     /// </summary>
     /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
-    public void LoadDtdl(string? basePath = null)
+    public void LoadDtdlFromFile(string? basePath = null)
     {
-        if (string.IsNullOrEmpty(DtdlPath))
+        var dtdlPath = Dtdl.DtdlPath;
+        if (string.IsNullOrEmpty(dtdlPath))
             return;
 
         // If no basePath provided, try to find solution root directory
@@ -172,20 +177,20 @@ public class DeviceConfiguration
                  ?? FindSolutionRoot()
                  ?? AppContext.BaseDirectory;
 
-        var fullPath = Path.Combine(basePath, DtdlPath);
+        var fullPath = Path.Combine(basePath, dtdlPath);
 
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException(
                 $"DTDL file not found: {fullPath}{Environment.NewLine}" +
-                $"DtdlPath: {DtdlPath}{Environment.NewLine}" +
+                $"DtdlPath: {dtdlPath}{Environment.NewLine}" +
                 $"BasePath: {basePath}{Environment.NewLine}" +
                 $"Working directory: {Directory.GetCurrentDirectory()}{Environment.NewLine}" +
                 $"App base directory: {AppContext.BaseDirectory}",
                 fullPath);
         }
 
-        Dtdl = DtdlInterface.Load(fullPath);
+        DtdlInterface = DigitalTwin.DtdlInterface.Load(fullPath);
     }
 
     /// <summary>

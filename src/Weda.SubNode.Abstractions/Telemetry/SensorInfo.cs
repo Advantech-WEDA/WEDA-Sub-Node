@@ -2,7 +2,7 @@ namespace Weda.SubNode.Abstractions.Telemetry;
 
 /// <summary>
 /// DTDL-related information for a sensor.
-/// Used for auto-generating DTDL content when AutoGenDtdl is true.
+/// Used for auto-generating DTDL content when AutoGenEnabled is true.
 /// </summary>
 public class SensorInfo
 {

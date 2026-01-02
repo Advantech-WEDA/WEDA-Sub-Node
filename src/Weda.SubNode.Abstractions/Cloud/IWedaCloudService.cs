@@ -111,7 +111,7 @@ public interface IWedaCloudService : IDisposable
     /// <returns>True if published successfully, false otherwise</returns>
     Task<bool> PublishConfigurationReportAsync(
         SubscriptionType configType,
-        SubNodeConfigurationUpdateMessage report,
+        SubNodeConfigUpdateMessage report,
         CancellationToken cancellationToken = default);
 
     /// <summary>

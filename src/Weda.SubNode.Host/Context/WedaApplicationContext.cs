@@ -18,6 +18,7 @@ using Weda.SubNode.Core.Cloud;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
+using Weda.SubNode.Host.Configuration;
 
 namespace Weda.SubNode.Host.Context;
 
@@ -47,7 +48,7 @@ namespace Weda.SubNode.Host.Context;
 public class WedaApplicationContext : IWedaApplicationContext
 {
     private static readonly Lazy<WedaApplicationContext> _default = new(
-        () => new WedaApplicationContext(options =>
+        () => new WedaApplicationContext(args: null, configure: options =>
         {
             // Default singleton enables all features for convenience
             options.DeviceOptions = new DeviceOptions
@@ -93,13 +94,16 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly IConfigurationCache _configurationCache;
     private readonly IDeviceRegistrationStorage _registrationStorage;
     private readonly SubNodeInfo _subNodeInfo;
+    private readonly SystemCfg _systemCfg;
+    private readonly DeviceCfg _deviceCfg;
+    private readonly CustomCfg _customCfg;
     private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext with default options.
     /// </summary>
     public WedaApplicationContext()
-        : this(options => { })
+        : this(args: null, configure: null)
     {
     }
 
@@ -108,9 +112,24 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// </summary>
     /// <param name="configure">Configuration action for setting up options.</param>
     public WedaApplicationContext(Action<WedaContextOptions> configure)
+        : this(args: null, configure: configure)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of WedaApplicationContext with command-line arguments and custom configuration.
+    /// Configuration priority (lowest to highest):
+    /// 1. appsettings.json
+    /// 2. systemcfg.json, devicecfg.json, customcfg.json
+    /// 3. Environment variables
+    /// 4. Command-line arguments
+    /// </summary>
+    /// <param name="args">Command-line arguments for configuration override.</param>
+    /// <param name="configure">Optional configuration action for setting up options.</param>
+    public WedaApplicationContext(string[]? args, Action<WedaContextOptions>? configure)
     {
         _options = new WedaContextOptions();
-        configure(_options);
+        configure?.Invoke(_options);
 
         // Auto-load configuration from appsettings.json if not provided
         if (_options.Configuration == null)
@@ -121,10 +140,13 @@ public class WedaApplicationContext : IWedaApplicationContext
                     .SetBasePath(Directory.GetCurrentDirectory())
                     // Legacy config (backward compatibility)
                     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                    // New split config files (override legacy)
-                    .AddJsonFile("systemcfg.json", optional: true, reloadOnChange: true)
-                    .AddJsonFile("devicecfg.json", optional: true, reloadOnChange: true)
-                    .AddJsonFile("customcfg.json", optional: true, reloadOnChange: true)
+                    // Cloud-synced config files loaded into separate sections
+                    .AddJsonFileToSection("systemcfg.json", "SystemConfig", optional: true, reloadOnChange: true)
+                    .AddJsonFileToSection("devicecfg.json", "DeviceConfig", optional: true, reloadOnChange: true)
+                    .AddJsonFileToSection("customcfg.json", "CustomConfig", optional: true, reloadOnChange: true)
+                    // Environment variables and command-line arguments (highest priority)
+                    .AddEnvironmentVariables()
+                    .AddCommandLine(args ?? [])
                     .Build();
             }
             catch
@@ -189,39 +211,21 @@ public class WedaApplicationContext : IWedaApplicationContext
         _registrationStorage = new JsonDeviceRegistrationStorage(
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
-        // Auto-load NATS settings from Configuration if not explicitly set
-        if (_configuration != null && _options.NatsConnectionSettings == NatsConnectionSettings.Default)
+        // Bind configuration objects using Options Pattern
+        _systemCfg = BindConfiguration<SystemCfg>(SystemCfg.SectionName);
+        _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
+        _customCfg = BindConfiguration<CustomCfg>(CustomCfg.SectionName);
+
+        // Auto-load NATS settings from SystemCfg if not explicitly set
+        if (_options.NatsConnectionSettings == NatsConnectionSettings.Default && _systemCfg.WedaNode != null)
         {
-            var natsSection = _configuration.GetSection(NatsConnectionSettings.SectionName);
-            if (natsSection.Exists())
-            {
-                _options.NatsConnectionSettings = new NatsConnectionSettings
-                {
-                    Url = natsSection["Url"] ?? "nats://localhost:4222",
-                    CredFile = natsSection["CredFile"] ?? string.Empty,
-                    Password = natsSection["Password"] ?? string.Empty,
-                    Name = natsSection["Name"] ?? "default",
-                    NatsSerializerRegistry = natsSection["SerializerType"]?.ToLower() switch
-                    {
-                        "json" => WedaNatsSerializerRegistry.Default,
-                        _ => WedaNatsSerializerRegistry.Default
-                    },
-                    AuthStrategy = Enum.TryParse<NatsAuthStrategy>(natsSection["AuthStrategy"], true, out var strategy)
-                        ? strategy
-                        : NatsAuthStrategy.None,
-                    Username = natsSection["Username"],
-                    Token = natsSection["Token"],
-                    TlsCertPath = natsSection["TlsCertPath"],
-                    TlsKeyPath = natsSection["TlsKeyPath"],
-                    TlsCaPath = natsSection["TlsCaPath"]
-                };
-            }
+            _options.NatsConnectionSettings = _systemCfg.WedaNode;
         }
 
-        // Load SubNode configuration
+        // Load SubNode configuration from DeviceCfg
         _subNodeInfo = LoadSubNodeInfo();
 
-        // Load all device configurations from "DeviceConfigs" section
+        // Load all device configurations from DeviceCfg
         _deviceConfigs = LoadAllDeviceConfigurations();
 
         // Setup cloud service
@@ -356,6 +360,24 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// <inheritdoc />
     public IConfigurationCache ConfigurationCache => _configurationCache;
 
+    /// <summary>
+    /// Gets the system configuration (from systemcfg.json).
+    /// Contains NATS connection settings and other system-wide configuration.
+    /// </summary>
+    public SystemCfg SystemConfig => _systemCfg;
+
+    /// <summary>
+    /// Gets the device configuration (from devicecfg.json).
+    /// Contains SubNode identity and all device configurations.
+    /// </summary>
+    public DeviceCfg DeviceConfig => _deviceCfg;
+
+    /// <summary>
+    /// Gets the custom configuration (from customcfg.json).
+    /// Contains application-specific settings as a flexible dictionary.
+    /// </summary>
+    public CustomCfg CustomConfig => _customCfg;
+
     // ===== Device Registry Convenience Methods =====
 
     /// <inheritdoc />
@@ -375,9 +397,28 @@ public class WedaApplicationContext : IWedaApplicationContext
     #region Private Methods
 
     /// <summary>
+    /// Binds a configuration section to a strongly-typed object using Options Pattern.
+    /// Returns a new instance with default values if configuration is null or section doesn't exist.
+    /// </summary>
+    /// <typeparam name="T">The configuration type to bind to</typeparam>
+    /// <param name="sectionName">The configuration section name</param>
+    /// <returns>The bound configuration object</returns>
+    private T BindConfiguration<T>(string sectionName) where T : new()
+    {
+        if (_configuration == null)
+            return new T();
+
+        var section = _configuration.GetSection(sectionName);
+        if (!section.Exists())
+            return new T();
+
+        return section.Get<T>() ?? new T();
+    }
+
+    /// <summary>
     /// Loads SubNode configuration with the following priority:
     /// 1. Programmatic configuration (options.SubNode) - highest priority
-    /// 2. appsettings.json SubNode section
+    /// 2. DeviceCfg.SubNode (from devicecfg.json)
     /// 3. Default values (assembly name as SubNode name)
     /// 4. Registration cache (.weda/subnode.registration.json) - for DeviceId only
     /// </summary>
@@ -386,32 +427,17 @@ public class WedaApplicationContext : IWedaApplicationContext
         var assemblyName = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "SubNode";
         SubNodeInfo subNodeInfo;
 
-        // Step 1: Check programmatic configuration first (highest priority)
+        // Priority 1: Check programmatic configuration first (highest priority)
         if (_options.SubNode != null)
         {
             subNodeInfo = _options.SubNode.ToSubNodeInfo(assemblyName);
         }
-        // Step 2: Load from appsettings.json
-        else if (_configuration != null)
+        // Priority 2: Use DeviceCfg.SubNode (already bound from devicecfg.json)
+        else if (!string.IsNullOrEmpty(_deviceCfg.SubNode.Name))
         {
-            var subNodeSection = _configuration.GetSection(SubNodeConfiguration.SectionName);
-            if (subNodeSection.Exists())
-            {
-                var config = subNodeSection.Get<SubNodeConfiguration>() ?? new SubNodeConfiguration();
-                subNodeInfo = config.ToSubNodeInfo(assemblyName);
-            }
-            else
-            {
-                // Default: use entry assembly name as SubNode name
-                subNodeInfo = new SubNodeInfo
-                {
-                    Name = assemblyName,
-                    Manufacturer = "Advantech",
-                    Model = "SubNode-SDK",
-                    SwVersion = "1.0.0"
-                };
-            }
+            subNodeInfo = _deviceCfg.SubNode.ToSubNodeInfo(assemblyName);
         }
+        // Priority 3: Default values
         else
         {
             subNodeInfo = new SubNodeInfo
@@ -423,7 +449,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             };
         }
 
-        // Step 2: Try to load DeviceId from registration cache
+        // Try to load DeviceId from registration cache
         try
         {
             var registration = _registrationStorage.GetRegistrationAsync().GetAwaiter().GetResult();
@@ -446,7 +472,7 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <summary>
     /// Loads all device configurations from the "DeviceConfig:DeviceConfigs" section.
-    /// Located under DeviceConfig section (loaded from devicecfg.json).
+    /// Located under DeviceConfig section (loaded from devicecfg.json into DeviceConfig section).
     /// Each configuration is enriched with DeviceName (from key) and SubNodeInfo.
     /// </summary>
     private IReadOnlyDictionary<string, DeviceConfiguration> LoadAllDeviceConfigurations()
@@ -557,7 +583,7 @@ public class WedaApplicationContext : IWedaApplicationContext
         try
         {
             // Use the new unified DTDL initialization
-            // This handles both auto-generation (AutoGenDtdl=true) and file loading (AutoGenDtdl=false)
+            // This handles both auto-generation (AutoGenEnabled=true) and file loading (AutoGenEnabled=false)
             deviceConfig.InitializeDtdl(basePath: null, logger);
         }
         catch (InvalidOperationException ex)
@@ -569,7 +595,7 @@ public class WedaApplicationContext : IWedaApplicationContext
         catch (FileNotFoundException ex)
         {
             // File not found - warn but don't fail (backwards compatibility)
-            logger.LogWarning(ex, "Failed to load DTDL from: {DtdlPath}", deviceConfig.DtdlPath);
+            logger.LogWarning(ex, "Failed to load DTDL from: {DtdlPath}", deviceConfig.Dtdl.DtdlPath);
         }
         catch (Exception ex)
         {
