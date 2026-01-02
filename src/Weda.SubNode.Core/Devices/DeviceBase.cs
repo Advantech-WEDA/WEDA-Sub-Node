@@ -575,6 +575,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 return;
             }
 
+            // Check if no update is required (empty desired config)
+            if (validationResult.NoUpdateRequired)
+            {
+                _logger.LogDebug("No configuration update required - desired config is empty");
+                return;
+            }
+
             _logger.LogInformation("Configuration update validation passed");
 
             // Step 2: Send "message received" acknowledgment (updating status)

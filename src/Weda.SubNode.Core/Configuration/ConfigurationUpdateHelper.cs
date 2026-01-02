@@ -5,8 +5,6 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
-using Weda.SubNode.Core.Dsp;
-using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Configuration;
 
@@ -32,9 +30,11 @@ public static partial class ConfigurationUpdateHelper
         if (message.Data?.Cfg?.Desired == null)
             return ConfigurationValidationResult.Failure("Missing desired configuration in update message");
 
+        // Empty desired config is valid but means no update is required
+        // This can happen when cloud sends a sync message with empty desired state
         if (message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs == null ||
             message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs?.Count == 0)
-            return ConfigurationValidationResult.Failure("Missing device configurations in desired state");
+            return ConfigurationValidationResult.NoUpdate;
 
         // Validate each device config
         foreach (var (deviceKey, deviceConfig) in message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
@@ -320,12 +320,9 @@ public static partial class ConfigurationUpdateHelper
                     // Include the current reported state
                     Reported = new SubNodeReportedConfig
                     {
-                        SubNodeDeviceConfig = new SubNodeDeviceConfigWrapper
+                        DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
                         {
-                            DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
-                            {
-                                [deviceTypeName] = reportedDeviceConfig
-                            }
+                            [deviceTypeName] = reportedDeviceConfig
                         },
                         Status = ConfigUpdateStatus.Success,
                         ErrorMessage = null,
@@ -822,12 +819,9 @@ public static partial class ConfigurationUpdateHelper
                     // Include the current/updated reported state
                     Reported = new SubNodeReportedConfig
                     {
-                        SubNodeDeviceConfig = new SubNodeDeviceConfigWrapper
+                        DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
                         {
-                            DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
-                            {
-                                [deviceTypeName] = reportedDeviceConfig
-                            }
+                            [deviceTypeName] = reportedDeviceConfig
                         },
                         Status = status,
                         ErrorMessage = errorMessage,

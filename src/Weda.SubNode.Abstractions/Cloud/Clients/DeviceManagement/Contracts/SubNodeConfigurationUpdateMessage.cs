@@ -111,10 +111,11 @@ public class SubNodeDesiredConfig
 public class SubNodeReportedConfig
 {
     /// <summary>
-    /// SubNode device configuration (current state) - for device-config type
+    /// Dictionary of device configurations keyed by device type name.
+    /// Directly contains device configs without SubNodeDeviceConfig wrapper.
     /// </summary>
-    [JsonPropertyName("subNodeDeviceConfig")]
-    public SubNodeDeviceConfigWrapper? SubNodeDeviceConfig { get; set; }
+    [JsonPropertyName("deviceConfigs")]
+    public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs { get; set; }
 
     /// <summary>
     /// System configuration (current state) - for system-config type

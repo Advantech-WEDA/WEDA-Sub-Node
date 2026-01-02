@@ -255,9 +255,9 @@ public class MockCloudService : IWedaCloudService
             }
         }
 
-        if (report.Data?.Cfg?.Reported?.SubNodeDeviceConfig?.DeviceConfigs != null)
+        if (report.Data?.Cfg?.Reported?.DeviceConfigs != null)
         {
-            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.SubNodeDeviceConfig.DeviceConfigs)
+            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.DeviceConfigs)
             {
                 _logger.LogDebug(
                     "  Reported config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
