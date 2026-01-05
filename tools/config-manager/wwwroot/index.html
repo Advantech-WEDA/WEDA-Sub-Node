@@ -39,6 +39,7 @@
         .badge-success { background: #d4edda; color: #155724; }
         .badge-warning { background: #fff3cd; color: #856404; }
         .badge-info { background: #cce5ff; color: #004085; }
+        .badge-secondary { background: #e9ecef; color: #495057; }
         .sensor-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 15px; margin-bottom: 10px; }
         .sensor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .sensor-name { font-weight: 600; color: #333; }
@@ -132,6 +133,9 @@
         .advanced-toggle-icon.open { transform: rotate(90deg); }
         .advanced-content { display: none; margin-top: 10px; }
         .advanced-content.show { display: block; }
+        /* Config file badges */
+        .config-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .config-badges .badge { font-size: 10px; padding: 2px 6px; }
     </style>
 </head>
 <body>
@@ -143,7 +147,7 @@
             <h2>Connection Settings</h2>
             <div class="form-row">
                 <div class="form-group" style="flex: 2;">
-                    <label>Project Path (folder containing appsettings.json)</label>
+                    <label>Project Path (folder containing systemcfg.json, devicecfg.json)</label>
                     <div style="display: flex; gap: 8px;">
                         <input type="text" id="projectPath" placeholder="e.g., /Users/you/projects/edge_subnode/examples/testdevice" style="flex: 1;">
                         <button class="btn-secondary" onclick="openFolderBrowser()">Browse...</button>
@@ -156,12 +160,31 @@
                     <input type="text" id="natsUrl" value="nats://localhost:4222">
                 </div>
                 <div class="form-group">
+                    <label>Auth Strategy</label>
+                    <select id="natsAuthStrategy" onchange="updateAuthFields()">
+                        <option value="none">None</option>
+                        <option value="userpassword">Username/Password</option>
+                        <option value="token">Token</option>
+                        <option value="credfile">Credential File</option>
+                    </select>
+                </div>
+            </div>
+            <div id="authFields" class="form-row" style="display: none;">
+                <div class="form-group" id="usernameGroup">
                     <label>Username</label>
                     <input type="text" id="natsUsername" placeholder="(optional)">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="passwordGroup">
                     <label>Password</label>
                     <input type="password" id="natsPassword" placeholder="(optional)">
+                </div>
+                <div class="form-group" id="tokenGroup" style="display: none;">
+                    <label>Token</label>
+                    <input type="text" id="natsToken" placeholder="NATS token">
+                </div>
+                <div class="form-group" id="credFileGroup" style="display: none;">
+                    <label>Credential File Path</label>
+                    <input type="text" id="natsCredFile" placeholder="/path/to/creds.creds">
                 </div>
             </div>
             <button class="btn-primary" onclick="loadConfig()">Load Configuration</button>
@@ -176,7 +199,7 @@
                 <div class="card" id="subNodeCard" style="display: none;">
                     <div class="section-header">
                         <h2>SubNode Configuration</h2>
-                        <span class="badge badge-info">appsettings.json</span>
+                        <span class="badge badge-info" id="subNodeSourceBadge">devicecfg.json</span>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -234,6 +257,7 @@
                 <div class="card" id="deviceConfigCard" style="display: none;">
                     <div class="section-header">
                         <h2>Device Configurations</h2>
+                        <span class="badge badge-info" id="deviceConfigSourceBadge">devicecfg.json</span>
                     </div>
                     <div id="deviceConfigsContainer"></div>
 
@@ -324,10 +348,29 @@
             'exponentialSmoothing': { alpha: 0.3 }
         };
 
-        let appSettings = null;
+        let systemConfig = null;
+        let deviceConfig = null;
+        let customConfig = null;
+        let appSettings = null; // Legacy support
         let registration = null;
         let payloads = [];
         let browserCurrentPath = '';
+
+        // Auth field visibility
+        function updateAuthFields() {
+            const strategy = document.getElementById('natsAuthStrategy').value;
+            const authFields = document.getElementById('authFields');
+            const usernameGroup = document.getElementById('usernameGroup');
+            const passwordGroup = document.getElementById('passwordGroup');
+            const tokenGroup = document.getElementById('tokenGroup');
+            const credFileGroup = document.getElementById('credFileGroup');
+
+            authFields.style.display = strategy === 'none' ? 'none' : 'grid';
+            usernameGroup.style.display = strategy === 'userpassword' ? 'block' : 'none';
+            passwordGroup.style.display = strategy === 'userpassword' ? 'block' : 'none';
+            tokenGroup.style.display = strategy === 'token' ? 'block' : 'none';
+            credFileGroup.style.display = strategy === 'credfile' ? 'block' : 'none';
+        }
 
         // Payload panel functions
         function togglePayloadPanel() {
@@ -420,11 +463,16 @@
                 // Update status and select button
                 const selectBtn = document.getElementById('selectFolderBtn');
                 const statusDiv = document.getElementById('browserStatus');
-                if (data.hasAppSettings) {
-                    statusDiv.innerHTML = '<span style="color: #28a745;">&#10004; appsettings.json found - can select this folder</span>';
+
+                if (data.hasConfig) {
+                    let configFiles = [];
+                    if (data.hasSystemCfg) configFiles.push('systemcfg.json');
+                    if (data.hasDeviceCfg) configFiles.push('devicecfg.json');
+                    if (data.hasAppSettings) configFiles.push('appsettings.json');
+                    statusDiv.innerHTML = `<span style="color: #28a745;">&#10004; Found: ${configFiles.join(', ')}</span>`;
                     selectBtn.disabled = false;
                 } else {
-                    statusDiv.innerHTML = '<span style="color: #6c757d;">No appsettings.json in this folder</span>';
+                    statusDiv.innerHTML = '<span style="color: #6c757d;">No configuration files in this folder</span>';
                     selectBtn.disabled = true;
                 }
 
@@ -508,35 +556,68 @@
 
                 if (!response.ok) throw new Error(data.error || 'Failed to load config');
 
-                appSettings = data.appSettings;
+                // Store config data
+                systemConfig = data.systemConfig;
+                deviceConfig = data.deviceConfig;
+                customConfig = data.customConfig;
+                appSettings = data.appSettings; // Legacy
 
-                // Load SubNode configuration
-                const subNode = getProp(appSettings, 'SubNode', 'subNode');
-                if (subNode) {
-                    document.getElementById('subNodeName').value = getProp(subNode, 'Name', 'name') || '';
-                    document.getElementById('subNodeSubNodeType').value = getProp(subNode, 'SubNodeType', 'deviceType') || 'CustomDevice';
-                    document.getElementById('subNodeManufacturer').value = getProp(subNode, 'Manufacturer', 'manufacturer') || '';
-                    document.getElementById('subNodeModel').value = getProp(subNode, 'Model', 'model') || '';
-                    document.getElementById('subNodeVersion').value = getProp(subNode, 'Version', 'version') || '';
-                    document.getElementById('subNodeCard').style.display = 'block';
-                    log('SubNode configuration loaded', 'success');
+                // Load NATS settings from systemcfg.json (new format)
+                if (systemConfig?.wedaNode) {
+                    const nats = systemConfig.wedaNode;
+                    if (nats.url) {
+                        document.getElementById('natsUrl').value = nats.url.startsWith('nats://') ? nats.url : `nats://${nats.url}`;
+                        log(`NATS URL loaded from systemcfg.json: ${nats.url}`, 'success');
+                    }
+                    if (nats.authStrategy) {
+                        document.getElementById('natsAuthStrategy').value = nats.authStrategy.toLowerCase();
+                        updateAuthFields();
+                    }
+                    if (nats.username) document.getElementById('natsUsername').value = nats.username;
+                    if (nats.password) document.getElementById('natsPassword').value = nats.password;
+                    if (nats.token) document.getElementById('natsToken').value = nats.token;
+                    if (nats.credFile) document.getElementById('natsCredFile').value = nats.credFile;
+                    log('NATS settings loaded from systemcfg.json', 'success');
+                }
+                // Fallback to legacy appsettings.json
+                else if (appSettings) {
+                    const nats = getProp(appSettings, 'WedaNode', 'Nats', 'nats');
+                    if (nats) {
+                        const url = getProp(nats, 'Url', 'url');
+                        if (url) {
+                            document.getElementById('natsUrl').value = url.startsWith('nats://') ? url : `nats://${url}`;
+                            log(`NATS URL loaded from appsettings.json: ${url}`, 'success');
+                        }
+                        const username = getProp(nats, 'Username', 'username');
+                        const password = getProp(nats, 'Password', 'password');
+                        if (username) document.getElementById('natsUsername').value = username;
+                        if (password) document.getElementById('natsPassword').value = password;
+                        if (username || password) {
+                            document.getElementById('natsAuthStrategy').value = 'userpassword';
+                            updateAuthFields();
+                        }
+                    }
                 }
 
-                // Load NATS settings from appsettings.json
-                const nats = getProp(appSettings, 'Nats', 'nats');
-                if (nats) {
-                    const url = getProp(nats, 'Url', 'url');
-                    const username = getProp(nats, 'Username', 'username', 'UserName');
-                    const password = getProp(nats, 'Password', 'password');
-                    if (url) {
-                        document.getElementById('natsUrl').value = url;
-                        log(`NATS URL loaded: ${url}`, 'success');
-                    }
-                    if (username) document.getElementById('natsUsername').value = username;
-                    if (password) document.getElementById('natsPassword').value = password;
-                    if (username || password) {
-                        log('NATS credentials loaded from appsettings.json', 'success');
-                    }
+                // Load SubNode configuration from devicecfg.json (new format)
+                let subNode = null;
+                let subNodeSource = 'devicecfg.json';
+                if (deviceConfig?.subNode) {
+                    subNode = deviceConfig.subNode;
+                } else if (appSettings) {
+                    subNode = getProp(appSettings, 'SubNode', 'subNode');
+                    subNodeSource = 'appsettings.json';
+                }
+
+                if (subNode) {
+                    document.getElementById('subNodeName').value = getProp(subNode, 'Name', 'name') || '';
+                    document.getElementById('subNodeSubNodeType').value = getProp(subNode, 'SubNodeType', 'subNodeType', 'deviceType') || 'CustomDevice';
+                    document.getElementById('subNodeManufacturer').value = getProp(subNode, 'Manufacturer', 'manufacturer') || '';
+                    document.getElementById('subNodeModel').value = getProp(subNode, 'Model', 'model') || '';
+                    document.getElementById('subNodeVersion').value = getProp(subNode, 'SwVersion', 'swVersion', 'Version', 'version') || '';
+                    document.getElementById('subNodeCard').style.display = 'block';
+                    document.getElementById('subNodeSourceBadge').textContent = subNodeSource;
+                    log('SubNode configuration loaded', 'success');
                 }
 
                 // Load Registration
@@ -552,12 +633,23 @@
                     log('No registration found (device not yet registered)', 'info');
                 }
 
-                // Load DeviceConfigs
-                const deviceConfigs = getProp(appSettings, 'DeviceConfigs', 'deviceConfigs');
+                // Load DeviceConfigs from devicecfg.json (new format)
+                let deviceConfigs = null;
+                let deviceConfigSource = 'devicecfg.json';
+                if (deviceConfig?.deviceConfigs) {
+                    deviceConfigs = deviceConfig.deviceConfigs;
+                } else if (appSettings) {
+                    deviceConfigs = getProp(appSettings, 'DeviceConfigs', 'deviceConfigs');
+                    deviceConfigSource = 'appsettings.json';
+                }
+
                 if (deviceConfigs) {
-                    appSettings.deviceConfigs = normalizeKeys(deviceConfigs);
-                    renderDeviceConfigs(appSettings.deviceConfigs);
+                    // Store normalized for later use
+                    deviceConfig = deviceConfig || {};
+                    deviceConfig.deviceConfigs = normalizeKeys(deviceConfigs);
+                    renderDeviceConfigs(deviceConfig.deviceConfigs);
                     document.getElementById('deviceConfigCard').style.display = 'block';
+                    document.getElementById('deviceConfigSourceBadge').textContent = deviceConfigSource;
                     log('Device configurations loaded', 'success');
                 }
 
@@ -838,7 +930,7 @@
 
         function updateSensorField(deviceKey, sensorIndex, path, value) {
             const parts = path.split('.');
-            let target = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            let target = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             for (let i = 0; i < parts.length - 1; i++) {
                 if (!target[parts[i]]) target[parts[i]] = {};
                 target = target[parts[i]];
@@ -848,7 +940,7 @@
         }
 
         function updatePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex, field, value) {
-            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             if (!sensor.config) sensor.config = {};
             if (!sensor.config[pipelineType]) sensor.config[pipelineType] = [];
             sensor.config[pipelineType][itemIndex][field] = value;
@@ -856,7 +948,7 @@
         }
 
         function updatePipelineParam(deviceKey, sensorIndex, pipelineType, itemIndex, paramKey, value, inputType) {
-            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             if (!sensor.config) sensor.config = {};
             if (!sensor.config[pipelineType]) sensor.config[pipelineType] = [];
             if (!sensor.config[pipelineType][itemIndex].parameters) {
@@ -869,18 +961,18 @@
         }
 
         function onPipelineTypeChange(deviceKey, sensorIndex, pipelineType, itemIndex, newType) {
-            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             const item = sensor.config[pipelineType][itemIndex];
             item.type = newType;
             // Reset parameters to defaults for new type
             const defaults = pipelineType === 'transformPipeline' ? TRANSFORM_TYPES[newType] : DSP_FILTER_TYPES[newType];
             item.parameters = { ...defaults };
-            renderDeviceConfigs(appSettings.deviceConfigs);
+            renderDeviceConfigs(deviceConfig.deviceConfigs);
             log(`Changed ${pipelineType}[${itemIndex}] type to ${newType}`);
         }
 
         function addTransform(deviceKey, sensorIndex) {
-            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             if (!sensor.config) sensor.config = {};
             if (!sensor.config.transformPipeline) sensor.config.transformPipeline = [];
             const defaultType = Object.keys(TRANSFORM_TYPES)[0];
@@ -889,12 +981,12 @@
                 enabled: true,
                 parameters: { ...TRANSFORM_TYPES[defaultType] }
             });
-            renderDeviceConfigs(appSettings.deviceConfigs);
+            renderDeviceConfigs(deviceConfig.deviceConfigs);
             log(`Added transform to ${deviceKey}.sensors[${sensorIndex}]`);
         }
 
         function addDspFilter(deviceKey, sensorIndex) {
-            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             if (!sensor.config) sensor.config = {};
             if (!sensor.config.dspPipeline) sensor.config.dspPipeline = [];
             const defaultType = Object.keys(DSP_FILTER_TYPES)[0];
@@ -903,18 +995,21 @@
                 enabled: true,
                 parameters: { ...DSP_FILTER_TYPES[defaultType] }
             });
-            renderDeviceConfigs(appSettings.deviceConfigs);
+            renderDeviceConfigs(deviceConfig.deviceConfigs);
             log(`Added DSP filter to ${deviceKey}.sensors[${sensorIndex}]`);
         }
 
         function removePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex) {
-            const sensor = appSettings.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
             sensor.config[pipelineType].splice(itemIndex, 1);
-            renderDeviceConfigs(appSettings.deviceConfigs);
+            renderDeviceConfigs(deviceConfig.deviceConfigs);
             log(`Removed ${pipelineType}[${itemIndex}]`);
         }
 
         function clearConfig() {
+            systemConfig = null;
+            deviceConfig = null;
+            customConfig = null;
             appSettings = null;
             registration = null;
             document.getElementById('subNodeCard').style.display = 'none';
@@ -930,8 +1025,12 @@
             document.getElementById('regStatusBadge').textContent = '-';
             document.getElementById('deviceConfigsContainer').innerHTML = '';
             document.getElementById('natsUrl').value = 'nats://localhost:4222';
+            document.getElementById('natsAuthStrategy').value = 'none';
             document.getElementById('natsUsername').value = '';
             document.getElementById('natsPassword').value = '';
+            document.getElementById('natsToken').value = '';
+            document.getElementById('natsCredFile').value = '';
+            updateAuthFields();
             log('Configuration cleared', 'info');
         }
 
@@ -943,10 +1042,13 @@
 
             const request = {
                 natsUrl: document.getElementById('natsUrl').value,
+                natsAuthStrategy: document.getElementById('natsAuthStrategy').value,
                 natsUsername: document.getElementById('natsUsername').value || null,
                 natsPassword: document.getElementById('natsPassword').value || null,
+                natsToken: document.getElementById('natsToken').value || null,
+                natsCredFile: document.getElementById('natsCredFile').value || null,
                 registration: registration,
-                deviceConfigs: appSettings.deviceConfigs
+                deviceConfigs: deviceConfig?.deviceConfigs
             };
 
             try {

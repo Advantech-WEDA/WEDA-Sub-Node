@@ -1,6 +1,6 @@
 {
   "SubNode": {
-    "Name": "PowerAggregator",
+    "Name": "MyPowerAggregator-1",
     "SubNodeType": "CustomDevice",
     "Manufacturer": "Advantech",
     "Model": "Power-Calculator",

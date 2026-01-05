@@ -9,7 +9,10 @@
   "DeviceConfigs": {
     "MyFirstDeviceConfig": {
       "Enabled": true,
-      "DtdlPath": "examples/wise-4012-builder/dtdl/wise-4012.json",
+      "Dtdl": {
+        "AutoGenEnabled": false,
+        "DtdlPath": "examples/wise-4012-builder/dtdl/wise-4012.json"
+      },
       "DeviceCommunication": {
         "Host": "172.16.8.122",
         "Port": 502

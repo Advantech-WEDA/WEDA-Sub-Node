@@ -66,7 +66,7 @@ The tool sends configuration updates in the following format:
   "data": {
     "cfg": {
       "desired": {
-        "subNodeDeviceConfig": {
+        "devicecfg": {
           "DeviceConfigs": { ... }
         }
       }

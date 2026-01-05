@@ -23,7 +23,12 @@ public class ConfigController : ControllerBase
 
     /// <summary>
     /// GET /api/config?path={projectPath}
-    /// Reads appsettings.json and .weda files from the specified project path
+    /// Reads configuration files from the specified project path:
+    /// - systemcfg.json (NATS connection settings)
+    /// - devicecfg.json (SubNode and device configurations)
+    /// - customcfg.json (custom application settings)
+    /// - .weda/subnode.registration.json (registration status)
+    /// - appsettings.json (legacy, optional)
     /// </summary>
     [HttpGet]
     public async Task<ActionResult> GetConfig([FromQuery] string path)
@@ -40,7 +45,55 @@ public class ConfigController : ControllerBase
 
         var result = new Dictionary<string, object?>();
 
-        // Read appsettings.json
+        // Read systemcfg.json (NATS connection settings)
+        var systemCfgPath = Path.Combine(path, "systemcfg.json");
+        if (System.IO.File.Exists(systemCfgPath))
+        {
+            try
+            {
+                var content = await System.IO.File.ReadAllTextAsync(systemCfgPath);
+                result["systemConfig"] = JsonSerializer.Deserialize<SystemCfgData>(content, JsonOptions);
+                result["systemConfigPath"] = systemCfgPath;
+            }
+            catch (JsonException ex)
+            {
+                result["systemConfigError"] = ex.Message;
+            }
+        }
+
+        // Read devicecfg.json (SubNode and device configurations)
+        var deviceCfgPath = Path.Combine(path, "devicecfg.json");
+        if (System.IO.File.Exists(deviceCfgPath))
+        {
+            try
+            {
+                var content = await System.IO.File.ReadAllTextAsync(deviceCfgPath);
+                result["deviceConfig"] = JsonSerializer.Deserialize<DeviceCfgData>(content, JsonOptions);
+                result["deviceConfigPath"] = deviceCfgPath;
+            }
+            catch (JsonException ex)
+            {
+                result["deviceConfigError"] = ex.Message;
+            }
+        }
+
+        // Read customcfg.json (custom settings)
+        var customCfgPath = Path.Combine(path, "customcfg.json");
+        if (System.IO.File.Exists(customCfgPath))
+        {
+            try
+            {
+                var content = await System.IO.File.ReadAllTextAsync(customCfgPath);
+                result["customConfig"] = JsonSerializer.Deserialize<JsonElement>(content);
+                result["customConfigPath"] = customCfgPath;
+            }
+            catch (JsonException ex)
+            {
+                result["customConfigError"] = ex.Message;
+            }
+        }
+
+        // Read appsettings.json (legacy support)
         var appSettingsPath = Path.Combine(path, "appsettings.json");
         if (System.IO.File.Exists(appSettingsPath))
         {
@@ -52,12 +105,14 @@ public class ConfigController : ControllerBase
             }
             catch (JsonException ex)
             {
-                return BadRequest(new { error = $"Invalid JSON in appsettings.json: {ex.Message}" });
+                result["appSettingsError"] = ex.Message;
             }
         }
-        else
+
+        // Check if we have any configuration
+        if (!result.ContainsKey("systemConfig") && !result.ContainsKey("deviceConfig") && !result.ContainsKey("appSettings"))
         {
-            return BadRequest(new { error = $"appsettings.json not found in {path}" });
+            return BadRequest(new { error = $"No configuration files found in {path}. Expected systemcfg.json, devicecfg.json, or appsettings.json" });
         }
 
         // Read .weda/subnode.registration.json
@@ -72,12 +127,11 @@ public class ConfigController : ControllerBase
             }
             catch (JsonException ex)
             {
-                // Registration file is optional, just log and continue
                 result["registrationError"] = ex.Message;
             }
         }
 
-        // Read .weda/config.cache.json
+        // Read .weda/config.cache.json (deprecated)
         var configCachePath = Path.Combine(path, ".weda", "config.cache.json");
         if (System.IO.File.Exists(configCachePath))
         {
@@ -98,7 +152,7 @@ public class ConfigController : ControllerBase
 
     /// <summary>
     /// GET /api/config/browse?path={directoryPath}
-    /// Lists directories and checks for appsettings.json
+    /// Lists directories and checks for configuration files
     /// </summary>
     [HttpGet("browse")]
     public ActionResult BrowseDirectory([FromQuery] string? path)
@@ -162,13 +216,21 @@ public class ConfigController : ControllerBase
                 return BadRequest(new { error = "Access denied to this directory" });
             }
 
-            // Check if current directory has appsettings.json
+            // Check for configuration files
+            var hasSystemCfg = System.IO.File.Exists(Path.Combine(path, "systemcfg.json"));
+            var hasDeviceCfg = System.IO.File.Exists(Path.Combine(path, "devicecfg.json"));
             var hasAppSettings = System.IO.File.Exists(Path.Combine(path, "appsettings.json"));
+
+            // Can select folder if it has any config file
+            var hasConfig = hasSystemCfg || hasDeviceCfg || hasAppSettings;
 
             return Ok(new
             {
                 currentPath = path,
                 directories,
+                hasConfig,
+                hasSystemCfg,
+                hasDeviceCfg,
                 hasAppSettings
             });
         }
@@ -213,18 +275,41 @@ public class ConfigController : ControllerBase
                 SerializerRegistry = NatsJsonSerializerRegistry.Default
             };
 
-            // Add auth if provided
-            if (!string.IsNullOrEmpty(request.NatsUsername) && !string.IsNullOrEmpty(request.NatsPassword))
+            // Build auth options based on strategy
+            var authStrategy = request.NatsAuthStrategy?.ToLowerInvariant() ?? "";
+            natsOpts = authStrategy switch
             {
-                natsOpts = natsOpts with
-                {
-                    AuthOpts = new NatsAuthOpts
+                "userpassword" when !string.IsNullOrEmpty(request.NatsUsername) =>
+                    natsOpts with
                     {
-                        Username = request.NatsUsername,
-                        Password = request.NatsPassword
-                    }
-                };
-            }
+                        AuthOpts = new NatsAuthOpts
+                        {
+                            Username = request.NatsUsername,
+                            Password = request.NatsPassword
+                        }
+                    },
+                "token" when !string.IsNullOrEmpty(request.NatsToken) =>
+                    natsOpts with
+                    {
+                        AuthOpts = new NatsAuthOpts { Token = request.NatsToken }
+                    },
+                "credfile" when !string.IsNullOrEmpty(request.NatsCredFile) =>
+                    natsOpts with
+                    {
+                        AuthOpts = new NatsAuthOpts { CredsFile = request.NatsCredFile }
+                    },
+                // Fallback: try username/password if provided
+                _ when !string.IsNullOrEmpty(request.NatsUsername) && !string.IsNullOrEmpty(request.NatsPassword) =>
+                    natsOpts with
+                    {
+                        AuthOpts = new NatsAuthOpts
+                        {
+                            Username = request.NatsUsername,
+                            Password = request.NatsPassword
+                        }
+                    },
+                _ => natsOpts
+            };
 
             await using var nats = new NatsClient(natsOpts);
 
@@ -248,7 +333,7 @@ public class ConfigController : ControllerBase
                     {
                         desired = new
                         {
-                            subNodeDeviceConfig = new
+                            devicecfg = new
                             {
                                 DeviceConfigs = request.DeviceConfigs
                             }
@@ -257,14 +342,15 @@ public class ConfigController : ControllerBase
                 }
             };
 
-            // Get the config update topic from registration
-            var topic = request.Registration.NatsTopicAssignments?.ConfigUpdateTopic;
+            // Get the device config desired topic from registration
+            // Using DeviceConfigDesiredTopic since we're updating device configurations
+            var topic = request.Registration.NatsTopicAssignments?.DeviceConfigDesiredTopic;
             if (string.IsNullOrEmpty(topic))
             {
                 return BadRequest(new ApplyConfigResponse
                 {
                     Success = false,
-                    Error = "ConfigUpdateTopic not found in registration"
+                    Error = "DeviceConfigDesiredTopic not found in registration. Please ensure the SubNode is registered with the new topic structure."
                 });
             }
 

@@ -7,9 +7,12 @@
     "SwVersion": "1.0.0"
   },
   "DeviceConfigs": {
-    "MyFirstISensingDevice": {
+    "MyFirstDevice": {
       "Enabled": true,
-      "DtdlPath": "examples/wise-4012-isensing/dtdl/wise-4012se.json",
+      "Dtdl": {
+        "AutoGenEnabled": false,
+        "DtdlPath": "examples/wise-4012-isensing/dtdl/wise-4012.json"
+      },
       "DeviceCommunication": {
         "BrokerUrl": "mqtt://172.16.8.122:1883",
         "ClientId": "wise4012-isensing-demo",

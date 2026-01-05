@@ -129,20 +129,35 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         await OnBeforeInitializeAsync(ct);
 
-        // Step 2: Get SubNodeId from SubNodeManager (already initialized)
-        var subNodeId = _context.SubNodeManager.SubNodeId
-            ?? throw new InvalidOperationException("SubNodeManager not initialized. Ensure SubNodeManager.InitializeAsync is called before device initialization.");
+        // Step 2: Ensure SubNodeManager is initialized
+        // This supports both usage patterns:
+        // - New API (WedaApplication.CreateBuilder): DeviceHostedService calls SubNodeManager.InitializeAsync first
+        // - Legacy API (WedaApplicationContext.Default): Auto-initialize SubNodeManager here if needed
+        if (!_context.SubNodeManager.IsInitialized)
+        {
+            _logger.LogInformation("SubNodeManager not yet initialized, initializing now...");
+            var initialized = await _context.SubNodeManager.InitializeAsync(ct);
+            if (!initialized)
+            {
+                return Error.Failure("SubNodeManager.InitializeFailed",
+                    "Failed to initialize SubNodeManager. Check cloud connection and registration.");
+            }
+        }
 
-        // Step 3: Set the SubNode ID on orchestrator
+        // Step 3: Get SubNodeId from SubNodeManager
+        var subNodeId = _context.SubNodeManager.SubNodeId
+            ?? throw new InvalidOperationException("SubNodeManager initialized but SubNodeId is null. This should not happen.");
+
+        // Step 4: Set the SubNode ID on orchestrator
         _orchestrator.SetSubNodeId(subNodeId);
 
-        // Step 4: Enrich device configuration with SubNodeId and ResourceIds
+        // Step 5: Enrich device configuration with SubNodeId and ResourceIds
         _initializer.EnrichConfiguration(Configuration, subNodeId);
 
-        // Step 5: Upload device configuration to cloud
+        // Step 6: Upload device configuration to cloud
         await _initializer.UploadConfigurationAsync(Configuration, ct);
 
-        // Step 6: Register this device's event handlers with SubNodeManager for Hybrid routing
+        // Step 7: Register this device's event handlers with SubNodeManager for Hybrid routing
         _context.SubNodeManager.RegisterDeviceHandler(
             Configuration.DeviceName,
             HandleConfigurationUpdateAsync,

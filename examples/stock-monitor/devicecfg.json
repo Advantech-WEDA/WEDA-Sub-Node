@@ -10,8 +10,7 @@
     "StockMonitorConfig": {
       "Enabled": true,
       "Dtdl": {
-        "AutoGenEnabled": false,
-        "DtdlPath": "examples/stock-monitor/dtdl/stock-price.json"
+        "AutoGenEnabled": true
       },
       "DeviceCommunication": {
         "Host": "mis.twse.com.tw",
@@ -20,8 +19,7 @@
       "Sensors": [
         {
           "Name": "2395",
-          "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:StockPrice;1",
+          "SensorGroup": "SYS",
           "Parameters": {
             "StockCode": "2395",
             "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
@@ -29,12 +27,16 @@
           "Config": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech",
+            "Description": "Stock of Advantech",
+            "Schema": "double"
           }
         },
         {
           "Name": "2330",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:StockPrice;1",
           "Parameters": {
             "StockCode": "2330",
             "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
@@ -42,6 +44,11 @@
           "Config": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC",
+            "Description": "Stock of TSMC",
+            "Schema": "double"
           }
         }
       ]

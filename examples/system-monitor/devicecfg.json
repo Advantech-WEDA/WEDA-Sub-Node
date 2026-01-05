@@ -9,9 +9,9 @@
   "DeviceConfigs": {
     "SystemMonitorDeviceConfig": {
       "Enabled": true,
-      "DtdlPath": "examples/system-monitor/assets/dtdl/dtmi/advantech/edgesync/system-monitor.json",
-      "Periods": {
-        "ReportHealth": 60000
+      "Dtdl": {
+        "DtdlPath": "examples/system-monitor/assets/dtdl/dtmi/advantech/edgesync/system-monitor.json",
+        "AutoGenEnabled": true
       },
       "Sensors": [
         {
