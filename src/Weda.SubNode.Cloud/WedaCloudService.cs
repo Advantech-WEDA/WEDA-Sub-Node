@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
+using NATS.Client.Core;
 using NATS.Net;
+
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
@@ -87,6 +90,20 @@ public sealed class WedaCloudService : IWedaCloudService
         return _topicAssignments;
     }
 
+    private async Task<bool> PingServicesAsync()
+    {
+        try
+        {
+            var response = await _client.RequestAsync<string, string>("$SRV.PING", "");
+            _logger.LogDebug("Response: {response.Data}");
+            return true;
+        }
+        catch (NatsNoRespondersException)
+        {
+            return false;
+        }
+    }
+
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
     {
         if (_isConnected)
@@ -102,6 +119,14 @@ public sealed class WedaCloudService : IWedaCloudService
             // Ping NATS server to verify connection
             var rtt = await _client.PingAsync(cancellationToken);
             _logger.LogInformation("NATS connection verified - RTT: {RttMs}ms", rtt.TotalMilliseconds);
+
+            var isPingService = await PingServicesAsync();
+            if (!isPingService)
+            {
+                _logger.LogError("Failed to Ping Service");
+                _isConnected = false;
+                return false;
+            }
 
             _isConnected = true;
             _logger.LogInformation("Connected to WedaNode");
