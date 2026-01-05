@@ -92,7 +92,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     var deviceConfig = modbusDeviceConfig.ToDeviceConfiguration();
 
     // Load DTDL metadata (required for cloud registration)
-    deviceConfig.LoadDtdl();
+    deviceConfig.InitializeDtdl();
 
     return deviceConfig;
 }

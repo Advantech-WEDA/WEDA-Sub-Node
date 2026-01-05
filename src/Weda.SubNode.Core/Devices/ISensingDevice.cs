@@ -46,8 +46,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
 
     public Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Setting digital output {OutputName} to {State} on device {DeviceId}",
-            outputName, state, DeviceId);
+        _logger.LogInformation("Setting digital output {OutputName} to {State} on device {SubNodeId}",
+            outputName, state, SubNodeId);
 
         var command = new DeviceCommand
         {
@@ -64,8 +64,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
 
     public Task<bool> SetAnalogOutputAsync(string outputName, double value, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Setting analog output {OutputName} to {Value} on device {DeviceId}",
-            outputName, value, DeviceId);
+        _logger.LogInformation("Setting analog output {OutputName} to {Value} on device {SubNodeId}",
+            outputName, value, SubNodeId);
 
         var command = new DeviceCommand
         {
@@ -82,8 +82,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
 
     public Task<Dictionary<string, object>> GetConfigurationAsync(ushort configIndex = 0, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Getting configuration index {ConfigIndex} on device {DeviceId}",
-            configIndex, DeviceId);
+        _logger.LogInformation("Getting configuration index {ConfigIndex} on device {SubNodeId}",
+            configIndex, SubNodeId);
 
         var command = new DeviceCommand
         {
@@ -103,8 +103,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
 
     public Task<bool> SetConfigurationAsync(ushort configIndex, Dictionary<string, object> configData, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Setting configuration index {ConfigIndex} on device {DeviceId}",
-            configIndex, DeviceId);
+        _logger.LogInformation("Setting configuration index {ConfigIndex} on device {SubNodeId}",
+            configIndex, SubNodeId);
 
         var command = new DeviceCommand
         {
@@ -121,8 +121,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
 
     public Task<bool> SetSensorEnabledAsync(string sensorName, bool enabled, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("{Action} sensor {SensorName} on device {DeviceId}",
-            enabled ? "Enabling" : "Disabling", sensorName, DeviceId);
+        _logger.LogInformation("{Action} sensor {SensorName} on device {SubNodeId}",
+            enabled ? "Enabling" : "Disabling", sensorName, SubNodeId);
 
         var command = new DeviceCommand
         {

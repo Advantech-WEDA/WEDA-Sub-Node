@@ -13,9 +13,10 @@ public interface IDevice : IDisposable
     // ===== Identity =====
 
     /// <summary>
-    /// Unique device identifier (e.g., "74fe488d5d54-ffff")
+    /// SubNode identifier shared by all devices in this SubNode (e.g., "74fe488d5d54-ffff").
+    /// All devices registered under the same SubNode share this identifier.
     /// </summary>
-    string DeviceId { get; }
+    string SubNodeId { get; }
 
     /// <summary>
     /// Device type (e.g., "adamEthernet", "modbusRTU")

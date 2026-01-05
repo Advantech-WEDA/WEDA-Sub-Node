@@ -9,13 +9,13 @@
   "DeviceConfigs": {
     "StockMonitorConfig": {
       "Enabled": true,
-      "DtdlPath": "examples/stock-monitor/dtdl/stock-price.json",
+      "Dtdl": {
+        "AutoGenEnabled": false,
+        "DtdlPath": "examples/stock-monitor/dtdl/stock-price.json"
+      },
       "DeviceCommunication": {
         "Host": "mis.twse.com.tw",
         "Port": 443
-      },
-      "Periods": {
-        "ReportHealth": 60000
       },
       "Sensors": [
         {

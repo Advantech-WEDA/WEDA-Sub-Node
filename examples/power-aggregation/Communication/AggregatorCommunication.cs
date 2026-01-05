@@ -257,8 +257,8 @@ public class AggregatorCommunication : ICommunication
     private void OnSourceDataProcessed(object? sender, DataProcessedEvent e)
     {
         _logger.LogDebug(
-            "[Aggregator] Received DataProcessed event: DeviceId={DeviceId}, DataCount={Count}",
-            e.DeviceId, e.Data.Count);
+            "[Aggregator] Received DataProcessed event: SubNodeId={SubNodeId}, DataCount={Count}",
+            e.SubNodeId, e.Data.Count);
 
         // Find which device sent this data
         var sourceDevice = _sourceDevices.FirstOrDefault(kvp => ReferenceEquals(kvp.Value, sender));

@@ -1,6 +1,6 @@
 {
   "SubNode": {
-    "Name": "MyPowerAggregator",
+    "Name": "PowerAggregator",
     "SubNodeType": "CustomDevice",
     "Manufacturer": "Advantech",
     "Model": "Power-Calculator",
@@ -9,24 +9,16 @@
   "DeviceConfigs": {
     "CurrentSensor": {
       "Enabled": true,
-      "DeviceName": "CurrentSensor",
-      "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+      "Dtdl": {
+        "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+        "AutoGenEnabled": false
+      },
       "DeviceCommunication": {
         "Host": "127.0.0.1",
         "Port": 5020
       },
       "Properties": {
         "SlaveId": 1
-      },
-      "ConnectionSettings": {
-        "ConnectionTimeoutMs": 5000,
-        "OperationTimeoutMs": 3000,
-        "MaxRetryAttempts": 3,
-        "RetryDelayMs": 1000
-      },
-      "Periods": {
-        "ReportHealth": 30000,
-        "ReportConfiguration": 60000
       },
       "Sensors": [
         {
@@ -48,24 +40,16 @@
     },
     "VoltageSensor": {
       "Enabled": true,
-      "DeviceName": "VoltageSensor",
-      "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+      "Dtdl": {
+        "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+        "AutoGenEnabled": false
+      },
       "DeviceCommunication": {
         "Host": "127.0.0.1",
         "Port": 5021
       },
       "Properties": {
         "SlaveId": 1
-      },
-      "ConnectionSettings": {
-        "ConnectionTimeoutMs": 5000,
-        "OperationTimeoutMs": 3000,
-        "MaxRetryAttempts": 3,
-        "RetryDelayMs": 1000
-      },
-      "Periods": {
-        "ReportHealth": 30000,
-        "ReportConfiguration": 60000
       },
       "Sensors": [
         {
@@ -87,8 +71,10 @@
     },
     "PowerAggregator": {
       "Enabled": true,
-      "DeviceName": "PowerAggregator",
-      "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+      "Dtdl": {
+        "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
+        "AutoGenEnabled": false
+      },
       "DeviceCommunication": {
         "AggregatorType": "PowerAggregator",
         "ExternalSources": [
@@ -101,16 +87,6 @@
             "SensorName": "current001"
           }
         ]
-      },
-      "ConnectionSettings": {
-        "ConnectionTimeoutMs": 5000,
-        "OperationTimeoutMs": 3000,
-        "MaxRetryAttempts": 3,
-        "RetryDelayMs": 1000
-      },
-      "Periods": {
-        "ReportHealth": 30000,
-        "ReportConfiguration": 60000
       },
       "Sensors": [
         {

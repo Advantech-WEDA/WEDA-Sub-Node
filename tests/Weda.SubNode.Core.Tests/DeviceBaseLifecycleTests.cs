@@ -104,11 +104,10 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Assert
         result.ShouldBeTrue();
         device.Status.ShouldBe(DeviceStatus.Ready);
-        device.DeviceId.ShouldBe("test-device-001");
+        device.SubNodeId.ShouldBe("test-device-001");
 
         // Verify method calls
         await _mockCommunication.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
         await _mockCloudService.Received(1).GetOrRegisterDeviceIdAsync(
             Arg.Any<DeviceInfo>(),
             Arg.Any<CancellationToken>());
@@ -264,7 +263,7 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Assert
         result.ShouldBeTrue();
         device.Status.ShouldBe(DeviceStatus.Running);
-        device.DeviceId.ShouldBe("test-device-001");
+        device.SubNodeId.ShouldBe("test-device-001");
     }
 
     [Fact]

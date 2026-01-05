@@ -390,8 +390,9 @@ public class WedaApplicationBuilder
             Services.Remove(existing);
         }
 
-        // Configure NatsConnectionSettings from "WedaNode" section
-        Services.Configure<NatsConnectionSettings>(_hostBuilder.Configuration.GetSection(NatsConnectionSettings.SectionName));
+        // Configure NatsConnectionSettings from "SystemConfig:WedaNode" section
+        // systemcfg.json is loaded into "SystemConfig" section via AddJsonFileToSection
+        Services.Configure<NatsConnectionSettings>(_hostBuilder.Configuration.GetSection($"SystemConfig:{NatsConnectionSettings.SectionName}"));
 
         // Register NatsClient as singleton with configurable authentication strategy
         Services.AddSingleton(sp =>
@@ -528,7 +529,7 @@ public class WedaApplicationBuilder
     /// <returns>A configured WedaApplication instance</returns>
     public WedaApplication Build()
     {
-        // Register WedaApplicationContext
+        // Register WedaApplicationContext (which creates SubNodeManager internally)
         Services.AddSingleton<IWedaApplicationContext>(sp =>
         {
             var cloudService = sp.GetRequiredService<IWedaCloudService>();
@@ -553,6 +554,10 @@ public class WedaApplicationBuilder
             });
         });
 
+        // Register ISubNodeManager from the context (it's created by WedaApplicationContext)
+        Services.AddSingleton<ISubNodeManager>(sp =>
+            sp.GetRequiredService<IWedaApplicationContext>().SubNodeManager);
+
         // Register device factory
         Services.AddSingleton<IDeviceFactory, DeviceFactory>();
 
@@ -564,11 +569,12 @@ public class WedaApplicationBuilder
             {
                 var logger = sp.GetRequiredService<ILogger<DeviceHostedService>>();
                 var context = sp.GetRequiredService<IWedaApplicationContext>();
+                var subNodeManager = sp.GetRequiredService<ISubNodeManager>();
 
                 // Create devices via registered factory methods
                 var devices = _deviceFactories.Select(factory => factory(context)).ToList();
 
-                return new DeviceHostedService(logger, devices);
+                return new DeviceHostedService(logger, subNodeManager, devices);
             });
         }
 

@@ -100,6 +100,13 @@ public interface IWedaApplicationContext : IDisposable
     IConfigurationCache ConfigurationCache { get; }
 
     /// <summary>
+    /// Gets the SubNode manager for centralized SubNode-level operations.
+    /// Manages cloud connection, SubNode registration, and event subscriptions.
+    /// All devices within this SubNode share the same SubNodeId and subscriptions.
+    /// </summary>
+    ISubNodeManager SubNodeManager { get; }
+
+    /// <summary>
     /// Gets a typed logger for the specified type.
     /// </summary>
     ILogger<T> GetLogger<T>();

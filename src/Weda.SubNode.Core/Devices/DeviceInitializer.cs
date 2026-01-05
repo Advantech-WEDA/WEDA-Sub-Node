@@ -7,9 +7,15 @@ using Weda.SubNode.Core.Utilities;
 namespace Weda.SubNode.Core.Devices;
 
 /// <summary>
-/// Extracts device registration and initialization logic from DeviceBase.
-/// Handles: GetOrRegister → EnrichConfiguration → Upload flow.
-/// Supports SubNode architecture where all devices share a single SubNode DeviceId.
+/// Handles device-level initialization logic (configuration enrichment and upload).
+/// SubNode registration is now handled by SubNodeManager at the SubNode level.
+///
+/// New architecture (SubNodeManager handles registration):
+/// - SubNodeManager: Cloud connection, SubNode registration, event subscriptions (ONCE for all devices)
+/// - DeviceInitializer: EnrichConfiguration, UploadConfiguration (per device)
+///
+/// The InitializeDeviceAsync method is kept for backward compatibility but should not be used
+/// when SubNodeManager is available. Use EnrichConfiguration + UploadConfigurationAsync directly.
 /// </summary>
 public sealed class DeviceInitializer
 {

@@ -15,6 +15,7 @@ using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
 using Weda.SubNode.Core.Cloud;
+using Weda.SubNode.Core;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
@@ -94,6 +95,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly IConfigurationCache _configurationCache;
     private readonly IDeviceRegistrationStorage _registrationStorage;
     private readonly SubNodeInfo _subNodeInfo;
+    private readonly ISubNodeManager _subNodeManager;
     private readonly SystemCfg _systemCfg;
     private readonly DeviceCfg _deviceCfg;
     private readonly CustomCfg _customCfg;
@@ -238,6 +240,12 @@ public class WedaApplicationContext : IWedaApplicationContext
             // Create default cloud service with real NATS connection
             (_cloudService, _natsClient) = CreateDefaultCloudService();
         }
+
+        // Create SubNodeManager (handles cloud connection, registration, and event subscription)
+        _subNodeManager = new SubNodeManager(
+            _cloudService,
+            _subNodeInfo,
+            _loggerFactory.CreateLogger<SubNodeManager>());
     }
 
     /// <summary>
@@ -359,6 +367,9 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <inheritdoc />
     public IConfigurationCache ConfigurationCache => _configurationCache;
+
+    /// <inheritdoc />
+    public ISubNodeManager SubNodeManager => _subNodeManager;
 
     /// <summary>
     /// Gets the system configuration (from systemcfg.json).
@@ -677,6 +688,12 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         if (disposing && _options.DisposeServices)
         {
+            // Dispose SubNodeManager first (handles cloud disconnect)
+            if (_subNodeManager is IAsyncDisposable asyncDisposable)
+            {
+                asyncDisposable.DisposeAsync().AsTask().Wait();
+            }
+
             // Dispose cloud service if we created it
             if (_options.CloudService == null)
             {

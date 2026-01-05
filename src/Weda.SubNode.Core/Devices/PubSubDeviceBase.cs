@@ -117,7 +117,7 @@ public class PubSubDeviceBase : DeviceBase
     /// </summary>
     public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Executing command {CommandName} on device {DeviceId}", command.DeviceCmd, DeviceId);
+        _logger.LogInformation("Executing command {CommandName} on device {SubNodeId}", command.DeviceCmd, SubNodeId);
 
         var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
 
@@ -174,11 +174,11 @@ public class PubSubDeviceBase : DeviceBase
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Subscription task cancelled for device {DeviceId}", DeviceId);
+                _logger.LogInformation("Subscription task cancelled for device {SubNodeId}", SubNodeId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in subscription task for device {DeviceId}", DeviceId);
+                _logger.LogError(ex, "Error in subscription task for device {SubNodeId}", SubNodeId);
             }
             finally
             {
@@ -238,7 +238,7 @@ public class PubSubDeviceBase : DeviceBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error pushing telemetry into cache for device {DeviceId}", DeviceId);
+            _logger.LogError(ex, "Error pushing telemetry into cache for device {SubNodeId}", SubNodeId);
         }
     }
 }

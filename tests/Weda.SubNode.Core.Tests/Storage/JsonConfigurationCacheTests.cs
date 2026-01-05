@@ -519,9 +519,9 @@ public class JsonConfigurationCacheTests : IDisposable
             {
                 Cfg = new SubNodeConfigState
                 {
-                    Desired = new SubNodeDesiredConfig
+                    Desired = new SubNodeDesiredConfigSections
                     {
-                        SubNodeDeviceConfig = new SubNodeDeviceConfigWrapper
+                        DeviceCfg = new SubNodeDeviceCfgDto
                         {
                             DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
                             {
@@ -529,7 +529,7 @@ public class JsonConfigurationCacheTests : IDisposable
                                 {
                                     Enabled = true,
                                     DeviceName = "TestDevice",
-                                    SubNodeType = "adamEthernet",
+                                    DeviceType = "adamEthernet",
                                     DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
                                     {
                                         Manufacturer = "Test",

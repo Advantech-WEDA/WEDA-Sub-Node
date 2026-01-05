@@ -20,7 +20,7 @@ namespace Weda.SubNode.Core.Devices;
 /// </summary>
 public sealed class DeviceOrchestrator : IDisposable
 {
-    private string _deviceId = "uninitialized";
+    private string _subNodeId = "uninitialized";
     private readonly ILogger<DeviceOrchestrator> _logger;
 
     // All managers in one place
@@ -37,7 +37,7 @@ public sealed class DeviceOrchestrator : IDisposable
     public DeviceLifecycleManager LifecycleManager { get; }
     public IDeviceConnectionManager ConnectionManager { get; }
 
-    public string DeviceId => _deviceId;
+    public string SubNodeId => _subNodeId;
 
     // Event aggregator
     public event EventHandler<DeviceStatusTransitionEvent>? StatusChanged;
@@ -56,14 +56,14 @@ public sealed class DeviceOrchestrator : IDisposable
     {
         _logger = context.GetLogger<DeviceOrchestrator>();
 
-        // Use provided deviceId or default to "uninitialized"
-        _deviceId = deviceId ?? "uninitialized";
+        // Use provided subNodeId or default to "uninitialized"
+        _subNodeId = deviceId ?? "uninitialized";
 
-        // Create all managers with deviceId
-        StateMachine = new DeviceStateMachine(_deviceId, DeviceStatus.Initializing);
+        // Create all managers with subNodeId
+        StateMachine = new DeviceStateMachine(_subNodeId, DeviceStatus.Initializing);
 
         HealthMonitor = new DeviceHealthMonitor(
-            _deviceId,
+            _subNodeId,
             context.GetLogger<DeviceHealthMonitor>(),
             communication: communication,
             thresholds: null);
@@ -75,22 +75,22 @@ public sealed class DeviceOrchestrator : IDisposable
         // Keep RetryOrchestrator for backward compatibility (marked as obsolete)
 
         TelemetryPipeline = new TelemetryPipeline(
-            _deviceId,
+            _subNodeId,
             configuration,
             context.CloudService,
             context.GetLogger<TelemetryPipeline>(),
             healthMonitor: HealthMonitor);
 
         LifecycleManager = new DeviceLifecycleManager(
-            _deviceId,
+            _subNodeId,
             StateMachine,
             lifecycleHooks,
             context.GetLogger<DeviceLifecycleManager>());
 
         // Use ConnectionOptions from context for Polly pipeline configuration
+        // Note: DeviceConnectionManager now only handles physical device connection
         ConnectionManager = new DeviceConnectionManager(
             communication,
-            context.CloudService,
             context.ConnectionOptions,
             context.GetLogger<DeviceConnectionManager>());
 
@@ -99,18 +99,18 @@ public sealed class DeviceOrchestrator : IDisposable
     }
 
     /// <summary>
-    /// Sets the device ID after registration/initialization.
-    /// Should be called after GetDeviceOrRegisterAsync returns the actual deviceId.
+    /// Sets the SubNode ID after registration/initialization.
+    /// Should be called after SubNodeManager.InitializeAsync returns the actual subNodeId.
     /// </summary>
-    public void SetDeviceId(string deviceId)
+    public void SetSubNodeId(string subNodeId)
     {
-        if (string.IsNullOrWhiteSpace(deviceId))
-            throw new ArgumentException("Device ID cannot be null or empty", nameof(deviceId));
+        if (string.IsNullOrWhiteSpace(subNodeId))
+            throw new ArgumentException("SubNode ID cannot be null or empty", nameof(subNodeId));
 
-        _deviceId = deviceId;
-        HealthMonitor.SetDeviceId(deviceId);
-        TelemetryPipeline.SetDeviceId(deviceId);
-        _logger.LogInformation("Device ID set to: {DeviceId}", _deviceId);
+        _subNodeId = subNodeId;
+        HealthMonitor.SetDeviceId(subNodeId);
+        TelemetryPipeline.SetDeviceId(subNodeId);
+        _logger.LogInformation("SubNode ID set to: {SubNodeId}", _subNodeId);
     }
 
     private void WireUpEvents()

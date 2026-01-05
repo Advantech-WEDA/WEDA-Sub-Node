@@ -8,12 +8,12 @@ namespace Weda.SubNode.Abstractions.Events;
 /// Fired after successful transformation and DSP filtering, before sending to cloud.
 /// Use this event when you need processed/transformed data instead of raw data.
 /// </summary>
-/// <param name="DeviceId">The device identifier.</param>
+/// <param name="SubNodeId">The SubNode identifier (shared by all devices in this SubNode).</param>
 /// <param name="SubNodeType">The device type.</param>
 /// <param name="Data">The processed telemetry measures after transform and filter.</param>
 /// <param name="Timestamp">The timestamp when data was processed.</param>
 public sealed record DataProcessedEvent(
-    string DeviceId,
+    string SubNodeId,
     SubNodeType SubNodeType,
     List<TelemetryMeasure> Data,
     DateTimeOffset Timestamp);

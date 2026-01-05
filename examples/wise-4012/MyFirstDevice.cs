@@ -69,7 +69,7 @@ public class MyFirstDevice : TcpModbusDevice
     /// </summary>
     protected override Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
-        _logger.LogInformation("Configuration update applied for device: {DeviceId}", DeviceId);
+        _logger.LogInformation("Configuration update applied for device: {SubNodeId}", SubNodeId);
 
         // Get the strongly-typed message from the event
         var message = e.Message;

@@ -63,10 +63,11 @@ public static partial class ConfigurationUpdateHelper
 
         // First validate the message structure
         var messageResult = ValidateMessage(message, options);
-        if (!messageResult.IsValid)
+        if (!messageResult.IsValid || messageResult.NoUpdateRequired)
             return messageResult;
 
         // Find the device config for this device
+        // Note: If DeviceConfigs is null/empty, ValidateMessage already returned NoUpdate
         var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
         if (deviceConfigs == null)
             return ConfigurationValidationResult.Failure("No device configurations in desired state");
@@ -752,9 +753,13 @@ public static partial class ConfigurationUpdateHelper
         {
             Enabled = true,
             DeviceName = config.DeviceName,
-            SubNodeType = config.SubNodeType.ToString(),
-            DtdlPath = config.Dtdl.DtdlPath,
-            Dtdl = config.DtdlInterface,
+            DeviceType = config.SubNodeType.ToString(),
+            Dtdl = new SubNodeDtdlConfigDto
+            {
+                AutoGenEnabled = config.Dtdl.AutoGenEnabled,
+                DtdlPath = config.Dtdl.DtdlPath,
+                DtdlInterface = config.DtdlInterface
+            },
             DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
             {
                 Manufacturer = config.Manufacturer,

@@ -80,7 +80,7 @@ public class RequestResponseDeviceBase : DeviceBase
     /// </summary>
     public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Executing command {CommandName} on device {DeviceId}", command.DeviceCmd, DeviceId);
+        _logger.LogInformation("Executing command {CommandName} on device {SubNodeId}", command.DeviceCmd, SubNodeId);
 
         var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
 

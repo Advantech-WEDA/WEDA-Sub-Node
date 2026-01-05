@@ -84,7 +84,7 @@ public class ModbusDevice : RequestResponseDeviceBase
         ModbusScanConfig? config = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting Modbus register scan for device {DeviceId}", DeviceId);
+        _logger.LogInformation("Starting Modbus register scan for device {SubNodeId}", SubNodeId);
 
         var communication = _parser.Communication as IRequestResponseCommunication<byte[], byte[]>
             ?? throw new InvalidOperationException("Parser Communication is not IRequestResponseCommunication<byte[], byte[]>");

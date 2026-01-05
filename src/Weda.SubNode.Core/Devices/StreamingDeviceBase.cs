@@ -122,7 +122,7 @@ public class StreamingDeviceBase : DeviceBase
     /// </summary>
     public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Executing command {CommandName} on device {DeviceId}", command.DeviceCmd, DeviceId);
+        _logger.LogInformation("Executing command {CommandName} on device {SubNodeId}", command.DeviceCmd, SubNodeId);
 
         var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
 
@@ -180,11 +180,11 @@ public class StreamingDeviceBase : DeviceBase
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Stream task cancelled for device {DeviceId}", DeviceId);
+                _logger.LogInformation("Stream task cancelled for device {SubNodeId}", SubNodeId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in stream task for device {DeviceId}", DeviceId);
+                _logger.LogError(ex, "Error in stream task for device {SubNodeId}", SubNodeId);
             }
             finally
             {
@@ -244,7 +244,7 @@ public class StreamingDeviceBase : DeviceBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error pushing telemetry into cache for device {DeviceId}", DeviceId);
+            _logger.LogError(ex, "Error pushing telemetry into cache for device {SubNodeId}", SubNodeId);
         }
     }
 
@@ -254,15 +254,15 @@ public class StreamingDeviceBase : DeviceBase
     private void OnStreamStateChanged(StreamState state)
     {
         _logger.LogInformation(
-            "Stream state changed to {State} for device {DeviceId}",
-            state, DeviceId);
+            "Stream state changed to {State} for device {SubNodeId}",
+            state, SubNodeId);
 
         // Could trigger reconnection logic here if needed
         if (state == StreamState.Error || state == StreamState.Disconnected)
         {
             _logger.LogWarning(
-                "Stream disconnected for device {DeviceId}, may need reconnection",
-                DeviceId);
+                "Stream disconnected for device {SubNodeId}, may need reconnection",
+                SubNodeId);
         }
     }
 }

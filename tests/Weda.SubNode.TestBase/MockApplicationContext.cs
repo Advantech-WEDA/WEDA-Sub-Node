@@ -89,6 +89,7 @@ public class MockApplicationContext : IWedaApplicationContext
         MockCloudService = Substitute.For<IWedaCloudService>();
         MockCommunication = Substitute.For<IRequestResponseCommunication<byte[], byte[]>>();
         MockConfigurationCache = Substitute.For<IConfigurationCache>();
+        MockSubNodeManager = Substitute.For<ISubNodeManager>();
         MockLoggerFactory = NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
@@ -123,6 +124,7 @@ public class MockApplicationContext : IWedaApplicationContext
         MockCloudService = cloudService;
         MockCommunication = communication;
         MockConfigurationCache = configurationCache ?? Substitute.For<IConfigurationCache>();
+        MockSubNodeManager = Substitute.For<ISubNodeManager>();
         MockLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
@@ -179,6 +181,15 @@ public class MockApplicationContext : IWedaApplicationContext
     /// <inheritdoc />
     public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
         => DeviceRegistry.FindDevice<TDevice>(deviceName);
+
+    /// <inheritdoc />
+    public ISubNodeManager SubNodeManager => MockSubNodeManager;
+
+    /// <summary>
+    /// Gets the mock SubNode manager.
+    /// Use this to setup mock behaviors for SubNode operations.
+    /// </summary>
+    public ISubNodeManager MockSubNodeManager { get; private set; } = null!;
 
     #endregion
 

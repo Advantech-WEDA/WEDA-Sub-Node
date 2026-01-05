@@ -77,7 +77,7 @@ public class ISensingDeviceTests : IDisposable
     {
         // Assert
         Assert.NotNull(_device);
-        Assert.Equal("test-mqtt-device", _device.DeviceId);
+        Assert.Equal("test-mqtt-device", _device.SubNodeId);
         Assert.Equal("Test MQTT ISensing Device", _device.DeviceName);
     }
 
