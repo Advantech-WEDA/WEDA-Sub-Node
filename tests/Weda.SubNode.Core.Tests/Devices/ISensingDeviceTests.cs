@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Communication.Mqtt;
@@ -33,6 +34,11 @@ public class ISensingDeviceTests : IDisposable
                 Model = "WISE-4012SE",
                 SwVersion = "1.0",
                 SubNodeType = SubNodeType.CustomDevice
+            },
+            Dtdl = new DtdlConfig
+            {
+                AutoGenEnabled = false,
+                DtdlPath = "tests/Weda.SubNode.TestBase/Fixtures/test-device.dtdl.json"
             },
             DeviceCommunication = new Dictionary<string, object>
             {
@@ -111,6 +117,11 @@ public class ISensingDeviceTests : IDisposable
                 Model = "Test",
                 SwVersion = "1.0",
                 SubNodeType = SubNodeType.CustomDevice
+            },
+            Dtdl = new DtdlConfig
+            {
+                AutoGenEnabled = false,
+                DtdlPath = "tests/Weda.SubNode.TestBase/Fixtures/test-device.dtdl.json"
             },
             DeviceCommunication = new Dictionary<string, object>()
         };

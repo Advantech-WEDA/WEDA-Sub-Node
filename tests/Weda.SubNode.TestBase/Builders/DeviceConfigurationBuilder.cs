@@ -14,7 +14,11 @@ public class DeviceConfigurationBuilder
     private bool _enabled = true;
     private string _deviceId = "test-device-001";
     private string _deviceName = "Test Device";
-    private DtdlConfig _dtdl = new();
+    private DtdlConfig _dtdl = new()
+    {
+        AutoGenEnabled = false,
+        DtdlPath = "tests/Weda.SubNode.TestBase/Fixtures/test-device.dtdl.json"
+    };
     private List<Sensor> _sensors = new()
     {
         new Sensor

@@ -12,4 +12,10 @@
     <ProjectReference Include="..\..\src\Weda.SubNode.Core\Weda.SubNode.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Fixtures\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
