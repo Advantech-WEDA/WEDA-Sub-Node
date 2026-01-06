@@ -31,9 +31,9 @@ public class TransformConfig
 }
 
 /// <summary>
-/// Sensor-specific configuration including transforms, DSP, and thresholds
+/// Sensor report configuration including sampling interval, transforms, DSP, and thresholds
 /// </summary>
-public class SensorConfig
+public class SensorReport
 {
     /// <summary>
     /// Sensor enabled/disabled
@@ -167,8 +167,8 @@ public class SensorConfig
     /// This is the recommended way to add transforms as it provides clear separation from DSP filters
     /// </summary>
     /// <param name="configure">Action to configure transforms</param>
-    /// <returns>The SensorConfig for method chaining</returns>
-    public SensorConfig ConfigureTransforms(Action<TransformPipelineBuilder> configure)
+    /// <returns>The SensorReport for method chaining</returns>
+    public SensorReport ConfigureTransforms(Action<TransformPipelineBuilder> configure)
     {
         var builder = new TransformPipelineBuilder(this);
         configure(builder);
@@ -180,7 +180,7 @@ public class SensorConfig
     /// WARNING: Do not mix AddTransform() and AddDspFilter() calls - transforms are always executed before DSP filters
     /// regardless of call order. Use ConfigureTransforms() and ConfigureDspFilters() for clearer intent.
     /// </summary>
-    public SensorConfig AddTransform(ITelemetryTransform transform)
+    public SensorReport AddTransform(ITelemetryTransform transform)
     {
         lock (_transformLock)
         {
@@ -192,7 +192,7 @@ public class SensorConfig
     /// <summary>
     /// Inserts a transform at the specified index in the transform pipeline (thread-safe)
     /// </summary>
-    public SensorConfig InsertTransformAt(int index, ITelemetryTransform transform)
+    public SensorReport InsertTransformAt(int index, ITelemetryTransform transform)
     {
         lock (_transformLock)
         {
@@ -204,7 +204,7 @@ public class SensorConfig
     /// <summary>
     /// Removes the transform at the specified index (thread-safe)
     /// </summary>
-    public SensorConfig RemoveTransformAt(int index)
+    public SensorReport RemoveTransformAt(int index)
     {
         lock (_transformLock)
         {
@@ -216,7 +216,7 @@ public class SensorConfig
     /// <summary>
     /// Removes the specified transform from the pipeline (thread-safe)
     /// </summary>
-    public SensorConfig RemoveTransform(ITelemetryTransform transform)
+    public SensorReport RemoveTransform(ITelemetryTransform transform)
     {
         lock (_transformLock)
         {
@@ -228,7 +228,7 @@ public class SensorConfig
     /// <summary>
     /// Moves a transform from one index to another (thread-safe)
     /// </summary>
-    public SensorConfig MoveTransform(int fromIndex, int toIndex)
+    public SensorReport MoveTransform(int fromIndex, int toIndex)
     {
         lock (_transformLock)
         {
@@ -242,7 +242,7 @@ public class SensorConfig
     /// <summary>
     /// Clears all transforms from the pipeline (thread-safe)
     /// </summary>
-    public SensorConfig ClearTransforms()
+    public SensorReport ClearTransforms()
     {
         lock (_transformLock)
         {
@@ -258,8 +258,8 @@ public class SensorConfig
     /// This is the recommended way to add DSP filters as it provides clear separation from transforms
     /// </summary>
     /// <param name="configure">Action to configure DSP filters</param>
-    /// <returns>The SensorConfig for method chaining</returns>
-    public SensorConfig ConfigureDspFilters(Action<DspFilterPipelineBuilder> configure)
+    /// <returns>The SensorReport for method chaining</returns>
+    public SensorReport ConfigureDspFilters(Action<DspFilterPipelineBuilder> configure)
     {
         var builder = new DspFilterPipelineBuilder(this);
         configure(builder);
@@ -271,7 +271,7 @@ public class SensorConfig
     /// WARNING: Do not mix AddTransform() and AddDspFilter() calls - transforms are always executed before DSP filters
     /// regardless of call order. Use ConfigureTransforms() and ConfigureDspFilters() for clearer intent.
     /// </summary>
-    public SensorConfig AddDspFilter(IDspFilter filter)
+    public SensorReport AddDspFilter(IDspFilter filter)
     {
         lock (_dspFilterLock)
         {
@@ -283,7 +283,7 @@ public class SensorConfig
     /// <summary>
     /// Inserts a DSP filter at the specified index in the DSP filter pipeline (thread-safe)
     /// </summary>
-    public SensorConfig InsertDspFilterAt(int index, IDspFilter filter)
+    public SensorReport InsertDspFilterAt(int index, IDspFilter filter)
     {
         lock (_dspFilterLock)
         {
@@ -295,7 +295,7 @@ public class SensorConfig
     /// <summary>
     /// Removes the DSP filter at the specified index (thread-safe)
     /// </summary>
-    public SensorConfig RemoveDspFilterAt(int index)
+    public SensorReport RemoveDspFilterAt(int index)
     {
         lock (_dspFilterLock)
         {
@@ -307,7 +307,7 @@ public class SensorConfig
     /// <summary>
     /// Removes the specified DSP filter from the pipeline (thread-safe)
     /// </summary>
-    public SensorConfig RemoveDspFilter(IDspFilter filter)
+    public SensorReport RemoveDspFilter(IDspFilter filter)
     {
         lock (_dspFilterLock)
         {
@@ -319,7 +319,7 @@ public class SensorConfig
     /// <summary>
     /// Moves a DSP filter from one index to another (thread-safe)
     /// </summary>
-    public SensorConfig MoveDspFilter(int fromIndex, int toIndex)
+    public SensorReport MoveDspFilter(int fromIndex, int toIndex)
     {
         lock (_dspFilterLock)
         {
@@ -333,7 +333,7 @@ public class SensorConfig
     /// <summary>
     /// Clears all DSP filters from the pipeline (thread-safe)
     /// </summary>
-    public SensorConfig ClearDspFilters()
+    public SensorReport ClearDspFilters()
     {
         lock (_dspFilterLock)
         {
@@ -431,9 +431,9 @@ public enum ThresholdLevel
 /// </summary>
 public class TransformPipelineBuilder
 {
-    private readonly SensorConfig _config;
+    private readonly SensorReport _config;
 
-    internal TransformPipelineBuilder(SensorConfig config)
+    internal TransformPipelineBuilder(SensorReport config)
     {
         _config = config;
     }
@@ -476,9 +476,9 @@ public class TransformPipelineBuilder
 /// </summary>
 public class DspFilterPipelineBuilder
 {
-    private readonly SensorConfig _config;
+    private readonly SensorReport _config;
 
-    internal DspFilterPipelineBuilder(SensorConfig config)
+    internal DspFilterPipelineBuilder(SensorReport config)
     {
         _config = config;
     }

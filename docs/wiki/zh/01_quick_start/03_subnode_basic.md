@@ -198,7 +198,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         DtdlPath = "assets/dtdl/dtmi/advantech/edgesync/sample-1.json"
     };
 
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",
@@ -326,7 +326,7 @@ var modbusDeviceConfig = new TcpModbusDeviceConfiguration
     SlaveId = 1
 };
 
-var tempSensor = new ModbusSensorConfiguration
+var tempSensor = new ModbusSensorReporturation
 {
     Name = "temperature.sensor",
     Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",

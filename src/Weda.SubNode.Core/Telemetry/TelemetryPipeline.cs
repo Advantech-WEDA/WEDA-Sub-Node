@@ -330,21 +330,21 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 List<ITelemetryTransform> transformsToApply = new();
 
                 // Merge sensor-level runtime and config-based transforms
-                if (sensor?.Config != null)
+                if (sensor?.Report != null)
                 {
                     // Priority 1: Add sensor-level runtime transforms (from code) - thread-safe
-                    if (sensor.Config.RuntimeTransforms.Count > 0)
+                    if (sensor.Report.RuntimeTransforms.Count > 0)
                     {
-                        transformsToApply.AddRange(sensor.Config.RuntimeTransforms);
+                        transformsToApply.AddRange(sensor.Report.RuntimeTransforms);
                         _logger.LogTrace(
                             "Added {Count} sensor-level runtime transforms for ResourceId {ResourceId}",
-                            sensor.Config.RuntimeTransforms.Count, resourceId);
+                            sensor.Report.RuntimeTransforms.Count, resourceId);
                     }
 
                     // Priority 2: Add sensor-level config transforms (from appsettings.json or cloud)
-                    if (sensor.Config.TransformPipeline.Count > 0)
+                    if (sensor.Report.TransformPipeline.Count > 0)
                     {
-                        var configBasedTransforms = TransformFactory.CreateFromConfigs(sensor.Config.TransformPipeline);
+                        var configBasedTransforms = TransformFactory.CreateFromConfigs(sensor.Report.TransformPipeline);
                         transformsToApply.AddRange(configBasedTransforms);
                         _logger.LogTrace(
                             "Added {Count} sensor-level config transforms for ResourceId {ResourceId}",
@@ -460,21 +460,21 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 List<IDspFilter> filtersToApply = new();
 
                 // Merge sensor-level runtime and config-based DSP filters
-                if (sensor?.Config != null)
+                if (sensor?.Report != null)
                 {
                     // Priority 1: Add sensor-level runtime DSP filters (from code) - thread-safe
-                    if (sensor.Config.RuntimeDspFilters.Count > 0)
+                    if (sensor.Report.RuntimeDspFilters.Count > 0)
                     {
-                        filtersToApply.AddRange(sensor.Config.RuntimeDspFilters);
+                        filtersToApply.AddRange(sensor.Report.RuntimeDspFilters);
                         _logger.LogTrace(
                             "Added {Count} sensor-level runtime DSP filters for ResourceId {ResourceId}",
-                            sensor.Config.RuntimeDspFilters.Count, resourceId);
+                            sensor.Report.RuntimeDspFilters.Count, resourceId);
                     }
 
                     // Priority 2: Add sensor-level config DSP filters (from appsettings.json or cloud)
-                    if (sensor.Config.DspPipeline.Count > 0)
+                    if (sensor.Report.DspPipeline.Count > 0)
                     {
-                        var configBasedFilters = DspFilterFactory.CreateFromConfigs(sensor.Config.DspPipeline);
+                        var configBasedFilters = DspFilterFactory.CreateFromConfigs(sensor.Report.DspPipeline);
                         filtersToApply.AddRange(configBasedFilters);
                         _logger.LogTrace(
                             "Added {Count} sensor-level config DSP filters for ResourceId {ResourceId}",

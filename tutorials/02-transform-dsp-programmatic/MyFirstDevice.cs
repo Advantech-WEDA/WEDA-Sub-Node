@@ -39,7 +39,7 @@ public class MyFirstDevice : TcpModbusDevice
             _logger.LogInformation("Configuring Transform and DSP Filter for {SensorName}", tempSensor.Name);
 
             // Configure Transform Pipeline (executed first)
-            tempSensor.Config.ConfigureTransforms(transforms =>
+            tempSensor.Report.ConfigureTransforms(transforms =>
             {
                 // 1. Calibration: Convert raw value (example: scale and offset)
                 transforms.Add(new CalibrationTransform(scale: 1.0, offset: 0.0));
@@ -51,7 +51,7 @@ public class MyFirstDevice : TcpModbusDevice
             });
 
             // Configure DSP Filter Pipeline (executed after transforms)
-            tempSensor.Config.ConfigureDspFilters(filters =>
+            tempSensor.Report.ConfigureDspFilters(filters =>
             {
                 // 1. Moving Average Filter: Smooth out noise with window size of 5
                 filters.Add(new MovingAverageFilter(5));  // Constructor takes window size

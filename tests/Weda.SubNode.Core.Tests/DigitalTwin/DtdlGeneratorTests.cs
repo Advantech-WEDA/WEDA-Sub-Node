@@ -270,7 +270,7 @@ public class DtdlGeneratorTests
         {
             Name = "temperature",
             SensorGroup = SensorGroup.TEMP,
-            Config = new SensorConfig { Unit = "celsius" }
+            Report = new SensorReport { Unit = "celsius" }
         };
 
         // Act
@@ -530,7 +530,7 @@ public class DtdlGeneratorTests
                     DisplayName = "Analog Input 0",
                     Description = "First analog input channel"
                 },
-                Config = new SensorConfig { Unit = "mV" }
+                Report = new SensorReport { Unit = "mV" }
             },
             new()
             {

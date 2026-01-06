@@ -32,15 +32,22 @@ public static partial class ConfigurationUpdateHelper
 
         // Empty desired config is valid but means no update is required
         // This can happen when cloud sends a sync message with empty desired state
-        if (message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs == null ||
-            message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs?.Count == 0)
+        var deviceConfigs = message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs;
+        if (deviceConfigs == null || deviceConfigs.Count == 0)
             return ConfigurationValidationResult.NoUpdate;
 
-        // Validate each device config
-        foreach (var (deviceKey, deviceConfig) in message.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
+        // Check for duplicate keys (case-insensitive)
+        // Note: DeviceConfigs dictionary uses StringComparer.OrdinalIgnoreCase, so duplicates
+        // would be merged during deserialization. This check catches any edge cases.
+        var duplicateCheck = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in deviceConfigs.Keys)
         {
-            if (string.IsNullOrEmpty(deviceConfig.DeviceName))
-                return ConfigurationValidationResult.Failure($"Device '{deviceKey}' is missing DeviceName");
+            if (!duplicateCheck.Add(key))
+            {
+                return ConfigurationValidationResult.Failure(
+                    $"Duplicate device configuration key detected (case-insensitive): '{key}'. " +
+                    $"Device configuration keys must be unique regardless of case.");
+            }
         }
 
         return ConfigurationValidationResult.Success;
@@ -72,26 +79,11 @@ public static partial class ConfigurationUpdateHelper
         if (deviceConfigs == null)
             return ConfigurationValidationResult.Failure("No device configurations in desired state");
 
-        // Try to find matching device config by DeviceName
-        SubNodeDeviceConfigDto? desiredConfig = null;
-        foreach (var (key, config) in deviceConfigs)
+        // Try to find matching device config by DeviceName (using dictionary key)
+        // DeviceConfigs dictionary is case-insensitive, so we can directly lookup
+        if (!deviceConfigs.TryGetValue(currentConfig.DeviceName, out var desiredConfig))
         {
-            if (string.Equals(config.DeviceName, currentConfig.DeviceName, StringComparison.OrdinalIgnoreCase))
-            {
-                desiredConfig = config;
-                break;
-            }
-        }
-
-        if (desiredConfig == null)
             return ConfigurationValidationResult.Failure($"No matching configuration found for device '{currentConfig.DeviceName}'");
-
-        // Validate DeviceName consistency (if enabled)
-        if (options.ValidateDeviceName)
-        {
-            if (!string.Equals(desiredConfig.DeviceName, currentConfig.DeviceName, StringComparison.OrdinalIgnoreCase))
-                return ConfigurationValidationResult.Failure(
-                    $"DeviceName mismatch: expected '{currentConfig.DeviceName}', got '{desiredConfig.DeviceName}'");
         }
 
         // Validate periods if provided (if enabled)
@@ -343,19 +335,19 @@ public static partial class ConfigurationUpdateHelper
         {
             ReportHealthPeriod = config.Periods.ReportHealth,
             ReportConfigurationPeriod = config.Periods.ReportConfiguration,
-            SensorBackups = config.Sensors.Select(s => new SensorConfigBackup
+            SensorBackups = config.Sensors.Select(s => new sensorReportBackup
             {
                 Name = s.Name,
-                Enabled = s.Config.Enabled,
-                Interval = s.Config.Interval,
-                Unit = s.Config.Unit,
-                Thresholds = s.Config.Thresholds != null
+                Enabled = s.Report.Enabled,
+                Interval = s.Report.Interval,
+                Unit = s.Report.Unit,
+                Thresholds = s.Report.Thresholds != null
                     ? new ThresholdConfig
                     {
-                        UpperCritical = s.Config.Thresholds.UpperCritical,
-                        UpperWarning = s.Config.Thresholds.UpperWarning,
-                        LowerWarning = s.Config.Thresholds.LowerWarning,
-                        LowerCritical = s.Config.Thresholds.LowerCritical
+                        UpperCritical = s.Report.Thresholds.UpperCritical,
+                        UpperWarning = s.Report.Thresholds.UpperWarning,
+                        LowerWarning = s.Report.Thresholds.LowerWarning,
+                        LowerCritical = s.Report.Thresholds.LowerCritical
                     }
                     : null
             }).ToList()
@@ -379,10 +371,10 @@ public static partial class ConfigurationUpdateHelper
 
             if (sensor != null)
             {
-                sensor.Config.Enabled = sensorBackup.Enabled;
-                sensor.Config.Interval = sensorBackup.Interval;
-                sensor.Config.Unit = sensorBackup.Unit;
-                sensor.Config.Thresholds = sensorBackup.Thresholds;
+                sensor.Report.Enabled = sensorBackup.Enabled;
+                sensor.Report.Interval = sensorBackup.Interval;
+                sensor.Report.Unit = sensorBackup.Unit;
+                sensor.Report.Thresholds = sensorBackup.Thresholds;
             }
         }
     }
@@ -394,9 +386,9 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="deviceConfig">The device configuration to update</param>
     /// <param name="desiredSensors">The desired sensor configurations</param>
     /// <returns>List of sensor names that were updated</returns>
-    public static List<string> ApplySensorConfigUpdates(
+    public static List<string> ApplysensorReportUpdates(
         DeviceConfiguration deviceConfig,
-        IReadOnlyList<SubNodeSensorConfigDto>? desiredSensors)
+        IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
     {
         var updatedSensors = new List<string>();
 
@@ -415,19 +407,19 @@ public static partial class ConfigurationUpdateHelper
             // Apply config updates (PATCH semantics - only update provided fields)
             if (desiredSensor.Config != null)
             {
-                sensor.Config.Enabled = desiredSensor.Config.Enabled;
-                sensor.Config.Interval = desiredSensor.Config.Interval;
+                sensor.Report.Enabled = desiredSensor.Report.Enabled;
+                sensor.Report.Interval = desiredSensor.Config.Interval;
 
                 // Only update unit if provided
                 if (!string.IsNullOrEmpty(desiredSensor.Config.Unit))
                 {
-                    sensor.Config.Unit = desiredSensor.Config.Unit;
+                    sensor.Report.Unit = desiredSensor.Config.Unit;
                 }
 
                 // Apply thresholds if provided
                 if (desiredSensor.Config.Thresholds != null)
                 {
-                    sensor.Config.Thresholds = new ThresholdConfig
+                    sensor.Report.Thresholds = new ThresholdConfig
                     {
                         UpperCritical = desiredSensor.Config.Thresholds.UpperCritical,
                         UpperWarning = desiredSensor.Config.Thresholds.UpperWarning,
@@ -447,11 +439,11 @@ public static partial class ConfigurationUpdateHelper
     /// Applies DSP filter pipeline updates for a specific sensor.
     /// Updates existing filters' Enabled state and parameters without recreating instances.
     /// </summary>
-    /// <param name="sensorConfig">The sensor configuration containing the runtime DSP filters</param>
+    /// <param name="sensorReport">The sensor configuration containing the runtime DSP filters</param>
     /// <param name="desiredDspPipeline">The desired DSP filter configurations from cloud</param>
     /// <returns>Result indicating success or validation errors</returns>
     public static ErrorOr<DspPipelineUpdateResult> ApplyDspPipelineUpdates(
-        SensorConfig sensorConfig,
+        SensorReport sensorReport,
         IReadOnlyList<SubNodeDspFilterConfigDto>? desiredDspPipeline)
     {
         var result = new DspPipelineUpdateResult();
@@ -459,8 +451,8 @@ public static partial class ConfigurationUpdateHelper
         if (desiredDspPipeline == null || desiredDspPipeline.Count == 0)
             return result;
 
-        var runtimeFilters = sensorConfig.RuntimeDspFilters;
-        var configFilters = sensorConfig.DspPipeline;
+        var runtimeFilters = sensorReport.RuntimeDspFilters;
+        var configFilters = sensorReport.DspPipeline;
 
         // Strategy: Match filters by index (same position = same filter)
         // For config-based filters, update the config directly
@@ -530,11 +522,11 @@ public static partial class ConfigurationUpdateHelper
     /// Applies transform pipeline updates for a specific sensor.
     /// Updates existing transforms' Enabled state and parameters without recreating instances.
     /// </summary>
-    /// <param name="sensorConfig">The sensor configuration containing the runtime transforms</param>
+    /// <param name="sensorReport">The sensor configuration containing the runtime transforms</param>
     /// <param name="desiredTransformPipeline">The desired transform configurations from cloud</param>
     /// <returns>Result indicating success or validation errors</returns>
     public static ErrorOr<TransformPipelineUpdateResult> ApplyTransformPipelineUpdates(
-        SensorConfig sensorConfig,
+        SensorReport sensorReport,
         IReadOnlyList<SubNodeTransformConfigDto>? desiredTransformPipeline)
     {
         var result = new TransformPipelineUpdateResult();
@@ -542,8 +534,8 @@ public static partial class ConfigurationUpdateHelper
         if (desiredTransformPipeline == null || desiredTransformPipeline.Count == 0)
             return result;
 
-        var runtimeTransforms = sensorConfig.RuntimeTransforms;
-        var configTransforms = sensorConfig.TransformPipeline;
+        var runtimeTransforms = sensorReport.RuntimeTransforms;
+        var configTransforms = sensorReport.TransformPipeline;
 
         // Strategy: Match transforms by index (same position = same transform)
         // For config-based transforms, update the config directly
@@ -618,7 +610,7 @@ public static partial class ConfigurationUpdateHelper
     /// <returns>Result indicating success or validation errors</returns>
     public static ErrorOr<PipelineUpdateSummary> ApplyAllPipelineUpdates(
         DeviceConfiguration deviceConfig,
-        IReadOnlyList<SubNodeSensorConfigDto>? desiredSensors)
+        IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
     {
         var summary = new PipelineUpdateSummary();
 
@@ -637,7 +629,7 @@ public static partial class ConfigurationUpdateHelper
             // Apply DSP pipeline updates
             if (desiredSensor.Config?.DspPipeline != null)
             {
-                var dspResult = ApplyDspPipelineUpdates(sensor.Config, desiredSensor.Config.DspPipeline);
+                var dspResult = ApplyDspPipelineUpdates(sensor.Report, desiredSensor.Report.DspPipeline);
                 if (dspResult.IsError)
                 {
                     return Error.Validation(
@@ -650,7 +642,7 @@ public static partial class ConfigurationUpdateHelper
             // Apply Transform pipeline updates
             if (desiredSensor.Config?.TransformPipeline != null)
             {
-                var transformResult = ApplyTransformPipelineUpdates(sensor.Config, desiredSensor.Config.TransformPipeline);
+                var transformResult = ApplyTransformPipelineUpdates(sensor.Report, desiredSensor.Report.TransformPipeline);
                 if (transformResult.IsError)
                 {
                     return Error.Validation(
@@ -681,22 +673,14 @@ public static partial class ConfigurationUpdateHelper
 
         var deviceConfigs = cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs;
 
-        // Find matching device config by DeviceName
-        SubNodeDeviceConfigDto? matchingConfig = null;
-        foreach (var (_, config) in deviceConfigs)
+        // Find matching device config by DeviceName (using dictionary key)
+        if (!deviceConfigs.TryGetValue(baseConfig.DeviceName, out var matchingConfig))
         {
-            if (string.Equals(config.DeviceName, baseConfig.DeviceName, StringComparison.OrdinalIgnoreCase))
-            {
-                matchingConfig = config;
-                break;
-            }
+            return false;
         }
 
-        if (matchingConfig == null)
-            return false;
-
         // Apply sensor configuration updates
-        ApplySensorConfigUpdates(baseConfig, matchingConfig.Sensors);
+        ApplysensorReportUpdates(baseConfig, matchingConfig.Sensors);
 
         // Apply pipeline updates (Transform and DSP filters)
         ApplyAllPipelineUpdates(baseConfig, matchingConfig.Sensors);
@@ -731,16 +715,11 @@ public static partial class ConfigurationUpdateHelper
             return null;
 
         var deviceConfigs = cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs;
+        if (deviceConfigs == null)
+            return null;
 
-        foreach (var (_, config) in deviceConfigs)
-        {
-            if (string.Equals(config.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase))
-            {
-                return config;
-            }
-        }
-
-        return null;
+        // Use dictionary key for lookup (case-insensitive)
+        return deviceConfigs.TryGetValue(deviceName, out var config) ? config : null;
     }
 
     /// <summary>
@@ -752,7 +731,6 @@ public static partial class ConfigurationUpdateHelper
         return new SubNodeDeviceConfigDto
         {
             Enabled = true,
-            DeviceName = config.DeviceName,
             DeviceType = config.SubNodeType.ToString(),
             Dtdl = new SubNodeDtdlConfigDto
             {
@@ -773,7 +751,7 @@ public static partial class ConfigurationUpdateHelper
                 ReportHealth = config.Periods.ReportHealth,
                 ReportConfiguration = config.Periods.ReportConfiguration
             },
-            Sensors = config.Sensors.Select(s => new SubNodeSensorConfigDto
+            Sensors = config.Sensors.Select(s => new SubNodeSensorReportDto
             {
                 Name = s.Name,
                 Dtmi = s.Dtmi,
@@ -781,16 +759,16 @@ public static partial class ConfigurationUpdateHelper
                 Parameters = s.Parameters,
                 Config = new SubNodeSensorRuntimeConfigDto
                 {
-                    Enabled = s.Config.Enabled,
-                    Interval = (int)s.Config.Interval,
-                    Unit = s.Config.Unit,
-                    Thresholds = s.Config.Thresholds != null
+                    Enabled = s.Report.Enabled,
+                    Interval = (int)s.Report.Interval,
+                    Unit = s.Report.Unit,
+                    Thresholds = s.Report.Thresholds != null
                         ? new SubNodeThresholdsDto
                         {
-                            UpperCritical = s.Config.Thresholds.UpperCritical,
-                            UpperWarning = s.Config.Thresholds.UpperWarning,
-                            LowerWarning = s.Config.Thresholds.LowerWarning,
-                            LowerCritical = s.Config.Thresholds.LowerCritical
+                            UpperCritical = s.Report.Thresholds.UpperCritical,
+                            UpperWarning = s.Report.Thresholds.UpperWarning,
+                            LowerWarning = s.Report.Thresholds.LowerWarning,
+                            LowerCritical = s.Report.Thresholds.LowerCritical
                         }
                         : null
                 }
@@ -846,7 +824,7 @@ public static partial class ConfigurationUpdateHelper
     /// <returns>Validation result indicating success or failure with error message</returns>
     private static ConfigurationValidationResult ValidatePipelineParameters(
         DeviceConfiguration currentConfig,
-        IReadOnlyList<SubNodeSensorConfigDto> desiredSensors)
+        IReadOnlyList<SubNodeSensorReportDto> desiredSensors)
     {
         foreach (var desiredSensor in desiredSensors)
         {
@@ -862,9 +840,9 @@ public static partial class ConfigurationUpdateHelper
             {
                 var dspValidationResult = ValidateDspPipelineParameters(
                     sensor.Name,
-                    sensor.Config.RuntimeDspFilters,
-                    sensor.Config.DspPipeline,
-                    desiredSensor.Config.DspPipeline);
+                    sensor.Report.RuntimeDspFilters,
+                    sensor.Report.DspPipeline,
+                    desiredSensor.Report.DspPipeline);
 
                 if (!dspValidationResult.IsValid)
                     return dspValidationResult;
@@ -875,9 +853,9 @@ public static partial class ConfigurationUpdateHelper
             {
                 var transformValidationResult = ValidateTransformPipelineParameters(
                     sensor.Name,
-                    sensor.Config.RuntimeTransforms,
-                    sensor.Config.TransformPipeline,
-                    desiredSensor.Config.TransformPipeline);
+                    sensor.Report.RuntimeTransforms,
+                    sensor.Report.TransformPipeline,
+                    desiredSensor.Report.TransformPipeline);
 
                 if (!transformValidationResult.IsValid)
                     return transformValidationResult;
@@ -1065,13 +1043,13 @@ public class DeviceConfigurationBackup
 {
     public int ReportHealthPeriod { get; set; }
     public int ReportConfigurationPeriod { get; set; }
-    public List<SensorConfigBackup> SensorBackups { get; set; } = [];
+    public List<sensorReportBackup> SensorBackups { get; set; } = [];
 }
 
 /// <summary>
 /// Backup snapshot of sensor configuration.
 /// </summary>
-public class SensorConfigBackup
+public class sensorReportBackup
 {
     public string Name { get; set; } = string.Empty;
     public bool Enabled { get; set; }

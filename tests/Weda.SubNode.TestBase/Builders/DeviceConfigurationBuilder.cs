@@ -30,7 +30,7 @@ public class DeviceConfigurationBuilder
                 ["RegisterCount"] = 2,
                 ["DataType"] = "Float32"
             },
-            Config = new SensorConfig
+            Report = new SensorReport
             {
                 Enabled = true,
                 Interval = 1000

@@ -206,11 +206,13 @@ public class WedaApplicationContext : IWedaApplicationContext
         _deviceRegistry = new DeviceRegistry();
 
         // Initialize configuration cache (for UC9868 cloud-driven config updates)
-        _configurationCache = new JsonConfigurationCache(
+        // Use provided instance from options if available (DI scenario), otherwise create new instance
+        _configurationCache = _options.ConfigurationCache ?? new JsonConfigurationCache(
             logger: _loggerFactory.CreateLogger<JsonConfigurationCache>());
 
         // Initialize registration storage (for SubNode registration persistence)
-        _registrationStorage = new JsonDeviceRegistrationStorage(
+        // Use provided instance from options if available (DI scenario), otherwise create new instance
+        _registrationStorage = _options.RegistrationStorage ?? new JsonDeviceRegistrationStorage(
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
         // Bind configuration objects using Options Pattern
@@ -510,6 +512,15 @@ public class WedaApplicationContext : IWedaApplicationContext
 
             try
             {
+                // Check for duplicate keys (case-insensitive)
+                if (configs.ContainsKey(configKey))
+                {
+                    var existingKey = configs.Keys.First(k => k.Equals(configKey, StringComparison.OrdinalIgnoreCase));
+                    throw new InvalidOperationException(
+                        $"Duplicate device configuration key detected (case-insensitive): '{configKey}' conflicts with existing key '{existingKey}'. " +
+                        $"Device configuration keys must be unique regardless of case.");
+                }
+
                 var deviceConfig = configSection.Get<DeviceConfiguration>();
                 if (deviceConfig == null)
                 {

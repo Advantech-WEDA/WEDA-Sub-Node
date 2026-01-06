@@ -594,7 +594,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     // ★ Define sensors ★
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",                   // ← Sensor identifier
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1", // ← Digital Twin definition
@@ -1085,7 +1085,7 @@ static DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     // Define sensors
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",

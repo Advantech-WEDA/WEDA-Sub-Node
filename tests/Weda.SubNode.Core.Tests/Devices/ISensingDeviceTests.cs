@@ -50,7 +50,7 @@ public class ISensingDeviceTests : IDisposable
                     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
                     DeviceResourceId = "test-mqtt-device",
                     SensorGroup = SensorGroup.AI,
-                    Config = new SensorConfig
+                    Report = new SensorReport
                     {
                         Enabled = true,
                         Unit = "mA"
@@ -63,7 +63,7 @@ public class ISensingDeviceTests : IDisposable
                     Dtmi = "dtmi:advantech:EdgeSync:DO;1",
                     DeviceResourceId = "test-mqtt-device",
                     SensorGroup = SensorGroup.DO,
-                    Config = new SensorConfig { Enabled = true }
+                    Report = new SensorReport { Enabled = true }
                 }
             }
         };

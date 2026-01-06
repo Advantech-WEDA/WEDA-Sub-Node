@@ -538,7 +538,7 @@ public class DeviceBaseLifecycleTests : IDisposable
                     Dtmi = "dtmi:test:Temperature;1",
                     DeviceResourceId = "",
                     ResourceId = "",
-                    Config = new SensorConfig
+                    Report = new SensorReport
                     {
                         Enabled = true,
                         Interval = 1000

@@ -42,7 +42,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     /// </summary>
     public async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
-        var enabledSensors = _configuration.Sensors.Where(s => s.Config.Enabled).ToList();
+        var enabledSensors = _configuration.Sensors.Where(s => s.Report.Enabled).ToList();
         return await ReadTelemetryForSensorsAsync(enabledSensors, cancellationToken);
     }
 
@@ -58,7 +58,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         var requestedIds = sensorResourceIds.ToHashSet();
 
         var sensors = _configuration.Sensors
-            .Where(s => s.Config.Enabled && requestedIds.Contains(s.ResourceId))
+            .Where(s => s.Report.Enabled && requestedIds.Contains(s.ResourceId))
             .ToList();
 
         return await ReadTelemetryForSensorsAsync(sensors, cancellationToken);

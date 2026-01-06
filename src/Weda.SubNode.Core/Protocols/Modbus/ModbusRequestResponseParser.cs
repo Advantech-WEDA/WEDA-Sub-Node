@@ -121,7 +121,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 
         // Get enabled sensors from configuration
         var enabledSensors = _configuration.Sensors
-            .Where(s => s.Config.Enabled)
+            .Where(s => s.Report.Enabled)
             .ToList();
 
         if (enabledSensors.Count == 0)

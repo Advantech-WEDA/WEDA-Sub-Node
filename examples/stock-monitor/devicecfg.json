@@ -24,7 +24,7 @@
             "StockCode": "2395",
             "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           },
@@ -41,7 +41,7 @@
             "StockCode": "2330",
             "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           },

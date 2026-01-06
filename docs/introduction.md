@@ -224,7 +224,7 @@ public class MyCustomParser : IRequestResponseProtocolParser
         var measures = new List<TelemetryMeasure>();
 
         // 根據 DeviceConfiguration 中的 Sensor 設定進行解析
-        foreach (var sensor in _configuration.Sensors.Where(s => s.Config.Enabled))
+        foreach (var sensor in _configuration.Sensors.Where(s => s.Report.Enabled))
         {
             var value = ExtractValue(data, sensor);
             measures.Add(new TelemetryMeasure

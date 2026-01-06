@@ -248,9 +248,8 @@ public class MockCloudService : IWedaCloudService
             foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
             {
                 _logger.LogDebug(
-                    "  Desired config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
+                    "  Desired config for '{DeviceKey}': SensorCount={SensorCount}",
                     deviceKey,
-                    deviceConfig.DeviceName,
                     deviceConfig.Sensors?.Count ?? 0);
             }
         }
@@ -260,9 +259,8 @@ public class MockCloudService : IWedaCloudService
             foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.DeviceConfigs)
             {
                 _logger.LogDebug(
-                    "  Reported config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
+                    "  Reported config for '{DeviceKey}': SensorCount={SensorCount}",
                     deviceKey,
-                    deviceConfig.DeviceName,
                     deviceConfig.Sensors?.Count ?? 0);
             }
         }

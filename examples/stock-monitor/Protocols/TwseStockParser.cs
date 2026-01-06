@@ -42,7 +42,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         // Pre-process sensor configuration at construction time
-        _sensorConfigByStockCode = PreprocessSensorConfiguration(configuration.Sensors);
+        _sensorConfigByStockCode = PreprocessSensorReporturation(configuration.Sensors);
         _logger.LogDebug("TwseStockParser initialized with {StockCount} stocks, {SensorCount} sensors",
             _sensorConfigByStockCode.Count, configuration.Sensors.Count);
     }
@@ -51,7 +51,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
     /// Pre-process sensor configuration at construction time.
     /// Deserializes parameters once and groups by StockCode for efficient lookup.
     /// </summary>
-    private Dictionary<string, List<SensorMetricsConfig>> PreprocessSensorConfiguration(IReadOnlyList<Sensor> sensors)
+    private Dictionary<string, List<SensorMetricsConfig>> PreprocessSensorReporturation(IReadOnlyList<Sensor> sensors)
     {
         var result = new Dictionary<string, List<SensorMetricsConfig>>();
 
@@ -124,7 +124,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
     public async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         var enabledResourceIds = _configuration.Sensors
-            .Where(s => s.Config.Enabled)
+            .Where(s => s.Report.Enabled)
             .Select(s => s.ResourceId)
             .ToHashSet();
 
@@ -159,7 +159,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
         // Filter to only requested sensors and get unique stock codes
         var stockCodesToFetch = _sensorConfigByStockCode
             .Where(kvp => kvp.Value.Any(config =>
-                config.Sensor.Config.Enabled && requestedResourceIds.Contains(config.Sensor.ResourceId)))
+                config.Sensor.Report.Enabled && requestedResourceIds.Contains(config.Sensor.ResourceId)))
             .Select(kvp => kvp.Key)
             .ToList();
 
@@ -224,7 +224,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
             foreach (var config in configList)
             {
                 // Skip if sensor is not enabled or not requested
-                if (!config.Sensor.Config.Enabled || !requestedResourceIds.Contains(config.Sensor.ResourceId))
+                if (!config.Sensor.Report.Enabled || !requestedResourceIds.Contains(config.Sensor.ResourceId))
                     continue;
 
                 // Use pre-parsed metrics list

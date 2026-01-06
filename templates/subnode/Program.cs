@@ -73,7 +73,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     // Create temperature sensor with transform pipeline
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",

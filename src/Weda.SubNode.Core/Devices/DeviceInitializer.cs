@@ -122,7 +122,8 @@ public sealed class DeviceInitializer
             throw new InvalidOperationException(errorMsg);
         }
 
-        _logger.LogInformation("Device configuration uploaded successfully");
+        // Success logging is handled by WedaCloudService and DeviceAgentClient
+        // No need for duplicate log here
     }
 
     /// <summary>

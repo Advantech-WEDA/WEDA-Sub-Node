@@ -154,7 +154,7 @@ public class ModbusDeviceTests : IDisposable
                         ["RegisterCount"] = 2,
                         ["DataType"] = "Float32"
                     },
-                    Config = new SensorConfig { Enabled = false }
+                    Report = new SensorReport { Enabled = false }
                 }
             })
             .Build();

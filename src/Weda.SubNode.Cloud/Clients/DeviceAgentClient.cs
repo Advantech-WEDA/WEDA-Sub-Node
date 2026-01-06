@@ -67,13 +67,6 @@ public class DeviceAgentClient : IDeviceAgentClient
         var dto = configuration.ToConfigurationDto();
         var request = ConfigurationUploadRequest.Create(dto);
 
-        _logger.LogInformation(
-            "Uploading device configuration: DeviceId={DeviceId}, DeviceName={DeviceName}, SensorCount={SensorCount}, ReqSeqId={ReqSeqId}",
-            configuration.DeviceId,
-            configuration.DeviceName,
-            configuration.Sensors.Count,
-            request.ReqSeqId);
-
         var response = await _client.RequestAsync<ConfigurationUploadRequest, ConfigurationUploadResponse>(
             subject: UploadDeviceConfigurationSubject,
             data: request,

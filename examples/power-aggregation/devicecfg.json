@@ -31,7 +31,7 @@
             "RegisterCount": 2,
             "DataType": "Float32"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 3000
           }
@@ -62,7 +62,7 @@
             "RegisterCount": 2,
             "DataType": "Float32"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 3000
           }
@@ -98,7 +98,7 @@
             "VoltageSource": "VoltageSensor/voltage001",
             "CurrentSource": "CurrentSensor/current001"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 3000
           }

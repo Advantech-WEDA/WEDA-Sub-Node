@@ -45,9 +45,9 @@ public class Sensor
     public Dictionary<string, object>? Parameters { get; set; }
 
     /// <summary>
-    /// Sensor-specific configuration (interval, calibration, DSP, thresholds)
+    /// Sensor report configuration (sampling interval, transforms, DSP, thresholds)
     /// </summary>
-    public SensorConfig Config { get; set; } = new();
+    public SensorReport Report { get; set; } = new();
 
     /// <summary>
     /// Additional metadata for the sensor.

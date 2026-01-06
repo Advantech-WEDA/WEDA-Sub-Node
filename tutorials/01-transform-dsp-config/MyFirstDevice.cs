@@ -37,25 +37,25 @@ public class MyFirstDevice : TcpModbusDevice
         {
             _logger.LogInformation("Transform and DSP Filter loaded from appsettings.json for {SensorName}", tempSensor.Name);
             
-            if (tempSensor.Config.TransformPipeline.Count > 0)
+            if (tempSensor.Report.TransformPipeline.Count > 0)
             {
                 _logger.LogInformation("TransformPipeline: {Count} transforms configured",
-                    tempSensor.Config.TransformPipeline.Count);
-                for (int i = 0; i < tempSensor.Config.TransformPipeline.Count; i++)
+                    tempSensor.Report.TransformPipeline.Count);
+                for (int i = 0; i < tempSensor.Report.TransformPipeline.Count; i++)
                 {
-                    var transform = tempSensor.Config.TransformPipeline[i];
+                    var transform = tempSensor.Report.TransformPipeline[i];
                     _logger.LogInformation("  - [Index={Index}] {Type} (Enabled={Enabled})",
                         i, transform.Type, transform.Enabled);
                 }
             }
 
-            if (tempSensor.Config.DspPipeline.Count > 0)
+            if (tempSensor.Report.DspPipeline.Count > 0)
             {
                 _logger.LogInformation("DspPipeline: {Count} filters configured",
-                    tempSensor.Config.DspPipeline.Count);
-                for (int i = 0; i < tempSensor.Config.DspPipeline.Count; i++)
+                    tempSensor.Report.DspPipeline.Count);
+                for (int i = 0; i < tempSensor.Report.DspPipeline.Count; i++)
                 {
-                    var filter = tempSensor.Config.DspPipeline[i];
+                    var filter = tempSensor.Report.DspPipeline[i];
                     _logger.LogInformation("  - [Index={Index}] {Type} (Enabled={Enabled})",
                         i, filter.Type, filter.Enabled);
                 }

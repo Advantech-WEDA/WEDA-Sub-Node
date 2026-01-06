@@ -52,7 +52,7 @@ public class MyFirstDevice : TcpModbusDevice
                 _logger.LogInformation("{SensorName}: {Value} (Enabled={Enabled})",
                     sensor.Name,
                     measure.Value,
-                    sensor.Config.Enabled);
+                    sensor.Report.Enabled);
             }
         }
     }

@@ -136,136 +136,126 @@
         /* Config file badges */
         .config-badges { display: flex; gap: 8px; flex-wrap: wrap; }
         .config-badges .badge { font-size: 10px; padding: 2px 6px; }
+        /* Main tabs styles */
+        .main-tabs { display: flex; gap: 2px; margin-bottom: 0; border-bottom: 3px solid #28a745; }
+        .main-tab { padding: 12px 24px; background: #e9ecef; border: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 15px; font-weight: 600; color: #495057; transition: all 0.2s; }
+        .main-tab:hover { background: #dee2e6; }
+        .main-tab.active { background: #28a745; color: white; }
+        .main-tab-content { display: none; padding: 20px; background: #fff; border: 1px solid #e9ecef; border-top: none; border-radius: 0 0 8px 8px; }
+        .main-tab-content.active { display: block; }
+        /* Key-value editor styles */
+        .kv-editor { margin-top: 10px; }
+        .kv-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; }
+        .kv-row input { flex: 1; }
+        .kv-row .btn-sm { flex-shrink: 0; }
+        .kv-empty { color: #888; font-size: 13px; padding: 20px; text-align: center; background: #f8f9fa; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>SubNode Config Manager</h1>
 
-        <!-- Connection Settings -->
+        <!-- Project Path -->
         <div class="card">
-            <h2>Connection Settings</h2>
+            <h2>Project Path</h2>
             <div class="form-row">
-                <div class="form-group" style="flex: 2;">
-                    <label>Project Path (folder containing systemcfg.json, devicecfg.json)</label>
+                <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                    <label>Folder containing systemcfg.json, devicecfg.json</label>
                     <div style="display: flex; gap: 8px;">
                         <input type="text" id="projectPath" placeholder="e.g., /Users/you/projects/edge_subnode/examples/testdevice" style="flex: 1;">
                         <button class="btn-secondary" onclick="openFolderBrowser()">Browse...</button>
+                        <button class="btn-primary" onclick="loadConfig()">Load</button>
+                        <button class="btn-secondary" onclick="clearConfig()">Clear</button>
                     </div>
                 </div>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>NATS URL</label>
-                    <input type="text" id="natsUrl" value="nats://localhost:4222">
-                </div>
-                <div class="form-group">
-                    <label>Auth Strategy</label>
-                    <select id="natsAuthStrategy" onchange="updateAuthFields()">
-                        <option value="none">None</option>
-                        <option value="userpassword">Username/Password</option>
-                        <option value="token">Token</option>
-                        <option value="credfile">Credential File</option>
-                    </select>
-                </div>
-            </div>
-            <div id="authFields" class="form-row" style="display: none;">
-                <div class="form-group" id="usernameGroup">
-                    <label>Username</label>
-                    <input type="text" id="natsUsername" placeholder="(optional)">
-                </div>
-                <div class="form-group" id="passwordGroup">
-                    <label>Password</label>
-                    <input type="password" id="natsPassword" placeholder="(optional)">
-                </div>
-                <div class="form-group" id="tokenGroup" style="display: none;">
-                    <label>Token</label>
-                    <input type="text" id="natsToken" placeholder="NATS token">
-                </div>
-                <div class="form-group" id="credFileGroup" style="display: none;">
-                    <label>Credential File Path</label>
-                    <input type="text" id="natsCredFile" placeholder="/path/to/creds.creds">
-                </div>
-            </div>
-            <button class="btn-primary" onclick="loadConfig()">Load Configuration</button>
-            <button class="btn-secondary" onclick="clearConfig()">Clear</button>
         </div>
 
-        <!-- Main Content -->
-        <div class="two-column">
-            <!-- Left: SubNode & Registration -->
-            <div>
-                <!-- SubNode Info -->
-                <div class="card" id="subNodeCard" style="display: none;">
-                    <div class="section-header">
-                        <h2>SubNode Configuration</h2>
-                        <span class="badge badge-info" id="subNodeSourceBadge">devicecfg.json</span>
+        <!-- Registration Status -->
+        <div class="card" id="registrationCard" style="display: none;">
+            <div class="section-header">
+                <h2>Registration Status</h2>
+                <span class="badge badge-success" id="regStatusBadge">-</span>
+            </div>
+            <div class="device-info-grid">
+                <div class="device-info-item">
+                    <div class="label">Device ID</div>
+                    <div class="value" id="deviceIdDisplay">-</div>
+                </div>
+                <div class="device-info-item">
+                    <div class="label">Device Name</div>
+                    <div class="value" id="deviceNameDisplay">-</div>
+                </div>
+                <div class="device-info-item">
+                    <div class="label">Config Update Topic</div>
+                    <div class="value" id="configTopicDisplay" style="font-size: 11px; word-break: break-all;">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Configuration Tabs -->
+        <div class="card" id="configCard" style="display: none;">
+            <div class="main-tabs">
+                <button class="main-tab active" onclick="switchMainTab('device')">Device Configurations</button>
+                <button class="main-tab" onclick="switchMainTab('system')">System Configurations</button>
+                <button class="main-tab" onclick="switchMainTab('custom')">Custom Configurations</button>
+            </div>
+
+            <!-- Device Configurations Tab -->
+            <div id="main-tab-device" class="main-tab-content active">
+                <div id="deviceConfigsContainer"></div>
+            </div>
+
+            <!-- System Configurations Tab -->
+            <div id="main-tab-system" class="main-tab-content">
+                <h3 style="margin-bottom: 15px;">NATS Connection Settings</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>NATS URL</label>
+                        <input type="text" id="natsUrl" value="nats://localhost:4222">
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Name</label>
-                            <input type="text" id="subNodeName">
-                        </div>
-                        <div class="form-group">
-                            <label>Device Type</label>
-                            <select id="subNodeSubNodeType">
-                                <option value="AdamEthernet">AdamEthernet</option>
-                                <option value="SerialDevice">SerialDevice</option>
-                                <option value="DaqDevice">DaqDevice</option>
-                                <option value="SystemMonitor">SystemMonitor</option>
-                                <option value="CustomDevice">CustomDevice</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Manufacturer</label>
-                            <input type="text" id="subNodeManufacturer">
-                        </div>
-                        <div class="form-group">
-                            <label>Model</label>
-                            <input type="text" id="subNodeModel">
-                        </div>
-                        <div class="form-group">
-                            <label>Version</label>
-                            <input type="text" id="subNodeVersion">
-                        </div>
+                    <div class="form-group">
+                        <label>Auth Strategy</label>
+                        <select id="natsAuthStrategy" onchange="updateAuthFields()">
+                            <option value="none">None</option>
+                            <option value="userpassword">Username/Password</option>
+                            <option value="token">Token</option>
+                            <option value="credfile">Credential File</option>
+                        </select>
                     </div>
                 </div>
-
-                <!-- Registration Info -->
-                <div class="card" id="registrationCard" style="display: none;">
-                    <div class="section-header">
-                        <h2>Registration Status</h2>
-                        <span class="badge badge-success" id="regStatusBadge">-</span>
+                <div id="authFields" class="form-row" style="display: none;">
+                    <div class="form-group" id="usernameGroup">
+                        <label>Username</label>
+                        <input type="text" id="natsUsername" placeholder="(optional)">
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Device ID</label>
-                            <input type="text" id="deviceId" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label>Config Update Topic</label>
-                            <input type="text" id="configTopic" readonly>
-                        </div>
+                    <div class="form-group" id="passwordGroup">
+                        <label>Password</label>
+                        <input type="password" id="natsPassword" placeholder="(optional)">
+                    </div>
+                    <div class="form-group" id="tokenGroup" style="display: none;">
+                        <label>Token</label>
+                        <input type="text" id="natsToken" placeholder="NATS token">
+                    </div>
+                    <div class="form-group" id="credFileGroup" style="display: none;">
+                        <label>Credential File Path</label>
+                        <input type="text" id="natsCredFile" placeholder="/path/to/creds.creds">
                     </div>
                 </div>
             </div>
 
-            <!-- Right: Device Configs -->
-            <div>
-                <div class="card" id="deviceConfigCard" style="display: none;">
-                    <div class="section-header">
-                        <h2>Device Configurations</h2>
-                        <span class="badge badge-info" id="deviceConfigSourceBadge">devicecfg.json</span>
-                    </div>
-                    <div id="deviceConfigsContainer"></div>
-
-                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
-                        <button class="btn-success" onclick="applyConfig()">Apply Configuration</button>
-                        <button class="btn-secondary" onclick="loadConfig()">Reload</button>
-                    </div>
+            <!-- Custom Configurations Tab -->
+            <div id="main-tab-custom" class="main-tab-content">
+                <h3 style="margin-bottom: 15px;">Custom Key-Value Settings</h3>
+                <div id="customConfigContainer">
+                    <div class="kv-empty">No custom configurations loaded</div>
                 </div>
+                <div class="add-btn" onclick="addCustomConfigRow()" style="margin-top: 15px;">+ Add Custom Setting</div>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+                <button class="btn-success" onclick="applyConfig()">Apply Configuration</button>
+                <button class="btn-secondary" onclick="loadConfig()">Reload</button>
             </div>
         </div>
 
@@ -599,32 +589,12 @@
                     }
                 }
 
-                // Load SubNode configuration from devicecfg.json (new format)
-                let subNode = null;
-                let subNodeSource = 'devicecfg.json';
-                if (deviceConfig?.subNode) {
-                    subNode = deviceConfig.subNode;
-                } else if (appSettings) {
-                    subNode = getProp(appSettings, 'SubNode', 'subNode');
-                    subNodeSource = 'appsettings.json';
-                }
-
-                if (subNode) {
-                    document.getElementById('subNodeName').value = getProp(subNode, 'Name', 'name') || '';
-                    document.getElementById('subNodeSubNodeType').value = getProp(subNode, 'SubNodeType', 'subNodeType', 'deviceType') || 'CustomDevice';
-                    document.getElementById('subNodeManufacturer').value = getProp(subNode, 'Manufacturer', 'manufacturer') || '';
-                    document.getElementById('subNodeModel').value = getProp(subNode, 'Model', 'model') || '';
-                    document.getElementById('subNodeVersion').value = getProp(subNode, 'SwVersion', 'swVersion', 'Version', 'version') || '';
-                    document.getElementById('subNodeCard').style.display = 'block';
-                    document.getElementById('subNodeSourceBadge').textContent = subNodeSource;
-                    log('SubNode configuration loaded', 'success');
-                }
-
                 // Load Registration
                 if (data.registration) {
                     registration = data.registration;
-                    document.getElementById('deviceId').value = registration.deviceId || '';
-                    document.getElementById('configTopic').value = registration.natsTopicAssignments?.configUpdateTopic || '';
+                    document.getElementById('deviceIdDisplay').textContent = registration.deviceId || '-';
+                    document.getElementById('deviceNameDisplay').textContent = registration.deviceName || '-';
+                    document.getElementById('configTopicDisplay').textContent = registration.natsTopicAssignments?.deviceConfigDesiredTopic || '-';
                     document.getElementById('regStatusBadge').textContent = registration.registrationStatus || '-';
                     document.getElementById('registrationCard').style.display = 'block';
                     log(`Registration loaded: ${registration.deviceId}`, 'success');
@@ -635,12 +605,10 @@
 
                 // Load DeviceConfigs from devicecfg.json (new format)
                 let deviceConfigs = null;
-                let deviceConfigSource = 'devicecfg.json';
                 if (deviceConfig?.deviceConfigs) {
                     deviceConfigs = deviceConfig.deviceConfigs;
                 } else if (appSettings) {
                     deviceConfigs = getProp(appSettings, 'DeviceConfigs', 'deviceConfigs');
-                    deviceConfigSource = 'appsettings.json';
                 }
 
                 if (deviceConfigs) {
@@ -648,10 +616,17 @@
                     deviceConfig = deviceConfig || {};
                     deviceConfig.deviceConfigs = normalizeKeys(deviceConfigs);
                     renderDeviceConfigs(deviceConfig.deviceConfigs);
-                    document.getElementById('deviceConfigCard').style.display = 'block';
-                    document.getElementById('deviceConfigSourceBadge').textContent = deviceConfigSource;
                     log('Device configurations loaded', 'success');
                 }
+
+                // Load Custom Config
+                if (customConfig) {
+                    renderCustomConfig(customConfig);
+                    log('Custom configurations loaded', 'success');
+                }
+
+                // Show the config card
+                document.getElementById('configCard').style.display = 'block';
 
             } catch (error) {
                 log(`Error: ${error.message}`, 'error');
@@ -696,18 +671,6 @@
                 <div id="device-tab-${deviceKey}" class="tab-content ${index === 0 ? 'active' : ''}">
                     <!-- Device Info (readonly) -->
                     <div class="device-info-grid">
-                        <div class="device-info-item">
-                            <div class="label">Device Name</div>
-                            <div class="value">${device.deviceName || '-'}</div>
-                        </div>
-                        <div class="device-info-item">
-                            <div class="label">Device Type</div>
-                            <div class="value">${device.deviceType || '-'}</div>
-                        </div>
-                        <div class="device-info-item">
-                            <div class="label">Config Key</div>
-                            <div class="value">${deviceKey}</div>
-                        </div>
                         ${device.communication?.host ? `
                         <div class="device-info-item">
                             <div class="label">Host</div>
@@ -747,17 +710,19 @@
         }
 
         function renderSensors(deviceKey, sensors) {
+            // Use JSON to safely encode deviceKey for use in onclick handlers
+            const jsonKey = JSON.stringify(deviceKey);
             return sensors.map((sensor, index) => `
-                <div class="sensor-card">
+                <div class="sensor-card" data-device-key="${escapeHtml(deviceKey)}" data-sensor-index="${index}">
                     <div class="sensor-header">
                         <div>
-                            <span class="sensor-name">${sensor.name}</span>
-                            <span style="color:#888; font-size:12px; margin-left:10px;">${sensor.dtmi || ''}</span>
+                            <span class="sensor-name">${escapeHtml(sensor.name)}</span>
+                            <span style="color:#888; font-size:12px; margin-left:10px;">${escapeHtml(sensor.dtmi || '')}</span>
                         </div>
                         <div class="form-group inline" style="margin:0;">
                             <label style="margin:0;">Enabled</label>
-                            <input type="checkbox" ${sensor.config?.enabled ? 'checked' : ''}
-                                   onchange="updateSensorField('${deviceKey}', ${index}, 'config.enabled', this.checked)">
+                            <input type="checkbox" ${sensor.report?.enabled ? 'checked' : ''}
+                                   onchange="updateSensorField(${jsonKey}, ${index}, 'report.enabled', this.checked)">
                         </div>
                     </div>
 
@@ -765,19 +730,14 @@
                     <div class="sensor-fields">
                         <div class="form-group">
                             <label>Sensor Group</label>
-                            <select onchange="updateSensorField('${deviceKey}', ${index}, 'sensorGroup', this.value)">
+                            <select onchange="updateSensorField(${jsonKey}, ${index}, 'sensorGroup', this.value)">
                                 ${SENSOR_GROUPS.map(g => `<option value="${g}" ${sensor.sensorGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Interval (ms)</label>
-                            <input type="number" value="${sensor.config?.interval || 1000}"
-                                   onchange="updateSensorField('${deviceKey}', ${index}, 'config.interval', parseInt(this.value))">
-                        </div>
-                        <div class="form-group">
-                            <label>Unit</label>
-                            <input type="text" value="${sensor.config?.unit || ''}"
-                                   onchange="updateSensorField('${deviceKey}', ${index}, 'config.unit', this.value)">
+                            <input type="number" value="${sensor.report?.interval || 1000}"
+                                   onchange="updateSensorField(${jsonKey}, ${index}, 'report.interval', parseInt(this.value))">
                         </div>
                     </div>
 
@@ -796,57 +756,30 @@
                             <div class="param-grid">
                                 ${Object.entries(sensor.parameters).map(([k, v]) => `
                                     <div class="param-item">
-                                        <span class="param-key">${k}:</span>
-                                        <span class="param-value">${v}</span>
+                                        <span class="param-key">${escapeHtml(k)}:</span>
+                                        <span class="param-value">${escapeHtml(String(v))}</span>
                                     </div>
                                 `).join('')}
                             </div>
                         </div>
                         ` : ''}
 
-                        <!-- Thresholds -->
-                        <div class="parameters-section" style="margin-top:10px;">
-                            <h4>Thresholds</h4>
-                            <div class="sensor-fields">
-                                <div class="form-group">
-                                    <label>Upper Critical</label>
-                                    <input type="number" step="any" value="${sensor.config?.thresholds?.upperCritical ?? ''}"
-                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperCritical', this.value ? parseFloat(this.value) : null)">
-                                </div>
-                                <div class="form-group">
-                                    <label>Upper Warning</label>
-                                    <input type="number" step="any" value="${sensor.config?.thresholds?.upperWarning ?? ''}"
-                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.upperWarning', this.value ? parseFloat(this.value) : null)">
-                                </div>
-                                <div class="form-group">
-                                    <label>Lower Warning</label>
-                                    <input type="number" step="any" value="${sensor.config?.thresholds?.lowerWarning ?? ''}"
-                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerWarning', this.value ? parseFloat(this.value) : null)">
-                                </div>
-                                <div class="form-group">
-                                    <label>Lower Critical</label>
-                                    <input type="number" step="any" value="${sensor.config?.thresholds?.lowerCritical ?? ''}"
-                                           onchange="updateSensorField('${deviceKey}', ${index}, 'config.thresholds.lowerCritical', this.value ? parseFloat(this.value) : null)">
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Transform Pipeline -->
                         <div class="pipeline-section">
                             <h4>Transform Pipeline</h4>
                             <div id="transforms-${deviceKey}-${index}">
-                                ${renderTransformPipeline(deviceKey, index, getVal(sensor.config || {}, 'transformPipeline') || [])}
+                                ${renderTransformPipeline(deviceKey, index, getVal(sensor.report || {}, 'transformPipeline') || [])}
                             </div>
-                            <div class="add-btn" onclick="addTransform('${deviceKey}', ${index})">+ Add Transform</div>
+                            <div class="add-btn" onclick="addTransform(${jsonKey}, ${index})">+ Add Transform</div>
                         </div>
 
                         <!-- DSP Filters -->
                         <div class="pipeline-section dsp">
                             <h4>DSP Filters</h4>
                             <div id="dsp-${deviceKey}-${index}">
-                                ${renderDspPipeline(deviceKey, index, getVal(sensor.config || {}, 'dspPipeline') || [])}
+                                ${renderDspPipeline(deviceKey, index, getVal(sensor.report || {}, 'dspPipeline') || [])}
                             </div>
-                            <div class="add-btn" onclick="addDspFilter('${deviceKey}', ${index})">+ Add DSP Filter</div>
+                            <div class="add-btn" onclick="addDspFilter(${jsonKey}, ${index})">+ Add DSP Filter</div>
                         </div>
                     </div>
                 </div>
@@ -862,15 +795,16 @@
 
         function renderPipelineParams(deviceKey, sensorIndex, pipelineType, itemIndex, params, defaultParams) {
             const allParams = { ...defaultParams, ...params };
+            const jsonKey = JSON.stringify(deviceKey);
             return Object.entries(allParams).map(([key, value]) => {
                 const inputType = typeof value === 'number' ? 'number' : 'text';
                 const step = typeof value === 'number' && !Number.isInteger(value) ? '0.01' : '1';
                 return `
                     <div class="param-field">
-                        <label>${key}</label>
+                        <label>${escapeHtml(key)}</label>
                         <input type="${inputType}" ${inputType === 'number' ? `step="${step}"` : ''}
                                value="${escapeHtml(String(value))}"
-                               onchange="updatePipelineParam('${deviceKey}', ${sensorIndex}, '${pipelineType}', ${itemIndex}, '${key}', this.value, '${inputType}')">
+                               onchange="updatePipelineParam(${jsonKey}, ${sensorIndex}, '${pipelineType}', ${itemIndex}, '${key}', this.value, '${inputType}')">
                     </div>
                 `;
             }).join('');
@@ -878,6 +812,7 @@
 
         function renderTransformPipeline(deviceKey, sensorIndex, pipeline) {
             if (!pipeline || pipeline.length === 0) return '<div style="color:#888; font-size:12px;">No transforms configured</div>';
+            const jsonKey = JSON.stringify(deviceKey);
             return pipeline.map((t, i) => {
                 const enabled = getVal(t, 'enabled');
                 const type = getVal(t, 'type') || Object.keys(TRANSFORM_TYPES)[0];
@@ -887,11 +822,11 @@
                 <div class="pipeline-item">
                     <div class="pipeline-item-header">
                         <input type="checkbox" ${enabled !== false ? 'checked' : ''}
-                               onchange="updatePipelineItem('${deviceKey}', ${sensorIndex}, 'transformPipeline', ${i}, 'enabled', this.checked)">
-                        <select onchange="onPipelineTypeChange('${deviceKey}', ${sensorIndex}, 'transformPipeline', ${i}, this.value)">
+                               onchange="updatePipelineItem(${jsonKey}, ${sensorIndex}, 'transformPipeline', ${i}, 'enabled', this.checked)">
+                        <select onchange="onPipelineTypeChange(${jsonKey}, ${sensorIndex}, 'transformPipeline', ${i}, this.value)">
                             ${Object.keys(TRANSFORM_TYPES).map(tp => `<option value="${tp}" ${type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
                         </select>
-                        <button class="btn-sm btn-danger" onclick="removePipelineItem('${deviceKey}', ${sensorIndex}, 'transformPipeline', ${i})">Remove</button>
+                        <button class="btn-sm btn-danger" onclick="removePipelineItem(${jsonKey}, ${sensorIndex}, 'transformPipeline', ${i})">Remove</button>
                     </div>
                     <div class="pipeline-params">
                         ${renderPipelineParams(deviceKey, sensorIndex, 'transformPipeline', i, params, defaultParams)}
@@ -902,6 +837,7 @@
 
         function renderDspPipeline(deviceKey, sensorIndex, pipeline) {
             if (!pipeline || pipeline.length === 0) return '<div style="color:#888; font-size:12px;">No DSP filters configured</div>';
+            const jsonKey = JSON.stringify(deviceKey);
             return pipeline.map((f, i) => {
                 const enabled = getVal(f, 'enabled');
                 const type = getVal(f, 'type') || Object.keys(DSP_FILTER_TYPES)[0];
@@ -911,11 +847,11 @@
                 <div class="pipeline-item">
                     <div class="pipeline-item-header">
                         <input type="checkbox" ${enabled !== false ? 'checked' : ''}
-                               onchange="updatePipelineItem('${deviceKey}', ${sensorIndex}, 'dspPipeline', ${i}, 'enabled', this.checked)">
-                        <select onchange="onPipelineTypeChange('${deviceKey}', ${sensorIndex}, 'dspPipeline', ${i}, this.value)">
+                               onchange="updatePipelineItem(${jsonKey}, ${sensorIndex}, 'dspPipeline', ${i}, 'enabled', this.checked)">
+                        <select onchange="onPipelineTypeChange(${jsonKey}, ${sensorIndex}, 'dspPipeline', ${i}, this.value)">
                             ${Object.keys(DSP_FILTER_TYPES).map(tp => `<option value="${tp}" ${type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
                         </select>
-                        <button class="btn-sm btn-danger" onclick="removePipelineItem('${deviceKey}', ${sensorIndex}, 'dspPipeline', ${i})">Remove</button>
+                        <button class="btn-sm btn-danger" onclick="removePipelineItem(${jsonKey}, ${sensorIndex}, 'dspPipeline', ${i})">Remove</button>
                     </div>
                     <div class="pipeline-params">
                         ${renderPipelineParams(deviceKey, sensorIndex, 'dspPipeline', i, params, defaultParams)}
@@ -941,69 +877,140 @@
 
         function updatePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex, field, value) {
             const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
-            if (!sensor.config) sensor.config = {};
-            if (!sensor.config[pipelineType]) sensor.config[pipelineType] = [];
-            sensor.config[pipelineType][itemIndex][field] = value;
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report[pipelineType]) sensor.report[pipelineType] = [];
+            sensor.report[pipelineType][itemIndex][field] = value;
             log(`Updated ${pipelineType}[${itemIndex}].${field} = ${value}`);
         }
 
         function updatePipelineParam(deviceKey, sensorIndex, pipelineType, itemIndex, paramKey, value, inputType) {
             const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
-            if (!sensor.config) sensor.config = {};
-            if (!sensor.config[pipelineType]) sensor.config[pipelineType] = [];
-            if (!sensor.config[pipelineType][itemIndex].parameters) {
-                sensor.config[pipelineType][itemIndex].parameters = {};
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report[pipelineType]) sensor.report[pipelineType] = [];
+            if (!sensor.report[pipelineType][itemIndex].parameters) {
+                sensor.report[pipelineType][itemIndex].parameters = {};
             }
             // Convert value based on input type
             const convertedValue = inputType === 'number' ? parseFloat(value) : value;
-            sensor.config[pipelineType][itemIndex].parameters[paramKey] = convertedValue;
+            sensor.report[pipelineType][itemIndex].parameters[paramKey] = convertedValue;
             log(`Updated ${pipelineType}[${itemIndex}].parameters.${paramKey} = ${convertedValue}`);
         }
 
         function onPipelineTypeChange(deviceKey, sensorIndex, pipelineType, itemIndex, newType) {
             const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
-            const item = sensor.config[pipelineType][itemIndex];
+            const item = sensor.report[pipelineType][itemIndex];
             item.type = newType;
             // Reset parameters to defaults for new type
             const defaults = pipelineType === 'transformPipeline' ? TRANSFORM_TYPES[newType] : DSP_FILTER_TYPES[newType];
             item.parameters = { ...defaults };
-            renderDeviceConfigs(deviceConfig.deviceConfigs);
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
             log(`Changed ${pipelineType}[${itemIndex}] type to ${newType}`);
         }
 
         function addTransform(deviceKey, sensorIndex) {
             const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
-            if (!sensor.config) sensor.config = {};
-            if (!sensor.config.transformPipeline) sensor.config.transformPipeline = [];
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report.transformPipeline) sensor.report.transformPipeline = [];
             const defaultType = Object.keys(TRANSFORM_TYPES)[0];
-            sensor.config.transformPipeline.push({
+            sensor.report.transformPipeline.push({
                 type: defaultType,
                 enabled: true,
                 parameters: { ...TRANSFORM_TYPES[defaultType] }
             });
-            renderDeviceConfigs(deviceConfig.deviceConfigs);
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
             log(`Added transform to ${deviceKey}.sensors[${sensorIndex}]`);
         }
 
         function addDspFilter(deviceKey, sensorIndex) {
             const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
-            if (!sensor.config) sensor.config = {};
-            if (!sensor.config.dspPipeline) sensor.config.dspPipeline = [];
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report.dspPipeline) sensor.report.dspPipeline = [];
             const defaultType = Object.keys(DSP_FILTER_TYPES)[0];
-            sensor.config.dspPipeline.push({
+            sensor.report.dspPipeline.push({
                 type: defaultType,
                 enabled: true,
                 parameters: { ...DSP_FILTER_TYPES[defaultType] }
             });
-            renderDeviceConfigs(deviceConfig.deviceConfigs);
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
             log(`Added DSP filter to ${deviceKey}.sensors[${sensorIndex}]`);
         }
 
         function removePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex) {
             const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
-            sensor.config[pipelineType].splice(itemIndex, 1);
-            renderDeviceConfigs(deviceConfig.deviceConfigs);
+            sensor.report[pipelineType].splice(itemIndex, 1);
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
             log(`Removed ${pipelineType}[${itemIndex}]`);
+        }
+
+        // Helper function to re-render while keeping advanced settings expanded
+        function renderDeviceConfigsKeepingState(deviceKey, sensorIndex) {
+            const advId = `${deviceKey}-${sensorIndex}`;
+            renderDeviceConfigs(deviceConfig.deviceConfigs);
+            // Re-open the advanced settings after render
+            const content = document.getElementById(`adv-content-${advId}`);
+            const icon = document.getElementById(`adv-icon-${advId}`);
+            if (content) content.classList.add('show');
+            if (icon) icon.classList.add('open');
+        }
+
+        // Main tab switching
+        function switchMainTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.main-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent.toLowerCase().includes(tabName));
+            });
+            // Update tab contents
+            document.querySelectorAll('.main-tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `main-tab-${tabName}`);
+            });
+        }
+
+        // Custom config rendering and editing
+        function renderCustomConfig(config) {
+            const container = document.getElementById('customConfigContainer');
+            if (!config || Object.keys(config).length === 0) {
+                container.innerHTML = '<div class="kv-empty">No custom configurations</div>';
+                return;
+            }
+
+            const entries = Object.entries(config);
+            container.innerHTML = '<div class="kv-editor">' + entries.map(([key, value], index) => `
+                <div class="kv-row">
+                    <input type="text" value="${escapeHtml(key)}" placeholder="Key" onchange="updateCustomConfigKey(${index}, this.value)">
+                    <input type="text" value="${escapeHtml(String(value))}" placeholder="Value" onchange="updateCustomConfigValue('${escapeHtml(key)}', this.value)">
+                    <button class="btn-sm btn-danger" onclick="removeCustomConfigRow('${escapeHtml(key)}')">Remove</button>
+                </div>
+            `).join('') + '</div>';
+        }
+
+        function addCustomConfigRow() {
+            if (!customConfig) customConfig = {};
+            const newKey = `key_${Object.keys(customConfig).length + 1}`;
+            customConfig[newKey] = '';
+            renderCustomConfig(customConfig);
+            log(`Added custom config: ${newKey}`);
+        }
+
+        function updateCustomConfigKey(index, newKey) {
+            const entries = Object.entries(customConfig);
+            if (index < entries.length) {
+                const [oldKey, value] = entries[index];
+                delete customConfig[oldKey];
+                customConfig[newKey] = value;
+                renderCustomConfig(customConfig);
+                log(`Renamed custom config key: ${oldKey} -> ${newKey}`);
+            }
+        }
+
+        function updateCustomConfigValue(key, newValue) {
+            customConfig[key] = newValue;
+            log(`Updated custom config: ${key} = ${newValue}`);
+        }
+
+        function removeCustomConfigRow(key) {
+            delete customConfig[key];
+            renderCustomConfig(customConfig);
+            log(`Removed custom config: ${key}`);
         }
 
         function clearConfig() {
@@ -1012,18 +1019,14 @@
             customConfig = null;
             appSettings = null;
             registration = null;
-            document.getElementById('subNodeCard').style.display = 'none';
             document.getElementById('registrationCard').style.display = 'none';
-            document.getElementById('deviceConfigCard').style.display = 'none';
-            document.getElementById('subNodeName').value = '';
-            document.getElementById('subNodeSubNodeType').value = 'CustomDevice';
-            document.getElementById('subNodeManufacturer').value = '';
-            document.getElementById('subNodeModel').value = '';
-            document.getElementById('subNodeVersion').value = '';
-            document.getElementById('deviceId').value = '';
-            document.getElementById('configTopic').value = '';
+            document.getElementById('configCard').style.display = 'none';
+            document.getElementById('deviceIdDisplay').textContent = '-';
+            document.getElementById('deviceNameDisplay').textContent = '-';
+            document.getElementById('configTopicDisplay').textContent = '-';
             document.getElementById('regStatusBadge').textContent = '-';
             document.getElementById('deviceConfigsContainer').innerHTML = '';
+            document.getElementById('customConfigContainer').innerHTML = '<div class="kv-empty">No custom configurations loaded</div>';
             document.getElementById('natsUrl').value = 'nats://localhost:4222';
             document.getElementById('natsAuthStrategy').value = 'none';
             document.getElementById('natsUsername').value = '';
@@ -1031,6 +1034,8 @@
             document.getElementById('natsToken').value = '';
             document.getElementById('natsCredFile').value = '';
             updateAuthFields();
+            // Reset to first tab
+            switchMainTab('device');
             log('Configuration cleared', 'info');
         }
 

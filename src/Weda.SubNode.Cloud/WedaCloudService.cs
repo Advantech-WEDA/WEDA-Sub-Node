@@ -16,7 +16,7 @@ using Weda.SubNode.Core.Storage;
 namespace Weda.SubNode.Cloud;
 
 /// <summary>
-/// Weda Cloud Service implementation
+/// WedaNode implementation
 /// Application service layer that coordinates Client layer operations
 /// Delegates protocol-specific communication to DeviceAgentClient and TelemetryClient
 /// In SubNode architecture, only one SubNode registration is stored with a single DeviceId
@@ -91,11 +91,11 @@ public sealed class WedaCloudService : IWedaCloudService
     {
         if (_isConnected)
         {
-            _logger.LogDebug("Already connected to Weda Cloud Service");
+            _logger.LogDebug("Already connected to WedaNode");
             return true;
         }
 
-        _logger.LogInformation("Connecting to Weda Cloud Service");
+        _logger.LogInformation("Connecting to WedaNode");
 
         try
         {
@@ -104,12 +104,12 @@ public sealed class WedaCloudService : IWedaCloudService
             _logger.LogInformation("NATS connection verified - RTT: {RttMs}ms", rtt.TotalMilliseconds);
 
             _isConnected = true;
-            _logger.LogInformation("Connected to Weda Cloud Service");
+            _logger.LogInformation("Connected to WedaNode");
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect to Weda Cloud Service");
+            _logger.LogError(ex, "Failed to connect to WedaNode");
             _isConnected = false;
             return false;
         }
@@ -119,22 +119,22 @@ public sealed class WedaCloudService : IWedaCloudService
     {
         if (!_isConnected)
         {
-            _logger.LogDebug("Already disconnected from Weda Cloud Service");
+            _logger.LogDebug("Already disconnected from WedaNode");
             return;
         }
 
-        _logger.LogInformation("Disconnecting from Weda Cloud Service");
+        _logger.LogInformation("Disconnecting from WedaNode");
 
         try
         {
             // Dispose NATS client connection
             await _client.DisposeAsync();
             _isConnected = false;
-            _logger.LogInformation("Disconnected from Weda Cloud Service");
+            _logger.LogInformation("Disconnected from WedaNode");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error during disconnect from Weda Cloud Service");
+            _logger.LogWarning(ex, "Error during disconnect from WedaNode");
             _isConnected = false;
         }
     }

@@ -113,7 +113,7 @@ public class RequestResponseDeviceBase : DeviceBase
 
         _logger.LogDebug(
             "Starting request-response device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorGroups.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
+            sensorGroups.Count, Configuration.Sensors.Count(s => s.Report.Enabled));
 
         // Create interval loop tasks for each group (using helper from DeviceBase)
         foreach (var (intervalMs, sensors) in sensorGroups)

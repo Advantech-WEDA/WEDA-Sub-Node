@@ -29,7 +29,7 @@
             "RegisterCount": 2,
             "DataType": "Float32"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000,
             "Unit": "celsius"

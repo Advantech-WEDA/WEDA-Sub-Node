@@ -227,7 +227,7 @@ examples/stock-monitor/
 | `SensorGroup` | 感測器群組 | `"AI"`, `"SYS"`, `"DO"`, `"DI"` |
 | `Dtmi` | Digital Twin Model ID | `"dtmi:advantech:EdgeSync:Temperature;1"` |
 | `Parameters` | 協定特定參數 (由 Parser 解析) | `{"StockCode": "2395"}` |
-| `Config.Enabled` | 是否啟用 | `true` / `false` |
+| `Report.Enabled` | 是否啟用 | `true` / `false` |
 | `Config.Interval` | 採樣間隔 (毫秒) | `5000`, `10000` |
 
 **重要**: `Parameters` 是 `Dictionary<string, object>`，Parser 需要自行解析其內容。
@@ -438,7 +438,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     /// </summary>
     public async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
-        var enabledSensors = _configuration.Sensors.Where(s => s.Config.Enabled).ToList();
+        var enabledSensors = _configuration.Sensors.Where(s => s.Report.Enabled).ToList();
         return await ReadTelemetryForSensorsAsync(enabledSensors, cancellationToken);
     }
 
@@ -451,7 +451,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     {
         var requestedIds = sensorResourceIds.ToHashSet();
         var sensors = _configuration.Sensors
-            .Where(s => s.Config.Enabled && requestedIds.Contains(s.ResourceId))
+            .Where(s => s.Report.Enabled && requestedIds.Contains(s.ResourceId))
             .ToList();
 
         return await ReadTelemetryForSensorsAsync(sensors, cancellationToken);
@@ -716,7 +716,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
     public TwseStockParser(DeviceConfiguration configuration, ...)
     {
         // Preprocess at construction time, group by StockCode
-        _sensorConfigByStockCode = PreprocessSensorConfiguration(configuration.Sensors);
+        _sensorConfigByStockCode = PreprocessSensorReporturation(configuration.Sensors);
     }
 }
 ```

@@ -68,7 +68,7 @@ public class LocalSystemMonitorDevice : SystemMonitorDevice
                 _logger.LogInformation("{SensorName}: {Value} (Enabled={Enabled})",
                     sensor.Name,
                     measure.Value,
-                    sensor.Config.Enabled);
+                    sensor.Report.Enabled);
             }
         }
     }

@@ -61,7 +61,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Sensors/registers to read from the Modbus device
     /// </summary>
-    public List<ModbusSensorConfiguration> Sensors { get; set; } = new();
+    public List<ModbusSensorReporturation> Sensors { get; set; } = new();
 
     /// <summary>
     /// Background task execution periods
@@ -91,7 +91,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Adds a sensor configuration to this device
     /// </summary>
-    public TcpModbusDeviceConfiguration AddSensor(ModbusSensorConfiguration sensor)
+    public TcpModbusDeviceConfiguration AddSensor(ModbusSensorReporturation sensor)
     {
         Sensors.Add(sensor);
         return this;
@@ -109,7 +109,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
         ModbusRegisterType registerType = ModbusRegisterType.HoldingRegister,
         SensorGroup sensorGroup = SensorGroup.AI)
     {
-        Sensors.Add(new ModbusSensorConfiguration
+        Sensors.Add(new ModbusSensorReporturation
         {
             Name = name,
             Dtmi = dtmi,
@@ -125,7 +125,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Adds multiple sensors to this device
     /// </summary>
-    public TcpModbusDeviceConfiguration AddSensors(params ModbusSensorConfiguration[] sensors)
+    public TcpModbusDeviceConfiguration AddSensors(params ModbusSensorReporturation[] sensors)
     {
         foreach (var sensor in sensors)
         {
@@ -176,7 +176,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
                     ["RegisterType"] = sensorConfig.RegisterType.ToString(),
                     ["DataType"] = sensorConfig.DataType.ToString()
                 },
-                Config = sensorConfig.Config,
+                Report = sensorConfig.Config,
                 Metadata = sensorConfig.Metadata
             };
         }).ToList();
@@ -204,7 +204,7 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
 /// <summary>
 /// Strongly-typed sensor configuration for Modbus sensors
 /// </summary>
-public class ModbusSensorConfiguration
+public class ModbusSensorReporturation
 {
     /// <summary>
     /// Resource ID (optional, will be auto-generated if not provided)
@@ -249,12 +249,12 @@ public class ModbusSensorConfiguration
     /// <summary>
     /// Sensor configuration (transform pipeline, DSP filters, etc.)
     /// </summary>
-    public SensorConfig Config { get; set; } = new();
+    public SensorReport Config { get; set; } = new();
 
     /// <summary>
     /// Fluent API: Adds a transform to this sensor's pipeline
     /// </summary>
-    public ModbusSensorConfiguration AddTransform(ITelemetryTransform transform)
+    public ModbusSensorReporturation AddTransform(ITelemetryTransform transform)
     {
         Config.AddTransform(transform);
         return this;
@@ -263,7 +263,7 @@ public class ModbusSensorConfiguration
     /// <summary>
     /// Fluent API: Adds a DSP filter to this sensor's pipeline
     /// </summary>
-    public ModbusSensorConfiguration AddDspFilter(IDspFilter filter)
+    public ModbusSensorReporturation AddDspFilter(IDspFilter filter)
     {
         Config.AddDspFilter(filter);
         return this;

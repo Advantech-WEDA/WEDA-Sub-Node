@@ -68,10 +68,9 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             var connected = await _cloudService.ConnectAsync(ct);
             if (!connected)
             {
-                _logger.LogError("Failed to connect to cloud service");
+                _logger.LogError("Failed to connect to WedaNode");
                 return false;
             }
-            _logger.LogInformation("Connected to cloud service");
 
             // Step 2: Register SubNode with cloud
             _subNodeId = await EnsureSubNodeRegisteredAsync(ct);

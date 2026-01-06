@@ -75,7 +75,7 @@ public class StreamingDeviceBase : DeviceBase
     {
         // Get enabled sensors from configuration
         var enabledSensors = Configuration.Sensors
-            .Where(s => s.Config.Enabled)
+            .Where(s => s.Report.Enabled)
             .Select(s => s.ResourceId)
             .ToList();
 
@@ -160,7 +160,7 @@ public class StreamingDeviceBase : DeviceBase
 
         _logger.LogDebug(
             "Starting streaming device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorGroups.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
+            sensorGroups.Count, Configuration.Sensors.Count(s => s.Report.Enabled));
 
         // Subscribe to parser's events - pushes into SensorCache
         _parser.OnTelemetryReceived += OnTelemetryReceived;

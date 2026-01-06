@@ -430,7 +430,7 @@ The SDK uses a unified **SensorCache architecture**. Whether Pull mode (like Mod
 │                       ▼  ReadTelemetry (Sampling)               │
 │  ┌──────────────────────────────────────────┐                   │
 │  │         Device Sampling Task             │                   │
-│  │  (Reads at SensorConfig.Interval period) │                   │
+│  │  (Reads at SensorReport.Interval period) │                   │
 │  └────────────────────┬─────────────────────┘                   │
 │                       │                                         │
 │         ┌─────────────┴─────────────┐                           │
@@ -446,7 +446,7 @@ The SDK uses a unified **SensorCache architecture**. Whether Pull mode (like Mod
 
 **Key Concepts**:
 - **SensorCache**: All data sources (Pull/Push) write to cache first, unified processing
-- **Sampling Task**: Reads from cache at `SensorConfig.Interval` or `Periods.ReadTelemetry` interval
+- **Sampling Task**: Reads from cache at `SensorReport.Interval` or `Periods.ReadTelemetry` interval
 - **Upload Task**: Realtime or batch upload based on `SendTelemetry` setting
 
 #### Complete Examples

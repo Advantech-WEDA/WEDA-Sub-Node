@@ -6,7 +6,7 @@ namespace Weda.SubNode.Core.Telemetry;
 /// <summary>
 /// Per-sensor cache for buffering telemetry data.
 /// Acts like a Modbus register - stores the latest value pushed from external sources.
-/// Device samples from this cache at configured intervals (SensorConfig.Interval).
+/// Device samples from this cache at configured intervals (SensorReport.Interval).
 /// Thread-safe for concurrent push (from external sources) and read (from device sampling).
 /// </summary>
 public class SensorCache

@@ -215,7 +215,7 @@ public class ISensingPubSubParser : IPubSubProtocolParser
                     continue;
                 }
 
-                if (!sensor.Config.Enabled)
+                if (!sensor.Report.Enabled)
                 {
                     _logger.LogTrace("Sensor {SensorName} is disabled, skipping", sensor.Name);
                     continue;

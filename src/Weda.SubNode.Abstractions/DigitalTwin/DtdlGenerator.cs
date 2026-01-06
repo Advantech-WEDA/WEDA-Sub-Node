@@ -72,7 +72,7 @@ public static class DtdlGenerator
             DisplayName = sensor.GetEffectiveDisplayName(),
             Description = sensor.Info.Description,
             Schema = sensor.GetEffectiveSchema(),
-            Unit = sensor.Config.Unit
+            Unit = sensor.Report.Unit
         };
     }
 

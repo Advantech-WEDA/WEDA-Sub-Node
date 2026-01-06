@@ -46,7 +46,7 @@ public static class Wise4012SeConfigurationExtensions
                 ? field?.ToString() ?? sensor.Name
                 : sensor.Name,
             SensorType = ParseSensorType(sensor.SensorGroup),
-            Unit = sensor.Config.Unit ?? string.Empty,
+            Unit = sensor.Report.Unit ?? string.Empty,
             Metadata = sensor.Metadata
         };
     }

@@ -70,7 +70,7 @@ public class PubSubDeviceBase : DeviceBase
     {
         // Get enabled sensors from configuration
         var enabledSensors = Configuration.Sensors
-            .Where(s => s.Config.Enabled)
+            .Where(s => s.Report.Enabled)
             .Select(s => s.ResourceId)
             .ToList();
 
@@ -155,7 +155,7 @@ public class PubSubDeviceBase : DeviceBase
 
         _logger.LogDebug(
             "Starting message broker device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorGroups.Count, Configuration.Sensors.Count(s => s.Config.Enabled));
+            sensorGroups.Count, Configuration.Sensors.Count(s => s.Report.Enabled));
 
         // Subscribe to parser's OnTelemetryReceived event - pushes into SensorCache
         _parser.OnTelemetryReceived += OnTelemetryReceived;

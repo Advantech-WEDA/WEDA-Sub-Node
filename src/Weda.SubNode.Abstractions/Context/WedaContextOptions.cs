@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Storage;
 
 namespace Weda.SubNode.Abstractions.Context;
 
@@ -92,6 +93,22 @@ public class WedaContextOptions
     /// This is equivalent to DeviceCfg.SubNode.
     /// </summary>
     public SubNodeConfig? SubNode { get; set; }
+
+    // ===== Storage Services (Optional, for DI Integration) =====
+
+    /// <summary>
+    /// Gets or sets the device registration storage service.
+    /// If not set, a default JsonDeviceRegistrationStorage instance will be created.
+    /// This allows sharing storage instances between WedaApplication (DI) and direct device instantiation.
+    /// </summary>
+    public IDeviceRegistrationStorage? RegistrationStorage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the configuration cache service.
+    /// If not set, a default JsonConfigurationCache instance will be created.
+    /// This allows sharing cache instances between WedaApplication (DI) and direct device instantiation.
+    /// </summary>
+    public IConfigurationCache? ConfigurationCache { get; set; }
 
     // ===== Fluent Configuration Methods =====
 

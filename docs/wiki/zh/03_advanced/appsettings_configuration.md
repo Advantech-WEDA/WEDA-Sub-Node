@@ -409,7 +409,7 @@ SDK 採用統一的 **SensorCache 架構**，無論是 Pull 模式（如 Modbus�
 │                       ▼  ReadTelemetry (採樣)                   │
 │  ┌──────────────────────────────────────────┐                   │
 │  │         Device Sampling Task             │                   │
-│  │  (依 SensorConfig.Interval 週期讀取)     │                   │
+│  │  (依 SensorReport.Interval 週期讀取)     │                   │
 │  └────────────────────┬─────────────────────┘                   │
 │                       │                                         │
 │         ┌─────────────┴─────────────┐                           │
@@ -425,7 +425,7 @@ SDK 採用統一的 **SensorCache 架構**，無論是 Pull 模式（如 Modbus�
 
 **關鍵概念**:
 - **SensorCache**: 所有資料來源（Pull/Push）都先寫入 cache，統一處理
-- **採樣任務**: 依照 `SensorConfig.Interval` 或 `Periods.ReadTelemetry` 週期從 cache 讀取
+- **採樣任務**: 依照 `SensorReport.Interval` 或 `Periods.ReadTelemetry` 週期從 cache 讀取
 - **上傳任務**: 根據 `SendTelemetry` 決定實時或批次上傳
 
 #### 完整範例

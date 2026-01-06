@@ -162,8 +162,7 @@ public class WedaApplicationBuilder
             throw new ArgumentException("Section name cannot be null or whitespace", nameof(sectionName));
         }
 
-        // First, read from devicecfg.json as the base configuration
-        // Configuration is loaded into DeviceConfig section via AddJsonFileToSection
+        // Validate that the configuration section exists
         var deviceConfigSection = Configuration.GetSection($"DeviceConfig:DeviceConfigs:{sectionName}");
         if (!deviceConfigSection.Exists())
         {
@@ -172,52 +171,21 @@ public class WedaApplicationBuilder
                 $"Please ensure the configuration exists in devicecfg.json under DeviceConfigs.");
         }
 
-        var config = deviceConfigSection.Get<DeviceConfiguration>()
-            ?? throw new InvalidOperationException(
-                $"Failed to bind configuration from 'DeviceConfig:DeviceConfigs:{sectionName}'. " +
-                $"Please check your devicecfg.json format.");
+        Log.Information("Using device '{SectionName}' configuration from devicecfg.json", sectionName);
 
-        // Use DeviceName from devicecfg.json, or fallback to sectionName if not specified
-        if (string.IsNullOrWhiteSpace(config.DeviceName))
-        {
-            config.DeviceName = sectionName;
-        }
-
-        var deviceName = config.DeviceName;
-        var configSource = "devicecfg.json";
-
-        // Try applying cached cloud configuration (if enabled)
-        // Device configurations are stored in device-config cache
-        if (_useCache)
-        {
-            try
-            {
-                var cachedMessage = _configurationCache.GetRawConfigurationAsync(
-                    SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult();
-                if (cachedMessage != null)
-                {
-                    // Apply cached cloud config to the base config (PATCH semantics)
-                    var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
-                    if (applied)
-                    {
-                        var cachePath = _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
-                        configSource = $"devicecfg.json + {cachePath}";
-                        Log.Information("Applied cached cloud configuration to device '{DeviceName}': {CachePath}",
-                            deviceName, cachePath);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Failed to load configuration from cache, using devicecfg.json only");
-            }
-        }
-
-        Log.Information("Using device '{DeviceName}' configuration from {Source}", deviceName, configSource);
-
-        // Create factory that will instantiate the device with the loaded configuration
+        // Create factory that retrieves the configuration from WedaApplicationContext
+        // This ensures we use the same configuration instance that was already initialized in WedaApplicationContext
         return AddDevice<TDevice>(context =>
-            (TDevice)Activator.CreateInstance(typeof(TDevice), context, config)!);
+        {
+            // Get the configuration from WedaApplicationContext (already initialized with DTDL, cache, etc.)
+            var config = context.DeviceConfigs.TryGetValue(sectionName, out var deviceConfig)
+                ? deviceConfig
+                : throw new InvalidOperationException(
+                    $"Device configuration '{sectionName}' not found in WedaApplicationContext. " +
+                    $"Available configurations: {string.Join(", ", context.DeviceConfigs.Keys)}");
+
+            return (TDevice)Activator.CreateInstance(typeof(TDevice), context, config)!;
+        });
     }
 
     /// <summary>
@@ -432,11 +400,17 @@ public class WedaApplicationBuilder
             return new TelemetryClient(natsClient, logger);
         });
 
-        // Register storage services as singletons to ensure consistent paths
+        // Register storage services as singletons to ensure consistent paths and avoid duplicate initialization
         Services.AddSingleton<IDeviceRegistrationStorage>(sp =>
         {
             var logger = sp.GetService<ILogger<JsonDeviceRegistrationStorage>>();
             return new JsonDeviceRegistrationStorage(logger: logger);
+        });
+
+        Services.AddSingleton<IConfigurationCache>(sp =>
+        {
+            var logger = sp.GetService<ILogger<JsonConfigurationCache>>();
+            return new JsonConfigurationCache(logger: logger);
         });
 
         // Register WedaCloudService
@@ -544,6 +518,10 @@ public class WedaApplicationBuilder
             var connectionOptions = sp.GetService<IOptions<ConnectionOptions>>()?.Value
                 ?? ConnectionOptions.Default;
 
+            // Get storage services from DI (registered by UseDefaultCloud)
+            var registrationStorage = sp.GetService<IDeviceRegistrationStorage>();
+            var configurationCache = sp.GetService<IConfigurationCache>();
+
             return new Context.WedaApplicationContext(options =>
             {
                 options.CloudService = cloudService;
@@ -551,6 +529,9 @@ public class WedaApplicationBuilder
                 options.Configuration = configuration;
                 options.DeviceOptions = deviceOptions;
                 options.ConnectionOptions = connectionOptions;
+                // Pass DI-registered storage instances to share resources
+                options.RegistrationStorage = registrationStorage;
+                options.ConfigurationCache = configurationCache;
             });
         });
 

@@ -79,7 +79,7 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Sensors to extract from ISensing protocol messages
     /// </summary>
-    public List<ISensingSensorConfiguration> Sensors { get; set; } = new();
+    public List<ISensingSensorReporturation> Sensors { get; set; } = new();
 
     /// <summary>
     /// Background task execution periods
@@ -104,7 +104,7 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
     /// <summary>
     /// Adds a sensor configuration to this device
     /// </summary>
-    public MqttISensingDeviceConfiguration AddSensor(ISensingSensorConfiguration sensor)
+    public MqttISensingDeviceConfiguration AddSensor(ISensingSensorReporturation sensor)
     {
         Sensors.Add(sensor);
         return this;
@@ -120,7 +120,7 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
         SensorGroup sensorGroup = SensorGroup.AI,
         string unit = "")
     {
-        Sensors.Add(new ISensingSensorConfiguration
+        Sensors.Add(new ISensingSensorReporturation
         {
             Name = name,
             Dtmi = dtmi,
@@ -196,7 +196,7 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
                 {
                     ["FieldName"] = sensorConfig.FieldName
                 },
-                Config = new SensorConfig
+                Report = new SensorReport
                 {
                     Unit = sensorConfig.Unit
                 },
@@ -240,7 +240,7 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
 /// <summary>
 /// Strongly-typed sensor configuration for ISensing protocol sensors
 /// </summary>
-public class ISensingSensorConfiguration
+public class ISensingSensorReporturation
 {
     /// <summary>
     /// Resource ID (optional, will be auto-generated if not provided)

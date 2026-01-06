@@ -27,7 +27,7 @@
           "Parameters": {
             "FieldName": "ai1"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -39,7 +39,7 @@
           "Parameters": {
             "FieldName": "ai2"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -51,7 +51,7 @@
           "Parameters": {
             "FieldName": "ai3"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -63,7 +63,7 @@
           "Parameters": {
             "FieldName": "ai4"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -75,7 +75,7 @@
           "Parameters": {
             "FieldName": "do1"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -87,7 +87,7 @@
           "Parameters": {
             "FieldName": "do2"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }

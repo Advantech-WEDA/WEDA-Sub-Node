@@ -514,8 +514,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected List<(int IntervalMs, List<Sensor> Sensors)> GroupSensorsByInterval()
     {
         return Configuration.Sensors
-            .Where(s => s.Config.Enabled)
-            .GroupBy(s => (int)s.Config.Interval)
+            .Where(s => s.Report.Enabled)
+            .GroupBy(s => (int)s.Report.Interval)
             .Select(g => (IntervalMs: g.Key, Sensors: g.ToList()))
             .ToList();
     }
@@ -693,7 +693,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             var validationResult = ValidateConfigurationUpdate(message);
             if (!validationResult.IsValid)
             {
-                _logger.LogWarning("Configuration update validation failed: {Error}", validationResult.ErrorMessage);
+                _logger.LogError("Configuration update validation failed: {Error}", validationResult.ErrorMessage);
 
                 // Send invalid status response
                 var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
@@ -733,18 +733,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     return;
                 }
 
-                // Find matching device config by DeviceName
-                SubNodeDeviceConfigDto? desiredConfig = null;
-                foreach (var (key, config) in deviceConfigs)
-                {
-                    if (string.Equals(config.DeviceName, Configuration.DeviceName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        desiredConfig = config;
-                        break;
-                    }
-                }
-
-                if (desiredConfig == null)
+                // Find matching device config by DeviceName (using dictionary key)
+                if (!deviceConfigs.TryGetValue(Configuration.DeviceName, out var desiredConfig))
                 {
                     _logger.LogDebug("No matching device configuration found for device: {DeviceName}", Configuration.DeviceName);
                     return;
@@ -754,13 +744,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                 // Record pre-update state for detecting interval/period changes
                 var previousIntervalGroups = Configuration.Sensors
-                    .Where(s => s.Config.Enabled)
-                    .GroupBy(s => (int)s.Config.Interval)
+                    .Where(s => s.Report.Enabled)
+                    .GroupBy(s => (int)s.Report.Interval)
                     .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
                 var previousHealthPeriod = Configuration.Periods.ReportHealth;
 
                 // Apply sensor configuration updates (PATCH semantics - only update provided fields)
-                var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
+                var updatedSensors = ConfigurationUpdateHelper.ApplysensorReportUpdates(
                     Configuration, desiredConfig.Sensors);
 
                 if (updatedSensors.Count > 0)
@@ -835,8 +825,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                 // Detect if background tasks need restart due to interval/period changes
                 var currentIntervalGroups = Configuration.Sensors
-                    .Where(s => s.Config.Enabled)
-                    .GroupBy(s => (int)s.Config.Interval)
+                    .Where(s => s.Report.Enabled)
+                    .GroupBy(s => (int)s.Report.Interval)
                     .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
 
                 var intervalsChanged = !AreIntervalGroupsEqual(previousIntervalGroups, currentIntervalGroups);
@@ -1358,7 +1348,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     private static void ValidateSensorIntervals(DeviceConfiguration configuration)
     {
         var invalidSensors = configuration.Sensors
-            .Where(s => s.Config.Enabled && s.Config.Interval <= 0)
+            .Where(s => s.Report.Enabled && s.Report.Interval <= 0)
             .Select(s => s.Name)
             .ToList();
 
@@ -1410,8 +1400,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     private static int CalculateSendTelemetryPeriod(DeviceConfiguration configuration)
     {
         var enabledIntervals = configuration.Sensors
-            .Where(s => s.Config.Enabled && s.Config.Interval > 0)
-            .Select(s => (int)s.Config.Interval)
+            .Where(s => s.Report.Enabled && s.Report.Interval > 0)
+            .Select(s => (int)s.Report.Interval)
             .ToList();
 
         // This should never happen after validation, but provide safe default

@@ -31,7 +31,7 @@
             "RegisterCount": 1,
             "DataType": "UInt16"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -46,7 +46,7 @@
             "RegisterCount": 1,
             "DataType": "UInt16"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -61,7 +61,7 @@
             "RegisterCount": 1,
             "DataType": "UInt16"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }
@@ -76,7 +76,7 @@
             "RegisterCount": 1,
             "DataType": "UInt16"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
           }

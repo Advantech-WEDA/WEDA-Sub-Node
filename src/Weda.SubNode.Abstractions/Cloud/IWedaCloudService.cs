@@ -7,7 +7,7 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Abstractions.Cloud;
 
 /// <summary>
-/// Weda cloud service interface (abstraction for message brokers)
+/// WedaNode interface (abstraction for message brokers)
 /// Provides device registration, telemetry, and subscription management
 /// </summary>
 public interface IWedaCloudService : IDisposable

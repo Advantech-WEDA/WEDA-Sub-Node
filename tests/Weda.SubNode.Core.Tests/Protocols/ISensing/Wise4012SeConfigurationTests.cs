@@ -42,7 +42,7 @@ public class Wise4012SeConfigurationTests
                     {
                         ["FieldName"] = "ai0"
                     },
-                    Config = new SensorConfig
+                    Report = new SensorReport
                     {
                         Enabled = true,
                         Unit = "mA"
@@ -150,7 +150,7 @@ public class Wise4012SeConfigurationTests
             Dtmi = "dtmi:advantech:EdgeSync:DI;1",
             DeviceResourceId = "test-device",
             SensorGroup = SensorGroup.DI,
-            Config = new SensorConfig { Enabled = true }
+            Report = new SensorReport { Enabled = true }
         };
 
         // Act
@@ -180,7 +180,7 @@ public class Wise4012SeConfigurationTests
             Dtmi = "dtmi:test;1",
             DeviceResourceId = "test-device",
             SensorGroup = sensorGroup,
-            Config = new SensorConfig { Enabled = true }
+            Report = new SensorReport { Enabled = true }
         };
 
         // Act

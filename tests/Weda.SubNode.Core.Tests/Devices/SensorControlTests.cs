@@ -50,7 +50,7 @@ public class SensorControlTests : IDisposable
                     Dtmi = "dtmi:test:AI;1",
                     DeviceResourceId = "test-device",
                     SensorGroup = SensorGroup.AI,
-                    Config = new SensorConfig { Enabled = true }
+                    Report = new SensorReport { Enabled = true }
                 }
             }
         };

@@ -317,6 +317,8 @@ public class SubNodeWedaNodeConfigDto
 /// </summary>
 public class SubNodeDeviceCfgDto
 {
+    private Dictionary<string, SubNodeDeviceConfigDto>? _deviceConfigs;
+
     /// <summary>
     /// SubNode information and settings
     /// </summary>
@@ -324,10 +326,24 @@ public class SubNodeDeviceCfgDto
     public SubNodeInfoDto? SubNode { get; set; }
 
     /// <summary>
-    /// Dictionary of device configurations keyed by device name
+    /// Dictionary of device configurations keyed by device name (case-insensitive).
     /// </summary>
     [JsonPropertyName("DeviceConfigs")]
-    public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs { get; set; }
+    public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs
+    {
+        get => _deviceConfigs;
+        set
+        {
+            if (value != null && value.Comparer != StringComparer.OrdinalIgnoreCase)
+            {
+                _deviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>(value, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                _deviceConfigs = value;
+            }
+        }
+    }
 }
 
 /// <summary>
@@ -358,12 +374,6 @@ public class SubNodeDeviceConfigDto
     /// </summary>
     [JsonPropertyName("Enabled")]
     public bool Enabled { get; set; } = true;
-
-    /// <summary>
-    /// Device name for identification
-    /// </summary>
-    [JsonPropertyName("DeviceName")]
-    public string DeviceName { get; set; } = string.Empty;
 
     /// <summary>
     /// Device type (e.g., "TcpModbus", "WebSocket")
@@ -418,7 +428,7 @@ public class SubNodeDeviceConfigDto
     /// Sensor configurations
     /// </summary>
     [JsonPropertyName("Sensors")]
-    public List<SubNodeSensorConfigDto>? Sensors { get; set; }
+    public List<SubNodeSensorReportDto>? Sensors { get; set; }
 
     /// <summary>
     /// Background task periods (milliseconds)
@@ -516,7 +526,7 @@ public class SubNodeDeviceCapabilitiesDto
 /// <summary>
 /// Sensor configuration DTO matching the devicecfg.json structure
 /// </summary>
-public class SubNodeSensorConfigDto
+public class SubNodeSensorReportDto
 {
     /// <summary>
     /// Sensor name/identifier
@@ -544,10 +554,20 @@ public class SubNodeSensorConfigDto
     public Dictionary<string, object>? Parameters { get; set; }
 
     /// <summary>
-    /// Sensor runtime configuration
+    /// Sensor report configuration (sampling interval, transforms, DSP, thresholds)
     /// </summary>
-    [JsonPropertyName("Config")]
-    public SubNodeSensorRuntimeConfigDto? Config { get; set; }
+    [JsonPropertyName("Report")]
+    public SubNodeSensorRuntimeConfigDto? Report { get; set; }
+
+    /// <summary>
+    /// Backward compatibility: Config is an alias for Report
+    /// </summary>
+    [JsonIgnore]
+    public SubNodeSensorRuntimeConfigDto? Config
+    {
+        get => Report;
+        set => Report = value;
+    }
 
     /// <summary>
     /// Additional metadata

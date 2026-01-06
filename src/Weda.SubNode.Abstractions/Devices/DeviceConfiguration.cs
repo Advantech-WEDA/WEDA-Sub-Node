@@ -96,6 +96,8 @@ public class DeviceConfiguration
     /// Priority: Dtdl.AutoGenEnabled (device-level) > SubNodeInfo.AutoGenEnabled (subnode-level)
     /// - When AutoGenEnabled=true: Generates DTDL from Sensor definitions and populates Sensor.Dtmi
     /// - When AutoGenEnabled=false: Validates DtdlPath and Sensor.Dtmi are specified, loads from file
+    ///
+    /// This method is idempotent - calling it multiple times will not regenerate DTDL if already initialized.
     /// </summary>
     /// <param name="basePath">Optional base path for DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
     /// <param name="logger">Optional logger for warnings and info.</param>
@@ -103,6 +105,13 @@ public class DeviceConfiguration
     /// <exception cref="FileNotFoundException">Thrown when DtdlPath file does not exist (AutoGenEnabled=false).</exception>
     public void InitializeDtdl(string? basePath = null, ILogger? logger = null)
     {
+        // Idempotency check: Skip if DTDL already initialized
+        if (DtdlInterface != null)
+        {
+            logger?.LogDebug("DTDL already initialized for device '{DeviceName}', skipping", DeviceName);
+            return;
+        }
+
         // Device-level Dtdl.AutoGenEnabled takes priority over SubNode-level setting
         var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);
 

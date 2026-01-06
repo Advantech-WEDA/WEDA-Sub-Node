@@ -22,7 +22,7 @@
             "MetricType": "cpu",
             "MetricName": "usage"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000
           }
@@ -35,7 +35,7 @@
             "MetricType": "cpu",
             "MetricName": "load1"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -48,7 +48,7 @@
             "MetricType": "cpu",
             "MetricName": "load5"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -61,7 +61,7 @@
             "MetricType": "cpu",
             "MetricName": "load15"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -74,7 +74,7 @@
             "MetricType": "memory",
             "MetricName": "total"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -87,7 +87,7 @@
             "MetricType": "memory",
             "MetricName": "available"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -100,7 +100,7 @@
             "MetricType": "memory",
             "MetricName": "used"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -113,7 +113,7 @@
             "MetricType": "memory",
             "MetricName": "cached"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 10000
           }
@@ -127,7 +127,7 @@
             "MetricName": "total",
             "MountPoint": "/"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 30000
           }
@@ -141,7 +141,7 @@
             "MetricName": "available",
             "MountPoint": "/"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 30000
           }
@@ -155,7 +155,7 @@
             "MetricName": "used",
             "MountPoint": "/"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 30000
           }
@@ -169,7 +169,7 @@
             "MetricName": "usage_percent",
             "MountPoint": "/"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 30000
           }
@@ -183,7 +183,7 @@
             "MetricName": "bytes_sent",
             "Interface": "en0"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000
           }
@@ -197,7 +197,7 @@
             "MetricName": "bytes_received",
             "Interface": "en0"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000
           }
@@ -211,7 +211,7 @@
             "MetricName": "packets_sent",
             "Interface": "en0"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000
           }
@@ -225,7 +225,7 @@
             "MetricName": "packets_received",
             "Interface": "en0"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000
           }
@@ -239,7 +239,7 @@
             "MetricName": "errors",
             "Interface": "en0"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 25000
           }

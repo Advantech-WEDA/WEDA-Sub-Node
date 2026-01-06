@@ -34,7 +34,7 @@
             "Description": "Sensor for temperature sampling",
             "Schema": "double"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 5000,
             "Unit": "celsius",

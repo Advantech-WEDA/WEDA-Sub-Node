@@ -125,8 +125,8 @@ public class JsonConfigurationCacheTests : IDisposable
         // Arrange
         var message = CreateTestCloudMessage();
         var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        desiredConfig.Sensors![0].Config!.Enabled = false;
-        desiredConfig.Sensors[0].Config.Interval = 2000;
+        desiredConfig.Sensors![0].Report!.Enabled = false;
+        desiredConfig.Sensors[0].Report!.Interval = 2000;
         desiredConfig.Periods!.ReportHealth = 10000;
 
         // Act
@@ -137,8 +137,8 @@ public class JsonConfigurationCacheTests : IDisposable
         loaded.ShouldNotBeNull();
         loaded.DeviceId.ShouldBe(message.DeviceId);
         var loadedConfig = loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        loadedConfig.Sensors![0].Config!.Enabled.ShouldBeFalse();
-        loadedConfig.Sensors[0].Config.Interval.ShouldBe(2000);
+        loadedConfig.Sensors![0].Report!.Enabled.ShouldBeFalse();
+        loadedConfig.Sensors[0].Report!.Interval.ShouldBe(2000);
         loadedConfig.Periods!.ReportHealth.ShouldBe(10000);
     }
 
@@ -174,14 +174,14 @@ public class JsonConfigurationCacheTests : IDisposable
     }
 
     [Fact]
-    public async Task GetRawConfigurationAsync_PreservesSensorConfigurations()
+    public async Task GetRawConfigurationAsync_PreservesSensorReporturations()
     {
         // Arrange
         var original = CreateTestCloudMessage();
         var desiredConfig = original.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        desiredConfig.Sensors![0].Config!.Enabled = false;
-        desiredConfig.Sensors![1].Config!.Enabled = true;
-        desiredConfig.Sensors[1].Config.Interval = 5000;
+        desiredConfig.Sensors![0].Report!.Enabled = false;
+        desiredConfig.Sensors![1].Report!.Enabled = true;
+        desiredConfig.Sensors[1].Report!.Interval = 5000;
         await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, original);
 
         // Act
@@ -191,9 +191,9 @@ public class JsonConfigurationCacheTests : IDisposable
         loaded.ShouldNotBeNull();
         var loadedConfig = loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
         loadedConfig.Sensors!.Count.ShouldBe(2);
-        loadedConfig.Sensors[0].Config!.Enabled.ShouldBeFalse();
-        loadedConfig.Sensors[1].Config!.Enabled.ShouldBeTrue();
-        loadedConfig.Sensors[1].Config.Interval.ShouldBe(5000);
+        loadedConfig.Sensors[0].Report!.Enabled.ShouldBeFalse();
+        loadedConfig.Sensors[1].Report!.Enabled.ShouldBeTrue();
+        loadedConfig.Sensors[1].Report!.Interval.ShouldBe(5000);
     }
 
     #endregion
@@ -346,11 +346,11 @@ public class JsonConfigurationCacheTests : IDisposable
         // Arrange - Initial message with all sensors enabled
         var message = CreateTestCloudMessage();
         var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        desiredConfig.Sensors![0].Config!.Enabled = true;
-        desiredConfig.Sensors[1].Config!.Enabled = true;
+        desiredConfig.Sensors![0].Report!.Enabled = true;
+        desiredConfig.Sensors[1].Report!.Enabled = true;
 
         // Act - Simulate cloud update disabling channel.0
-        desiredConfig.Sensors[0].Config.Enabled = false;
+        desiredConfig.Sensors[0].Report!.Enabled = false;
         await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart by creating new cache instance
@@ -363,8 +363,8 @@ public class JsonConfigurationCacheTests : IDisposable
         // Assert - Configuration should persist disabled state
         loadedMessage.ShouldNotBeNull();
         var loadedConfig = loadedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        loadedConfig.Sensors![0].Config!.Enabled.ShouldBeFalse();
-        loadedConfig.Sensors[1].Config!.Enabled.ShouldBeTrue();
+        loadedConfig.Sensors![0].Report!.Enabled.ShouldBeFalse();
+        loadedConfig.Sensors[1].Report!.Enabled.ShouldBeTrue();
     }
 
     [Fact]
@@ -373,10 +373,10 @@ public class JsonConfigurationCacheTests : IDisposable
         // Arrange
         var message = CreateTestCloudMessage();
         var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        desiredConfig.Sensors![0].Config!.Interval = 1000;
+        desiredConfig.Sensors![0].Report!.Interval = 1000;
 
         // Act - Simulate cloud update changing interval
-        desiredConfig.Sensors[0].Config.Interval = 5000;
+        desiredConfig.Sensors[0].Report!.Interval = 5000;
         await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart
@@ -389,7 +389,7 @@ public class JsonConfigurationCacheTests : IDisposable
         // Assert
         loadedMessage.ShouldNotBeNull();
         var loadedConfig = loadedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        loadedConfig.Sensors![0].Config!.Interval.ShouldBe(5000);
+        loadedConfig.Sensors![0].Report!.Interval.ShouldBe(5000);
     }
 
     [Fact]
@@ -422,7 +422,7 @@ public class JsonConfigurationCacheTests : IDisposable
         // Arrange - Save a modified configuration
         var message = CreateTestCloudMessage();
         var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        desiredConfig.Sensors![0].Config!.Enabled = false;
+        desiredConfig.Sensors![0].Report!.Enabled = false;
         await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Act - Reset to appsettings.json by deleting cache
@@ -444,11 +444,10 @@ public class JsonConfigurationCacheTests : IDisposable
         message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["SecondDevice"] = new SubNodeDeviceConfigDto
         {
             Enabled = true,
-            DeviceName = "SecondDevice",
             SubNodeType = "adamEthernet",
-            Sensors = new List<SubNodeSensorConfigDto>
+            Sensors = new List<SubNodeSensorReportDto>
             {
-                new SubNodeSensorConfigDto
+                new SubNodeSensorReportDto
                 {
                     Name = "sensor.0",
                     Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 }
@@ -464,8 +463,8 @@ public class JsonConfigurationCacheTests : IDisposable
         // Assert - Both devices should be in the single cache file
         loaded.ShouldNotBeNull();
         loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!.Count.ShouldBe(2);
-        loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs.ContainsKey("TestDevice").ShouldBeTrue();
-        loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs.ContainsKey("SecondDevice").ShouldBeTrue();
+        loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs!.ContainsKey("TestDevice").ShouldBeTrue();
+        loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs!.ContainsKey("SecondDevice").ShouldBeTrue();
     }
 
     [Fact]
@@ -528,7 +527,6 @@ public class JsonConfigurationCacheTests : IDisposable
                                 ["TestDevice"] = new SubNodeDeviceConfigDto
                                 {
                                     Enabled = true,
-                                    DeviceName = "TestDevice",
                                     DeviceType = "adamEthernet",
                                     DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
                                     {
@@ -541,9 +539,9 @@ public class JsonConfigurationCacheTests : IDisposable
                                         ["Host"] = "localhost",
                                         ["Port"] = 502
                                     },
-                                    Sensors = new List<SubNodeSensorConfigDto>
+                                    Sensors = new List<SubNodeSensorReportDto>
                                     {
-                                        new SubNodeSensorConfigDto
+                                        new SubNodeSensorReportDto
                                         {
                                             Name = "channel.0",
                                             Dtmi = "dtmi:test:sensor;1",
@@ -554,7 +552,7 @@ public class JsonConfigurationCacheTests : IDisposable
                                                 Interval = 1000
                                             }
                                         },
-                                        new SubNodeSensorConfigDto
+                                        new SubNodeSensorReportDto
                                         {
                                             Name = "channel.1",
                                             Dtmi = "dtmi:test:sensor;1",
