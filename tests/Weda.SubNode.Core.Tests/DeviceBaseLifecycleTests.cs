@@ -64,6 +64,12 @@ public class DeviceBaseLifecycleTests : IDisposable
 
     private void SetupSuccessfulRegistration(string deviceId)
     {
+        // Setup SubNodeManager to return the expected SubNodeId
+        // DeviceBase now gets SubNodeId from SubNodeManager instead of CloudService directly
+        _context.MockSubNodeManager.SubNodeId.Returns(deviceId);
+        _context.MockSubNodeManager.IsInitialized.Returns(true);
+        _context.MockSubNodeManager.InitializeAsync(Arg.Any<CancellationToken>()).Returns(true);
+
         _mockCloudService.GetOrRegisterDeviceIdAsync(
                 Arg.Any<DeviceInfo>(),
                 Arg.Any<CancellationToken>())
@@ -107,9 +113,12 @@ public class DeviceBaseLifecycleTests : IDisposable
         device.SubNodeId.ShouldBe("test-device-001");
 
         // Verify method calls
+        // DeviceBase connects to physical device
         await _mockCommunication.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(1).GetOrRegisterDeviceIdAsync(
-            Arg.Any<DeviceInfo>(),
+        // Cloud registration is handled by SubNodeManager, not DeviceBase directly
+        // DeviceBase only uploads device configuration after SubNodeManager provides SubNodeId
+        await _mockCloudService.Received(1).UploadDeviceConfigurationAsync(
+            Arg.Any<DeviceConfiguration>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -627,7 +636,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task StopAsync_Should_DisconnectFromCommunicationAndCloud()
+    public async Task StopAsync_Should_DisconnectFromPhysicalDevice()
     {
         // Arrange
         SetupSuccessfulConnections();
@@ -641,8 +650,9 @@ public class DeviceBaseLifecycleTests : IDisposable
         await device.StopAsync();
 
         // Assert
+        // DeviceBase only disconnects from physical device
+        // Cloud connection is managed by SubNodeManager at SubNode level
         await _mockCommunication.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
     }
 
     #endregion

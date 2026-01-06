@@ -232,6 +232,12 @@ public class MockApplicationContext : IWedaApplicationContext
             };
         });
         MockConfigurationCache.ExistsAsync(Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        // Default: SubNodeManager is initialized successfully
+        // Simulates the scenario: Cloud connected, no cache, registration succeeded
+        MockSubNodeManager.IsInitialized.Returns(true);
+        MockSubNodeManager.SubNodeId.Returns("test-subnode-001");
+        MockSubNodeManager.InitializeAsync(Arg.Any<CancellationToken>()).Returns(true);
     }
 
     /// <summary>
