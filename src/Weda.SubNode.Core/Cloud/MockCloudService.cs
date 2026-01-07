@@ -294,7 +294,7 @@ public class MockCloudService : IWedaCloudService
         return Task.FromResult(true);
     }
 
-    public Task DeleteRegistrationAsync(CancellationToken ct = default)
+    public Task ResetRegistrationAsync(CancellationToken ct = default)
     {
         throw new NotImplementedException();
     }

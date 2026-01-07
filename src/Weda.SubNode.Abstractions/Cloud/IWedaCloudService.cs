@@ -132,5 +132,5 @@ public interface IWedaCloudService : IDisposable
     /// <summary>
     /// Delete device registration from storage
     /// </summary>
-    Task DeleteRegistrationAsync(CancellationToken ct = default);
+    Task ResetRegistrationAsync(CancellationToken ct = default);
 }

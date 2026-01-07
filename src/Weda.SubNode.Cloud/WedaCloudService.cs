@@ -623,7 +623,7 @@ public sealed class WedaCloudService : IWedaCloudService
         GC.SuppressFinalize(this);
     }
 
-    public Task DeleteRegistrationAsync(CancellationToken ct = default)
+    public Task ResetRegistrationAsync(CancellationToken ct = default)
     {
         return _registrationStorage.DeleteRegistrationAsync(ct);
     }

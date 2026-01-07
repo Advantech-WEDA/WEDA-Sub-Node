@@ -205,7 +205,7 @@ public sealed class DeviceInitializer
                         configuration.DeviceInfo?.DeviceName,
                         errorsText);
 
-                    await _cloudService.DeleteRegistrationAsync(token);
+                    await _cloudService.ResetRegistrationAsync(token);
                 }
                 else
                 {
