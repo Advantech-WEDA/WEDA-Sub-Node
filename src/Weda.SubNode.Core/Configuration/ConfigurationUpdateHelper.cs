@@ -1187,6 +1187,15 @@ public static partial class ConfigurationUpdateHelper
         };
     }
 
+    /// <summary>
+    /// Detects if there are new sensor or new DTMIs that require re-uploading DeviceCaps.
+    /// A delta exists when:
+    /// 1. A new sensor is added (not in current devicecfg)
+    /// 2. An existing sensor's DTMI is changed
+    /// </summary>
+    /// <param name="currentCfg">Current device configuration</param>
+    /// <param name="desiredSensors">Desired sensor configurations from cloud</param>
+    /// <returns>True if DeviceCaps needs to be re-uploaded</returns>
     public static bool HasDtmiDelta(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto> desiredSensors)
     {
         if (desiredSensors == null || desiredSensors.Count == 0)
@@ -1211,6 +1220,34 @@ public static partial class ConfigurationUpdateHelper
             }
         }    
 
-        return false;    
+        return false;
+    }
+
+    public static List<(string SensorName, string? OldDtmi, string? NewDtmi)> GetDtmiChanges(
+        DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
+    {
+        var changes = new List<(string SensorName, string? OldDtmi, string? NewDtmi)>();
+
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return changes;
+
+        var currentDtmis = currentCfg.Sensors
+            .ToDictionary(s => s.Name, s => s.Dtmi, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            // Case 1: New sensor (not in current config)
+            if (!currentDtmis.TryGetValue(desiredSensor.Name, out var currentDtmi))
+            {
+                changes.Add((desiredSensor.Name, null, desiredSensor.Dtmi));
+            } 
+            else if (!string.IsNullOrEmpty(desiredSensor.Dtmi) && 
+                     !string.Equals(currentDtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
+            {
+                changes.Add((desiredSensor.Name, currentDtmi, desiredSensor.Dtmi));
+            }
+        }    
+
+        return changes;
     }
 }
