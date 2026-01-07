@@ -22,7 +22,7 @@ public sealed class DeviceInitializer
     private readonly TimeSpan maxDelay = TimeSpan.FromSeconds(30);
     private readonly double backoffFactor = 2.0;
 
-    private TimeSpan delay = TimeSpan.FromSeconds(1);
+    private TimeSpan delay = TimeSpan.FromMilliseconds(100);
 
     public DeviceInitializer(
         IWedaCloudService cloudService,
@@ -157,77 +157,50 @@ public sealed class DeviceInitializer
     /// <returns>The SubNode's DeviceId (shared by all devices in this SubNode)</returns>
     public async Task<string> InitializeDeviceAsync(DeviceConfiguration configuration, CancellationToken ct = default)
     {
-        // Local function signature: returns both ID and the result object
-        async Task<(string Id, ErrorOr<Success> Result)> TryProcessAsync()
-        {
-            // Step 1: Ensure SubNode is registered
-            var id = await EnsureSubNodeRegisteredAsync(ct);
-
-            // Step 2: Enrich configuration
-            EnrichConfiguration(configuration, id);
-
-            // Step 3: Upload configuration
-            var result = await UploadConfigurationAsync(configuration, ct);
-
-            return (id, result);
-        }
-
         var random = new Random();
-        bool justHandledNotFoundImmediateRetry = false;
+        bool keepRunning = true;
+        string? finalId = null;
 
-        while (true)
+        while (keepRunning)
         {
             ct.ThrowIfCancellationRequested();
 
-            bool shouldImmediateRetry = false;
-
             try
             {
-                var attempt = await TryProcessAsync();
+                var id = await EnsureSubNodeRegisteredAsync(ct);
+                EnrichConfiguration(configuration, id);
+                var result = await UploadConfigurationAsync(configuration, ct);
 
-                if (!attempt.Result.IsError)
+                if (!result.IsError)
                 {
-                    return attempt.Id;
+                    finalId = id;
+                    keepRunning = false;
                 }
-
-                // Handle error cases
-                bool isNotFound = attempt.Result.Errors.Any(e =>
-                    e.Type == ErrorType.NotFound ||
-                    string.Equals(e.Code, "Device.NotFound", StringComparison.OrdinalIgnoreCase));
-
-                string errorsText = string.Join("; ", attempt.Result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-
-                if (isNotFound)
+                else
                 {
-                    _logger.LogWarning(
-                        "Device not found; deleting registration and retrying. DeviceName={DeviceName}, Errors={Errors}",
-                        configuration.DeviceInfo?.DeviceName,
-                        errorsText);
+                    var isNotFound = result.Errors.Any(e =>
+                        e.Type == ErrorType.NotFound ||
+                        string.Equals(e.Code, "Device.NotFound", StringComparison.OrdinalIgnoreCase));
 
-                    await _cloudService.DeleteRegistrationAsync(ct);
+                    var errorsText = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
 
-                    if (!justHandledNotFoundImmediateRetry)
+                    if (isNotFound)
                     {
-                        justHandledNotFoundImmediateRetry = true;
-                        shouldImmediateRetry = true;
+                        _logger.LogWarning(
+                            "Device not found; deleting registration and retrying. DeviceName={DeviceName}, Errors={Errors}",
+                            configuration.DeviceInfo?.DeviceName,
+                            errorsText);
+
+                        await _cloudService.DeleteRegistrationAsync(ct);
                     }
                     else
                     {
                         _logger.LogWarning(
-                            "Still failing after immediate retry for NotFound; entering backoff. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
+                            "Initialize attempt failed; will retry. Errors={Errors}. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
+                            errorsText,
                             delay.TotalSeconds,
                             configuration.DeviceInfo?.DeviceName);
-                        justHandledNotFoundImmediateRetry = false;
                     }
-                }
-                else
-                {
-                    _logger.LogWarning(
-                        "Initialize attempt failed; will retry. Errors={Errors}. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
-                        errorsText,
-                        delay.TotalSeconds,
-                        configuration.DeviceInfo?.DeviceName);
-                    justHandledNotFoundImmediateRetry = false;
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -240,18 +213,16 @@ public sealed class DeviceInitializer
                     "Initialize attempt failed due to exception; will retry. Next delay={DelaySeconds}s. DeviceName={DeviceName}",
                     delay.TotalSeconds,
                     configuration.DeviceInfo?.DeviceName);
-                justHandledNotFoundImmediateRetry = false;
             }
 
-            // Unified retry logic: immediate retry for first NotFound, otherwise delay with backoff
-            if (shouldImmediateRetry)
+            if (keepRunning)
             {
-                continue;
+                await Task.Delay(GetDelayWithJitter(delay, random), ct);
+                delay = IncreaseDelay(delay, maxDelay, backoffFactor);
             }
-
-            await Task.Delay(GetDelayWithJitter(delay, random), ct);
-            delay = IncreaseDelay(delay, maxDelay, backoffFactor);
         }
+
+        return finalId!;
     }
 
     private static TimeSpan GetDelayWithJitter(TimeSpan baseDelay, Random random)

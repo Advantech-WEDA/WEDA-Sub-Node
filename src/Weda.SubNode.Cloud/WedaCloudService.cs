@@ -92,20 +92,6 @@ public sealed class WedaCloudService : IWedaCloudService
         return _topicAssignments;
     }
 
-    private async Task<bool> PingServicesAsync()
-    {
-        try
-        {
-            var response = await _client.RequestAsync<string, string>("$SRV.PING", "");
-            _logger.LogDebug("Response: {response.Data}");
-            return true;
-        }
-        catch (NatsNoRespondersException)
-        {
-            return false;
-        }
-    }
-
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
     {
         if (_isConnected)
@@ -122,17 +108,19 @@ public sealed class WedaCloudService : IWedaCloudService
             var rtt = await _client.PingAsync(cancellationToken);
             _logger.LogInformation("NATS connection verified - RTT: {RttMs}ms", rtt.TotalMilliseconds);
 
-            var isPingService = await PingServicesAsync();
-            if (!isPingService)
-            {
-                _logger.LogError("Failed to Ping Service");
-                _isConnected = false;
-                return false;
-            }
+            var response = await _client.RequestAsync<string, string>("$SRV.PING", "");
+            _logger.LogInformation("NATS response verified - RTT: {RttMs}ms", rtt.TotalMilliseconds);
+            _logger.LogDebug("Response: {Data}", response.Data);
 
             _isConnected = true;
             _logger.LogInformation("Connected to WedaNode");
             return true;
+        }
+        catch (NatsNoRespondersException)
+        {
+            _logger.LogError("Failed to NatsNoRespondersException");
+            _isConnected = false;
+            return false;
         }
         catch (Exception ex)
         {
@@ -279,7 +267,7 @@ public sealed class WedaCloudService : IWedaCloudService
         if (response.IsSuccess == true)
         {
             _logger.LogInformation("Device configuration uploaded successfully");
-            return true; 
+            return true;
         }
 
         if (response.Code == 404)
