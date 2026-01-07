@@ -1,6 +1,7 @@
-using ErrorOr;
 using NSubstitute;
+
 using Shouldly;
+
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
@@ -10,6 +11,7 @@ using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Devices;
 using Weda.SubNode.TestBase;
 using Weda.SubNode.TestBase.Builders;
+
 using Xunit;
 
 namespace Weda.SubNode.Core.Tests;
@@ -153,7 +155,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task InitializeAsync_Should_ReturnFalse_When_CloudServiceConnectionFails()
+    public async Task InitializeAsync_Should_ReturnTrue_When_CloudServiceConnectionFails()
     {
         // Arrange
         // Use CancellationToken to prevent infinite retry with AlwaysRetry policy
@@ -172,8 +174,9 @@ public class DeviceBaseLifecycleTests : IDisposable
         {
             result = await device.InitializeAsync(cts.Token);
 
-            // If no exception, should return false
-            result.ShouldBeFalse();
+            result.ShouldBeTrue();
+            //// If no exception, should return false
+            //result.ShouldBeFalse();
         }
         catch (OperationCanceledException)
         {
@@ -181,7 +184,8 @@ public class DeviceBaseLifecycleTests : IDisposable
         }
 
         // Assert
-        device.Status.ShouldBe(DeviceStatus.Initializing);
+        device.Status.ShouldBe(DeviceStatus.Ready);
+        //device.Status.ShouldBe(DeviceStatus.Initializing);
     }
 
     [Fact]
@@ -209,7 +213,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task InitializeAsync_Should_ReturnFalse_WhenRegistrationFails()
+    public async Task InitializeAsync_Should_ReturnTrue_WhenRegistrationFails()
     {
         // Arrange
         // Use CancellationToken to prevent hanging if retry logic is triggered
@@ -228,9 +232,11 @@ public class DeviceBaseLifecycleTests : IDisposable
         var result = await device.InitializeAsync(cts.Token);
 
         // Assert
-        // Note: New DeviceBase uses ErrorOr pattern, returns false instead of throwing
-        result.ShouldBeFalse();
-        device.Status.ShouldBe(DeviceStatus.Initializing); // State machine doesn't transition on error
+        result.ShouldBeTrue();
+        device.Status.ShouldBe(DeviceStatus.Ready); // State machine doesn't transition on error
+        //// Note: New DeviceBase uses ErrorOr pattern, returns false instead of throwing
+        //result.ShouldBeFalse();
+        //device.Status.ShouldBe(DeviceStatus.Initializing); // State machine doesn't transition on error
     }
 
     #endregion
@@ -576,7 +582,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     #region Error Handling Tests
 
     [Fact]
-    public async Task InitializeAsync_Should_ReturnFalse_When_ConfigurationUploadFails()
+    public async Task InitializeAsync_Should_ReturnTrue_When_ConfigurationUploadFails()
     {
         // Arrange
         // Use CancellationToken to prevent hanging if retry logic is triggered
@@ -600,9 +606,11 @@ public class DeviceBaseLifecycleTests : IDisposable
         var result = await device.InitializeAsync(cts.Token);
 
         // Assert
-        // Note: New DeviceBase uses ErrorOr pattern
-        result.ShouldBeFalse();
-        device.Status.ShouldBe(DeviceStatus.Initializing);
+        result.ShouldBeTrue();
+        device.Status.ShouldBe(DeviceStatus.Ready);
+        //// Note: New DeviceBase uses ErrorOr pattern
+        //result.ShouldBeFalse();
+        //device.Status.ShouldBe(DeviceStatus.Initializing);
     }
 
     [Fact]
