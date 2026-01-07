@@ -176,41 +176,6 @@ public static partial class ConfigurationUpdateHelper
     }
 
     /// <summary>
-    /// Validates the configuration update message.
-    /// </summary>
-    /// <param name="message">The configuration update message to validate</param>
-    /// <param name="errorMessage">Error message if validation fails</param>
-    /// <returns>True if valid, false otherwise</returns>
-    [Obsolete("Use ValidateMessage() instead which returns ConfigurationValidationResult")]
-    public static bool ValidateConfigurationUpdate(
-        SubNodeConfigUpdateMessage message,
-        out string? errorMessage)
-    {
-        var result = ValidateMessage(message);
-        errorMessage = result.ErrorMessage;
-        return result.IsValid;
-    }
-
-    /// <summary>
-    /// Validates the configuration update for a specific device.
-    /// Checks if the DeviceName matches and validates update parameters.
-    /// </summary>
-    /// <param name="message">The configuration update message</param>
-    /// <param name="currentConfig">The current device configuration</param>
-    /// <param name="errorMessage">Error message if validation fails</param>
-    /// <returns>True if valid, false otherwise</returns>
-    [Obsolete("Use ValidateDeviceConfiguration() instead which returns ConfigurationValidationResult and accepts ConfigUpdateOptions")]
-    public static bool ValidateDeviceConfigurationUpdate(
-        SubNodeConfigUpdateMessage message,
-        DeviceConfiguration currentConfig,
-        out string? errorMessage)
-    {
-        var result = ValidateDeviceConfiguration(message, currentConfig);
-        errorMessage = result.ErrorMessage;
-        return result.IsValid;
-    }
-
-    /// <summary>
     /// Creates a configuration report message for the "updating" status (first report).
     /// Contains the new desired state and the current reported state.
     /// </summary>
@@ -1220,5 +1185,32 @@ public static partial class ConfigurationUpdateHelper
                 }
             }
         };
+    }
+
+    public static bool HasDtmiDelta(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto> desiredSensors)
+    {
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return false;
+
+        var currentDtmis = currentCfg.Sensors
+            .ToDictionary(s => s.Name, s => s.Dtmi, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            // Case 1: New sensor (not in current config)
+            if (!currentDtmis.TryGetValue(desiredSensor.Name, out var currentDtmi))
+            {
+                return true;
+            }
+
+            // Case 2: DTMI changed
+            if (!string.IsNullOrEmpty(desiredSensor.Dtmi) && 
+                !string.Equals(currentDtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }    
+
+        return false;    
     }
 }
