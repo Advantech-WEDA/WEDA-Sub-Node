@@ -799,6 +799,33 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     }
                 }
 
+                // Check for DTMI delta - Re-upload DeviceCaps if new sensors of changed DTMIs
+                if (ConfigurationUpdateHelper.HasDtmiDelta(Configuration, desiredConfig.Sensors))
+                {
+                    var changes = ConfigurationUpdateHelper.GetDtmiChanges(Configuration, desiredConfig.Sensors);
+                    _logger.LogInformation("DTMI delta detected: {Count} changes", changes.Count);
+
+                    foreach (var (sensorName, oldDtmi, newDtmi) in changes)
+                    {
+                        _logger.LogDebug("  Sensor '{Sensor}': '{OldDtmi}' -> '{NewDtmi}'", sensorName, oldDtmi, newDtmi);
+                    }
+
+                    // add new sensors
+                    var addedSensors = ConfigurationUpdateHelper.ApplyNewSensors(Configuration, desiredConfig.Sensors!, Configuration.DeviceId!);
+                    if (addedSensors.Count > 0)
+                    {
+
+                        _logger.LogInformation("Added {Count} new sensors: {SensorNames}",
+                            addedSensors.Count, string.Join(", ", addedSensors));
+                    }
+                    // Re-initialize DTDL (auto-generate when AutoGenEnabled=true, or loads from file)
+                    Configuration.InitializeDtdl(null, logger: _logger);
+                    _logger.LogDebug("DTDL re-initialized");
+
+                    // Re-upload DeviceCaps to cloud
+                    await _initializer.UploadConfigurationAsync(Configuration, ct);
+                }
+
                 // Apply background task periods if provided (PATCH semantics)
                 if (desiredConfig.Periods != null)
                 {

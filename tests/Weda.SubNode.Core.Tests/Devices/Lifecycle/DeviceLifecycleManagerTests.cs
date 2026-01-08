@@ -476,7 +476,7 @@ public sealed class DeviceLifecycleManagerTests
         events.Count.ShouldBe(2);
         events[1].Phase.ShouldBe(LifecyclePhase.After);
         events[1].Error.ShouldNotBeNull();
-        events[1].Error.ShouldContain("Hook failed");
+        events[1].Error?.ShouldContain("Hook failed");
     }
 
     #endregion

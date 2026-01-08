@@ -176,41 +176,6 @@ public static partial class ConfigurationUpdateHelper
     }
 
     /// <summary>
-    /// Validates the configuration update message.
-    /// </summary>
-    /// <param name="message">The configuration update message to validate</param>
-    /// <param name="errorMessage">Error message if validation fails</param>
-    /// <returns>True if valid, false otherwise</returns>
-    [Obsolete("Use ValidateMessage() instead which returns ConfigurationValidationResult")]
-    public static bool ValidateConfigurationUpdate(
-        SubNodeConfigUpdateMessage message,
-        out string? errorMessage)
-    {
-        var result = ValidateMessage(message);
-        errorMessage = result.ErrorMessage;
-        return result.IsValid;
-    }
-
-    /// <summary>
-    /// Validates the configuration update for a specific device.
-    /// Checks if the DeviceName matches and validates update parameters.
-    /// </summary>
-    /// <param name="message">The configuration update message</param>
-    /// <param name="currentConfig">The current device configuration</param>
-    /// <param name="errorMessage">Error message if validation fails</param>
-    /// <returns>True if valid, false otherwise</returns>
-    [Obsolete("Use ValidateDeviceConfiguration() instead which returns ConfigurationValidationResult and accepts ConfigUpdateOptions")]
-    public static bool ValidateDeviceConfigurationUpdate(
-        SubNodeConfigUpdateMessage message,
-        DeviceConfiguration currentConfig,
-        out string? errorMessage)
-    {
-        var result = ValidateDeviceConfiguration(message, currentConfig);
-        errorMessage = result.ErrorMessage;
-        return result.IsValid;
-    }
-
-    /// <summary>
     /// Creates a configuration report message for the "updating" status (first report).
     /// Contains the new desired state and the current reported state.
     /// </summary>
@@ -433,6 +398,32 @@ public static partial class ConfigurationUpdateHelper
         }
 
         return updatedSensors;
+    }
+
+    public static List<string> ApplyNewSensors(
+        DeviceConfiguration deviceConfig,
+        IReadOnlyList<SubNodeSensorReportDto>? desiredSensors,
+        string deviceResourceId)
+    {
+        var addedSensors = new List<string>();
+
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return addedSensors;
+
+        var existingSensorNames = deviceConfig.Sensors
+            .Select(s => s.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            if (existingSensorNames.Contains(desiredSensor!.Name))
+                continue;
+
+            var newSensor = MapToSensor(desiredSensor, deviceResourceId);
+            deviceConfig.Sensors.Add(newSensor);
+            addedSensors.Add(newSensor.Name);
+        }
+        return addedSensors;
     }
 
     /// <summary>
@@ -1220,5 +1211,99 @@ public static partial class ConfigurationUpdateHelper
                 }
             }
         };
+    }
+
+    /// <summary>
+    /// Detects if there are new sensor or new DTMIs that require re-uploading DeviceCaps.
+    /// A delta exists when:
+    /// 1. A new sensor is added (not in current devicecfg)
+    /// 2. An existing sensor's DTMI is changed
+    /// </summary>
+    /// <param name="currentCfg">Current device configuration</param>
+    /// <param name="desiredSensors">Desired sensor configurations from cloud</param>
+    /// <returns>True if DeviceCaps needs to be re-uploaded</returns>
+    public static bool HasDtmiDelta(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
+    {
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return false;
+
+        var currentDtmis = currentCfg.Sensors
+            .ToDictionary(s => s.Name, s => s.Dtmi, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            // Case 1: New sensor (not in current config)
+            if (!currentDtmis.TryGetValue(desiredSensor.Name, out var currentDtmi))
+            {
+                return true;
+            }
+
+            // Case 2: DTMI changed
+            if (!string.IsNullOrEmpty(desiredSensor.Dtmi) && 
+                !string.Equals(currentDtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }    
+
+        return false;
+    }
+
+    public static List<(string SensorName, string? OldDtmi, string? NewDtmi)> GetDtmiChanges(
+        DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
+    {
+        var changes = new List<(string SensorName, string? OldDtmi, string? NewDtmi)>();
+
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return changes;
+
+        var currentDtmis = currentCfg.Sensors
+            .ToDictionary(s => s.Name, s => s.Dtmi, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            // Case 1: New sensor (not in current config)
+            if (!currentDtmis.TryGetValue(desiredSensor.Name, out var currentDtmi))
+            {
+                changes.Add((desiredSensor.Name, null, desiredSensor.Dtmi));
+            } 
+            else if (!string.IsNullOrEmpty(desiredSensor.Dtmi) && 
+                     !string.Equals(currentDtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
+            {
+                changes.Add((desiredSensor.Name, currentDtmi, desiredSensor.Dtmi));
+            }
+        }    
+
+        return changes;
+    }
+
+    private static Sensor MapToSensor(SubNodeSensorReportDto dto, string deviceResourceId)
+    {
+        var sensor = new Sensor
+        {
+            Name = dto.Name,
+            Dtmi = dto.Dtmi,
+            SensorGroup = SensorGroupExtensions.ParseSensorGroup(dto.SensorGroup!),
+            Parameters = dto.Parameters,
+            Metadata = dto.Metadata,
+            DeviceResourceId = deviceResourceId
+        };
+
+        if (dto.Report != null)
+        {
+            sensor.Report.Enabled = dto.Report.Enabled;
+            sensor.Report.Interval = dto.Report.Interval;
+            sensor.Report.Unit = dto.Report.Unit;
+
+            sensor.Report.Thresholds = new ThresholdConfig
+            {
+                UpperCritical = dto.Report.Thresholds?.UpperCritical,
+                UpperWarning = dto.Report.Thresholds?.UpperWarning,
+                LowerWarning = dto.Report.Thresholds?.LowerWarning,
+                LowerCritical = dto.Report.Thresholds?.LowerCritical
+            };
+        }
+
+        return sensor;
     }
 }

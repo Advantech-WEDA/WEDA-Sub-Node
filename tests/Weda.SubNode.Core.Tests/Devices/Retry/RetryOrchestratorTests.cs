@@ -650,7 +650,7 @@ public sealed class RetryOrchestratorTests
         var operation = async (CancellationToken ct) =>
         {
             ct.ThrowIfCancellationRequested();
-            return ErrorOrFactory.From(42);
+            return await Task.FromResult(ErrorOrFactory.From(42));
         };
 
         // Act & Assert

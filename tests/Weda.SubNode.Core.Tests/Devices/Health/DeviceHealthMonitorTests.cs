@@ -145,7 +145,7 @@ public sealed class DeviceHealthMonitorTests
     }
 
     [Fact]
-    public async Task HealthStatus_ShouldTransitionFromHealthyToDegraded()
+    public void HealthStatus_ShouldTransitionFromHealthyToDegraded()
     {
         // Arrange
         DeviceHealthChangedEvent? capturedEvent = null;
@@ -171,7 +171,7 @@ public sealed class DeviceHealthMonitorTests
     }
 
     [Fact]
-    public async Task HealthStatus_ShouldTransitionFromDegradedToUnhealthy()
+    public void HealthStatus_ShouldTransitionFromDegradedToUnhealthy()
     {
         // Arrange - First transition to Degraded
         for (int i = 0; i < 85; i++)
@@ -204,7 +204,7 @@ public sealed class DeviceHealthMonitorTests
     }
 
     [Fact]
-    public async Task HealthStatus_ShouldTransitionFromUnhealthyToHealthy()
+    public void HealthStatus_ShouldTransitionFromUnhealthyToHealthy()
     {
         // Arrange - First transition to Unhealthy
         for (int i = 0; i < 65; i++)

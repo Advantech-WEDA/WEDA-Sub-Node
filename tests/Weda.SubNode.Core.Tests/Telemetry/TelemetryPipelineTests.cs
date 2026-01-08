@@ -148,7 +148,7 @@ public sealed class TelemetryPipelineTests
                 var input = callInfo.ArgAt<IAsyncEnumerable<TelemetryMeasure>>(0);
                 return FilterAsync(input);
 
-                async IAsyncEnumerable<TelemetryMeasure> FilterAsync(
+                static async IAsyncEnumerable<TelemetryMeasure> FilterAsync(
                     IAsyncEnumerable<TelemetryMeasure> source)
                 {
                     await foreach (var measure in source)
@@ -370,7 +370,7 @@ public sealed class TelemetryPipelineTests
     #region Statistics Tests
 
     [Fact]
-    public async Task GetStatistics_InitialState_ShouldReturnZeros()
+    public void GetStatistics_InitialState_ShouldReturnZeros()
     {
         // Act
         var stats = _pipeline.GetStatistics();

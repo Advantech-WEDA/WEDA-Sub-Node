@@ -210,6 +210,11 @@ public class MockModbusCommunication : IRequestResponseCommunication<byte[], byt
     public bool IsConnected => true;
     public event EventHandler<ConnectionStateChangedEvent>? StateChanged;
 
+    protected virtual void OnStateChanged(ConnectionStateChangedEvent e)
+    {
+        StateChanged?.Invoke(this, e);
+    }
+
     public void Dispose()
     {
         // No-op for mock
