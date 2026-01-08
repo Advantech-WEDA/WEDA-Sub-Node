@@ -77,10 +77,8 @@ public class DeviceBaseLifecycleTests : IDisposable
                 Arg.Any<CancellationToken>())
             .Returns(deviceId);
 
-        _mockCloudService.UploadDeviceConfigurationAsync(
-                Arg.Any<DeviceConfiguration>(),
-                Arg.Any<CancellationToken>())
-            .Returns(true);
+        // Note: UploadDeviceConfigurationsAsync is now called by SubNodeManager/DeviceHostedService
+        // not by DeviceBase directly, so we don't mock it here anymore
     }
 
     private TestDevice CreateTestDevice()
@@ -117,11 +115,8 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Verify method calls
         // DeviceBase connects to physical device
         await _mockCommunication.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
-        // Cloud registration is handled by SubNodeManager, not DeviceBase directly
-        // DeviceBase only uploads device configuration after SubNodeManager provides SubNodeId
-        await _mockCloudService.Received(1).UploadDeviceConfigurationAsync(
-            Arg.Any<DeviceConfiguration>(),
-            Arg.Any<CancellationToken>());
+        // Note: Upload is now handled by SubNodeManager/DeviceHostedService, not DeviceBase
+        // So we don't verify UploadDeviceConfigurationAsync here anymore
     }
 
     [Fact]
@@ -582,23 +577,18 @@ public class DeviceBaseLifecycleTests : IDisposable
     #region Error Handling Tests
 
     [Fact]
-    public async Task InitializeAsync_Should_ReturnTrue_When_ConfigurationUploadFails()
+    public async Task InitializeAsync_Should_Succeed_When_SubNodeManagerInitialized()
     {
         // Arrange
-        // Use CancellationToken to prevent hanging if retry logic is triggered
+        // Note: Configuration upload is now handled by SubNodeManager/DeviceHostedService,
+        // not by DeviceBase directly. DeviceBase.InitializeAsync only:
+        // 1. Establishes physical connection
+        // 2. Enriches configuration with SubNodeId
+        // 3. Registers device handler with SubNodeManager
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         SetupSuccessfulConnections();
-
-        _mockCloudService.GetOrRegisterDeviceIdAsync(
-                Arg.Any<DeviceInfo>(),
-                Arg.Any<CancellationToken>())
-            .Returns("test-device-001");
-
-        _mockCloudService.UploadDeviceConfigurationAsync(
-                Arg.Any<DeviceConfiguration>(),
-                Arg.Any<CancellationToken>())
-            .Returns(false);
+        SetupSuccessfulRegistration("test-device-001");
 
         var device = CreateTestDevice();
 
@@ -608,9 +598,6 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Assert
         result.ShouldBeTrue();
         device.Status.ShouldBe(DeviceStatus.Ready);
-        //// Note: New DeviceBase uses ErrorOr pattern
-        //result.ShouldBeFalse();
-        //device.Status.ShouldBe(DeviceStatus.Initializing);
     }
 
     [Fact]

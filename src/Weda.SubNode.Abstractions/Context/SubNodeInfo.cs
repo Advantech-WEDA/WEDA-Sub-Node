@@ -1,3 +1,4 @@
+
 using Weda.SubNode.Abstractions.Devices;
 
 namespace Weda.SubNode.Abstractions.Context;
@@ -13,7 +14,7 @@ namespace Weda.SubNode.Abstractions.Context;
 /// <b>WEDA Device Management Rules:</b>
 /// </para>
 /// <list type="bullet">
-/// <item>Each Sub-Node has a globally unique DeviceId within WEDA Core</item>
+/// <item>Each Sub-Node has a globally unique DeviceId within WEDA Node</item>
 /// <item>Each internal device has a DeviceName that is unique within the Sub-Node</item>
 /// <item>Sensor ResourceIds are generated using: sha1(SubNode.DeviceId + DeviceName + SensorName)</item>
 /// </list>
@@ -22,13 +23,13 @@ public class SubNodeInfo
 {
     /// <summary>
     /// Gets or sets the Sub-Node name used for cloud registration.
-    /// This name identifies the Sub-Node when registering with WEDA Core.
+    /// This name identifies the Sub-Node when registering with WEDA Node.
     /// </summary>
     /// <example>"MyFactorySubNode"</example>
     public required string Name { get; set; }
 
     /// <summary>
-    /// Gets or sets the globally unique Device ID assigned by WEDA Core during registration.
+    /// Gets or sets the globally unique Device ID assigned by WEDA Node during registration.
     /// This ID is used for all cloud communications (telemetry, commands, config updates).
     /// </summary>
     /// <remarks>
@@ -36,6 +37,11 @@ public class SubNodeInfo
     /// Once registered, it is cached locally in .weda/subnode.registration.json.
     /// </remarks>
     public string? DeviceId { get; set; }
+
+    /// <summary>
+    /// Alias of Sub-Node unique identifier.
+    /// </summary>
+    public string? Id => DeviceId;
 
     /// <summary>
     /// Gets or sets the manufacturer name.
@@ -75,4 +81,9 @@ public class SubNodeInfo
     /// Gets whether the Sub-Node has been registered with the cloud.
     /// </summary>
     public bool IsRegistered => !string.IsNullOrEmpty(DeviceId);
+    
+    /// <summary>
+    /// The metadata of Sub-Node
+    /// </summary>
+    public Dictionary<string, object> Metadata { get; set; } = [];
 }

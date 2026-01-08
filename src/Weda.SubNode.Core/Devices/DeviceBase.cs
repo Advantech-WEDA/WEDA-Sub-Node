@@ -90,9 +90,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             configuration, // Pass full configuration for sensor-level transform/filter support
             configuration.DeviceId); // Pass deviceId from configuration
 
-        // Single initializer handles SubNode registration and device configuration
+        // Single initializer handles device configuration enrichment
         _initializer = new DeviceInitializer(
-            context.CloudService,
             context.SubNodeInfo,
             context.GetLogger<DeviceInitializer>());
 
@@ -154,10 +153,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Step 5: Enrich device configuration with SubNodeId and ResourceIds
         _initializer.EnrichConfiguration(Configuration, subNodeId);
 
-        // Step 6: Upload device configuration to cloud
-        await _initializer.UploadConfigurationAsync(Configuration, ct);
-
-        // Step 7: Register this device's event handlers with SubNodeManager for Hybrid routing
+        // Step 6: Register this device's event handlers with SubNodeManager for Hybrid routing
         _context.SubNodeManager.RegisterDeviceHandler(
             Configuration.DeviceName,
             HandleConfigurationUpdateAsync,
@@ -399,9 +395,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
-
-    public async Task<DeviceConfiguration?> GetCurrentConfigurationAsync(CancellationToken ct = default)
-        => await _cloudService.GetDeviceConfigurationAsync(SubNodeId ?? "unknown", ct);
 
     /// <summary>
     /// Reports current device configuration to cloud.

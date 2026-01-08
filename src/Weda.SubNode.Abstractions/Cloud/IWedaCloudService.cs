@@ -63,15 +63,10 @@ public interface IWedaCloudService : IDisposable
     NatsTopicAssignments? GetTopics(string deviceName);
 
     /// <summary>
-    /// Upload device configuration to DMA
+    /// Upload device configuration to cloud
     /// INTERNAL USE ONLY - Called by DeviceBase.InitializeAsync
     /// </summary>
-    Task<ErrorOr<bool>> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get current device configuration from cloud
-    /// </summary>
-    Task<DeviceConfiguration?> GetDeviceConfigurationAsync(string deviceId, CancellationToken cancellationToken = default);
+    Task<ErrorOr<bool>> UploadDeviceConfigurationsAsync(DeviceConfigurations configurations, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Send telemetry to cloud

@@ -7,7 +7,11 @@ namespace Weda.SubNode.Host;
 
 /// <summary>
 /// Hosted service that manages the lifecycle of one or more devices.
-/// Automatically initializes SubNodeManager first, then initializes, starts, and stops all registered devices.
+/// Initialization flow:
+/// 1. SubNodeManager.InitializeAsync() - connect, register SubNode, subscribe events
+/// 2. For each device: InitializeAsync() - physical connection, enrich config
+/// 3. UploadDeviceConfigurationsAsync() - aggregate all configs, upload once
+/// 4. For each device: StartAsync() - start background tasks
 /// </summary>
 internal class DeviceHostedService : IHostedService
 {
@@ -49,7 +53,8 @@ internal class DeviceHostedService : IHostedService
         }
         _logger.LogInformation("SubNodeManager initialized successfully (SubNodeId: {SubNodeId})", _subNodeManager.SubNodeId);
 
-        // Phase 2: Initialize and start each Device
+        // Phase 2: Initialize all devices (physical connection + enrich config)
+        var initializedDevices = new List<IDevice>();
         foreach (var device in _devices)
         {
             try
@@ -58,7 +63,6 @@ internal class DeviceHostedService : IHostedService
                     device.Configuration.DeviceName,
                     device.SubNodeType);
 
-                // Initialize device (physical connection only, registration handled by SubNodeManager)
                 var initialized = await device.InitializeAsync(cancellationToken);
                 if (!initialized)
                 {
@@ -66,10 +70,41 @@ internal class DeviceHostedService : IHostedService
                     continue;
                 }
 
-                // Start background tasks (telemetry, health reporting)
-                await device.StartAsync(cancellationToken);
+                initializedDevices.Add(device);
+                _logger.LogDebug("Device initialized: {DeviceName}", device.Configuration.DeviceName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing device: {DeviceName}", device.Configuration.DeviceName);
+            }
+        }
 
-                _logger.LogInformation("Device started successfully: {DeviceName} (SubNodeId: {SubNodeId})",
+        if (initializedDevices.Count == 0)
+        {
+            _logger.LogError("No devices initialized successfully. Cannot proceed.");
+            return;
+        }
+
+        // Phase 3: Aggregate and upload all device configurations
+        _logger.LogInformation("Uploading aggregated configurations for {Count} devices", initializedDevices.Count);
+        var configurations = new DeviceConfigurations(initializedDevices);
+
+        if (!await _subNodeManager.UploadDeviceConfigurationsAsync(configurations, cancellationToken))
+        {
+            _logger.LogError("Failed to upload device configurations. Devices will start but may not be visible to cloud.");
+        }
+        else
+        {
+            _logger.LogInformation("Device configurations uploaded successfully");
+        }
+
+        // Phase 4: Start all initialized devices
+        foreach (var device in initializedDevices)
+        {
+            try
+            {
+                await device.StartAsync(cancellationToken);
+                _logger.LogInformation("Device started: {DeviceName} (SubNodeId: {SubNodeId})",
                     device.Configuration.DeviceName, device.SubNodeId);
             }
             catch (Exception ex)
@@ -78,7 +113,7 @@ internal class DeviceHostedService : IHostedService
             }
         }
 
-        _logger.LogInformation("Device Hosted Service started successfully");
+        _logger.LogInformation("Device Hosted Service started successfully with {Count} device(s)", initializedDevices.Count);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

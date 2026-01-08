@@ -296,7 +296,27 @@ public class MockCloudService : IWedaCloudService
 
     public Task ResetRegistrationAsync(CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        _logger.LogInformation("Reset registration (simulated)");
+        return Task.CompletedTask;
+    }
+
+    public Task<ErrorOr<bool>> UploadDeviceConfigurationsAsync(
+        DeviceConfigurations configurations,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Upload device configurations (simulated): Count={Count}",
+            configurations.Count);
+
+        foreach (var (deviceName, config) in configurations)
+        {
+            _logger.LogDebug(
+                "  - Device: {DeviceName}, SensorCount={SensorCount}",
+                deviceName,
+                config.Sensors.Count);
+        }
+
+        return Task.FromResult<ErrorOr<bool>>(true);
     }
 
     private class NoOpDisposable : IDisposable

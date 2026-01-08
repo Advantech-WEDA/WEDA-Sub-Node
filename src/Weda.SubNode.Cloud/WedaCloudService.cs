@@ -227,9 +227,9 @@ public sealed class WedaCloudService : IWedaCloudService
     }
 
     /// <summary>
-    /// Communicates with the Device Agent to upload the provided configuration.
+    /// Communicates with the Device Agent to upload the provided configurations.
     /// </summary>
-    /// <param name="configuration">The device configuration to be uploaded.</param>
+    /// <param name="configurations">The device configurations to be uploaded.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>
     /// An <see cref="ErrorOr{T}"/> where T is <see cref="bool"/>, representing the following states:
@@ -248,25 +248,31 @@ public sealed class WedaCloudService : IWedaCloudService
     /// </item>
     /// </list>
     /// </returns>
-    public async Task<ErrorOr<bool>> UploadDeviceConfigurationAsync(
-        DeviceConfiguration configuration,
+    public async Task<ErrorOr<bool>> UploadDeviceConfigurationsAsync(
+        DeviceConfigurations configurations,
         CancellationToken cancellationToken = default)
     {
+        if (configurations.Count == 0)
+        {
+            return Error.Validation(
+                code: "Configurations.Empty",
+                description: "DeviceConfigurations must not empty");
+        }
+
+        var subNodeInfo = configurations.Values.First().SubNodeInfo!;
         _logger.LogInformation("Uploading device configuration: DeviceId={DeviceId}, DeviceName={DeviceName}",
-            configuration.DeviceId, configuration.DeviceName);
+            subNodeInfo.DeviceId, subNodeInfo.Name);
 
         var response = await _deviceAgentClient.UploadDeviceConfigurationAsync(
-            configuration,
+            configurations,
             cancellationToken);
 
-        _logger.LogInformation("Uploading device response:{IsSuccess},code:{Code} " +
-            "where DeviceId={DeviceId}, DeviceName={DeviceName}",
-            response.IsSuccess, response.Code,
-            configuration.DeviceId, configuration.DeviceName);
+        _logger.LogInformation(
+            "Uploading response: IsSuccess={IsSuccess}, Code={Code} ",
+            response.IsSuccess, response.Code);
 
         if (response.IsSuccess == true)
         {
-            _logger.LogInformation("Device configuration uploaded successfully");
             return true;
         }
 
@@ -274,7 +280,7 @@ public sealed class WedaCloudService : IWedaCloudService
         {
             var error = Error.NotFound(
                 code: "Device.NotFound",
-                description: $"Device configuration upload failed: NotFound (404). DeviceId={configuration.DeviceId}, DeviceName={configuration.DeviceName}");
+                description: $"Device configuration upload failed: NotFound (404). DeviceId={subNodeInfo.DeviceId}, DeviceName={subNodeInfo.Name}");
             _logger.LogError("Device configuration upload failed: {Description}", error.Description);
             return error;
         }
@@ -285,19 +291,6 @@ public sealed class WedaCloudService : IWedaCloudService
         _logger.LogError("Device configuration upload failed: Code={Code}, Message={Message}",
             response.Code, response.Message);
         return failure;
-    }
-
-    public async Task<DeviceConfiguration?> GetDeviceConfigurationAsync(
-        string deviceId,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Getting device configuration: DeviceId={DeviceId}", deviceId);
-
-        var configuration = await _deviceAgentClient.GetDeviceConfigurationAsync(
-            deviceId,
-            cancellationToken);
-
-        return configuration;
     }
 
     public async Task<bool> SendTelemetryAsync(

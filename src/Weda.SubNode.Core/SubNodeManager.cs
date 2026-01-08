@@ -1,17 +1,10 @@
 using System.Collections.Concurrent;
-using System.Threading;
-
 using Microsoft.Extensions.Logging;
-
 using Polly;
-
 using Weda.SubNode.Abstractions.Cloud;
-using Weda.SubNode.Abstractions.Cloud.Subscriptions;
-using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
-using Weda.SubNode.Core.Managers;
 using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core;
@@ -27,6 +20,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private readonly ILogger<SubNodeManager> _logger;
 
     private readonly ResiliencePipeline<bool> _pipeline;
+    private readonly ResiliencePipeline<bool> _uploadPipeline;
 
     private readonly ConcurrentDictionary<string, DeviceHandlers> _deviceHandlers = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -47,6 +41,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
         _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
+
+        // Unlimited retry pipeline for upload (handles Device.NotFound with exponential backoff)
+        _uploadPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
+            logger: _logger,
+            initialDelay: TimeSpan.FromMilliseconds(100),
+            maxDelay: TimeSpan.FromSeconds(30));
     }
 
     /// <inheritdoc />
@@ -114,6 +114,119 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         {
             _initLock.Release();
         }
+    }
+    /// <inheritdoc />
+    public async Task<bool> UploadDeviceConfigurationsAsync(DeviceConfigurations configurations, CancellationToken cancellationToken)
+    {
+        if (!IsInitialized || string.IsNullOrEmpty(_subNodeId))
+        {
+            _logger.LogError("Cannot upload configurations: SubNodeManager has not been initialized");
+            throw new InvalidOperationException("SubNodeManager must be initialized before uploading configuration");
+        }
+
+        if (configurations.Count == 0)
+        {
+            _logger.LogWarning("No device configurations to upload");
+            return true;
+        }
+
+        _logger.LogInformation(
+            "Uploading {Count} device configuration(s) to cloud",
+            configurations.Count);
+
+        // Use retry pipeline with Device.NotFound handling
+        // This handles the case where cloud has reset and lost the device registration
+        var success = await _uploadPipeline.ExecuteAsync(async token =>
+        {
+            token.ThrowIfCancellationRequested();
+
+            try
+            {
+                var result = await _cloudService.UploadDeviceConfigurationsAsync(configurations, token);
+
+                if (!result.IsError)
+                {
+                    _logger.LogInformation("Device configurations uploaded successfully");
+                    return true;
+                }
+
+                // Check if device not found (need to re-register and retry)
+                var isNotFound = result.Errors.Any(e =>
+                    e.Type == ErrorOr.ErrorType.NotFound ||
+                    string.Equals(e.Code, "Device.NotFound", StringComparison.OrdinalIgnoreCase));
+
+                var errorsText = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+
+                if (isNotFound)
+                {
+                    _logger.LogWarning(
+                        "Device not found on cloud; resetting registration and retrying. SubNodeId={SubNodeId}, Errors={Errors}",
+                        _subNodeId,
+                        errorsText);
+
+                    // Reset registration cache and re-register
+                    await _cloudService.ResetRegistrationAsync(token);
+
+                    // Re-register SubNode
+                    var newSubNodeId = await EnsureSubNodeRegisteredAsync(token);
+                    if (!string.IsNullOrEmpty(newSubNodeId))
+                    {
+                        _subNodeId = newSubNodeId;
+                        _subNodeInfo.DeviceId = newSubNodeId;
+
+                        // Re-enrich all configurations with new SubNodeId
+                        ReEnrichConfigurations(configurations, newSubNodeId);
+
+                        _logger.LogInformation("SubNode re-registered with new ID: {SubNodeId}", newSubNodeId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Upload attempt failed; will retry. Errors={Errors}",
+                        errorsText);
+                }
+
+                // Return false to trigger retry
+                return false;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Upload attempt failed due to exception; will retry");
+                return false;
+            }
+        }, cancellationToken);
+
+        return success;
+    }
+
+    /// <summary>
+    /// Re-enriches all device configurations with a new SubNodeId.
+    /// Called when cloud registration is reset and a new SubNodeId is obtained.
+    /// </summary>
+    private void ReEnrichConfigurations(DeviceConfigurations configurations, string newSubNodeId)
+    {
+        foreach (var (deviceName, config) in configurations)
+        {
+            config.DeviceId = newSubNodeId;
+
+            foreach (var sensor in config.Sensors)
+            {
+                sensor.ResourceId = Utilities.ResourceIdGenerator.GenerateSensorResourceId(
+                    newSubNodeId,
+                    deviceName,
+                    sensor.Name,
+                    groupId: "weda");
+                sensor.DeviceResourceId = newSubNodeId;
+            }
+        }
+
+        _logger.LogDebug("Re-enriched {Count} device configurations with new SubNodeId: {SubNodeId}",
+            configurations.Count, newSubNodeId);
     }
 
     /// <inheritdoc />

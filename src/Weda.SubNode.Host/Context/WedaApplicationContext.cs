@@ -90,7 +90,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly ILoggerFactory _loggerFactory;
     private readonly NatsClient? _natsClient;
     private readonly IConfiguration? _configuration;
-    private readonly IReadOnlyDictionary<string, DeviceConfiguration> _deviceConfigs;
+    private readonly DeviceConfigurations _deviceConfigs;
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly IConfigurationCache _configurationCache;
     private readonly IDeviceRegistrationStorage _registrationStorage;
@@ -489,10 +489,10 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// Located under DeviceConfig section (loaded from devicecfg.json into DeviceConfig section).
     /// Each configuration is enriched with DeviceName (from key) and SubNodeInfo.
     /// </summary>
-    private IReadOnlyDictionary<string, DeviceConfiguration> LoadAllDeviceConfigurations()
+    private DeviceConfigurations LoadAllDeviceConfigurations()
     {
         var logger = _loggerFactory.CreateLogger<WedaApplicationContext>();
-        var configs = new Dictionary<string, DeviceConfiguration>(StringComparer.OrdinalIgnoreCase);
+        var configs = new DeviceConfigurations();
 
         if (_configuration == null)
         {
