@@ -1,10 +1,18 @@
 using System.Collections.Concurrent;
+using System.Threading;
+
 using Microsoft.Extensions.Logging;
+
+using Polly;
+
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Core.Managers;
+using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core;
 
@@ -18,6 +26,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private readonly SubNodeInfo _subNodeInfo;
     private readonly ILogger<SubNodeManager> _logger;
 
+    private readonly ResiliencePipeline<bool> _pipeline;
+
     private readonly ConcurrentDictionary<string, DeviceHandlers> _deviceHandlers = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
@@ -29,11 +39,14 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     public SubNodeManager(
         IWedaCloudService cloudService,
         SubNodeInfo subNodeInfo,
+        ConnectionOptions connectionOptions,
         ILogger<SubNodeManager> logger)
     {
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
         _subNodeInfo = subNodeInfo ?? throw new ArgumentNullException(nameof(subNodeInfo));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
+        _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
     }
 
     /// <inheritdoc />
@@ -65,7 +78,10 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             _logger.LogInformation("Initializing SubNodeManager for SubNode: {SubNodeName}", _subNodeInfo.Name);
 
             // Step 1: Connect to cloud service
-            var connected = await _cloudService.ConnectAsync(ct);
+            var connected = await _pipeline.ExecuteAsync(
+              async token => await _cloudService.ConnectAsync(token),
+              ct);
+
             if (!connected)
             {
                 _logger.LogError("Failed to connect to WedaNode");
