@@ -3,8 +3,9 @@ using Weda.SubNode.Host.Context;
 using Wise4012Example;
 
 try
-{ 
-    var device = new MyFirstDevice(WedaApplicationContext.Default);
+{
+    var context = WedaApplicationContext.Default;
+    var device = new MyFirstDevice(context, "MyFirstDevice");
 
     if (!await device.InitializeAsync())
     {

@@ -93,7 +93,7 @@ cat > "$TEST_DIR/appsettings.json" << 'EOF'
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "CredFile": "",
     "Name": "test-device",
@@ -102,7 +102,7 @@ cat > "$TEST_DIR/appsettings.json" << 'EOF'
   "DeviceConfigs": {
     "TestDevice": {
       "DeviceName": "TestDevice",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DeviceCapabilities": {
         "Manufacturer": "Test",
         "Model": "TestModel",
@@ -206,7 +206,7 @@ if (File.Exists(cachePath))
 var testConfig = new
 {
     DeviceName = "TestDevice",
-    DeviceType = "adamEthernet",
+    SubNodeType = "adamEthernet",
     Sensors = new[]
     {
         new { Name = "channel.0", Config = new { Enabled = true, Interval = 1000 } },

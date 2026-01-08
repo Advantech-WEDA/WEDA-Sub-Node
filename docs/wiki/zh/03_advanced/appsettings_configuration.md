@@ -22,6 +22,7 @@ translations:
 - [NATS 訊息配置](#nats-訊息配置)
 - [裝置配置 (DeviceConfigs)](#裝置配置-deviceconfigs)
   - [基本裝置欄位](#基本裝置欄位)
+  - [背景任務週期設定 (Periods)](#背景任務週期設定-periods)
   - [裝置能力 (DeviceCapabilities)](#裝置能力-devicecapabilities)
   - [通訊設定 (Communication)](#通訊設定-communication)
   - [感測器配置 (Sensors)](#感測器配置-sensors)
@@ -41,7 +42,7 @@ translations:
 ```json
 {
   "Serilog": { ... },      // 日誌配置
-  "Nats": { ... },         // NATS 訊息傳遞配置
+  "WedaNode": { ... },         // NATS 訊息傳遞配置
   "DeviceConfigs": { ... } // 裝置配置（可多個裝置）
 }
 ```
@@ -111,7 +112,7 @@ translations:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "Name": "default",
     "SerializerType": "json",
@@ -147,7 +148,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "AuthStrategy": "None"
   }
@@ -158,7 +159,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "AuthStrategy": "UserPassword",
     "Username": "myuser",
@@ -171,7 +172,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "AuthStrategy": "Token",
     "Token": "your-auth-token"
@@ -183,7 +184,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://nats.example.com:4222",
     "AuthStrategy": "CredFile",
     "CredFile": "/path/to/credentials.creds"
@@ -195,7 +196,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "tls://nats.example.com:4222",
     "AuthStrategy": "TlsCert",
     "TlsCertPath": "/path/to/client-cert.pem",
@@ -227,7 +228,7 @@ SDK 支援以下四種 NATS 認證策略：
 
 ## 裝置配置 (DeviceConfigs)
 
-`DeviceConfigs` 是一個字典，key 為配置名稱(作為 DeviceTypeName)，value 為裝置配置物件。
+`DeviceConfigs` 是一個字典，key 為配置名稱(作為 SubNodeTypeName)，value 為裝置配置物件。
 
 ```json
 {
@@ -250,8 +251,12 @@ SDK 支援以下四種 NATS 認證策略：
     "MyFirstDevice": {
       "Enabled": true,
       "DeviceName": "MyWiseDevice4012",
-      "DeviceType": "adamEthernet",
-      "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json"
+      "SubNodeType": "adamEthernet",
+      "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
+      "Periods": {
+        "ReadTelemetry": 5000,
+        "SendTelemetry": 0
+      }
     }
   }
 }
@@ -261,14 +266,241 @@ SDK 支援以下四種 NATS 認證策略：
 |------|------|------|------|--------|
 | `Enabled` | boolean | 否 | 是否啟用此裝置（僅在自動掃描時有效） | true |
 | `DeviceName` | string | 是 | 裝置名稱（用於識別）會登錄到 Weda.Core | - |
-| `DeviceType` | string | 是 | 裝置類型（AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice） | - |
+| `SubNodeType` | string | 是 | 裝置類型（AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice） | - |
 | `DtdlPath` | string | 是 | DTDL 檔案路徑（相對於專案根目錄） | - |
+| `Periods` | object | 否 | 背景任務週期設定（見下方說明） | 見預設值 |
 
 #### 重要說明
 
 - **DeviceId**: 不應設定在 appsettings.json，由雲端分配或從 localStorage 取得
-- **DeviceTypeName**: 不應設定在 appsettings.json，自動從 Config Key (如 "MyFirstDevice") 指派
+- **SubNodeTypeName**: 不應設定在 appsettings.json，自動從 Config Key (如 "MyFirstDevice") 指派
 - **Enabled**: 僅在使用自動掃描時有效（見下方說明）
+
+---
+
+### 背景任務週期設定 (Periods)
+
+`Periods` 配置控制裝置的背景任務執行週期，包括遙測讀取、上傳和健康狀態報告。
+
+```json
+{
+  "DeviceConfigs": {
+    "MyFirstDevice": {
+      "Periods": {
+        "ReadTelemetry": 5000,
+        "SendTelemetry": 0,
+        "ReportHealth": 60000,
+        "PollCommands": 5000,
+        "ReportConfiguration": 300000
+      }
+    }
+  }
+}
+```
+
+#### Periods 欄位說明
+
+| 欄位 | 類型 | 說明 | 預設值 |
+|------|------|------|--------|
+| `ReadTelemetry` | number | 遙測採樣週期（毫秒），作為 Sensor 未設定 `Interval` 時的預設值 | 5000 |
+| `SendTelemetry` | number | 遙測上傳模式控制（見下方說明） | 0 |
+| `ReportHealth` | number | 健康狀態報告週期（毫秒） | 60000 |
+| `PollCommands` | number | 命令輪詢週期（毫秒） | 5000 |
+| `ReportConfiguration` | number | 配置同步週期（毫秒），詳見下方說明 | 1800000 (30分鐘) |
+
+#### ReadTelemetry 採樣週期
+
+`ReadTelemetry` 定義裝置層級的預設採樣週期。當 Sensor 的 `Config.Interval` 未設定（值為 0 或負數）時，會使用此值作為 fallback。
+
+**優先順序**:
+1. `Sensor.Config.Interval`（如有設定且 > 0）
+2. `Device.Periods.ReadTelemetry`（fallback 預設值）
+
+```json
+{
+  "DeviceConfigs": {
+    "MyDevice": {
+      "Periods": {
+        "ReadTelemetry": 5000  // 預設 5 秒採樣一次
+      },
+      "Sensors": [
+        {
+          "Name": "temperature",
+          "Config": {
+            "Interval": 1000  // ✅ 使用 1 秒（覆蓋預設值）
+          }
+        },
+        {
+          "Name": "humidity",
+          "Config": {
+            "Interval": 0     // ✅ 使用 5 秒（fallback 到 ReadTelemetry）
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+#### SendTelemetry 上傳模式
+
+`SendTelemetry` 控制遙測資料的上傳行為，提供兩種模式：
+
+| 值 | 模式 | 說明 |
+|----|------|------|
+| `0` | 實時上傳 | 每次採樣後立即上傳資料到雲端 |
+| `> 0` | 批次上傳 | 收集多次採樣資料，按指定週期批次上傳 |
+
+##### 實時模式 (SendTelemetry = 0)
+
+```json
+{
+  "Periods": {
+    "ReadTelemetry": 1000,
+    "SendTelemetry": 0  // 實時模式
+  }
+}
+```
+
+**行為**: 每 1 秒採樣一次，採樣完成後立即上傳到雲端。
+
+**適用場景**:
+- 需要即時監控的應用
+- 資料即時性要求高
+- 網路穩定，頻繁上傳不是問題
+
+##### 批次模式 (SendTelemetry > 0)
+
+```json
+{
+  "Periods": {
+    "ReadTelemetry": 1000,
+    "SendTelemetry": 10000  // 批次模式：每 10 秒上傳一次
+  }
+}
+```
+
+**行為**: 每 1 秒採樣一次並存入內部緩衝區，每 10 秒將緩衝區內的所有資料批次上傳。
+
+**適用場景**:
+- 網路資源有限或不穩定
+- 需要減少網路請求次數
+- 降低雲端服務負載
+- 行動設備省電需求
+
+#### 架構說明
+
+SDK 採用統一的 **SensorCache 架構**，無論是 Pull 模式（如 Modbus）或 Push 模式（如 MQTT、WebSocket），資料流程皆相同：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Pull Mode (Modbus)           Push Mode (MQTT/WebSocket)        │
+│  ┌──────────┐                 ┌──────────┐                      │
+│  │ Device   │                 │ External │                      │
+│  │ Request  │                 │ Message  │                      │
+│  └────┬─────┘                 └────┬─────┘                      │
+│       │                            │                            │
+│       ▼                            ▼                            │
+│  ┌──────────────────────────────────────────┐                   │
+│  │            SensorCache                    │                   │
+│  │  (類似 Modbus Register 的統一緩存機制)    │                   │
+│  └────────────────────┬─────────────────────┘                   │
+│                       │                                         │
+│                       ▼  ReadTelemetry (採樣)                   │
+│  ┌──────────────────────────────────────────┐                   │
+│  │         Device Sampling Task             │                   │
+│  │  (依 SensorReport.Interval 週期讀取)     │                   │
+│  └────────────────────┬─────────────────────┘                   │
+│                       │                                         │
+│         ┌─────────────┴─────────────┐                           │
+│         │                           │                           │
+│         ▼                           ▼                           │
+│   SendTelemetry = 0           SendTelemetry > 0                 │
+│   ┌─────────────┐             ┌─────────────┐                   │
+│   │ 實時上傳    │             │ 批次上傳    │                   │
+│   │ (立即送出)  │             │ (定時送出)  │                   │
+│   └─────────────┘             └─────────────┘                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**關鍵概念**:
+- **SensorCache**: 所有資料來源（Pull/Push）都先寫入 cache，統一處理
+- **採樣任務**: 依照 `SensorReport.Interval` 或 `Periods.ReadTelemetry` 週期從 cache 讀取
+- **上傳任務**: 根據 `SendTelemetry` 決定實時或批次上傳
+
+#### 完整範例
+
+```json
+{
+  "DeviceConfigs": {
+    "HighFrequencyDevice": {
+      "Periods": {
+        "ReadTelemetry": 100,     // 100ms 高頻採樣
+        "SendTelemetry": 5000,    // 每 5 秒批次上傳（避免網路擁塞）
+        "ReportHealth": 30000
+      },
+      "Sensors": [
+        {
+          "Name": "vibration",
+          "Config": {
+            "Interval": 50       // 50ms 超高頻採樣（覆蓋預設值）
+          }
+        }
+      ]
+    },
+    "LowPowerDevice": {
+      "Periods": {
+        "ReadTelemetry": 60000,   // 1 分鐘採樣一次
+        "SendTelemetry": 300000,  // 每 5 分鐘批次上傳（省電模式）
+        "ReportHealth": 600000
+      }
+    },
+    "RealtimeMonitor": {
+      "Periods": {
+        "ReadTelemetry": 1000,    // 1 秒採樣
+        "SendTelemetry": 0,       // 實時上傳（即時監控）
+        "ReportHealth": 60000
+      }
+    }
+  }
+}
+```
+
+#### ReportConfiguration 配置同步週期
+
+`ReportConfiguration` 控制設備定期向雲端回報當前配置狀態的週期。這是 **Digital Twin (數位雙胞胎)** 架構中維持 **Reported State** 同步的重要機制。
+
+**為什麼需要配置同步？**
+
+在雲端下發配置更新的流程中，可能發生以下情況：
+1. 雲端下發新配置 → 設備成功套用 → **回報成功時網路斷線**
+2. 此時雲端的 Desired State 與 Reported State 不一致
+3. 透過定期配置同步，設備會主動上報當前配置，確保最終一致性
+
+**配置限制**:
+
+| 限制 | 值 | 說明 |
+|------|-----|------|
+| 最小值 | 60000ms (1分鐘) | 避免過於頻繁的回報造成網路負擔 |
+| 預設值 | 1800000ms (30分鐘) | 平衡即時性與資源消耗 |
+| 最大值 | 86400000ms (24小時) | 建議不超過此值以確保同步效果 |
+| 停用 | ❌ 不允許 | 此功能為必要功能，不可停用 |
+
+**範例配置**:
+
+```json
+{
+  "Periods": {
+    "ReportConfiguration": 1800000  // 每 30 分鐘同步一次（預設值）
+  }
+}
+```
+
+**驗證規則**:
+
+SDK 在啟動時會驗證 `ReportConfiguration` 的值：
+- 若值小於 60000ms，會拋出 `InvalidOperationException` 並終止啟動
+- 錯誤訊息會明確指出允許的範圍
 
 ---
 
@@ -306,13 +538,13 @@ var app = builder.Build();
     "ProductionDevice": {
       "Enabled": true,      // ✅ 會被加入
       "DeviceName": "WISE-4012-A",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     },
     "TestDevice": {
       "Enabled": false,     // ❌ 不會被加入
       "DeviceName": "WISE-4012-B",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     }
   }
@@ -357,7 +589,7 @@ var app = builder.Build();
     "MyDevice": {
       "Enabled": false,     // ⚠️ 不會被檢查
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": {
         "Host": "192.168.1.100",
         "Port": 502,
@@ -466,9 +698,9 @@ var app = builder.Build();
 
 ### 通訊設定 (Communication)
 
-根據不同 `DeviceType` 需要不同的通訊參數。
+根據不同 `SubNodeType` 需要不同的通訊參數。
 
-#### Modbus TCP (DeviceType: "adamEthernet")
+#### Modbus TCP (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -486,7 +718,7 @@ var app = builder.Build();
 | `Port` | number | 否 | Modbus TCP 通訊埠 | 502 |
 | `SlaveId` | number | 否 | Modbus Slave/Unit ID | 1 |
 
-#### ISensing MQTT (DeviceType: "adamEthernet")
+#### ISensing MQTT (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -933,7 +1165,7 @@ SDK 會自動檢查數值並回傳閾值等級:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "CredFile": "",
     "Name": "default",
@@ -943,7 +1175,7 @@ SDK 會自動檢查數值並回傳閾值等級:
     "MyWiseDevice": {
       "Enabled": true,
       "DeviceName": "WISE-4012-Factory-Floor",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
@@ -1083,7 +1315,7 @@ SDK 會自動檢查數值並回傳閾值等級:
 以下欄位**不應**出現在 appsettings.json 中:
 
 - ❌ `DeviceId` - 由雲端分配或從 localStorage 取得
-- ❌ `DeviceTypeName` - 自動從 DeviceConfigs 的 key 指派
+- ❌ `SubNodeTypeName` - 自動從 DeviceConfigs 的 key 指派
 
 ### 2. DtdlPath 路徑
 

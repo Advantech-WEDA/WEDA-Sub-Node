@@ -9,7 +9,7 @@ namespace Weda.SubNode.Abstractions.Communication;
 ///
 /// Specific communication patterns extend this interface:
 /// - IRequestResponseCommunication: for TCP, HTTP, Modbus RTU (request-reply)
-/// - IMessageBrokerCommunication: for MQTT, NATS, RabbitMQ (pub/sub)
+/// - IPubSubCommunication: for MQTT, NATS, RabbitMQ (pub/sub)
 /// - IStreamingCommunication: for WebSocket, gRPC (bidirectional streaming)
 /// </summary>
 public interface ICommunication : IDisposable
@@ -67,7 +67,7 @@ public interface IRequestResponseCommunication<TRequest, TResponse> : ICommunica
 /// Suitable for event-driven, topic-based messaging.
 /// </summary>
 /// <typeparam name="TMessage">Message type</typeparam>
-public interface IMessageBrokerCommunication<TMessage> : ICommunication
+public interface IPubSubCommunication<TMessage> : ICommunication
 {
     /// <summary>
     /// Subscribe to a topic for receiving messages

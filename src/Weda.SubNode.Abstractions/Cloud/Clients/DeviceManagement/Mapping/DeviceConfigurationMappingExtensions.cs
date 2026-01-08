@@ -25,7 +25,7 @@ public static class DeviceConfigurationMappingExtensions
 
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
-            Dtdl: ConvertDtdl(config.Dtdl),
+            Dtdl: ConvertDtdl(config.DtdlInterface),
             DeviceCapabilities: config.ToDeviceCapabilitiesDto());
     }
 
@@ -35,12 +35,12 @@ public static class DeviceConfigurationMappingExtensions
     private static DeviceCapDto ToDeviceCapabilitiesDto(this DeviceConfiguration config)
     {
         return new DeviceCapDto(
-            Manufacturer: config.DeviceCapabilities.Manufacturer,
-            Model: config.DeviceCapabilities.Model,
-            DeviceType: config.DeviceType.ToStringValue(),
-            SubNodeSwVersion: config.DeviceCapabilities.SubNodeSwVersion,
+            Manufacturer: config.Manufacturer,
+            Model: config.Model,
+            SubNodeType: config.SubNodeType.ToStringValue(),
+            SubNodeSwVersion: config.SwVersion,
             DeviceName: config.DeviceName,
-            DeviceInfo: config.DeviceCapabilities.DeviceInfo,
+            DeviceInfo: config.Metadata,
             Sensors: config.Sensors.Select(s => s.ToSensorDto()).ToList());
     }
 

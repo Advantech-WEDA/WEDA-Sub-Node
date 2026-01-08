@@ -1,80 +1,93 @@
-using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 
 namespace Weda.SubNode.Abstractions.Storage;
 
 /// <summary>
-/// Configuration cache interface for persisting device configuration.
-/// When configuration is updated from cloud (UC9868), the updated configuration
-/// is cached locally so that device restart uses the latest cloud-provided config
-/// instead of the original appsettings.json values.
+/// Configuration cache interface for persisting cloud configuration updates.
+/// Supports multiple config types (system, device, custom) with separate cache files.
+///
+/// Cache Files:
+/// - .weda/systemcfg.cache.json - System configuration (Serilog, WedaNode)
+/// - .weda/devicecfg.cache.json - Device configuration (SubNode, DeviceConfigs)
+/// - .weda/customcfg.cache.json - Custom user configuration
+///
+/// Raw Message Storage:
+/// The cache stores the raw SubNodeConfigUpdateMessage from cloud directly,
+/// preserving the original JSON structure and data types.
 ///
 /// Cache Priority:
-/// 1. If cache exists → Use cached configuration (from cloud updates)
-/// 2. If cache not exists → Use appsettings.json (initial configuration)
-///
-/// This allows cloud-driven configuration management while maintaining
-/// appsettings.json as the baseline/fallback configuration.
+/// 1. If cache exists → Parse cached cloud message and merge with config files
+/// 2. If cache not exists → Use config files (systemcfg.json, devicecfg.json, etc.)
 /// </summary>
-/// <example>
-/// <code>
-/// // Load configuration with cache priority
-/// var cache = new JsonConfigurationCache();
-/// DeviceConfiguration config;
-/// if (await cache.ExistsAsync())
-/// {
-///     config = await cache.GetConfigurationAsync(); // Use cloud-updated config
-/// }
-/// else
-/// {
-///     config = LoadFromAppSettings(); // Use initial config
-/// }
-///
-/// // After cloud update, save to cache
-/// await cache.SaveConfigurationAsync(updatedConfig);
-/// </code>
-/// </example>
 public interface IConfigurationCache
 {
     /// <summary>
-    /// Get device configuration from cache.
+    /// Get the raw cloud configuration message from cache for a specific config type.
     /// </summary>
+    /// <param name="configType">The configuration type (system-config, device-config, custom-config)</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Cached device configuration, or null if not found</returns>
-    Task<DeviceConfiguration?> GetConfigurationAsync(
+    /// <returns>Cached cloud configuration message, or null if not found</returns>
+    Task<SubNodeConfigUpdateMessage?> GetRawConfigurationAsync(
+        SubscriptionType configType,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Save device configuration to cache.
+    /// Save raw cloud configuration message to cache for a specific config type.
     /// </summary>
-    /// <param name="configuration">Device configuration to cache</param>
+    /// <param name="configType">The configuration type (system-config, device-config, custom-config)</param>
+    /// <param name="message">Raw cloud configuration message to cache</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task SaveConfigurationAsync(
-        DeviceConfiguration configuration,
+    Task SaveRawConfigurationAsync(
+        SubscriptionType configType,
+        SubNodeConfigUpdateMessage message,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if configuration cache exists.
+    /// Check if configuration cache exists for a specific config type.
     /// </summary>
+    /// <param name="configType">The configuration type</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if cache file exists and contains valid data</returns>
-    Task<bool> ExistsAsync(CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(
+        SubscriptionType configType,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Delete configuration cache.
-    /// Use this to reset device to use appsettings.json configuration.
+    /// Delete configuration cache for a specific config type.
+    /// </summary>
+    /// <param name="configType">The configuration type</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task DeleteCacheAsync(
+        SubscriptionType configType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delete all configuration caches.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task DeleteCacheAsync(CancellationToken cancellationToken = default);
+    Task DeleteAllCachesAsync(
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get the cache file path.
+    /// Get the cache directory path (.weda/).
     /// </summary>
-    string CacheFilePath { get; }
+    string CacheDirectoryPath { get; }
 
     /// <summary>
-    /// Get the last modified time of the cache.
+    /// Get the cache file path for a specific config type.
     /// </summary>
+    /// <param name="configType">The configuration type</param>
+    /// <returns>Full path to the cache file</returns>
+    string GetCacheFilePath(SubscriptionType configType);
+
+    /// <summary>
+    /// Get the last modified time of the cache for a specific config type.
+    /// </summary>
+    /// <param name="configType">The configuration type</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Last modified time, or null if cache doesn't exist</returns>
-    Task<DateTimeOffset?> GetLastModifiedAsync(CancellationToken cancellationToken = default);
+    Task<DateTimeOffset?> GetLastModifiedAsync(
+        SubscriptionType configType,
+        CancellationToken cancellationToken = default);
 }

@@ -100,4 +100,14 @@ public record ConfigUpdateOptions
     /// Default: true (Replace mode requires complete payload)
     /// </summary>
     public bool RequireAllSensors { get; init; } = true;
+
+    /// <summary>
+    /// Validates Transform and DSP Filter pipeline parameters before applying updates.
+    /// When true, calls ValidateParameters on IConfigurableTransform and IConfigurableDspFilter
+    /// implementations to verify parameter validity before the update is applied.
+    /// This enables early rejection of invalid parameters with "invalid" status
+    /// instead of "updating" → "failed" sequence.
+    /// Default: true
+    /// </summary>
+    public bool ValidatePipelineParameters { get; init; } = true;
 }

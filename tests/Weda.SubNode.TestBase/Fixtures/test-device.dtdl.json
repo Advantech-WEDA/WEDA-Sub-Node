@@ -1,0 +1,51 @@
+{
+  "@context": "dtmi:dtdl:context;2",
+  "@id": "dtmi:test:TestDevice;1",
+  "@type": "Interface",
+  "displayName": "Test Device",
+  "description": "A test device for unit testing",
+  "contents": [
+    {
+      "@type": "Telemetry",
+      "@id": "dtmi:test:Temperature;1",
+      "name": "temperature",
+      "displayName": "Temperature",
+      "description": "Temperature sensor reading",
+      "schema": "double",
+      "unit": "celsius"
+    },
+    {
+      "@type": "Telemetry",
+      "@id": "dtmi:test:Humidity;1",
+      "name": "humidity",
+      "displayName": "Humidity",
+      "description": "Humidity sensor reading",
+      "schema": "double",
+      "unit": "percent"
+    },
+    {
+      "@type": "Telemetry",
+      "@id": "dtmi:test:DigitalInput;1",
+      "name": "digital_input",
+      "displayName": "Digital Input",
+      "description": "Digital input sensor",
+      "schema": "boolean"
+    },
+    {
+      "@type": "Telemetry",
+      "@id": "dtmi:test:DigitalOutput;1",
+      "name": "digital_output",
+      "displayName": "Digital Output",
+      "description": "Digital output sensor",
+      "schema": "boolean"
+    },
+    {
+      "@type": "Telemetry",
+      "@id": "dtmi:test:AnalogInput;1",
+      "name": "analog_input",
+      "displayName": "Analog Input",
+      "description": "Analog input channel",
+      "schema": "double"
+    }
+  ]
+}

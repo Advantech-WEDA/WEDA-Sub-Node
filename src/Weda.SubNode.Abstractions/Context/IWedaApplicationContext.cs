@@ -11,8 +11,26 @@ namespace Weda.SubNode.Abstractions.Context;
 /// Manages the lifecycle of framework-level services (cloud, logging, etc.).
 /// Provides device registry for cross-device communication.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Sub-Node Architecture:</b>
+/// A Sub-Node is a single dotnet program that may manage multiple internal devices.
+/// From the cloud's perspective, the entire Sub-Node is treated as a single "virtual device"
+/// with one globally unique DeviceId (see <see cref="SubNodeInfo"/>).
+/// </para>
+/// <para>
+/// Internal devices are identified by their DeviceName (unique within the Sub-Node).
+/// Sensor ResourceIds are generated using: sha1(SubNode.DeviceId + DeviceName + SensorName).
+/// </para>
+/// </remarks>
 public interface IWedaApplicationContext : IDisposable
 {
+    /// <summary>
+    /// Gets the Sub-Node information including name and cloud-assigned DeviceId.
+    /// The Sub-Node represents this entire application as a single device to the cloud.
+    /// </summary>
+    SubNodeInfo SubNodeInfo { get; }
+
     /// <summary>
     /// Gets the cloud service instance.
     /// </summary>
@@ -39,10 +57,34 @@ public interface IWedaApplicationContext : IDisposable
     IConfiguration? Configuration { get; }
 
     /// <summary>
-    /// Gets the device configuration loaded from IConfiguration.
-    /// Returns null if no configuration was provided or device config not found.
+    /// Gets all device configurations loaded from devicecfg.json "DeviceConfigs" section.
+    /// Key is the config key (e.g., "MyFirstDevice"), value is the DeviceConfiguration.
     /// </summary>
-    DeviceConfiguration? DeviceConfiguration { get; }
+    /// <example>
+    /// <code>
+    /// // List all available configs
+    /// foreach (var key in context.DeviceConfigs.Keys)
+    ///     Console.WriteLine($"Available: {key}");
+    ///
+    /// // Access specific config
+    /// var config = context.DeviceConfigs["MyFirstDevice"];
+    /// </code>
+    /// </example>
+    IReadOnlyDictionary<string, DeviceConfiguration> DeviceConfigs { get; }
+
+    /// <summary>
+    /// Gets a device configuration by config key.
+    /// Shortcut for DeviceConfigs[configKey].
+    /// </summary>
+    /// <param name="configKey">The configuration key from devicecfg.json DeviceConfigs section</param>
+    /// <returns>The device configuration</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when config key is not found</exception>
+    /// <example>
+    /// <code>
+    /// var device = new TcpModbusDevice(context, context["MyFirstDevice"]);
+    /// </code>
+    /// </example>
+    DeviceConfiguration this[string configKey] { get; }
 
     /// <summary>
     /// Gets the device registry for managing and discovering devices.
@@ -53,9 +95,16 @@ public interface IWedaApplicationContext : IDisposable
     /// <summary>
     /// Gets the configuration cache for persisting cloud-updated configurations.
     /// When configuration is updated from cloud (UC9868), changes are cached locally
-    /// so device restart uses the latest cloud-provided config instead of appsettings.json.
+    /// so device restart uses the latest cloud-provided config instead of the local config files.
     /// </summary>
     IConfigurationCache ConfigurationCache { get; }
+
+    /// <summary>
+    /// Gets the SubNode manager for centralized SubNode-level operations.
+    /// Manages cloud connection, SubNode registration, and event subscriptions.
+    /// All devices within this SubNode share the same SubNodeId and subscriptions.
+    /// </summary>
+    ISubNodeManager SubNodeManager { get; }
 
     /// <summary>
     /// Gets a typed logger for the specified type.

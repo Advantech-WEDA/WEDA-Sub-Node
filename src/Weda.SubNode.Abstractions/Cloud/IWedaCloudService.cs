@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -6,11 +7,17 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace Weda.SubNode.Abstractions.Cloud;
 
 /// <summary>
-/// Weda cloud service interface (abstraction for NATS or other message brokers)
-/// Internally uses IJetStreamClient for communication
+/// WedaNode interface (abstraction for message brokers)
+/// Provides device registration, telemetry, and subscription management
 /// </summary>
 public interface IWedaCloudService : IDisposable
 {
+    /// <summary>
+    /// Gets the subscription manager for dynamic topic subscriptions.
+    /// Use this to subscribe to system config, device config, custom config, and command topics.
+    /// </summary>
+    ISubscriptionManager Subscriptions { get; }
+
     /// <summary>
     /// Is connected to cloud
     /// </summary>
@@ -36,11 +43,22 @@ public interface IWedaCloudService : IDisposable
     Task<string?> GetOrRegisterDeviceIdAsync(DeviceInfo info, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Configure NATS topic assignments for telemetry and health reporting
-    /// Must be called after device registration to enable telemetry transmission
+    /// Configure NATS topic assignments for a specific device.
+    /// Must be called after device registration to enable telemetry transmission.
+    /// Each device has its own topic assignments.
     /// INTERNAL USE ONLY - Called by DeviceInitializer after registration
     /// </summary>
-    void ConfigureTopics(NatsTopicAssignments topicAssignments);
+    /// <param name="deviceName">The device name (used as key for topic lookup)</param>
+    /// <param name="topicAssignments">The NATS topic assignments for this device</param>
+    void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments);
+
+    /// <summary>
+    /// Get topic assignments for a specific device.
+    /// Returns null if the device has not been configured.
+    /// </summary>
+    /// <param name="deviceName">The device name</param>
+    /// <returns>Topic assignments or null if not configured</returns>
+    NatsTopicAssignments? GetTopics(string deviceName);
 
     /// <summary>
     /// Upload device configuration to DMA
@@ -87,11 +105,13 @@ public interface IWedaCloudService : IDisposable
     /// This is used to report the current device configuration state back to the cloud,
     /// including both the desired configuration (from cloud) and the reported configuration (actual device state).
     /// </summary>
+    /// <param name="configType">The type of configuration (system-config, device-config, or custom-config)</param>
     /// <param name="report">The configuration report message containing desired and reported states</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if published successfully, false otherwise</returns>
     Task<bool> PublishConfigurationReportAsync(
-        SubNodeConfigurationUpdateMessage report,
+        SubscriptionType configType,
+        SubNodeConfigUpdateMessage report,
         CancellationToken cancellationToken = default);
 
     /// <summary>

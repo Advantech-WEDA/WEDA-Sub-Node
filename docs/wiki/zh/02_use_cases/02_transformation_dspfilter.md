@@ -94,7 +94,7 @@ var config = new TcpModbusDeviceConfiguration
 };
 
 // 添加溫度感測器
-var tempSensor = new ModbusSensorConfiguration
+var tempSensor = new ModbusSensorReporturation
 {
     Name = "temperature",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -120,7 +120,7 @@ config.AddSensor(tempSensor);
 ```csharp
 using Weda.SubNode.Core.Transforms;
 
-var pressureSensor = new ModbusSensorConfiguration
+var pressureSensor = new ModbusSensorReporturation
 {
     Name = "pressure",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -153,7 +153,7 @@ config.AddSensor(pressureSensor);
 ```csharp
 using Weda.SubNode.Core.Dsp;
 
-var noisySensor = new ModbusSensorConfiguration
+var noisySensor = new ModbusSensorReporturation
 {
     Name = "vibration",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -175,7 +175,7 @@ config.AddSensor(noisySensor);
 ```csharp
 using Weda.SubNode.Core.Dsp;
 
-var precisionSensor = new ModbusSensorConfiguration
+var precisionSensor = new ModbusSensorReporturation
 {
     Name = "position",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -200,7 +200,7 @@ config.AddSensor(precisionSensor);
 可以將多個 Transform 和 Filter 組合成 pipeline，按照添加順序執行:
 
 ```csharp
-var complexSensor = new ModbusSensorConfiguration
+var complexSensor = new ModbusSensorReporturation
 {
     Name = "advanced_temp",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -274,7 +274,7 @@ public class ClampTransform : ITelemetryTransform
 #### 步驟 2: 使用自訂 Transform
 
 ```csharp
-var sensor = new ModbusSensorConfiguration
+var sensor = new ModbusSensorReporturation
 {
     Name = "limited_sensor",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -354,7 +354,7 @@ public class ExponentialMovingAverageFilter : IDspFilter
 #### 步驟 2: 使用自訂 DSP Filter
 
 ```csharp
-var sensor = new ModbusSensorConfiguration
+var sensor = new ModbusSensorReporturation
 {
     Name = "smooth_sensor",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -380,14 +380,14 @@ config.AddSensor(sensor);
 
 ### 配置 Transform Pipeline
 
-在 `appsettings.json` 中的 `Sensors[].Config.TransformPipeline` 設定:
+在 `appsettings.json` 中的 `Sensors[].Report.TransformPipeline` 設定:
 
 ```json
 {
   "DeviceConfigs": {
     "MyDevice": {
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": {
         "Host": "192.168.1.100",
         "Port": 502,
@@ -437,7 +437,7 @@ config.AddSensor(sensor);
 
 ### 配置 DSP Pipeline
 
-在 `appsettings.json` 中的 `Sensors[].Config.DspPipeline` 設定:
+在 `appsettings.json` 中的 `Sensors[].Report.DspPipeline` 設定:
 
 ```json
 {
@@ -840,7 +840,7 @@ var config = new TcpModbusDeviceConfiguration
 };
 
 // 感測器 1: 溫度 - 需要校正 + 單位轉換
-var tempSensor = new ModbusSensorConfiguration
+var tempSensor = new ModbusSensorReporturation
 {
     Name = "temperature",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -854,7 +854,7 @@ tempSensor.Config
     .AddDspFilter(new MovingAverageFilter(3));
 
 // 感測器 2: 壓力 - 需要單位轉換 + 卡爾曼濾波
-var pressureSensor = new ModbusSensorConfiguration
+var pressureSensor = new ModbusSensorReporturation
 {
     Name = "pressure",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -867,7 +867,7 @@ pressureSensor.Config
     .AddDspFilter(new KalmanFilter(0.01, 0.5));
 
 // 感測器 3: 振動 - 只需要降噪
-var vibrationSensor = new ModbusSensorConfiguration
+var vibrationSensor = new ModbusSensorReporturation
 {
     Name = "vibration",
     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
@@ -895,7 +895,7 @@ await app.RunAsync();
     "MyDevice": {
       "Enabled": true,
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
@@ -1055,7 +1055,7 @@ await app.RunAsync();
 
 ```csharp
 // 程式化方式: 添加自訂 Transform
-var sensor = new ModbusSensorConfiguration
+var sensor = new ModbusSensorReporturation
 {
     Name = "custom_sensor",
     // ...

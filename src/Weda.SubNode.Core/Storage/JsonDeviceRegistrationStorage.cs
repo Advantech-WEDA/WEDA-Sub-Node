@@ -8,11 +8,14 @@ using Weda.SubNode.Abstractions.Storage;
 namespace Weda.SubNode.Core.Storage;
 
 /// <summary>
-/// JSON-based device registration storage implementation
-/// Stores registration data in appsettings.json compatible format
+/// JSON-based device registration storage implementation for SubNode.
+/// Stores SubNode registration data in .weda/subnode.registration.json
 /// </summary>
 public class JsonDeviceRegistrationStorage : IDeviceRegistrationStorage
 {
+    private const string StorageDirectory = ".weda";
+    private const string RegistrationFileName = "subnode.registration.json";
+
     private readonly string _filePath;
     private readonly ILogger<JsonDeviceRegistrationStorage> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -21,18 +24,25 @@ public class JsonDeviceRegistrationStorage : IDeviceRegistrationStorage
     /// <summary>
     /// Create a new JSON-based device registration storage
     /// </summary>
-    /// <param name="filePath">Path to storage file (default: .device-registration.json in project root directory)</param>
+    /// <param name="filePath">Path to storage file (default: .weda/subnode.registration.json in project root directory)</param>
     /// <param name="logger">Logger instance</param>
     public JsonDeviceRegistrationStorage(
         string? filePath = null,
         ILogger<JsonDeviceRegistrationStorage>? logger = null)
     {
-        _filePath = filePath ?? Path.Combine(
-            FindProjectRoot() ?? Directory.GetCurrentDirectory(),
-            ".device-registration.json");
-
         _logger = logger ?? NullLoggerFactory.Instance
             .CreateLogger<JsonDeviceRegistrationStorage>();
+
+        var projectRoot = FindProjectRoot();
+        var baseDir = projectRoot ?? Directory.GetCurrentDirectory();
+
+        _filePath = filePath ?? Path.Combine(baseDir, StorageDirectory, RegistrationFileName);
+
+        _logger.LogInformation(
+            "DeviceRegistrationStorage initialized: ProjectRoot={ProjectRoot}, CurrentDir={CurrentDir}, FilePath={FilePath}",
+            projectRoot ?? "(not found)",
+            Directory.GetCurrentDirectory(),
+            _filePath);
 
         _jsonOptions = new JsonSerializerOptions
         {

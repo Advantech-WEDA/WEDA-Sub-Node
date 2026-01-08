@@ -9,7 +9,7 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 
 /// <summary>
 /// Modbus protocol parser implementation for Request-Response pattern.
-/// This parser owns Communication and provides high-level methods for reading/writing sensor data.
+/// This parser owns Communication and DeviceConfiguration, handling all mapping logic internally.
 ///
 /// Responsibilities:
 /// - Protocol frame building (MBAP header + PDU)
@@ -17,16 +17,18 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 /// - Response parsing (MBAP + register extraction)
 /// - Batch optimization (via ModbusBatchReader)
 /// - Type conversion (ushort[] -> C# primitives)
-/// - Sensor data mapping (protocol fields -> TelemetryMeasure)
+/// - Sensor data mapping (protocol fields -> TelemetryMeasure using DeviceConfiguration)
 ///
 /// Architecture:
 /// Device -> Parser -> Communication
-/// ModbusDevice only calls high-level methods like ReadSensorDataAsync()
+/// Device only calls ReadTelemetryAsync() - Parser handles all mapping internally
 /// </summary>
 public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 {
     private readonly IRequestResponseCommunication<byte[], byte[]> _communication;
+    private readonly DeviceConfiguration _configuration;
     private readonly byte _slaveId;
+    private readonly ModbusByteOrder _byteOrder;
     private readonly ILogger _logger;
     private readonly ModbusBatchReader _batchReader;
     private readonly bool _useBatchOptimization;
@@ -37,33 +39,44 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     /// <summary>
     /// Initializes a new instance of ModbusRequestResponseParser
     /// </summary>
+    /// <param name="configuration">Device configuration containing sensor settings</param>
     /// <param name="communication">TCP communication instance for Modbus protocol</param>
-    /// <param name="slaveId">Modbus slave ID (device address)</param>
-    /// <param name="sensorMetadata">Sensor metadata mapping (field name -> register info)</param>
     /// <param name="logger">Logger instance</param>
     /// <param name="useBatchOptimization">Enable batch reading optimization (default: true)</param>
     /// <param name="batchOptions">Batch optimization options (optional)</param>
     /// <param name="defaultCommandTimeoutMs">Default command execution timeout in milliseconds (default: 30000)</param>
+    /// <param name="slaveId">Modbus slave ID (default: 1)</param>
+    /// <param name="byteOrder">Byte order for multi-register data types (default: BigEndian)</param>
     public ModbusRequestResponseParser(
+        DeviceConfiguration configuration,
         IRequestResponseCommunication<byte[], byte[]> communication,
-        byte slaveId,
-        Dictionary<string, ModbusSensorRegister> sensorMetadata,
         ILogger logger,
         bool useBatchOptimization = true,
         ModbusBatchOptimizationOptions? batchOptions = null,
-        int defaultCommandTimeoutMs = 30000)
+        int defaultCommandTimeoutMs = 30000,
+        byte slaveId = 1,
+        ModbusByteOrder byteOrder = ModbusByteOrder.BigEndian)
     {
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
-        _slaveId = slaveId;
-        _sensorMetadata = sensorMetadata ?? throw new ArgumentNullException(nameof(sensorMetadata));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _useBatchOptimization = useBatchOptimization;
         _defaultCommandTimeoutMs = defaultCommandTimeoutMs;
+
+        // Use provided protocol settings
+        _slaveId = slaveId;
+        _byteOrder = byteOrder;
+
+        // Convert sensors to Modbus registers and create metadata dictionary
+        _sensorMetadata = configuration.Sensors
+            .Select(s => s.ToModbusRegister())
+            .ToDictionary(r => r.Name, r => r);
 
         // Create batch reader for optimized multi-sensor reading
         _batchReader = new ModbusBatchReader(
             _communication,
             _slaveId,
+            _byteOrder,
             _logger,
             batchOptions);
 
@@ -99,25 +112,16 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     // ===== IRequestResponseProtocolParser Implementation =====
 
     /// <summary>
-    /// Read sensor data synchronously (Request-Response pattern).
-    /// This is the high-level method that Device calls.
+    /// Read telemetry data synchronously (Request-Response pattern).
+    /// Parser internally handles all mapping logic using DeviceConfiguration.
     /// </summary>
-    public async Task<List<TelemetryMeasure>> ReadSensorDataAsync(
-        SensorMapping sensorMapping,
-        CancellationToken cancellationToken = default)
+    public async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         var measures = new List<TelemetryMeasure>();
 
-        if (sensorMapping == null || sensorMapping.FieldToResourceId.Count == 0)
-        {
-            _logger.LogTrace("No sensor mapping provided");
-            return measures;
-        }
-
-        // Filter sensors based on mapping and get enabled sensors
-        var enabledSensors = _sensorMetadata
-            .Where(kvp => sensorMapping.FieldToResourceId.ContainsKey(kvp.Key))
-            .Select(kvp => kvp.Value)
+        // Get enabled sensors from configuration
+        var enabledSensors = _configuration.Sensors
+            .Where(s => s.Report.Enabled)
             .ToList();
 
         if (enabledSensors.Count == 0)
@@ -126,16 +130,31 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
             return measures;
         }
 
+        // Get sensor registers for enabled sensors
+        var sensorRegisters = enabledSensors
+            .Where(s => _sensorMetadata.ContainsKey(s.Name))
+            .Select(s => _sensorMetadata[s.Name])
+            .ToList();
+
+        if (sensorRegisters.Count == 0)
+        {
+            _logger.LogTrace("No sensor metadata found for enabled sensors");
+            return measures;
+        }
+
+        // Build ResourceId lookup from configuration
+        var resourceIdLookup = enabledSensors.ToDictionary(s => s.Name, s => s.ResourceId);
+
         if (_useBatchOptimization)
         {
             // Use batch reader for optimized multi-sensor reading
-            var results = await _batchReader.ReadSensorsAsync(enabledSensors, cancellationToken);
+            var results = await _batchReader.ReadSensorsAsync(sensorRegisters, cancellationToken);
 
             foreach (var (sensorName, result) in results)
             {
                 if (result.Success && result.Value != null)
                 {
-                    var resourceId = sensorMapping.FieldToResourceId[sensorName];
+                    var resourceId = resourceIdLookup[sensorName];
                     var measure = new TelemetryMeasure
                     {
                         ResourceId = resourceId,
@@ -164,7 +183,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         else
         {
             // Legacy single-point reading mode
-            foreach (var register in enabledSensors)
+            foreach (var register in sensorRegisters)
             {
                 try
                 {
@@ -181,11 +200,11 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                         register.RegisterCount,
                         cancellationToken);
 
-                    // Parse registers to C# type
+                    // Parse registers to C# type with device-level byte order
                     var parsedValue = ParseValue(rawData, register.DataType);
 
                     // Create telemetry measure
-                    var resourceId = sensorMapping.FieldToResourceId[register.Name];
+                    var resourceId = resourceIdLookup[register.Name];
                     var measure = new TelemetryMeasure
                     {
                         ResourceId = resourceId,
@@ -571,15 +590,15 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Parse Modbus registers (ushort[]) to C# primitive type
+    /// Parse Modbus registers (ushort[]) to C# primitive type using device-level byte order
     /// </summary>
     private object ParseValue(ushort[] rawData, ModbusDataType dataType)
     {
         if (rawData == null || rawData.Length == 0)
             throw new ArgumentException("Raw data cannot be null or empty", nameof(rawData));
 
-        // Use the existing ModbusProtocolParser for type conversion
-        var parser = new ModbusProtocolParser(dataType);
+        // Use the existing ModbusProtocolParser for type conversion with device-level byte order
+        var parser = new ModbusProtocolParser(dataType, _byteOrder);
         return parser.Parse(rawData);
     }
 }

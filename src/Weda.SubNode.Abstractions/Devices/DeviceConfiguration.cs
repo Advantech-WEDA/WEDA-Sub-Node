@@ -1,120 +1,184 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Abstractions.Devices;
 
 /// <summary>
-/// Device configuration (matches DMA registration payload)
+/// Device configuration for appsettings.json binding.
+/// DeviceName is derived from DeviceConfigs key.
+/// Manufacturer, Model, SwVersion are inherited from SubNode section.
 /// </summary>
 public class DeviceConfiguration
 {
-    /// <summary>
-    /// Whether this device configuration is enabled (default: true)
-    /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Device ID, derived from DMA or DeviceIdStorage (e.g., "74fe488d5d54-ffff")
+    /// Auto-populated during device initialization.
     /// </summary>
     public string? DeviceId { get; set; }
 
     /// <summary>
-    /// Device name (e.g., "adam4612", "temp-sensor-1")
+    /// Auto-set from DeviceConfigs key (e.g., "MyFirstDevice").
     /// </summary>
-    public required string DeviceName { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Device type (e.g., "adamEthernet", "modbusRTU")
+    /// DTDL configuration section containing AutoGenEnabled and DtdlPath settings.
     /// </summary>
-    public required DeviceType DeviceType { get; set; }
+    public DtdlConfig Dtdl { get; set; } = new();
 
     /// <summary>
-    /// Device type name - OPTIONAL, defaults to DeviceConfigs key if not specified
-    ///
-    /// When using ScanDevicesFromConfiguration():
-    /// - If empty/null: Uses the configuration key name (e.g., "MyFirstDevice" from DeviceConfigs["MyFirstDevice"])
-    /// - If specified: Uses the provided value (supports short names and fully qualified names)
-    ///
-    /// Examples:
-    /// - Config key: "TcpModbusDevice" → Automatically resolves to TcpModbusDevice class
-    /// - Config key: "MyFirstDevice" → Searches in YOUR project first
-    /// - Explicit: "Weda.SubNode.Devices.Generic.TcpModbusDevice, Weda.SubNode.Devices" → Full qualified name
-    ///
-    /// Resolution priority:
-    /// 1. Fully qualified name (if assembly specified)
-    /// 2. Your project assembly (PRIORITY - avoids naming conflicts)
-    /// 3. SDK built-in devices (Weda.SubNode.Devices.Generic)
-    /// 4. Other dependencies
+    /// Runtime property: DTDL interface object - auto-generated or loaded from DtdlPath.
+    /// This is populated by InitializeDtdl() method.
     /// </summary>
-    public string? DeviceTypeName { get; set; }
+    [JsonIgnore]
+    public object? DtdlInterface { get; set; }
 
-    /// <summary>
-    /// Path to the DTDL JSON file (optional, for configuration).
-    /// </summary>
-    public string? DtdlPath { get; set; }
-
-    /// <summary>
-    /// DTDL (Digital Twin Definition Language) object.
-    /// Can be a DtdlInterface or any other structured object.
-    /// </summary>
-    public object? Dtdl { get; set; }
-
-    /// <summary>
-    /// Device capabilities
-    /// </summary>
-    public required DeviceCapabilities DeviceCapabilities { get; set; }
-
-    /// <summary>
-    /// Sensors list
-    /// </summary>
     public List<Sensor> Sensors { get; set; } = [];
 
     /// <summary>
-    /// Communication settings (not part of registration payload, for internal use)
-    /// e.g., Modbus: { "Host": "192.168.1.10", "Port": 502, "SlaveId": 1 }
+    /// Transport layer settings (Host, Port, BrokerUrl, etc.)
     /// </summary>
-    public Dictionary<string, object> Communication { get; set; } = [];
+    public Dictionary<string, object> DeviceCommunication { get; set; } = [];
 
-    /// <summary>
-    /// Connection settings for retry, timeout, and security configuration
-    /// Used by communication layer (TCP, Serial, etc.)
-    /// Can be configured in appsettings.json or received from cloud
-    /// </summary>
     public ConnectionSettings? ConnectionSettings { get; set; }
 
-    /// <summary>
-    /// Background task periods (not part of registration payload, for internal use)
-    /// </summary>
     public BackgroundTaskPeriods Periods { get; set; } = new();
 
     /// <summary>
-    /// Custom properties (not part of registration payload, for internal use)
+    /// Protocol-specific settings (e.g., SlaveId for Modbus)
     /// </summary>
     public Dictionary<string, object> Properties { get; set; } = [];
 
+    /// <summary>
+    /// Device metadata for DTDL generation and cloud reporting.
+    /// </summary>
+    public Dictionary<string, object> Metadata { get; set; } = [];
+
+    #region Runtime Properties
+
+    /// <summary>
+    /// Populated during device initialization from SubNode section.
+    /// </summary>
     [JsonIgnore]
-    public DeviceInfo DeviceInfo => new DeviceInfo
+    public SubNodeInfo? SubNodeInfo { get; set; }
+
+    [JsonIgnore]
+    public string Manufacturer => SubNodeInfo?.Manufacturer ?? "Unknown";
+
+    [JsonIgnore]
+    public string Model => SubNodeInfo?.Model ?? "Unknown";
+
+    [JsonIgnore]
+    public string SwVersion => SubNodeInfo?.SwVersion ?? "1.0.0";
+
+    [JsonIgnore]
+    public SubNodeType SubNodeType => SubNodeInfo?.SubNodeType ?? SubNodeType.CustomDevice;
+
+    [JsonIgnore]
+    public DeviceInfo DeviceInfo => new()
     {
         DeviceId = DeviceId,
         DeviceName = DeviceName,
-        DeviceType = DeviceType,
-        Manufacturer = DeviceCapabilities.Manufacturer,
-        Model = DeviceCapabilities.Model
+        SubNodeType = SubNodeType,
+        Manufacturer = Manufacturer,
+        Model = Model
     };
 
+    #endregion
+
     /// <summary>
-    /// Loads and sets the DTDL interface from the configured DtdlPath.
+    /// Initializes DTDL based on Dtdl.AutoGenEnabled setting.
+    /// Priority: Dtdl.AutoGenEnabled (device-level) > SubNodeInfo.AutoGenEnabled (subnode-level)
+    /// - When AutoGenEnabled=true: Generates DTDL from Sensor definitions and populates Sensor.Dtmi
+    /// - When AutoGenEnabled=false: Validates DtdlPath and Sensor.Dtmi are specified, loads from file
+    ///
+    /// This method is idempotent - calling it multiple times will not regenerate DTDL if already initialized.
+    /// </summary>
+    /// <param name="basePath">Optional base path for DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
+    /// <param name="logger">Optional logger for warnings and info.</param>
+    /// <exception cref="InvalidOperationException">Thrown when validation fails (AutoGenEnabled=false without required fields).</exception>
+    /// <exception cref="FileNotFoundException">Thrown when DtdlPath file does not exist (AutoGenEnabled=false).</exception>
+    public void InitializeDtdl(string? basePath = null, ILogger? logger = null)
+    {
+        // Idempotency check: Skip if DTDL already initialized
+        if (DtdlInterface != null)
+        {
+            logger?.LogDebug("DTDL already initialized for device '{DeviceName}', skipping", DeviceName);
+            return;
+        }
+
+        // Device-level Dtdl.AutoGenEnabled takes priority over SubNode-level setting
+        var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);
+
+        if (autoGen)
+        {
+            // Auto-generate mode: Generate DTDL from sensors
+            GenerateDtdlFromSensors(logger);
+        }
+        else
+        {
+            // Manual mode: Validate and load from file
+            ValidateManualDtdlConfiguration();
+            LoadDtdlFromFile(basePath);
+        }
+    }
+
+    /// <summary>
+    /// Generates DTDL interface from sensor definitions.
+    /// Also populates Dtmi for sensors that don't have one.
+    /// </summary>
+    private void GenerateDtdlFromSensors(ILogger? logger = null)
+    {
+        // Populate Dtmi for sensors without one
+        DtdlGenerator.PopulateSensorDtmis(Sensors);
+
+        // Generate the DTDL interface
+        DtdlInterface = DtdlGenerator.GenerateInterface(
+            DeviceName,
+            Sensors,
+            displayName: null,
+            description: $"Auto-generated DTDL for {DeviceName}");
+
+        logger?.LogInformation(
+            "Auto-generated DTDL for device '{DeviceName}' with {SensorCount} sensors",
+            DeviceName,
+            Sensors.Count);
+    }
+
+    /// <summary>
+    /// Validates configuration when AutoGenEnabled is false.
+    /// Ensures DtdlPath and all Sensor.Dtmi are specified.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when validation fails.</exception>
+    private void ValidateManualDtdlConfiguration()
+    {
+        var errors = DtdlGenerator.ValidateManualDtdlConfiguration(Sensors, Dtdl.DtdlPath);
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"DTDL configuration validation failed for device '{DeviceName}':{Environment.NewLine}" +
+                $"- {string.Join($"{Environment.NewLine}- ", errors)}{Environment.NewLine}" +
+                $"Hint: Set Dtdl.AutoGenEnabled=true to auto-generate DTDL, " +
+                $"or provide Dtdl.DtdlPath and Dtmi for each sensor.");
+        }
+    }
+
+    /// <summary>
+    /// Loads and sets the DTDL interface from the configured Dtdl.DtdlPath.
     /// If DtdlPath is null or empty, this method does nothing.
     /// </summary>
     /// <param name="basePath">Optional base path to combine with DtdlPath. If not provided, attempts to find solution root directory automatically.</param>
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist.</exception>
-    /// <exception cref="JsonException">Thrown when the JSON is invalid or cannot be deserialized.</exception>
-    public void LoadDtdl(string? basePath = null)
+    public void LoadDtdlFromFile(string? basePath = null)
     {
-        if (string.IsNullOrEmpty(DtdlPath))
+        var dtdlPath = Dtdl.DtdlPath;
+        if (string.IsNullOrEmpty(dtdlPath))
             return;
 
         // If no basePath provided, try to find solution root directory
@@ -122,20 +186,20 @@ public class DeviceConfiguration
                  ?? FindSolutionRoot()
                  ?? AppContext.BaseDirectory;
 
-        var fullPath = Path.Combine(basePath, DtdlPath);
+        var fullPath = Path.Combine(basePath, dtdlPath);
 
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException(
                 $"DTDL file not found: {fullPath}{Environment.NewLine}" +
-                $"DtdlPath: {DtdlPath}{Environment.NewLine}" +
+                $"DtdlPath: {dtdlPath}{Environment.NewLine}" +
                 $"BasePath: {basePath}{Environment.NewLine}" +
                 $"Working directory: {Directory.GetCurrentDirectory()}{Environment.NewLine}" +
                 $"App base directory: {AppContext.BaseDirectory}",
                 fullPath);
         }
 
-        Dtdl = DtdlInterface.Load(fullPath);
+        DtdlInterface = DigitalTwin.DtdlInterface.Load(fullPath);
     }
 
     /// <summary>
@@ -171,75 +235,4 @@ public class DeviceConfiguration
 
         return null;
     }
-}
-
-/// <summary>
-/// Device capabilities
-/// </summary>
-public class DeviceCapabilities
-{
-    /// <summary>
-    /// Manufacturer (e.g., "Advantech")
-    /// </summary>
-    public required string Manufacturer { get; set; }
-
-    /// <summary>
-    /// Model (e.g., "SubNode", "ADAM-6052")
-    /// </summary>
-    public required string Model { get; set; }
-
-    /// <summary>
-    /// SubNode software version (e.g., "1.0")
-    /// </summary>
-    public required string SubNodeSwVersion { get; set; }
-
-    public required Dictionary<string, object> DeviceInfo { get; set; } = [];
-}
-
-/// <summary>
-/// Background task execution periods (in milliseconds)
-/// </summary>
-public class BackgroundTaskPeriods
-{
-    /// <summary>
-    /// Telemetry reading period (default: 5000ms)
-    /// </summary>
-    public int ReadTelemetry { get; set; } = 5000;
-
-    /// <summary>
-    /// Telemetry sending period (default: 5000ms)
-    /// </summary>
-    public int SendTelemetry { get; set; } = 5000;
-
-    /// <summary>
-    /// Health reporting period (default: 60000ms)
-    /// </summary>
-    public int ReportHealth { get; set; } = 60000;
-
-    /// <summary>
-    /// Command polling period (default: 1000ms)
-    /// </summary>
-    public int PollCommands { get; set; } = 1000;
-
-    /// <summary>
-    /// Configuration sync/report period (default: 1800000ms = 30 minutes).
-    /// Periodically reports device configuration to cloud
-    /// to ensure reported state is synchronized even if update response fails.
-    /// Valid range: 300000ms (5 min) ~ 86400000ms (24 hours), or 0 to disable.
-    /// </summary>
-    public int ReportConfiguration { get; set; } = 1_800_000;
-}
-
-/// <summary>
-/// Device configurations collection (key-value style)
-/// Example appsettings.json:
-/// {
-///   "Devices": {
-///     "temp-sensor-1": { "DeviceId": "...", "DeviceCapabilities": {...}, ... },
-///     "fan-1": { ... }
-///   }
-/// }
-/// </summary>
-public class DeviceConfigurations : Dictionary<string, DeviceConfiguration>
-{
 }

@@ -36,9 +36,9 @@ public class DeviceAgentClient : IDeviceAgentClient
         var request = DeviceRegistrationRequest.Create(info);
 
         _logger.LogInformation(
-            "Registering device: DeviceName={DeviceName}, DeviceType={DeviceType}, ReqSeqId={ReqSeqId}",
+            "Registering device: DeviceName={DeviceName}, SubNodeType={SubNodeType}, ReqSeqId={ReqSeqId}",
             info.DeviceName,
-            info.DeviceType,
+            info.SubNodeType,
             request.ReqSeqId);
 
         var response = await _client.RequestAsync<DeviceRegistrationRequest, DeviceRegistrationResponse>(
@@ -66,13 +66,6 @@ public class DeviceAgentClient : IDeviceAgentClient
         // Convert to DTO using mapping extension
         var dto = configuration.ToConfigurationDto();
         var request = ConfigurationUploadRequest.Create(dto);
-
-        _logger.LogInformation(
-            "Uploading device configuration: DeviceId={DeviceId}, DeviceName={DeviceName}, SensorCount={SensorCount}, ReqSeqId={ReqSeqId}",
-            configuration.DeviceId,
-            configuration.DeviceName,
-            configuration.Sensors.Count,
-            request.ReqSeqId);
 
         var response = await _client.RequestAsync<ConfigurationUploadRequest, ConfigurationUploadResponse>(
             subject: UploadDeviceConfigurationSubject,

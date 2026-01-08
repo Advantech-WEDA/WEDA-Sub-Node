@@ -12,17 +12,21 @@ namespace Wise4012ISensingExample;
 public class MyFirstISensingDevice : MqttISensingDevice
 {
     /// <summary>
-    /// Creates MyFirstISensingDevice using ApplicationContext.
-    /// Configuration is automatically retrieved from context.
+    /// Creates MyFirstISensingDevice using ApplicationContext and config key.
+    /// Configuration is retrieved from context.DeviceConfigs[configKey].
     /// MQTT connection and ISensing protocol are automatically configured.
     /// </summary>
-    public MyFirstISensingDevice(IWedaApplicationContext context)
-        : base(context)
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public MyFirstISensingDevice(IWedaApplicationContext context, string configKey)
+        : base(context, configKey)
     {
         // Subscribe to DataReceived event to process telemetry
+        EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;
 
         // Subscribe to ConnectionStateChanged event to monitor MQTT connection
+        EnableConnectionStateTracking = true;
         ConnectionStateChanged += OnConnectionStateChanged;
     }
 

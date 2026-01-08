@@ -1,50 +1,47 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
 
 namespace Weda.SubNode.Core.Storage;
 
 /// <summary>
 /// JSON-based configuration cache implementation.
-/// Stores device configuration in a local JSON file (.device-config-cache.json).
+/// Stores cloud configuration messages in separate files per config type.
 ///
-/// Purpose:
-/// When cloud sends configuration updates (UC9868), the updated configuration
-/// is persisted to this cache. On device restart, the cache takes priority
-/// over appsettings.json, ensuring cloud-driven configuration persists.
-///
-/// File naming convention follows .device-registration.json pattern.
+/// Cache Files:
+/// - .weda/systemcfg.cache.json - System configuration
+/// - .weda/devicecfg.cache.json - Device configuration
+/// - .weda/customcfg.cache.json - Custom configuration
 /// </summary>
 public class JsonConfigurationCache : IConfigurationCache
 {
     /// <summary>
-    /// Default cache file name.
+    /// Default cache directory name.
     /// </summary>
-    public const string DefaultFileName = ".device-config-cache.json";
+    public const string DefaultCacheDirectory = ".weda";
 
-    private readonly string _filePath;
+    private readonly string _cacheDirectoryPath;
     private readonly ILogger<JsonConfigurationCache> _logger;
-    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
     private readonly JsonSerializerOptions _jsonOptions;
 
     /// <summary>
     /// Create a new JSON-based configuration cache.
     /// </summary>
-    /// <param name="filePath">
-    /// Path to cache file.
-    /// Default: .device-config-cache.json in project root directory.
-    /// </param>
+    /// <param name="cacheDirectoryPath">Path to cache directory. Default: .weda/ in project root.</param>
     /// <param name="logger">Logger instance</param>
     public JsonConfigurationCache(
-        string? filePath = null,
+        string? cacheDirectoryPath = null,
         ILogger<JsonConfigurationCache>? logger = null)
     {
-        _filePath = filePath ?? Path.Combine(
+        _cacheDirectoryPath = cacheDirectoryPath ?? Path.Combine(
             FindProjectRoot() ?? Directory.GetCurrentDirectory(),
-            DefaultFileName);
+            DefaultCacheDirectory);
 
         _logger = logger ?? NullLoggerFactory.Instance
             .CreateLogger<JsonConfigurationCache>();
@@ -57,185 +54,253 @@ public class JsonConfigurationCache : IConfigurationCache
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
         };
+
+        // Ensure cache directory exists
+        if (!Directory.Exists(_cacheDirectoryPath))
+        {
+            Directory.CreateDirectory(_cacheDirectoryPath);
+        }
     }
 
     /// <inheritdoc />
-    public string CacheFilePath => _filePath;
+    public string CacheDirectoryPath => _cacheDirectoryPath;
 
     /// <inheritdoc />
-    public async Task<DeviceConfiguration?> GetConfigurationAsync(
+    public string GetCacheFilePath(SubscriptionType configType)
+    {
+        var fileName = GetCacheFileName(configType);
+        return Path.Combine(_cacheDirectoryPath, fileName);
+    }
+
+    /// <inheritdoc />
+    public async Task<SubNodeConfigUpdateMessage?> GetRawConfigurationAsync(
+        SubscriptionType configType,
         CancellationToken cancellationToken = default)
     {
-        await _lock.WaitAsync(cancellationToken);
+        var filePath = GetCacheFilePath(configType);
+        var lockObj = GetLock(configType);
+
+        await lockObj.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(filePath))
             {
-                _logger.LogDebug("Configuration cache not found: {FilePath}", _filePath);
+                _logger.LogDebug("Configuration cache not found: Type={Type}, Path={FilePath}",
+                    configType.Value, filePath);
                 return null;
             }
 
-            var json = await File.ReadAllTextAsync(_filePath, cancellationToken);
+            var json = await File.ReadAllTextAsync(filePath, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogWarning("Configuration cache exists but is empty: {FilePath}",
-                    _filePath);
+                _logger.LogWarning("Configuration cache exists but is empty: Type={Type}, Path={FilePath}",
+                    configType.Value, filePath);
                 return null;
             }
 
-            var configuration = JsonSerializer.Deserialize<DeviceConfiguration>(
+            var message = JsonSerializer.Deserialize<SubNodeConfigUpdateMessage>(
                 json, _jsonOptions);
 
-            if (configuration != null)
+            if (message != null)
             {
                 _logger.LogInformation(
-                    "Configuration loaded from cache: DeviceName={DeviceName}, Path={FilePath}",
-                    configuration.DeviceName,
-                    _filePath);
+                    "Configuration loaded from cache: Type={Type}, DeviceId={DeviceId}, Path={FilePath}",
+                    configType.Value,
+                    message.DeviceId,
+                    filePath);
             }
 
-            return configuration;
+            return message;
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "Error parsing configuration cache JSON: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error parsing configuration cache JSON: Type={Type}, Path={FilePath}",
+                configType.Value, filePath);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error reading configuration cache: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error reading configuration cache: Type={Type}, Path={FilePath}",
+                configType.Value, filePath);
             throw;
         }
         finally
         {
-            _lock.Release();
+            lockObj.Release();
         }
     }
 
     /// <inheritdoc />
-    public async Task SaveConfigurationAsync(
-        DeviceConfiguration configuration,
+    public async Task SaveRawConfigurationAsync(
+        SubscriptionType configType,
+        SubNodeConfigUpdateMessage message,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(configType);
+        ArgumentNullException.ThrowIfNull(message);
 
-        await _lock.WaitAsync(cancellationToken);
+        var filePath = GetCacheFilePath(configType);
+        var lockObj = GetLock(configType);
+
+        await lockObj.WaitAsync(cancellationToken);
         try
         {
             // Ensure directory exists
-            var directory = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            if (!Directory.Exists(_cacheDirectoryPath))
             {
-                Directory.CreateDirectory(directory);
+                Directory.CreateDirectory(_cacheDirectoryPath);
             }
 
-            var json = JsonSerializer.Serialize(configuration, _jsonOptions);
-            await File.WriteAllTextAsync(_filePath, json, cancellationToken);
+            var json = JsonSerializer.Serialize(message, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json, cancellationToken);
 
             _logger.LogInformation(
-                "Configuration saved to cache: DeviceName={DeviceName}, SensorCount={SensorCount}, Path={FilePath}",
-                configuration.DeviceName,
-                configuration.Sensors.Count,
-                _filePath);
+                "Configuration saved to cache: Type={Type}, DeviceId={DeviceId}, Path={FilePath}",
+                configType.Value,
+                message.DeviceId,
+                filePath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving configuration cache: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error saving configuration cache: Type={Type}, Path={FilePath}",
+                configType.Value, filePath);
             throw;
         }
         finally
         {
-            _lock.Release();
+            lockObj.Release();
         }
     }
 
     /// <inheritdoc />
-    public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(
+        SubscriptionType configType,
+        CancellationToken cancellationToken = default)
     {
-        await _lock.WaitAsync(cancellationToken);
+        var filePath = GetCacheFilePath(configType);
+        var lockObj = GetLock(configType);
+
+        await lockObj.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(filePath))
                 return false;
 
-            var content = await File.ReadAllTextAsync(_filePath, cancellationToken);
+            var content = await File.ReadAllTextAsync(filePath, cancellationToken);
             return !string.IsNullOrWhiteSpace(content);
         }
         finally
         {
-            _lock.Release();
+            lockObj.Release();
         }
     }
 
     /// <inheritdoc />
-    public async Task DeleteCacheAsync(CancellationToken cancellationToken = default)
+    public async Task DeleteCacheAsync(
+        SubscriptionType configType,
+        CancellationToken cancellationToken = default)
     {
-        await _lock.WaitAsync(cancellationToken);
+        var filePath = GetCacheFilePath(configType);
+        var lockObj = GetLock(configType);
+
+        await lockObj.WaitAsync(cancellationToken);
         try
         {
-            if (File.Exists(_filePath))
+            if (File.Exists(filePath))
             {
-                File.Delete(_filePath);
-                _logger.LogInformation("Configuration cache deleted: {FilePath}",
-                    _filePath);
+                File.Delete(filePath);
+                _logger.LogInformation("Configuration cache deleted: Type={Type}, Path={FilePath}",
+                    configType.Value, filePath);
             }
             else
             {
-                _logger.LogDebug(
-                    "Configuration cache not found, nothing to delete: {FilePath}",
-                    _filePath);
+                _logger.LogDebug("Configuration cache not found, nothing to delete: Type={Type}, Path={FilePath}",
+                    configType.Value, filePath);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting configuration cache: {FilePath}",
-                _filePath);
+            _logger.LogError(ex, "Error deleting configuration cache: Type={Type}, Path={FilePath}",
+                configType.Value, filePath);
             throw;
         }
         finally
         {
-            _lock.Release();
+            lockObj.Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAllCachesAsync(CancellationToken cancellationToken = default)
+    {
+        var configTypes = new[]
+        {
+            SubscriptionTypes.SystemConfig,
+            SubscriptionTypes.DeviceConfig,
+            SubscriptionTypes.CustomConfig
+        };
+
+        foreach (var configType in configTypes)
+        {
+            await DeleteCacheAsync(configType, cancellationToken);
         }
     }
 
     /// <inheritdoc />
     public async Task<DateTimeOffset?> GetLastModifiedAsync(
+        SubscriptionType configType,
         CancellationToken cancellationToken = default)
     {
-        await _lock.WaitAsync(cancellationToken);
+        var filePath = GetCacheFilePath(configType);
+        var lockObj = GetLock(configType);
+
+        await lockObj.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(filePath))
                 return null;
 
-            var fileInfo = new FileInfo(_filePath);
+            var fileInfo = new FileInfo(filePath);
             return new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero);
         }
         finally
         {
-            _lock.Release();
+            lockObj.Release();
         }
     }
 
     /// <summary>
-    /// Finds the project root directory by looking for .csproj file.
-    /// This ensures runtime-generated files are stored in the project directory (where Program.cs is),
-    /// not in bin/Debug/net9.0/ during development.
+    /// Get the cache file name for a config type.
     /// </summary>
-    /// <returns>The project root directory path, or null if not found.</returns>
+    private static string GetCacheFileName(SubscriptionType configType)
+    {
+        return configType.Value switch
+        {
+            "system-config" => "systemcfg.cache.json",
+            "device-config" => "devicecfg.cache.json",
+            "custom-config" => "customcfg.cache.json",
+            _ => $"{configType.Value}.cache.json"
+        };
+    }
+
+    /// <summary>
+    /// Get or create a lock for a config type.
+    /// </summary>
+    private SemaphoreSlim GetLock(SubscriptionType configType)
+    {
+        return _locks.GetOrAdd(configType.Value, _ => new SemaphoreSlim(1, 1));
+    }
+
+    /// <summary>
+    /// Finds the project root directory by looking for .csproj file.
+    /// </summary>
     private static string? FindProjectRoot()
     {
-        // Start from the current directory (which may be bin/Debug/net9.0/)
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
 
         while (directory != null)
         {
-            // Only check for .csproj file - this uniquely identifies the project root
-            // (appsettings.json gets copied to bin/Debug/net9.0/, so we can't rely on it)
             if (directory.GetFiles("*.csproj").Length > 0)
             {
                 return directory.FullName;

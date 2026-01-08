@@ -13,14 +13,15 @@ public interface IDevice : IDisposable
     // ===== Identity =====
 
     /// <summary>
-    /// Unique device identifier (e.g., "74fe488d5d54-ffff")
+    /// SubNode identifier shared by all devices in this SubNode (e.g., "74fe488d5d54-ffff").
+    /// All devices registered under the same SubNode share this identifier.
     /// </summary>
-    string DeviceId { get; }
+    string SubNodeId { get; }
 
     /// <summary>
     /// Device type (e.g., "adamEthernet", "modbusRTU")
     /// </summary>
-    DeviceType DeviceType { get; }
+    SubNodeType SubNodeType { get; }
 
     /// <summary>
     /// Device configuration
@@ -117,6 +118,19 @@ public interface IDevice : IDisposable
     /// Default is false.
     /// </summary>
     bool EnableDataReceivedTracking { get; set; }
+
+    /// <summary>
+    /// Event: Telemetry data processed through pipeline (Device → SubNode).
+    /// Fired after transformation and DSP filtering, before sending to cloud.
+    /// Only fires when EnableDataProcessedTracking is true.
+    /// </summary>
+    event EventHandler<DataProcessedEvent>? DataProcessed;
+
+    /// <summary>
+    /// Gets or sets whether DataProcessed events are emitted.
+    /// Default is false.
+    /// </summary>
+    bool EnableDataProcessedTracking { get; set; }
 
     /// <summary>
     /// Event: Connection state changed (Device → SubNode).

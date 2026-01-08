@@ -34,8 +34,8 @@ public class DeviceBaseLifecycleTests : IDisposable
 
         _testConfig = DeviceConfigurationBuilder.Default()
             .WithDeviceName("test-device")
-            .WithDeviceType(DeviceType.AdamEthernet)
-            .WithCommunication(new Dictionary<string, object>
+            .WithSubNodeType(SubNodeType.AdamEthernet)
+            .WithDeviceCommunication(new Dictionary<string, object>
             {
                 ["Host"] = "localhost",
                 ["Port"] = 502
@@ -64,6 +64,12 @@ public class DeviceBaseLifecycleTests : IDisposable
 
     private void SetupSuccessfulRegistration(string deviceId)
     {
+        // Setup SubNodeManager to return the expected SubNodeId
+        // DeviceBase now gets SubNodeId from SubNodeManager instead of CloudService directly
+        _context.MockSubNodeManager.SubNodeId.Returns(deviceId);
+        _context.MockSubNodeManager.IsInitialized.Returns(true);
+        _context.MockSubNodeManager.InitializeAsync(Arg.Any<CancellationToken>()).Returns(true);
+
         _mockCloudService.GetOrRegisterDeviceIdAsync(
                 Arg.Any<DeviceInfo>(),
                 Arg.Any<CancellationToken>())
@@ -104,13 +110,15 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Assert
         result.ShouldBeTrue();
         device.Status.ShouldBe(DeviceStatus.Ready);
-        device.DeviceId.ShouldBe("test-device-001");
+        device.SubNodeId.ShouldBe("test-device-001");
 
         // Verify method calls
+        // DeviceBase connects to physical device
         await _mockCommunication.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(1).ConnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(1).GetOrRegisterDeviceIdAsync(
-            Arg.Any<DeviceInfo>(),
+        // Cloud registration is handled by SubNodeManager, not DeviceBase directly
+        // DeviceBase only uploads device configuration after SubNodeManager provides SubNodeId
+        await _mockCloudService.Received(1).UploadDeviceConfigurationAsync(
+            Arg.Any<DeviceConfiguration>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -245,7 +253,8 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Assert
         result.ShouldBeTrue();
         device.Status.ShouldBe(DeviceStatus.Running);
-        device.BackgroundTasksStarted.ShouldBeTrue();
+        // Note: BackgroundTasksStarted cannot be tested from outside as StartBackgroundTasksAsync is internal
+        // The Running status confirms that OnStartAsync (which calls StartBackgroundTasksAsync) was executed
     }
 
     [Fact]
@@ -263,11 +272,11 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Assert
         result.ShouldBeTrue();
         device.Status.ShouldBe(DeviceStatus.Running);
-        device.DeviceId.ShouldBe("test-device-001");
+        device.SubNodeId.ShouldBe("test-device-001");
     }
 
     [Fact]
-    public async Task StartAsync_Should_CallStartBackgroundTasksHook()
+    public async Task StartAsync_Should_TransitionThroughCorrectStates()
     {
         // Arrange
         SetupSuccessfulConnections();
@@ -280,7 +289,9 @@ public class DeviceBaseLifecycleTests : IDisposable
         await device.StartAsync();
 
         // Assert
-        device.OnStartedCalled.ShouldBeTrue();
+        // The device should be in Running state after StartAsync completes
+        // This confirms that the lifecycle went through OnStartAsync hook
+        device.Status.ShouldBe(DeviceStatus.Running);
     }
 
     #endregion
@@ -486,7 +497,7 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Act - Trigger communication state change by raising the event
         var testEvent = new ConnectionStateChangedEvent(
             DeviceId: "test-device",
-            DeviceType: DeviceType.AdamEthernet,
+            SubNodeType: SubNodeType.AdamEthernet,
             PreviousState: CommunicationState.Disconnected,
             CurrentState: CommunicationState.Connected,
             Timestamp: DateTimeOffset.UtcNow);
@@ -535,7 +546,12 @@ public class DeviceBaseLifecycleTests : IDisposable
                     Name = "temperature",
                     Dtmi = "dtmi:test:Temperature;1",
                     DeviceResourceId = "",
-                    ResourceId = ""
+                    ResourceId = "",
+                    Report = new SensorReport
+                    {
+                        Enabled = true,
+                        Interval = 1000
+                    }
                 }
             })
             .Build();
@@ -620,7 +636,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task StopAsync_Should_DisconnectFromCommunicationAndCloud()
+    public async Task StopAsync_Should_DisconnectFromPhysicalDevice()
     {
         // Arrange
         SetupSuccessfulConnections();
@@ -634,8 +650,9 @@ public class DeviceBaseLifecycleTests : IDisposable
         await device.StopAsync();
 
         // Assert
+        // DeviceBase only disconnects from physical device
+        // Cloud connection is managed by SubNodeManager at SubNode level
         await _mockCommunication.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
-        await _mockCloudService.Received(1).DisconnectAsync(Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -692,9 +709,6 @@ public class DeviceBaseLifecycleTests : IDisposable
 /// </summary>
 internal class TestDevice : DeviceBase
 {
-    public bool OnStartedCalled { get; private set; }
-    public bool BackgroundTasksStarted { get; private set; }
-
     // Lifecycle hook tracking
     public bool OnBeforeInitializeCalled { get; private set; }
     public bool OnAfterInitializeCalled { get; private set; }
@@ -720,11 +734,11 @@ internal class TestDevice : DeviceBase
         return Task.FromResult(true);
     }
 
-    protected override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
+    protected override Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+        List<string> sensorResourceIds,
+        CancellationToken cancellationToken)
     {
-        OnStartedCalled = true;
-        BackgroundTasksStarted = true;
-        return Task.CompletedTask;
+        return Task.FromResult(new IntervalGroupReadResult(new List<TelemetryMeasure>(), TimeSpan.Zero));
     }
 
     protected override Task OnBeforeInitializeAsync(CancellationToken cancellationToken)

@@ -5,7 +5,8 @@ namespace Weda.SubNode.Abstractions.Configuration;
 /// </summary>
 public record ConfigurationValidationResult(
     bool IsValid,
-    string? ErrorMessage = null)
+    string? ErrorMessage = null,
+    bool NoUpdateRequired = false)
 {
     /// <summary>
     /// Creates a successful validation result.
@@ -16,4 +17,28 @@ public record ConfigurationValidationResult(
     /// Creates a failed validation result with an error message.
     /// </summary>
     public static ConfigurationValidationResult Failure(string errorMessage) => new(false, errorMessage);
+
+    /// <summary>
+    /// Creates a result indicating the message is valid but contains no updates to apply.
+    /// This is not an error - the message should be silently ignored.
+    /// </summary>
+    public static ConfigurationValidationResult NoUpdate => new(true, null, NoUpdateRequired: true);
+}
+
+/// <summary>
+/// Result of custom configuration update handling.
+/// </summary>
+public record CustomConfigUpdateResult(
+    bool IsSuccess,
+    string? ErrorMessage = null)
+{
+    /// <summary>
+    /// Creates a successful result indicating the custom config was applied.
+    /// </summary>
+    public static CustomConfigUpdateResult Success() => new(true);
+
+    /// <summary>
+    /// Creates a failed result with an error message.
+    /// </summary>
+    public static CustomConfigUpdateResult Failure(string errorMessage) => new(false, errorMessage);
 }

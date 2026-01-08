@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -16,6 +17,7 @@ namespace Weda.SubNode.Core.Cloud;
 public class MockCloudService : IWedaCloudService
 {
     private readonly ILogger<MockCloudService> _logger;
+    private readonly MockSubscriptionManager _subscriptionManager;
     private bool _isConnected;
     private bool _disposed;
     private DeviceConfiguration? _deviceConfiguration;
@@ -23,16 +25,27 @@ public class MockCloudService : IWedaCloudService
     public MockCloudService(ILogger<MockCloudService>? logger = null)
     {
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<MockCloudService>();
+        _subscriptionManager = new MockSubscriptionManager(_logger);
     }
+
+    /// <inheritdoc />
+    public ISubscriptionManager Subscriptions => _subscriptionManager;
 
     public bool IsConnected => _isConnected;
 
-    public void ConfigureTopics(NatsTopicAssignments topicAssignments)
+    public void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments)
     {
         _logger.LogInformation(
-            "Configure NATS topics (simulated): TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}",
+            "Configure NATS topics (simulated) for device {DeviceName}: TelemetryTopic={TelemetryTopic}, HealthTopic={HealthTopic}",
+            deviceName,
             topicAssignments?.TelemetryTopic ?? "null",
             topicAssignments?.HealthTopic ?? "null");
+    }
+
+    public NatsTopicAssignments? GetTopics(string deviceName)
+    {
+        _logger.LogDebug("Get topics (simulated) for device {DeviceName}", deviceName);
+        return null;
     }
 
     public Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
@@ -63,11 +76,11 @@ public class MockCloudService : IWedaCloudService
     public Task<bool> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Device registration (simulated): DeviceName={DeviceId}, Type={DeviceType}, Manufacturer={Manufacturer}, Model={Model}",
+            "Device registration (simulated): DeviceName={DeviceId}, Type={SubNodeType}, Manufacturer={Manufacturer}, Model={Model}",
             configuration.DeviceId,
-            configuration.DeviceType,
-            configuration.DeviceCapabilities.Manufacturer,
-            configuration.DeviceCapabilities.Model);
+            configuration.SubNodeType,
+            configuration.Manufacturer,
+            configuration.Model);
 
         _logger.LogDebug(
             "Sensors count: {SensorCount}",
@@ -220,12 +233,14 @@ public class MockCloudService : IWedaCloudService
     }
 
     public Task<bool> PublishConfigurationReportAsync(
-        SubNodeConfigurationUpdateMessage report,
+        SubscriptionType configType,
+        SubNodeConfigUpdateMessage report,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Publish configuration report (simulated): DeviceId={DeviceId}, Status={Status}",
+            "Publish configuration report (simulated): DeviceId={DeviceId}, Type={ConfigType}, Status={Status}",
             report.DeviceId,
+            configType.Value,
             report.Data?.Cfg?.Reported?.Status ?? "unknown");
 
         if (report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs != null)
@@ -233,21 +248,19 @@ public class MockCloudService : IWedaCloudService
             foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
             {
                 _logger.LogDebug(
-                    "  Desired config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
+                    "  Desired config for '{DeviceKey}': SensorCount={SensorCount}",
                     deviceKey,
-                    deviceConfig.DeviceName,
                     deviceConfig.Sensors?.Count ?? 0);
             }
         }
 
-        if (report.Data?.Cfg?.Reported?.SubNodeDeviceConfig?.DeviceConfigs != null)
+        if (report.Data?.Cfg?.Reported?.DeviceConfigs != null)
         {
-            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.SubNodeDeviceConfig.DeviceConfigs)
+            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.DeviceConfigs)
             {
                 _logger.LogDebug(
-                    "  Reported config for '{DeviceKey}': DeviceName={DeviceName}, SensorCount={SensorCount}",
+                    "  Reported config for '{DeviceKey}': SensorCount={SensorCount}",
                     deviceKey,
-                    deviceConfig.DeviceName,
                     deviceConfig.Sensors?.Count ?? 0);
             }
         }

@@ -6,6 +6,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Core.Context;
 
@@ -71,6 +72,16 @@ public class MockApplicationContext : IWedaApplicationContext
     public IConfigurationCache MockConfigurationCache { get; }
 
     /// <summary>
+    /// Gets or sets the SubNode information for testing.
+    /// </summary>
+    public SubNodeInfo SubNodeInfo { get; set; }
+
+    /// <summary>
+    /// Gets or sets the device configurations for testing.
+    /// </summary>
+    public Dictionary<string, DeviceConfiguration> DeviceConfigsInternal { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of MockApplicationContext with default mocks.
     /// </summary>
     public MockApplicationContext()
@@ -78,10 +89,20 @@ public class MockApplicationContext : IWedaApplicationContext
         MockCloudService = Substitute.For<IWedaCloudService>();
         MockCommunication = Substitute.For<IRequestResponseCommunication<byte[], byte[]>>();
         MockConfigurationCache = Substitute.For<IConfigurationCache>();
+        MockSubNodeManager = Substitute.For<ISubNodeManager>();
         MockLoggerFactory = NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
         DeviceRegistry = new DeviceRegistry();
+        DeviceConfigsInternal = new Dictionary<string, DeviceConfiguration>(StringComparer.OrdinalIgnoreCase);
+        SubNodeInfo = new SubNodeInfo
+        {
+            Name = "TestSubNode",
+            DeviceId = "test-device-id-12345",
+            Manufacturer = "Test",
+            Model = "MockSubNode",
+            SwVersion = "1.0.0"
+        };
 
         // Setup default behaviors
         SetupDefaultBehaviors();
@@ -103,10 +124,20 @@ public class MockApplicationContext : IWedaApplicationContext
         MockCloudService = cloudService;
         MockCommunication = communication;
         MockConfigurationCache = configurationCache ?? Substitute.For<IConfigurationCache>();
+        MockSubNodeManager = Substitute.For<ISubNodeManager>();
         MockLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         ConnectionOptions = ConnectionOptions.Default;
         DeviceOptions = DeviceOptions.Default;
         DeviceRegistry = new DeviceRegistry();
+        DeviceConfigsInternal = new Dictionary<string, DeviceConfiguration>(StringComparer.OrdinalIgnoreCase);
+        SubNodeInfo = new SubNodeInfo
+        {
+            Name = "TestSubNode",
+            DeviceId = "test-device-id-12345",
+            Manufacturer = "Test",
+            Model = "MockSubNode",
+            SwVersion = "1.0.0"
+        };
     }
 
     #region IWedaApplicationContext Implementation
@@ -121,7 +152,13 @@ public class MockApplicationContext : IWedaApplicationContext
     public IConfiguration? Configuration => null;
 
     /// <inheritdoc />
-    public DeviceConfiguration? DeviceConfiguration { get; set; }
+    public IReadOnlyDictionary<string, DeviceConfiguration> DeviceConfigs => DeviceConfigsInternal;
+
+    /// <inheritdoc />
+    public DeviceConfiguration this[string configKey] =>
+        DeviceConfigsInternal.TryGetValue(configKey, out var config)
+            ? config
+            : throw new KeyNotFoundException($"Device configuration '{configKey}' not found. Available keys: {string.Join(", ", DeviceConfigsInternal.Keys)}");
 
     /// <inheritdoc />
     public IConfigurationCache ConfigurationCache => MockConfigurationCache;
@@ -144,6 +181,15 @@ public class MockApplicationContext : IWedaApplicationContext
     /// <inheritdoc />
     public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
         => DeviceRegistry.FindDevice<TDevice>(deviceName);
+
+    /// <inheritdoc />
+    public ISubNodeManager SubNodeManager => MockSubNodeManager;
+
+    /// <summary>
+    /// Gets the mock SubNode manager.
+    /// Use this to setup mock behaviors for SubNode operations.
+    /// </summary>
+    public ISubNodeManager MockSubNodeManager { get; private set; } = null!;
 
     #endregion
 
@@ -171,6 +217,27 @@ public class MockApplicationContext : IWedaApplicationContext
         // Default: Cloud service is connected
         MockCloudService.ConnectAsync(Arg.Any<CancellationToken>()).Returns(true);
         MockCloudService.DisconnectAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        // Default: Configuration cache paths
+        MockConfigurationCache.CacheDirectoryPath.Returns(".weda");
+        MockConfigurationCache.GetCacheFilePath(Arg.Any<SubscriptionType>()).Returns(info =>
+        {
+            var configType = info.Arg<SubscriptionType>();
+            return configType.Value switch
+            {
+                "system-config" => ".weda/systemcfg.cache.json",
+                "device-config" => ".weda/devicecfg.cache.json",
+                "custom-config" => ".weda/customcfg.cache.json",
+                _ => $".weda/{configType.Value}.cache.json"
+            };
+        });
+        MockConfigurationCache.ExistsAsync(Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        // Default: SubNodeManager is initialized successfully
+        // Simulates the scenario: Cloud connected, no cache, registration succeeded
+        MockSubNodeManager.IsInitialized.Returns(true);
+        MockSubNodeManager.SubNodeId.Returns("test-subnode-001");
+        MockSubNodeManager.InitializeAsync(Arg.Any<CancellationToken>()).Returns(true);
     }
 
     /// <summary>

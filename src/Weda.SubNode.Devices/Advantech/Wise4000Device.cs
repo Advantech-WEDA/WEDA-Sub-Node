@@ -17,11 +17,13 @@ namespace Weda.SubNode.Devices.Advantech;
 public class Wise4000Device : MqttISensingDevice
 {
     /// <summary>
-    /// Creates a WISE-4012SE device with ApplicationContext only.
-    /// Automatically retrieves configuration from context.
+    /// Creates a WISE-4012SE device with ApplicationContext and config key.
+    /// Automatically retrieves configuration from context.DeviceConfigs[configKey].
     /// </summary>
-    public Wise4000Device(IWedaApplicationContext context)
-        : base(context)
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public Wise4000Device(IWedaApplicationContext context, string configKey)
+        : base(context, configKey)
     {
     }
 

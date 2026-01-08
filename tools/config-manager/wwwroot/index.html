@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubNode Config Manager</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; transition: padding-right 0.3s ease; }
+        body.panel-open { padding-right: 470px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 20px; }
+        h2 { color: #555; margin: 20px 0 10px; font-size: 1.2em; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        h3 { color: #666; margin: 15px 0 10px; font-size: 1em; }
+        h4 { color: #777; margin: 10px 0 5px; font-size: 0.9em; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group.inline { display: flex; align-items: center; gap: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 13px; }
+        input[type="text"], input[type="password"], input[type="number"], select, textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #007bff; }
+        input[readonly], select[readonly] { background: #f5f5f5; color: #666; cursor: not-allowed; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-info { background: #cce5ff; color: #004085; }
+        .badge-secondary { background: #e9ecef; color: #495057; }
+        .sensor-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 15px; margin-bottom: 10px; }
+        .sensor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .sensor-name { font-weight: 600; color: #333; }
+        .sensor-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .readonly-info { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; font-size: 13px; color: #666; border: 1px solid #e9ecef; }
+        .readonly-info .label { font-weight: 500; color: #555; }
+        .parameters-section { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #e9ecef; border-radius: 4px; }
+        .parameters-section h4 { margin-bottom: 8px; color: #666; font-size: 12px; text-transform: uppercase; }
+        .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+        .param-item { display: flex; justify-content: space-between; padding: 4px 8px; background: #f8f9fa; border-radius: 3px; font-size: 12px; }
+        .param-key { color: #666; }
+        .param-value { color: #333; font-weight: 500; }
+        .pipeline-section { margin-top: 10px; padding: 10px; background: #fff5e6; border: 1px solid #ffe0b3; border-radius: 4px; }
+        .pipeline-section.dsp { background: #e6f3ff; border-color: #b3d9ff; }
+        .pipeline-item { padding: 12px; background: white; border-radius: 4px; margin-bottom: 8px; border: 1px solid #ddd; }
+        .pipeline-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .pipeline-item-header select { font-weight: 500; min-width: 150px; }
+        .pipeline-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding-top: 8px; border-top: 1px dashed #eee; }
+        .pipeline-params .param-field { display: flex; flex-direction: column; }
+        .pipeline-params .param-field label { font-size: 11px; color: #666; margin-bottom: 2px; }
+        .pipeline-params .param-field input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; }
+        .collapsible { cursor: pointer; user-select: none; }
+        .collapsible:hover { color: #007bff; }
+        .collapse-content { display: none; }
+        .collapse-content.show { display: block; }
+        .log { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto; }
+        .log-entry { margin-bottom: 5px; }
+        .log-time { color: #6a9955; }
+        .log-info { color: #569cd6; }
+        .log-error { color: #f14c4c; }
+        .log-success { color: #4ec9b0; }
+        .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .two-column { grid-template-columns: 1fr; } }
+        .add-btn { background: #e9ecef; border: 1px dashed #adb5bd; color: #495057; padding: 8px; text-align: center; border-radius: 4px; cursor: pointer; margin-top: 5px; }
+        .add-btn:hover { background: #dee2e6; }
+        /* Tab styles */
+        .tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 0; border-bottom: 2px solid #007bff; }
+        .tab { padding: 10px 20px; background: #e9ecef; border: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; color: #495057; transition: all 0.2s; }
+        .tab:hover { background: #dee2e6; }
+        .tab.active { background: #007bff; color: white; }
+        .tab-content { display: none; padding: 20px; background: #fff; border: 1px solid #e9ecef; border-top: none; border-radius: 0 0 8px 8px; }
+        .tab-content.active { display: block; }
+        .device-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px; }
+        .device-info-item { background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid #007bff; }
+        .device-info-item .label { font-size: 11px; color: #6c757d; text-transform: uppercase; margin-bottom: 3px; }
+        .device-info-item .value { font-size: 14px; color: #212529; font-weight: 500; }
+        /* Payload panel styles */
+        .payload-panel { position: fixed; top: 0; right: 0; height: 100vh; width: 450px; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s ease; z-index: 999; display: flex; flex-direction: column; }
+        .payload-panel.open { transform: translateX(0); }
+        .payload-toggle { position: fixed; top: 50%; right: 0; transform: translateY(-50%); background: #17a2b8; color: white; border: none; padding: 15px 8px; cursor: pointer; border-radius: 8px 0 0 8px; font-size: 12px; writing-mode: vertical-rl; text-orientation: mixed; box-shadow: -2px 0 8px rgba(0,0,0,0.15); z-index: 998; transition: right 0.3s ease; }
+        .payload-toggle:hover { background: #138496; }
+        .payload-toggle.panel-open { right: 450px; }
+        .payload-toggle .badge-count { display: inline-block; background: #ffc107; color: #000; border-radius: 10px; padding: 2px 6px; font-size: 10px; margin-top: 5px; writing-mode: horizontal-tb; }
+        .payload-header { padding: 15px 20px; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; background: #17a2b8; color: white; }
+        .payload-header h3 { margin: 0; font-size: 16px; }
+        .payload-body { flex: 1; overflow-y: auto; padding: 0; }
+        .payload-item { border-bottom: 1px solid #e9ecef; }
+        .payload-item-header { padding: 12px 15px; background: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .payload-item-header:hover { background: #e9ecef; }
+        .payload-item-time { font-size: 12px; color: #6c757d; }
+        .payload-item-topic { font-size: 13px; font-weight: 500; color: #333; word-break: break-all; }
+        .payload-item-content { display: none; padding: 15px; background: #1e1e1e; }
+        .payload-item-content.show { display: block; }
+        .payload-item-content pre { margin: 0; color: #d4d4d4; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+        .payload-item-arrow { transition: transform 0.2s; color: #6c757d; }
+        .payload-item-arrow.expanded { transform: rotate(90deg); }
+        /* Modal styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: white; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { margin: 0; font-size: 16px; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 0; line-height: 1; }
+        .modal-close:hover { color: #333; }
+        .modal-body { padding: 15px 20px; overflow-y: auto; flex: 1; }
+        .modal-footer { padding: 15px 20px; border-top: 1px solid #e9ecef; display: flex; justify-content: flex-end; gap: 10px; }
+        .current-path { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; margin-bottom: 10px; word-break: break-all; display: flex; align-items: center; gap: 8px; }
+        .current-path input { flex: 1; border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px; font-family: monospace; font-size: 13px; }
+        .current-path button { padding: 6px 12px; }
+        .folder-list { max-height: 300px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 4px; }
+        .folder-item { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; }
+        .folder-item:last-child { border-bottom: none; }
+        .folder-item:hover { background: #f8f9fa; }
+        .folder-item.parent { color: #666; }
+        .folder-icon { margin-right: 10px; font-size: 16px; }
+        .folder-name { flex: 1; font-size: 14px; }
+        /* Advanced settings toggle */
+        .advanced-toggle { display: flex; align-items: center; gap: 6px; margin-top: 12px; padding: 8px 0; border-top: 1px dashed #ddd; cursor: pointer; color: #6c757d; font-size: 13px; user-select: none; }
+        .advanced-toggle:hover { color: #007bff; }
+        .advanced-toggle-icon { transition: transform 0.2s; font-size: 10px; }
+        .advanced-toggle-icon.open { transform: rotate(90deg); }
+        .advanced-content { display: none; margin-top: 10px; }
+        .advanced-content.show { display: block; }
+        /* Config file badges */
+        .config-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .config-badges .badge { font-size: 10px; padding: 2px 6px; }
+        /* Main tabs styles */
+        .main-tabs { display: flex; gap: 2px; margin-bottom: 0; border-bottom: 3px solid #28a745; }
+        .main-tab { padding: 12px 24px; background: #e9ecef; border: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 15px; font-weight: 600; color: #495057; transition: all 0.2s; }
+        .main-tab:hover { background: #dee2e6; }
+        .main-tab.active { background: #28a745; color: white; }
+        .main-tab-content { display: none; padding: 20px; background: #fff; border: 1px solid #e9ecef; border-top: none; border-radius: 0 0 8px 8px; }
+        .main-tab-content.active { display: block; }
+        /* Key-value editor styles */
+        .kv-editor { margin-top: 10px; }
+        .kv-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; }
+        .kv-row input { flex: 1; }
+        .kv-row .btn-sm { flex-shrink: 0; }
+        .kv-empty { color: #888; font-size: 13px; padding: 20px; text-align: center; background: #f8f9fa; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SubNode Config Manager</h1>
+
+        <!-- Project Path -->
+        <div class="card">
+            <h2>Project Path</h2>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                    <label>Folder containing systemcfg.json, devicecfg.json</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="projectPath" placeholder="e.g., /Users/you/projects/edge_subnode/examples/testdevice" style="flex: 1;">
+                        <button class="btn-secondary" onclick="openFolderBrowser()">Browse...</button>
+                        <button class="btn-primary" onclick="loadConfig()">Load</button>
+                        <button class="btn-secondary" onclick="clearConfig()">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Status -->
+        <div class="card" id="registrationCard" style="display: none;">
+            <div class="section-header">
+                <h2>Registration Status</h2>
+                <span class="badge badge-success" id="regStatusBadge">-</span>
+            </div>
+            <div class="device-info-grid">
+                <div class="device-info-item">
+                    <div class="label">Device ID</div>
+                    <div class="value" id="deviceIdDisplay">-</div>
+                </div>
+                <div class="device-info-item">
+                    <div class="label">Device Name</div>
+                    <div class="value" id="deviceNameDisplay">-</div>
+                </div>
+                <div class="device-info-item">
+                    <div class="label">Config Update Topic</div>
+                    <div class="value" id="configTopicDisplay" style="font-size: 11px; word-break: break-all;">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Configuration Tabs -->
+        <div class="card" id="configCard" style="display: none;">
+            <div class="main-tabs">
+                <button class="main-tab active" onclick="switchMainTab('device')">Device Configurations</button>
+                <button class="main-tab" onclick="switchMainTab('system')">System Configurations</button>
+                <button class="main-tab" onclick="switchMainTab('custom')">Custom Configurations</button>
+            </div>
+
+            <!-- Device Configurations Tab -->
+            <div id="main-tab-device" class="main-tab-content active">
+                <div id="deviceConfigsContainer"></div>
+            </div>
+
+            <!-- System Configurations Tab -->
+            <div id="main-tab-system" class="main-tab-content">
+                <h3 style="margin-bottom: 15px;">NATS Connection Settings</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>NATS URL</label>
+                        <input type="text" id="natsUrl" value="nats://localhost:4222">
+                    </div>
+                    <div class="form-group">
+                        <label>Auth Strategy</label>
+                        <select id="natsAuthStrategy" onchange="updateAuthFields()">
+                            <option value="none">None</option>
+                            <option value="userpassword">Username/Password</option>
+                            <option value="token">Token</option>
+                            <option value="credfile">Credential File</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="authFields" class="form-row" style="display: none;">
+                    <div class="form-group" id="usernameGroup">
+                        <label>Username</label>
+                        <input type="text" id="natsUsername" placeholder="(optional)">
+                    </div>
+                    <div class="form-group" id="passwordGroup">
+                        <label>Password</label>
+                        <input type="password" id="natsPassword" placeholder="(optional)">
+                    </div>
+                    <div class="form-group" id="tokenGroup" style="display: none;">
+                        <label>Token</label>
+                        <input type="text" id="natsToken" placeholder="NATS token">
+                    </div>
+                    <div class="form-group" id="credFileGroup" style="display: none;">
+                        <label>Credential File Path</label>
+                        <input type="text" id="natsCredFile" placeholder="/path/to/creds.creds">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Configurations Tab -->
+            <div id="main-tab-custom" class="main-tab-content">
+                <h3 style="margin-bottom: 15px;">Custom Key-Value Settings</h3>
+                <div id="customConfigContainer">
+                    <div class="kv-empty">No custom configurations loaded</div>
+                </div>
+                <div class="add-btn" onclick="addCustomConfigRow()" style="margin-top: 15px;">+ Add Custom Setting</div>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+                <button class="btn-success" onclick="applyConfig()">Apply Configuration</button>
+                <button class="btn-secondary" onclick="loadConfig()">Reload</button>
+            </div>
+        </div>
+
+        <!-- Activity Log - Bottom of window -->
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-header">
+                <h2>Activity Log</h2>
+                <button class="btn-sm btn-secondary" onclick="document.getElementById('logContainer').innerHTML = ''">Clear Log</button>
+            </div>
+            <div class="log" id="logContainer">
+                <div class="log-entry"><span class="log-time">[Ready]</span> <span class="log-info">Enter project path and click Load Configuration</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NATS Payload Panel Toggle -->
+    <button class="payload-toggle" id="payloadToggle" onclick="togglePayloadPanel()">
+        NATS Payloads <span class="badge-count" id="payloadCount">0</span>
+    </button>
+
+    <!-- NATS Payload Panel -->
+    <div class="payload-panel" id="payloadPanel">
+        <div class="payload-header">
+            <h3>NATS Published Payloads</h3>
+            <button class="btn-sm btn-secondary" style="margin: 0;" onclick="clearPayloads()">Clear</button>
+        </div>
+        <div class="payload-body" id="payloadList">
+            <div style="padding: 40px 20px; text-align: center; color: #888;">
+                No payloads sent yet.<br>
+                <small>Payloads will appear here when you click "Apply Configuration"</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Browser Modal -->
+    <div class="modal-overlay" id="folderBrowserModal" onclick="closeFolderBrowser(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Select Project Folder</h3>
+                <button class="modal-close" onclick="closeFolderBrowser()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="current-path">
+                    <input type="text" id="browserPathInput" placeholder="Enter path..." onkeypress="if(event.key==='Enter') goToPath()">
+                    <button class="btn-sm btn-primary" onclick="goToPath()">Go</button>
+                </div>
+                <div id="browserStatus" style="margin-bottom: 10px; font-size: 13px;"></div>
+                <div class="folder-list" id="folderList">
+                    <div style="padding: 20px; text-align: center; color: #888;">Loading...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeFolderBrowser()">Cancel</button>
+                <button class="btn-primary" id="selectFolderBtn" onclick="selectCurrentFolder()" disabled>Select This Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // SensorGroup enum values
+        const SENSOR_GROUPS = ['AI', 'AO', 'DI', 'DO', 'TEMP', 'PWR', 'SYS'];
+
+        // Transform types with default parameters
+        const TRANSFORM_TYPES = {
+            'Calibration': { slope: 1, offset: 0 },
+            'UnitConversion': { fromUnit: '', toUnit: '' },
+            'Scale': { factor: 1 },
+            'Offset': { value: 0 },
+            'Clamp': { min: 0, max: 100 },
+            'Map': { inputMin: 0, inputMax: 100, outputMin: 0, outputMax: 100 }
+        };
+
+        // DSP Filter types with default parameters
+        const DSP_FILTER_TYPES = {
+            'movingAverage': { windowSize: 5 },
+            'kalman': { processNoise: 0.01, measurementNoise: 0.1 },
+            'lowPass': { cutoffFrequency: 10, sampleRate: 100 },
+            'highPass': { cutoffFrequency: 1, sampleRate: 100 },
+            'median': { windowSize: 5 },
+            'exponentialSmoothing': { alpha: 0.3 }
+        };
+
+        let systemConfig = null;
+        let deviceConfig = null;
+        let customConfig = null;
+        let appSettings = null; // Legacy support
+        let registration = null;
+        let payloads = [];
+        let browserCurrentPath = '';
+
+        // Auth field visibility
+        function updateAuthFields() {
+            const strategy = document.getElementById('natsAuthStrategy').value;
+            const authFields = document.getElementById('authFields');
+            const usernameGroup = document.getElementById('usernameGroup');
+            const passwordGroup = document.getElementById('passwordGroup');
+            const tokenGroup = document.getElementById('tokenGroup');
+            const credFileGroup = document.getElementById('credFileGroup');
+
+            authFields.style.display = strategy === 'none' ? 'none' : 'grid';
+            usernameGroup.style.display = strategy === 'userpassword' ? 'block' : 'none';
+            passwordGroup.style.display = strategy === 'userpassword' ? 'block' : 'none';
+            tokenGroup.style.display = strategy === 'token' ? 'block' : 'none';
+            credFileGroup.style.display = strategy === 'credfile' ? 'block' : 'none';
+        }
+
+        // Payload panel functions
+        function togglePayloadPanel() {
+            const panel = document.getElementById('payloadPanel');
+            const toggle = document.getElementById('payloadToggle');
+            panel.classList.toggle('open');
+            toggle.classList.toggle('panel-open');
+            document.body.classList.toggle('panel-open');
+        }
+
+        function addPayload(topic, payload) {
+            const time = new Date().toLocaleTimeString();
+            payloads.unshift({ time, topic, payload });
+            renderPayloads();
+        }
+
+        function renderPayloads() {
+            const container = document.getElementById('payloadList');
+            const countBadge = document.getElementById('payloadCount');
+            countBadge.textContent = payloads.length;
+
+            if (payloads.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 40px 20px; text-align: center; color: #888;">
+                        No payloads sent yet.<br>
+                        <small>Payloads will appear here when you click "Apply Configuration"</small>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = payloads.map((p, i) => `
+                <div class="payload-item">
+                    <div class="payload-item-header" onclick="togglePayloadItem(${i})">
+                        <div>
+                            <div class="payload-item-time">${p.time}</div>
+                            <div class="payload-item-topic">${escapeHtml(p.topic)}</div>
+                        </div>
+                        <span class="payload-item-arrow" id="arrow-${i}">&#9654;</span>
+                    </div>
+                    <div class="payload-item-content" id="payload-content-${i}">
+                        <pre>${escapeHtml(JSON.stringify(p.payload, null, 2))}</pre>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function togglePayloadItem(index) {
+            const content = document.getElementById(`payload-content-${index}`);
+            const arrow = document.getElementById(`arrow-${index}`);
+            content.classList.toggle('show');
+            arrow.classList.toggle('expanded');
+        }
+
+        function clearPayloads() {
+            payloads = [];
+            renderPayloads();
+        }
+
+        // Folder browser functions
+        async function openFolderBrowser() {
+            document.getElementById('folderBrowserModal').classList.add('show');
+            const startPath = document.getElementById('projectPath').value || '';
+            await browseTo(startPath);
+        }
+
+        function closeFolderBrowser(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('folderBrowserModal').classList.remove('show');
+        }
+
+        function goToPath() {
+            const path = document.getElementById('browserPathInput').value;
+            if (path) browseTo(path);
+        }
+
+        async function browseTo(path) {
+            try {
+                const url = path ? `/api/config/browse?path=${encodeURIComponent(path)}` : '/api/config/browse';
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    document.getElementById('folderList').innerHTML = `<div style="padding: 20px; color: #dc3545;">${data.error || 'Error loading directory'}</div>`;
+                    return;
+                }
+
+                browserCurrentPath = data.currentPath;
+                document.getElementById('browserPathInput').value = data.currentPath;
+
+                // Update status and select button
+                const selectBtn = document.getElementById('selectFolderBtn');
+                const statusDiv = document.getElementById('browserStatus');
+
+                if (data.hasConfig) {
+                    let configFiles = [];
+                    if (data.hasSystemCfg) configFiles.push('systemcfg.json');
+                    if (data.hasDeviceCfg) configFiles.push('devicecfg.json');
+                    if (data.hasAppSettings) configFiles.push('appsettings.json');
+                    statusDiv.innerHTML = `<span style="color: #28a745;">&#10004; Found: ${configFiles.join(', ')}</span>`;
+                    selectBtn.disabled = false;
+                } else {
+                    statusDiv.innerHTML = '<span style="color: #6c757d;">No configuration files in this folder</span>';
+                    selectBtn.disabled = true;
+                }
+
+                // Render folder list
+                if (data.directories.length === 0) {
+                    document.getElementById('folderList').innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No subdirectories</div>';
+                    return;
+                }
+
+                const html = data.directories.map(dir => `
+                    <div class="folder-item ${dir.isParent ? 'parent' : ''}" onclick="browseTo('${escapeHtml(dir.path)}')">
+                        <span class="folder-icon">${dir.isParent ? '&#8593;' : '&#128193;'}</span>
+                        <span class="folder-name">${escapeHtml(dir.name)}</span>
+                    </div>
+                `).join('');
+
+                document.getElementById('folderList').innerHTML = html;
+            } catch (error) {
+                document.getElementById('folderList').innerHTML = `<div style="padding: 20px; color: #dc3545;">Error: ${error.message}</div>`;
+            }
+        }
+
+        function selectCurrentFolder() {
+            document.getElementById('projectPath').value = browserCurrentPath;
+            closeFolderBrowser();
+            loadConfig();
+        }
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            container.innerHTML = `<div class="log-entry"><span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span></div>` + container.innerHTML;
+        }
+
+        function getProp(obj, ...keys) {
+            if (!obj) return undefined;
+            for (const key of keys) {
+                if (obj[key] !== undefined) return obj[key];
+                const lowerKey = key.charAt(0).toLowerCase() + key.slice(1);
+                if (obj[lowerKey] !== undefined) return obj[lowerKey];
+                const upperKey = key.charAt(0).toUpperCase() + key.slice(1);
+                if (obj[upperKey] !== undefined) return obj[upperKey];
+            }
+            return undefined;
+        }
+
+        function normalizeKeys(obj) {
+            if (Array.isArray(obj)) return obj.map(normalizeKeys);
+            if (obj !== null && typeof obj === 'object') {
+                return Object.keys(obj).reduce((acc, key) => {
+                    const camelKey = key.charAt(0).toLowerCase() + key.slice(1);
+                    acc[camelKey] = normalizeKeys(obj[key]);
+                    return acc;
+                }, {});
+            }
+            return obj;
+        }
+
+        async function loadConfig() {
+            const path = document.getElementById('projectPath').value;
+            if (!path) {
+                log('Please enter project path', 'error');
+                return;
+            }
+
+            try {
+                log(`Loading configuration from: ${path}...`);
+                const response = await fetch(`/api/config?path=${encodeURIComponent(path)}`);
+
+                const text = await response.text();
+                if (!text) {
+                    throw new Error('Empty response from server');
+                }
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+                }
+
+                if (!response.ok) throw new Error(data.error || 'Failed to load config');
+
+                // Store config data
+                systemConfig = data.systemConfig;
+                deviceConfig = data.deviceConfig;
+                customConfig = data.customConfig;
+                appSettings = data.appSettings; // Legacy
+
+                // Load NATS settings from systemcfg.json (new format)
+                if (systemConfig?.wedaNode) {
+                    const nats = systemConfig.wedaNode;
+                    if (nats.url) {
+                        document.getElementById('natsUrl').value = nats.url.startsWith('nats://') ? nats.url : `nats://${nats.url}`;
+                        log(`NATS URL loaded from systemcfg.json: ${nats.url}`, 'success');
+                    }
+                    if (nats.authStrategy) {
+                        document.getElementById('natsAuthStrategy').value = nats.authStrategy.toLowerCase();
+                        updateAuthFields();
+                    }
+                    if (nats.username) document.getElementById('natsUsername').value = nats.username;
+                    if (nats.password) document.getElementById('natsPassword').value = nats.password;
+                    if (nats.token) document.getElementById('natsToken').value = nats.token;
+                    if (nats.credFile) document.getElementById('natsCredFile').value = nats.credFile;
+                    log('NATS settings loaded from systemcfg.json', 'success');
+                }
+                // Fallback to legacy appsettings.json
+                else if (appSettings) {
+                    const nats = getProp(appSettings, 'WedaNode', 'Nats', 'nats');
+                    if (nats) {
+                        const url = getProp(nats, 'Url', 'url');
+                        if (url) {
+                            document.getElementById('natsUrl').value = url.startsWith('nats://') ? url : `nats://${url}`;
+                            log(`NATS URL loaded from appsettings.json: ${url}`, 'success');
+                        }
+                        const username = getProp(nats, 'Username', 'username');
+                        const password = getProp(nats, 'Password', 'password');
+                        if (username) document.getElementById('natsUsername').value = username;
+                        if (password) document.getElementById('natsPassword').value = password;
+                        if (username || password) {
+                            document.getElementById('natsAuthStrategy').value = 'userpassword';
+                            updateAuthFields();
+                        }
+                    }
+                }
+
+                // Load Registration
+                if (data.registration) {
+                    registration = data.registration;
+                    document.getElementById('deviceIdDisplay').textContent = registration.deviceId || '-';
+                    document.getElementById('deviceNameDisplay').textContent = registration.deviceName || '-';
+                    document.getElementById('configTopicDisplay').textContent = registration.natsTopicAssignments?.deviceConfigDesiredTopic || '-';
+                    document.getElementById('regStatusBadge').textContent = registration.registrationStatus || '-';
+                    document.getElementById('registrationCard').style.display = 'block';
+                    log(`Registration loaded: ${registration.deviceId}`, 'success');
+                } else {
+                    document.getElementById('registrationCard').style.display = 'none';
+                    log('No registration found (device not yet registered)', 'info');
+                }
+
+                // Load DeviceConfigs from devicecfg.json (new format)
+                let deviceConfigs = null;
+                if (deviceConfig?.deviceConfigs) {
+                    deviceConfigs = deviceConfig.deviceConfigs;
+                } else if (appSettings) {
+                    deviceConfigs = getProp(appSettings, 'DeviceConfigs', 'deviceConfigs');
+                }
+
+                if (deviceConfigs) {
+                    // Store normalized for later use
+                    deviceConfig = deviceConfig || {};
+                    deviceConfig.deviceConfigs = normalizeKeys(deviceConfigs);
+                    renderDeviceConfigs(deviceConfig.deviceConfigs);
+                    log('Device configurations loaded', 'success');
+                }
+
+                // Load Custom Config
+                if (customConfig) {
+                    renderCustomConfig(customConfig);
+                    log('Custom configurations loaded', 'success');
+                }
+
+                // Show the config card
+                document.getElementById('configCard').style.display = 'block';
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        function getVal(obj, key) {
+            // Handle both camelCase and PascalCase
+            if (!obj) return undefined;
+            if (obj[key] !== undefined) return obj[key];
+            const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+            if (obj[pascal] !== undefined) return obj[pascal];
+            const camel = key.charAt(0).toLowerCase() + key.slice(1);
+            return obj[camel];
+        }
+
+        function escapeHtml(str) {
+            if (typeof str !== 'string') str = JSON.stringify(str || {});
+            return str.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function renderDeviceConfigs(deviceConfigs) {
+            const container = document.getElementById('deviceConfigsContainer');
+            container.innerHTML = '';
+
+            const entries = Object.entries(deviceConfigs);
+            if (entries.length === 0) {
+                container.innerHTML = '<div style="color:#888; padding:20px; text-align:center;">No device configurations found</div>';
+                return;
+            }
+
+            // Create tabs
+            const tabsHtml = entries.map(([deviceKey, device], index) =>
+                `<button class="tab ${index === 0 ? 'active' : ''}" onclick="switchDeviceTab('${deviceKey}')" data-device="${deviceKey}">
+                    ${device.deviceName || deviceKey}
+                </button>`
+            ).join('');
+
+            // Create tab contents
+            const contentsHtml = entries.map(([deviceKey, device], index) => `
+                <div id="device-tab-${deviceKey}" class="tab-content ${index === 0 ? 'active' : ''}">
+                    <!-- Device Info (readonly) -->
+                    <div class="device-info-grid">
+                        ${device.communication?.host ? `
+                        <div class="device-info-item">
+                            <div class="label">Host</div>
+                            <div class="value">${device.communication.host}:${device.communication.port || ''}</div>
+                        </div>` : ''}
+                        ${device.communication?.brokerUrl ? `
+                        <div class="device-info-item">
+                            <div class="label">Broker URL</div>
+                            <div class="value">${device.communication.brokerUrl}</div>
+                        </div>` : ''}
+                        ${device.communication?.macAddress ? `
+                        <div class="device-info-item">
+                            <div class="label">MAC Address</div>
+                            <div class="value">${device.communication.macAddress}</div>
+                        </div>` : ''}
+                    </div>
+                    <h4 style="margin-bottom:15px; color:#333;">Sensors (${(device.sensors || []).length})</h4>
+                    ${renderSensors(deviceKey, device.sensors || [])}
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="tabs">${tabsHtml}</div>
+                ${contentsHtml}
+            `;
+        }
+
+        function switchDeviceTab(deviceKey) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.device === deviceKey);
+            });
+            // Update tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `device-tab-${deviceKey}`);
+            });
+        }
+
+        function renderSensors(deviceKey, sensors) {
+            // Use JSON to safely encode deviceKey for use in onclick handlers
+            const jsonKey = JSON.stringify(deviceKey);
+            return sensors.map((sensor, index) => `
+                <div class="sensor-card" data-device-key="${escapeHtml(deviceKey)}" data-sensor-index="${index}">
+                    <div class="sensor-header">
+                        <div>
+                            <span class="sensor-name">${escapeHtml(sensor.name)}</span>
+                            <span style="color:#888; font-size:12px; margin-left:10px;">${escapeHtml(sensor.dtmi || '')}</span>
+                        </div>
+                        <div class="form-group inline" style="margin:0;">
+                            <label style="margin:0;">Enabled</label>
+                            <input type="checkbox" ${sensor.report?.enabled ? 'checked' : ''}
+                                   onchange="updateSensorField(${jsonKey}, ${index}, 'report.enabled', this.checked)">
+                        </div>
+                    </div>
+
+                    <!-- Basic Settings -->
+                    <div class="sensor-fields">
+                        <div class="form-group">
+                            <label>Sensor Group</label>
+                            <select onchange="updateSensorField(${jsonKey}, ${index}, 'sensorGroup', this.value)">
+                                ${SENSOR_GROUPS.map(g => `<option value="${g}" ${sensor.sensorGroup === g ? 'selected' : ''}>${g}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Interval (ms)</label>
+                            <input type="number" value="${sensor.report?.interval || 1000}"
+                                   onchange="updateSensorField(${jsonKey}, ${index}, 'report.interval', parseInt(this.value))">
+                        </div>
+                    </div>
+
+                    <!-- Advanced Settings Toggle -->
+                    <div class="advanced-toggle" onclick="toggleAdvanced('${deviceKey}-${index}')">
+                        <span class="advanced-toggle-icon" id="adv-icon-${deviceKey}-${index}">&#9654;</span>
+                        <span>Advanced Settings</span>
+                    </div>
+
+                    <!-- Advanced Settings Content -->
+                    <div class="advanced-content" id="adv-content-${deviceKey}-${index}">
+                        <!-- Parameters (readonly, display only) -->
+                        ${sensor.parameters ? `
+                        <div class="parameters-section">
+                            <h4>Parameters (read-only)</h4>
+                            <div class="param-grid">
+                                ${Object.entries(sensor.parameters).map(([k, v]) => `
+                                    <div class="param-item">
+                                        <span class="param-key">${escapeHtml(k)}:</span>
+                                        <span class="param-value">${escapeHtml(String(v))}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        <!-- Transform Pipeline -->
+                        <div class="pipeline-section">
+                            <h4>Transform Pipeline</h4>
+                            <div id="transforms-${deviceKey}-${index}">
+                                ${renderTransformPipeline(deviceKey, index, getVal(sensor.report || {}, 'transformPipeline') || [])}
+                            </div>
+                            <div class="add-btn" onclick="addTransform(${jsonKey}, ${index})">+ Add Transform</div>
+                        </div>
+
+                        <!-- DSP Filters -->
+                        <div class="pipeline-section dsp">
+                            <h4>DSP Filters</h4>
+                            <div id="dsp-${deviceKey}-${index}">
+                                ${renderDspPipeline(deviceKey, index, getVal(sensor.report || {}, 'dspPipeline') || [])}
+                            </div>
+                            <div class="add-btn" onclick="addDspFilter(${jsonKey}, ${index})">+ Add DSP Filter</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleAdvanced(id) {
+            const content = document.getElementById(`adv-content-${id}`);
+            const icon = document.getElementById(`adv-icon-${id}`);
+            content.classList.toggle('show');
+            icon.classList.toggle('open');
+        }
+
+        function renderPipelineParams(deviceKey, sensorIndex, pipelineType, itemIndex, params, defaultParams) {
+            const allParams = { ...defaultParams, ...params };
+            const jsonKey = JSON.stringify(deviceKey);
+            return Object.entries(allParams).map(([key, value]) => {
+                const inputType = typeof value === 'number' ? 'number' : 'text';
+                const step = typeof value === 'number' && !Number.isInteger(value) ? '0.01' : '1';
+                return `
+                    <div class="param-field">
+                        <label>${escapeHtml(key)}</label>
+                        <input type="${inputType}" ${inputType === 'number' ? `step="${step}"` : ''}
+                               value="${escapeHtml(String(value))}"
+                               onchange="updatePipelineParam(${jsonKey}, ${sensorIndex}, '${pipelineType}', ${itemIndex}, '${key}', this.value, '${inputType}')">
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTransformPipeline(deviceKey, sensorIndex, pipeline) {
+            if (!pipeline || pipeline.length === 0) return '<div style="color:#888; font-size:12px;">No transforms configured</div>';
+            const jsonKey = JSON.stringify(deviceKey);
+            return pipeline.map((t, i) => {
+                const enabled = getVal(t, 'enabled');
+                const type = getVal(t, 'type') || Object.keys(TRANSFORM_TYPES)[0];
+                const params = getVal(t, 'parameters') || {};
+                const defaultParams = TRANSFORM_TYPES[type] || {};
+                return `
+                <div class="pipeline-item">
+                    <div class="pipeline-item-header">
+                        <input type="checkbox" ${enabled !== false ? 'checked' : ''}
+                               onchange="updatePipelineItem(${jsonKey}, ${sensorIndex}, 'transformPipeline', ${i}, 'enabled', this.checked)">
+                        <select onchange="onPipelineTypeChange(${jsonKey}, ${sensorIndex}, 'transformPipeline', ${i}, this.value)">
+                            ${Object.keys(TRANSFORM_TYPES).map(tp => `<option value="${tp}" ${type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
+                        </select>
+                        <button class="btn-sm btn-danger" onclick="removePipelineItem(${jsonKey}, ${sensorIndex}, 'transformPipeline', ${i})">Remove</button>
+                    </div>
+                    <div class="pipeline-params">
+                        ${renderPipelineParams(deviceKey, sensorIndex, 'transformPipeline', i, params, defaultParams)}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function renderDspPipeline(deviceKey, sensorIndex, pipeline) {
+            if (!pipeline || pipeline.length === 0) return '<div style="color:#888; font-size:12px;">No DSP filters configured</div>';
+            const jsonKey = JSON.stringify(deviceKey);
+            return pipeline.map((f, i) => {
+                const enabled = getVal(f, 'enabled');
+                const type = getVal(f, 'type') || Object.keys(DSP_FILTER_TYPES)[0];
+                const params = getVal(f, 'parameters') || {};
+                const defaultParams = DSP_FILTER_TYPES[type] || {};
+                return `
+                <div class="pipeline-item">
+                    <div class="pipeline-item-header">
+                        <input type="checkbox" ${enabled !== false ? 'checked' : ''}
+                               onchange="updatePipelineItem(${jsonKey}, ${sensorIndex}, 'dspPipeline', ${i}, 'enabled', this.checked)">
+                        <select onchange="onPipelineTypeChange(${jsonKey}, ${sensorIndex}, 'dspPipeline', ${i}, this.value)">
+                            ${Object.keys(DSP_FILTER_TYPES).map(tp => `<option value="${tp}" ${type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
+                        </select>
+                        <button class="btn-sm btn-danger" onclick="removePipelineItem(${jsonKey}, ${sensorIndex}, 'dspPipeline', ${i})">Remove</button>
+                    </div>
+                    <div class="pipeline-params">
+                        ${renderPipelineParams(deviceKey, sensorIndex, 'dspPipeline', i, params, defaultParams)}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function toggleCollapse(id) {
+            document.getElementById(id).classList.toggle('show');
+        }
+
+        function updateSensorField(deviceKey, sensorIndex, path, value) {
+            const parts = path.split('.');
+            let target = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!target[parts[i]]) target[parts[i]] = {};
+                target = target[parts[i]];
+            }
+            target[parts[parts.length - 1]] = value;
+            log(`Updated ${deviceKey}.sensors[${sensorIndex}].${path} = ${value}`);
+        }
+
+        function updatePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex, field, value) {
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report[pipelineType]) sensor.report[pipelineType] = [];
+            sensor.report[pipelineType][itemIndex][field] = value;
+            log(`Updated ${pipelineType}[${itemIndex}].${field} = ${value}`);
+        }
+
+        function updatePipelineParam(deviceKey, sensorIndex, pipelineType, itemIndex, paramKey, value, inputType) {
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report[pipelineType]) sensor.report[pipelineType] = [];
+            if (!sensor.report[pipelineType][itemIndex].parameters) {
+                sensor.report[pipelineType][itemIndex].parameters = {};
+            }
+            // Convert value based on input type
+            const convertedValue = inputType === 'number' ? parseFloat(value) : value;
+            sensor.report[pipelineType][itemIndex].parameters[paramKey] = convertedValue;
+            log(`Updated ${pipelineType}[${itemIndex}].parameters.${paramKey} = ${convertedValue}`);
+        }
+
+        function onPipelineTypeChange(deviceKey, sensorIndex, pipelineType, itemIndex, newType) {
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            const item = sensor.report[pipelineType][itemIndex];
+            item.type = newType;
+            // Reset parameters to defaults for new type
+            const defaults = pipelineType === 'transformPipeline' ? TRANSFORM_TYPES[newType] : DSP_FILTER_TYPES[newType];
+            item.parameters = { ...defaults };
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
+            log(`Changed ${pipelineType}[${itemIndex}] type to ${newType}`);
+        }
+
+        function addTransform(deviceKey, sensorIndex) {
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report.transformPipeline) sensor.report.transformPipeline = [];
+            const defaultType = Object.keys(TRANSFORM_TYPES)[0];
+            sensor.report.transformPipeline.push({
+                type: defaultType,
+                enabled: true,
+                parameters: { ...TRANSFORM_TYPES[defaultType] }
+            });
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
+            log(`Added transform to ${deviceKey}.sensors[${sensorIndex}]`);
+        }
+
+        function addDspFilter(deviceKey, sensorIndex) {
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            if (!sensor.report) sensor.report = {};
+            if (!sensor.report.dspPipeline) sensor.report.dspPipeline = [];
+            const defaultType = Object.keys(DSP_FILTER_TYPES)[0];
+            sensor.report.dspPipeline.push({
+                type: defaultType,
+                enabled: true,
+                parameters: { ...DSP_FILTER_TYPES[defaultType] }
+            });
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
+            log(`Added DSP filter to ${deviceKey}.sensors[${sensorIndex}]`);
+        }
+
+        function removePipelineItem(deviceKey, sensorIndex, pipelineType, itemIndex) {
+            const sensor = deviceConfig.deviceConfigs[deviceKey].sensors[sensorIndex];
+            sensor.report[pipelineType].splice(itemIndex, 1);
+            renderDeviceConfigsKeepingState(deviceKey, sensorIndex);
+            log(`Removed ${pipelineType}[${itemIndex}]`);
+        }
+
+        // Helper function to re-render while keeping advanced settings expanded
+        function renderDeviceConfigsKeepingState(deviceKey, sensorIndex) {
+            const advId = `${deviceKey}-${sensorIndex}`;
+            renderDeviceConfigs(deviceConfig.deviceConfigs);
+            // Re-open the advanced settings after render
+            const content = document.getElementById(`adv-content-${advId}`);
+            const icon = document.getElementById(`adv-icon-${advId}`);
+            if (content) content.classList.add('show');
+            if (icon) icon.classList.add('open');
+        }
+
+        // Main tab switching
+        function switchMainTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.main-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent.toLowerCase().includes(tabName));
+            });
+            // Update tab contents
+            document.querySelectorAll('.main-tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `main-tab-${tabName}`);
+            });
+        }
+
+        // Custom config rendering and editing
+        function renderCustomConfig(config) {
+            const container = document.getElementById('customConfigContainer');
+            if (!config || Object.keys(config).length === 0) {
+                container.innerHTML = '<div class="kv-empty">No custom configurations</div>';
+                return;
+            }
+
+            const entries = Object.entries(config);
+            container.innerHTML = '<div class="kv-editor">' + entries.map(([key, value], index) => `
+                <div class="kv-row">
+                    <input type="text" value="${escapeHtml(key)}" placeholder="Key" onchange="updateCustomConfigKey(${index}, this.value)">
+                    <input type="text" value="${escapeHtml(String(value))}" placeholder="Value" onchange="updateCustomConfigValue('${escapeHtml(key)}', this.value)">
+                    <button class="btn-sm btn-danger" onclick="removeCustomConfigRow('${escapeHtml(key)}')">Remove</button>
+                </div>
+            `).join('') + '</div>';
+        }
+
+        function addCustomConfigRow() {
+            if (!customConfig) customConfig = {};
+            const newKey = `key_${Object.keys(customConfig).length + 1}`;
+            customConfig[newKey] = '';
+            renderCustomConfig(customConfig);
+            log(`Added custom config: ${newKey}`);
+        }
+
+        function updateCustomConfigKey(index, newKey) {
+            const entries = Object.entries(customConfig);
+            if (index < entries.length) {
+                const [oldKey, value] = entries[index];
+                delete customConfig[oldKey];
+                customConfig[newKey] = value;
+                renderCustomConfig(customConfig);
+                log(`Renamed custom config key: ${oldKey} -> ${newKey}`);
+            }
+        }
+
+        function updateCustomConfigValue(key, newValue) {
+            customConfig[key] = newValue;
+            log(`Updated custom config: ${key} = ${newValue}`);
+        }
+
+        function removeCustomConfigRow(key) {
+            delete customConfig[key];
+            renderCustomConfig(customConfig);
+            log(`Removed custom config: ${key}`);
+        }
+
+        function clearConfig() {
+            systemConfig = null;
+            deviceConfig = null;
+            customConfig = null;
+            appSettings = null;
+            registration = null;
+            document.getElementById('registrationCard').style.display = 'none';
+            document.getElementById('configCard').style.display = 'none';
+            document.getElementById('deviceIdDisplay').textContent = '-';
+            document.getElementById('deviceNameDisplay').textContent = '-';
+            document.getElementById('configTopicDisplay').textContent = '-';
+            document.getElementById('regStatusBadge').textContent = '-';
+            document.getElementById('deviceConfigsContainer').innerHTML = '';
+            document.getElementById('customConfigContainer').innerHTML = '<div class="kv-empty">No custom configurations loaded</div>';
+            document.getElementById('natsUrl').value = 'nats://localhost:4222';
+            document.getElementById('natsAuthStrategy').value = 'none';
+            document.getElementById('natsUsername').value = '';
+            document.getElementById('natsPassword').value = '';
+            document.getElementById('natsToken').value = '';
+            document.getElementById('natsCredFile').value = '';
+            updateAuthFields();
+            // Reset to first tab
+            switchMainTab('device');
+            log('Configuration cleared', 'info');
+        }
+
+        async function applyConfig() {
+            if (!registration || !registration.deviceId) {
+                log('No registration found. Device must be registered first.', 'error');
+                return;
+            }
+
+            const request = {
+                natsUrl: document.getElementById('natsUrl').value,
+                natsAuthStrategy: document.getElementById('natsAuthStrategy').value,
+                natsUsername: document.getElementById('natsUsername').value || null,
+                natsPassword: document.getElementById('natsPassword').value || null,
+                natsToken: document.getElementById('natsToken').value || null,
+                natsCredFile: document.getElementById('natsCredFile').value || null,
+                registration: registration,
+                deviceConfigs: deviceConfig?.deviceConfigs
+            };
+
+            try {
+                log('Sending configuration update via NATS...');
+                const response = await fetch('/api/config/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    log(`Configuration sent! Topic: ${result.topic}`, 'success');
+                    log(`MessageId: ${result.messageId}`, 'success');
+
+                    // Add payload to the panel
+                    if (result.payload) {
+                        addPayload(result.topic, result.payload);
+                        // Auto-open the panel to show the new payload
+                        const panel = document.getElementById('payloadPanel');
+                        const toggle = document.getElementById('payloadToggle');
+                        if (!panel.classList.contains('open')) {
+                            panel.classList.add('open');
+                            toggle.classList.add('panel-open');
+                            document.body.classList.add('panel-open');
+                        }
+                    }
+                } else {
+                    throw new Error(result.error || 'Failed to send configuration');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

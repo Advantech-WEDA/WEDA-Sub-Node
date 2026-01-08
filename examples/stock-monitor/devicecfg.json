@@ -1,0 +1,57 @@
+{
+  "SubNode": {
+    "Name": "MyStockMonitor",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "TWSE",
+    "Model": "RealTimeQuote",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "StockMonitorConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "DeviceCommunication": {
+        "Host": "mis.twse.com.tw",
+        "Port": 443
+      },
+      "Sensors": [
+        {
+          "Name": "2395",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech",
+            "Description": "Stock of Advantech",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "2330",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metrics": "Current,Volume,Open,High,Low,Change,ChangePercent"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC",
+            "Description": "Stock of TSMC",
+            "Schema": "double"
+          }
+        }
+      ]
+    }
+  }
+}

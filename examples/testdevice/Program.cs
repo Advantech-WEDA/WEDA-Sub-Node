@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Host;
 using Weda.SubNode.Simulators.Modbus;
@@ -11,7 +12,7 @@ var builder = WedaApplication.CreateBuilder(args)
     .AddHealthReporting()  // uplink
     .AddCommands()         // downlink
     .AddConfigUpdates()    // downlink
-    // .UseMockCloud();       // use a mock server instead of Weda.Core
+//    .UseMockCloud();       // use a mock server instead of Weda.Core
     ;
 
 builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");
@@ -45,7 +46,7 @@ static TcpModbusSimulatorConfiguration ConfigureTcpModbusSimulator()
         },
         Simulation = new SimulationSettings
         {
-            GlobalUpdateIntervalSeconds = 5,
+            GlobalUpdateIntervalSeconds = 2,
             EnableValueChanges = true
         },
         Sensors =

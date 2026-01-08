@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using NATS.Client.Core;
 using NATS.Net;
+using Weda.SubNode.Abstractions.Utilities;
 
 namespace Weda.SubNode.Abstractions.Cloud.Nats;
 
@@ -40,18 +41,32 @@ public enum NatsAuthStrategy
 }
 
 /// <summary>
-/// Settings for a named NATS connection
+/// Settings for a named NATS connection.
+/// Can be configured programmatically or loaded from systemcfg.json.
 /// </summary>
 public record NatsConnectionSettings
 {
-    public const string SectionName = "Nats";
+    /// <summary>
+    /// Configuration section name within SystemCfg.
+    /// Full path when using IConfiguration: "SystemConfig:WedaNode"
+    /// </summary>
+    public const string SectionName = "WedaNode";
+
+    private const string NatsSchemePrefix = "nats://";
 
     public static readonly NatsConnectionSettings Default = new();
 
+    private string _url = "localhost:4222";
+
     /// <summary>
-    /// URL for the NATS connection
+    /// URL for the NATS connection.
+    /// The "nats://" prefix is automatically added if not present.
     /// </summary>
-    public string Url { get; set; } = "nats://localhost:4222";
+    public string Url
+    {
+        get => _url.EnsurePrefix(NatsSchemePrefix);
+        set => _url = value ?? "localhost:4222";
+    }
 
     /// <summary>
     /// Connection name for identification

@@ -13,33 +13,43 @@ using Weda.SubNode.Core.Protocols.ISensing.Models;
 namespace Weda.SubNode.Core.Protocols.ISensing;
 
 /// <summary>
-/// ISensing protocol parser implementing Publish-Subscribe pattern.
+/// ISensing protocol parser implementing Pub/Sub pattern.
 /// Handles MQTT-based ISensing protocol for devices like WISE-4012SE.
-/// Supports both data subscription and command publishing.
+/// Parser owns DeviceConfiguration and handles all mapping logic internally.
 /// </summary>
-public class ISensingPubSubParser : IPublishSubscribeProtocolParser
+public class ISensingPubSubParser : IPubSubProtocolParser
 {
-    private readonly IMessageBroker _communication;
+    private readonly IPubSub _communication;
+    private readonly DeviceConfiguration _configuration;
     private readonly ILogger<ISensingPubSubParser> _logger;
     private readonly string _dataTopic;
     private readonly string _statusTopic;
     private readonly string _commandTopic;
 
-    private Action<List<TelemetryMeasure>>? _dataCallback;
-    private Action<ErrorOr<object>>? _commandResponseCallback;
     private bool _isSubscribed;
 
+    /// <summary>
+    /// Event raised when telemetry data is received from subscription.
+    /// </summary>
+    public event Action<List<TelemetryMeasure>>? OnTelemetryReceived;
+
     public ISensingPubSubParser(
-        IMessageBroker communication,
-        string macAddress,
-        ILogger<ISensingPubSubParser> logger,
-        string manufacturer = "Advantech")
+        DeviceConfiguration configuration,
+        IPubSub communication,
+        ILogger<ISensingPubSubParser> logger)
     {
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        if (string.IsNullOrWhiteSpace(macAddress))
-            throw new ArgumentException("MAC address cannot be null or empty", nameof(macAddress));
+        // Extract MQTT settings from configuration
+        var macAddress = configuration.DeviceCommunication.TryGetValue("MacAddress", out var mac)
+            ? mac?.ToString() ?? throw new InvalidOperationException("MacAddress not found in communication configuration")
+            : throw new InvalidOperationException("MacAddress not found in communication configuration");
+
+        var manufacturer = configuration.DeviceCommunication.TryGetValue("Manufacturer", out var mfg)
+            ? mfg?.ToString() ?? "Advantech"
+            : "Advantech";
 
         // ISensing topic pattern: {Manufacturer}/{MacAddress}/{type}
         _dataTopic = $"{manufacturer}/{macAddress}/data";
@@ -63,23 +73,18 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
 
     #endregion
 
-    #region IPublishSubscribeProtocolParser Implementation
+    #region IPubSubProtocolParser Implementation
 
-    public async Task SubscribeToSensorDataAsync(
-        SensorMapping sensorMapping,
-        Action<List<TelemetryMeasure>> callback,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Start subscription to receive telemetry data.
+    /// </summary>
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        if (callback == null)
-            throw new ArgumentNullException(nameof(callback));
-
         if (_isSubscribed)
         {
-            _logger.LogWarning("Already subscribed to sensor data. Unsubscribe first before resubscribing.");
+            _logger.LogWarning("Already subscribed to sensor data. Stop first before restarting.");
             return;
         }
-
-        _dataCallback = callback;
 
         // Subscribe to message broker events
         _communication.MessageReceived += OnMessageReceived;
@@ -95,7 +100,10 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
             _dataTopic, _statusTopic);
     }
 
-    public async Task UnsubscribeFromSensorDataAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Stop subscription and clean up resources.
+    /// </summary>
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         if (!_isSubscribed)
         {
@@ -110,13 +118,15 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
         await _communication.UnsubscribeAsync(_dataTopic, cancellationToken);
         await _communication.UnsubscribeAsync(_statusTopic, cancellationToken);
 
-        _dataCallback = null;
         _isSubscribed = false;
 
         _logger.LogInformation("Unsubscribed from ISensing topics");
     }
 
-    public async Task PublishCommandAsync(
+    /// <summary>
+    /// Execute command on device (publish to command topic).
+    /// </summary>
+    public async Task<ErrorOr<object>> ExecuteCommandAsync(
         DeviceCommand command,
         CancellationToken cancellationToken = default)
     {
@@ -130,30 +140,16 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
             _logger.LogInformation(
                 "Published command {CommandName} to topic {Topic}",
                 command.DeviceCmd, _commandTopic);
+
+            return "Command published successfully";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to publish command {CommandName}", command.DeviceCmd);
-            throw;
+            return Error.Failure(
+                code: "Command.PublishFailed",
+                description: ex.Message);
         }
-    }
-
-    public async Task SubscribeToCommandResponseAsync(
-        Action<ErrorOr<object>> callback,
-        CancellationToken cancellationToken = default)
-    {
-        if (callback == null)
-            throw new ArgumentNullException(nameof(callback));
-
-        _commandResponseCallback = callback;
-
-        // Subscribe to command response topic if needed
-        var responseTopic = $"{_commandTopic}/response";
-        await _communication.SubscribeAsync(responseTopic, cancellationToken);
-
-        _logger.LogInformation(
-            "Subscribed to command response topic: {Topic}",
-            responseTopic);
     }
 
     #endregion
@@ -206,9 +202,25 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
                 _ => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
 
-            // Process each sensor field in AdditionalData
+            // Process each sensor field in AdditionalData using DeviceConfiguration for mapping
             foreach (var (fieldName, fieldValue) in sensorData.AdditionalData)
             {
+                // Find matching sensor in configuration by channel name
+                var sensor = _configuration.Sensors.FirstOrDefault(s =>
+                    s.Name.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+
+                if (sensor == null)
+                {
+                    _logger.LogTrace("No sensor configuration found for channel {Channel}", fieldName);
+                    continue;
+                }
+
+                if (!sensor.Report.Enabled)
+                {
+                    _logger.LogTrace("Sensor {SensorName} is disabled, skipping", sensor.Name);
+                    continue;
+                }
+
                 // Extract numeric value
                 double value = fieldValue.ValueKind switch
                 {
@@ -221,7 +233,7 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
 
                 var measure = new TelemetryMeasure
                 {
-                    ResourceId = fieldName, // Will be mapped by SensorMapping in Device layer
+                    ResourceId = sensor.ResourceId,
                     Value = value,
                     Timestamp = timestamp
                 };
@@ -229,14 +241,14 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
                 measures.Add(measure);
 
                 _logger.LogTrace(
-                    "Parsed ISensing data: {FieldName} = {Value} (Quality: {Quality})",
-                    fieldName, value, ISensingQualityCode.MapToQuality(sensorData.QualityCode));
+                    "Parsed ISensing data: {FieldName} = {Value} (ResourceId: {ResourceId}, Quality: {Quality})",
+                    fieldName, value, sensor.ResourceId, ISensingQualityCode.MapToQuality(sensorData.QualityCode));
             }
 
-            // Invoke callback with parsed measures
+            // Raise event with parsed measures
             if (measures.Count > 0)
             {
-                _dataCallback?.Invoke(measures);
+                OnTelemetryReceived?.Invoke(measures);
             }
         }
         catch (Exception ex)
@@ -272,19 +284,12 @@ public class ISensingPubSubParser : IPublishSubscribeProtocolParser
         try
         {
             var json = Encoding.UTF8.GetString(payload);
-            var response = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-
-            if (response != null)
-            {
-                _commandResponseCallback?.Invoke(response);
-            }
+            _logger.LogDebug("Received command response: {Response}", json);
+            // Command responses can be handled by subscribing to specific topics if needed
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error parsing command response");
-            _commandResponseCallback?.Invoke(Error.Failure(
-                code: "CommandResponse.ParseFailed",
-                description: ex.Message));
         }
     }
 

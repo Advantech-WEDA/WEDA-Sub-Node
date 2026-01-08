@@ -11,7 +11,7 @@ using Weda.SubNode.Cloud.Serialization;
 namespace Weda.SubNode.Cloud;
 
 /// <summary>
-/// Static factory for creating Weda Cloud Service instances
+/// Static factory for creating WedaNode instances
 /// Provides convenient creation methods following the pattern:
 /// - Cloud.Default
 /// </summary>

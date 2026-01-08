@@ -43,7 +43,7 @@
 {
   "DeviceId": "AdvancedDemo001",
   "DeviceName": "AdvancedSensorHub",
-  "DeviceType": "Custom",
+  "SubNodeType": "Custom",
   "Sensors": [
     {
       "Name": "temperature.sensor",
@@ -343,7 +343,7 @@ Subject: eco1j.weda.dm.config.{deviceId}.req
       "desired": {
         "subNodeDeviceConfig": {
           "deviceConfigs": {
-            "{DeviceTypeName}": {
+            "{SubNodeTypeName}": {
               "deviceName": "AdvancedSensorHub",
               "sensors": [ /* sensor configs */ ]
             }

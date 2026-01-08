@@ -1,3 +1,4 @@
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Protocols.ISensing;
@@ -14,15 +15,15 @@ public class Wise4012SeConfigurationTests
         _configuration = new DeviceConfiguration
         {
             DeviceName = "WISE-4012SE Test",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "TestSubNode",
                 Manufacturer = "Advantech",
                 Model = "WISE-4012SE",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>
+            DeviceCommunication = new Dictionary<string, object>
             {
                 ["BrokerUrl"] = "mqtt://localhost:1883",
                 ["MacAddress"] = "00D0C9FAC80E",
@@ -41,7 +42,7 @@ public class Wise4012SeConfigurationTests
                     {
                         ["FieldName"] = "ai0"
                     },
-                    Config = new SensorConfig
+                    Report = new SensorReport
                     {
                         Enabled = true,
                         Unit = "mA"
@@ -68,15 +69,15 @@ public class Wise4012SeConfigurationTests
         var config = new DeviceConfiguration
         {
             DeviceName = "Test",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "TestSubNode",
                 Manufacturer = "Advantech",
                 Model = "Test",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>()
+            DeviceCommunication = new Dictionary<string, object>()
         };
 
         // Act & Assert
@@ -100,15 +101,15 @@ public class Wise4012SeConfigurationTests
         var config = new DeviceConfiguration
         {
             DeviceName = "Test",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "TestSubNode",
                 Manufacturer = "Advantech",
                 Model = "Test",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>()
+            DeviceCommunication = new Dictionary<string, object>()
         };
 
         // Act
@@ -149,7 +150,7 @@ public class Wise4012SeConfigurationTests
             Dtmi = "dtmi:advantech:EdgeSync:DI;1",
             DeviceResourceId = "test-device",
             SensorGroup = SensorGroup.DI,
-            Config = new SensorConfig { Enabled = true }
+            Report = new SensorReport { Enabled = true }
         };
 
         // Act
@@ -179,7 +180,7 @@ public class Wise4012SeConfigurationTests
             Dtmi = "dtmi:test;1",
             DeviceResourceId = "test-device",
             SensorGroup = sensorGroup,
-            Config = new SensorConfig { Enabled = true }
+            Report = new SensorReport { Enabled = true }
         };
 
         // Act

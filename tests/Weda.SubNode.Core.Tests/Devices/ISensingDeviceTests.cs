@@ -2,8 +2,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
+using Weda.SubNode.Core.Communication.Mqtt;
 using Weda.SubNode.Core.Devices;
 using Weda.SubNode.TestBase;
 using Xunit;
@@ -25,15 +27,20 @@ public class ISensingDeviceTests : IDisposable
         {
             DeviceId = "test-mqtt-device",
             DeviceName = "Test MQTT ISensing Device",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "Test",
                 Manufacturer = "Advantech",
                 Model = "WISE-4012SE",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>
+            Dtdl = new DtdlConfig
+            {
+                AutoGenEnabled = false,
+                DtdlPath = "tests/Weda.SubNode.TestBase/Fixtures/test-device.dtdl.json"
+            },
+            DeviceCommunication = new Dictionary<string, object>
             {
                 ["BrokerUrl"] = "mqtt://localhost:1883",
                 ["ClientId"] = "test-client",
@@ -49,7 +56,7 @@ public class ISensingDeviceTests : IDisposable
                     Dtmi = "dtmi:advantech:EdgeSync:AI;1",
                     DeviceResourceId = "test-mqtt-device",
                     SensorGroup = SensorGroup.AI,
-                    Config = new SensorConfig
+                    Report = new SensorReport
                     {
                         Enabled = true,
                         Unit = "mA"
@@ -62,7 +69,7 @@ public class ISensingDeviceTests : IDisposable
                     Dtmi = "dtmi:advantech:EdgeSync:DO;1",
                     DeviceResourceId = "test-mqtt-device",
                     SensorGroup = SensorGroup.DO,
-                    Config = new SensorConfig { Enabled = true }
+                    Report = new SensorReport { Enabled = true }
                 }
             }
         };
@@ -76,7 +83,7 @@ public class ISensingDeviceTests : IDisposable
     {
         // Assert
         Assert.NotNull(_device);
-        Assert.Equal("test-mqtt-device", _device.DeviceId);
+        Assert.Equal("test-mqtt-device", _device.SubNodeId);
         Assert.Equal("Test MQTT ISensing Device", _device.DeviceName);
     }
 
@@ -89,7 +96,7 @@ public class ISensingDeviceTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithNullMessageBroker_ShouldThrowArgumentNullException()
+    public void Constructor_WithNullPubSub_ShouldThrowArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
@@ -103,15 +110,20 @@ public class ISensingDeviceTests : IDisposable
         var invalidConfig = new DeviceConfiguration
         {
             DeviceName = "Test",
-            DeviceType = DeviceType.CustomDevice,
-            DeviceCapabilities = new DeviceCapabilities
+            SubNodeInfo = new SubNodeInfo
             {
+                Name = "Test",
                 Manufacturer = "Advantech",
                 Model = "Test",
-                SubNodeSwVersion = "1.0",
-                DeviceInfo = new Dictionary<string, object>()
+                SwVersion = "1.0",
+                SubNodeType = SubNodeType.CustomDevice
             },
-            Communication = new Dictionary<string, object>()
+            Dtdl = new DtdlConfig
+            {
+                AutoGenEnabled = false,
+                DtdlPath = "tests/Weda.SubNode.TestBase/Fixtures/test-device.dtdl.json"
+            },
+            DeviceCommunication = new Dictionary<string, object>()
         };
 
         // Act & Assert

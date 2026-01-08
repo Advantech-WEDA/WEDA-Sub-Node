@@ -280,7 +280,7 @@ Add the `Nats` configuration section to `appsettings.json`:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "CredFile": "",
     "Name": "default",
@@ -594,7 +594,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     // ★ Define sensors ★
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",                   // ← Sensor identifier
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1", // ← Digital Twin definition
@@ -954,7 +954,7 @@ Configure in `appsettings.json`:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://production:4222",
     "CredFile": "/path/to/production.creds",
     "Name": "production",
@@ -1085,7 +1085,7 @@ static DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     // Define sensors
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",
@@ -1326,7 +1326,7 @@ Add the `Nats` configuration section to `appsettings.json`:
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://172.22.160.197:4224",
     "CredFile": "",
     "Name": "default",

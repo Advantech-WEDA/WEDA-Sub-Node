@@ -14,12 +14,12 @@ public class ISensingProtocolParserTests
 {
     private readonly ISensingProtocolParser _parser;
     private readonly SensorMapping _defaultMapping;
-    private readonly IMessageBroker _mockBroker;
+    private readonly IPubSub _mockPubSub;
 
     public ISensingProtocolParserTests()
     {
-        _mockBroker = Substitute.For<IMessageBroker>();
-        _parser = new ISensingProtocolParser(_mockBroker);
+        _mockPubSub = Substitute.For<IPubSub>();
+        _parser = new ISensingProtocolParser(_mockPubSub);
         _defaultMapping = new SensorMapping
         {
             FieldToResourceId = new Dictionary<string, string>

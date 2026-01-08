@@ -59,13 +59,13 @@ public record ConfigUpdateReportDto(
         ConfigUpdateResultDto result)
     {
         var reportedSensors = deviceConfig.Sensors
-            .Select(s => new SensorConfigReportDto(
+            .Select(s => new SensorReportReportDto(
                 SensorId: s.ResourceId,
-                Enabled: s.Config.Enabled,
-                Interval: (int)s.Config.Interval,
-                DspConfig: ConvertDspConfig(s.Config),
-                Thresholds: ConvertThresholds(s.Config),
-                Calibration: ConvertCalibration(s.Config),
+                Enabled: s.Report.Enabled,
+                Interval: (int)s.Report.Interval,
+                DspConfig: ConvertDspConfig(s.Report),
+                Thresholds: ConvertThresholds(s.Report),
+                Calibration: ConvertCalibration(s.Report),
                 Status: "active",
                 ErrorMessage: null,
                 LastUpdateTime: DateTimeOffset.UtcNow))
@@ -89,7 +89,7 @@ public record ConfigUpdateReportDto(
         var deviceStatus = new DeviceStatusDto(
             State: "connected",
             LastConnectedTime: DateTimeOffset.UtcNow,
-            FirmwareVersion: deviceConfig.DeviceCapabilities.SubNodeSwVersion,
+            FirmwareVersion: deviceConfig.SwVersion,
             CpuUsage: null,
             MemoryUsage: null,
             Temperature: null);
@@ -111,7 +111,7 @@ public record ConfigUpdateReportDto(
             Result: result);
     }
 
-    private static DspConfigDto? ConvertDspConfig(Weda.SubNode.Abstractions.Telemetry.SensorConfig config)
+    private static DspConfigDto? ConvertDspConfig(Weda.SubNode.Abstractions.Telemetry.SensorReport config)
     {
         // Check if DSP pipeline is configured
         if (config.DspPipeline == null || config.DspPipeline.Count == 0)
@@ -134,7 +134,7 @@ public record ConfigUpdateReportDto(
             Parameters: firstFilter.Parameters);
     }
 
-    private static ThresholdsDto? ConvertThresholds(Weda.SubNode.Abstractions.Telemetry.SensorConfig config)
+    private static ThresholdsDto? ConvertThresholds(Weda.SubNode.Abstractions.Telemetry.SensorReport config)
     {
         // Check if thresholds are configured
         if (config.Thresholds == null)
@@ -149,7 +149,7 @@ public record ConfigUpdateReportDto(
             LowerCritical: config.Thresholds.LowerCritical);
     }
 
-    private static CalibrationDto? ConvertCalibration(Weda.SubNode.Abstractions.Telemetry.SensorConfig config)
+    private static CalibrationDto? ConvertCalibration(Weda.SubNode.Abstractions.Telemetry.SensorReport config)
     {
         // Extract calibration from transform pipeline
         var calibrationTransform = config.TransformPipeline

@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 
 namespace Weda.SubNode.Abstractions.Events;
 
@@ -7,9 +8,11 @@ namespace Weda.SubNode.Abstractions.Events;
 /// Fired when cloud service sends a configuration update command.
 /// </summary>
 /// <param name="DeviceId">The device identifier.</param>
+/// <param name="ConfigType">The type of configuration (system-config, device-config, or custom-config).</param>
 /// <param name="Message">The configuration update message from cloud.</param>
 /// <param name="Timestamp">The timestamp when update was received.</param>
 public sealed record UpdateConfigurationEvent(
     string DeviceId,
-    SubNodeConfigurationUpdateMessage Message,
+    SubscriptionType ConfigType,
+    SubNodeConfigUpdateMessage Message,
     DateTimeOffset Timestamp);

@@ -16,7 +16,7 @@
 從 Cloud 發送的 Transform pipeline 配置更新無法生效 (例如將 UnitConversion 從 C→F 改成 C→K)
 
 ### 根本原因
-在 `DeviceBase.ApplyBaseConfigurationUpdateAsync()` 中,只調用了 `ApplySensorConfigUpdates()` 來更新基本配置,但從未調用 `ApplyAllPipelineUpdates()` 來更新 Transform 和 DSP Pipeline 的參數。
+在 `DeviceBase.ApplyBaseConfigurationUpdateAsync()` 中,只調用了 `ApplySensorReportUpdates()` 來更新基本配置,但從未調用 `ApplyAllPipelineUpdates()` 來更新 Transform 和 DSP Pipeline 的參數。
 
 ### 修復位置
 - **文件**: [src/Weda.SubNode.Core/Devices/DeviceBase.cs](src/Weda.SubNode.Core/Devices/DeviceBase.cs#L340-L376)

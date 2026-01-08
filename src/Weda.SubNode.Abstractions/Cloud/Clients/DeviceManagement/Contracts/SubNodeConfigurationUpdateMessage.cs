@@ -1,13 +1,48 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 
 /// <summary>
 /// SubNode configuration update message received from cloud.
-/// This message contains the full device configuration structure following the SubNode config format.
+///
+/// JSON format:
+/// <code>
+/// {
+///   "cmd": "updateSysConfig",
+///   "protoVer": "eco1j",
+///   "deviceId": "device-001",
+///   "orgId": "tenant-alias",
+///   "seqId": 1,
+///   "reqSeqId": "df00a8d8-01e0-44c0-a169-8b0630a1a860",
+///   "timestamp": 1735776000000,
+///   "data": {
+///     "cfg": {
+///       "reported": { ... },
+///       "desired": {
+///         "systemcfg": { ... },
+///         "customcfg": { ... },
+///         "devicecfg": { ... }
+///       }
+///     }
+///   }
+/// }
+/// </code>
 /// </summary>
-public class SubNodeConfigurationUpdateMessage
+public class SubNodeConfigUpdateMessage
 {
+    /// <summary>
+    /// Command type (e.g., "updateSysConfig", "updateDevConfig", "updateCustomConfig")
+    /// </summary>
+    [JsonPropertyName("cmd")]
+    public string Cmd { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Protocol version
+    /// </summary>
+    [JsonPropertyName("protoVer")]
+    public string ProtoVer { get; set; } = string.Empty;
+
     /// <summary>
     /// Device ID that this configuration update is for
     /// </summary>
@@ -15,16 +50,10 @@ public class SubNodeConfigurationUpdateMessage
     public string DeviceId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Group ID for multi-tenant scenarios
+    /// Group/tenant ID for multi-tenant scenarios
     /// </summary>
     [JsonPropertyName("groupId")]
     public string GroupId { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Command type (e.g., "updateCmd")
-    /// </summary>
-    [JsonPropertyName("cmd")]
-    public string Cmd { get; set; } = string.Empty;
 
     /// <summary>
     /// Sequence ID for tracking
@@ -64,48 +93,125 @@ public class SubNodeConfigUpdateData
 }
 
 /// <summary>
-/// Configuration state containing desired and reported states
+/// Configuration state containing desired and reported states.
+/// Both desired and reported use the same structure with systemcfg, devicecfg, customcfg keys.
 /// </summary>
 public class SubNodeConfigState
 {
     /// <summary>
-    /// Desired configuration from cloud
+    /// Desired configuration from cloud.
+    /// Contains the configuration sections that should be applied.
     /// </summary>
     [JsonPropertyName("desired")]
-    public SubNodeDesiredConfig? Desired { get; set; }
+    public SubNodeDesiredConfigSections? Desired { get; set; }
 
     /// <summary>
-    /// Reported configuration from device (included in response)
+    /// Reported configuration from device.
+    /// Contains the current configuration state plus status information.
     /// </summary>
     [JsonPropertyName("reported")]
-    public SubNodeReportedConfig? Reported { get; set; }
+    public SubNodeReportedConfigSections? Reported { get; set; }
 }
 
 /// <summary>
-/// Desired configuration from cloud
+/// Base configuration sections container.
+/// The structure mirrors the local config files: systemcfg.json, devicecfg.json, customcfg.json.
 /// </summary>
-public class SubNodeDesiredConfig
+public class SubNodeConfigSections
 {
     /// <summary>
-    /// SubNode device configuration
+    /// System configuration section (maps to systemcfg.json).
+    /// Contains WedaNode connection settings and Serilog logging configuration.
     /// </summary>
-    [JsonPropertyName("subNodeDeviceConfig")]
-    public SubNodeDeviceConfigWrapper? SubNodeDeviceConfig { get; set; }
+    [JsonPropertyName("systemcfg")]
+    public SubNodeSystemCfgDto? SystemCfg { get; set; }
+
+    /// <summary>
+    /// Alias for SystemCfg (backward compatibility)
+    /// </summary>
+    [JsonIgnore]
+    public SubNodeSystemCfgDto? SystemConfig
+    {
+        get => SystemCfg;
+        set => SystemCfg = value;
+    }
+
+    /// <summary>
+    /// Device configuration section (maps to devicecfg.json).
+    /// Contains SubNode info and device configurations.
+    /// </summary>
+    [JsonPropertyName("devicecfg")]
+    public SubNodeDeviceCfgDto? DeviceCfg { get; set; }
+
+    /// <summary>
+    /// Alias for DeviceCfg (backward compatibility).
+    /// Provides access to DeviceConfigs dictionary directly.
+    /// </summary>
+    [JsonIgnore]
+    public SubNodeDeviceCfgDto? SubNodeDeviceConfig
+    {
+        get => DeviceCfg;
+        set => DeviceCfg = value;
+    }
+
+    /// <summary>
+    /// Custom configuration section (maps to customcfg.json).
+    /// Contains user-defined settings. Uses JsonElement to preserve original JSON structure
+    /// for round-trip serialization without type loss.
+    /// </summary>
+    [JsonPropertyName("customcfg")]
+    public Dictionary<string, JsonElement>? CustomCfg { get; set; }
+
+    /// <summary>
+    /// Alias for CustomCfg (backward compatibility)
+    /// </summary>
+    [JsonIgnore]
+    public Dictionary<string, JsonElement>? CustomConfig
+    {
+        get => CustomCfg;
+        set => CustomCfg = value;
+    }
+
+    /// <summary>
+    /// Additional configuration sections (extensible).
+    /// Allows for future config types without code changes.
+    /// Uses JsonElement to preserve original JSON structure.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalConfigs { get; set; }
 }
 
 /// <summary>
-/// Reported configuration from device
+/// Desired configuration sections from cloud.
+/// Inherits base config sections structure.
 /// </summary>
-public class SubNodeReportedConfig
+public class SubNodeDesiredConfigSections : SubNodeConfigSections
+{
+}
+
+/// <summary>
+/// Reported configuration sections from device.
+/// Extends base config sections with status, error message, and timestamp.
+/// </summary>
+public class SubNodeReportedConfigSections : SubNodeConfigSections
 {
     /// <summary>
-    /// SubNode device configuration (current state)
+    /// Alias for DeviceCfg.DeviceConfigs (backward compatibility).
+    /// Allows direct access to device configurations dictionary.
     /// </summary>
-    [JsonPropertyName("subNodeDeviceConfig")]
-    public SubNodeDeviceConfigWrapper? SubNodeDeviceConfig { get; set; }
+    [JsonIgnore]
+    public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs
+    {
+        get => DeviceCfg?.DeviceConfigs;
+        set
+        {
+            DeviceCfg ??= new SubNodeDeviceCfgDto();
+            DeviceCfg.DeviceConfigs = value;
+        }
+    }
 
     /// <summary>
-    /// Update status
+    /// Update status (updating, success, failed, invalid, noUpdateRequired)
     /// </summary>
     [JsonPropertyName("status")]
     public string? Status { get; set; }
@@ -117,76 +223,243 @@ public class SubNodeReportedConfig
     public string? ErrorMessage { get; set; }
 
     /// <summary>
-    /// Last update timestamp
+    /// Last update timestamp (ISO 8601 format)
     /// </summary>
     [JsonPropertyName("lastUpdateTime")]
     public DateTimeOffset? LastUpdateTime { get; set; }
 }
 
 /// <summary>
-/// SubNode device configuration wrapper containing device configs dictionary
+/// Type alias for backward compatibility
 /// </summary>
-public class SubNodeDeviceConfigWrapper
+public class SubNodeReportedConfig : SubNodeReportedConfigSections
 {
-    /// <summary>
-    /// Dictionary of device configurations keyed by device type name
-    /// </summary>
-    [JsonPropertyName("deviceConfigs")]
-    public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs { get; set; }
 }
 
 /// <summary>
-/// Device configuration DTO matching the SubNode appsettings.json structure
+/// System configuration DTO (systemcfg.json structure).
+/// Contains WedaNode connection settings and Serilog logging configuration.
+/// </summary>
+public class SubNodeSystemCfgDto
+{
+    /// <summary>
+    /// WedaNode (NATS) connection settings.
+    /// Note: Changes to WedaNode require application restart.
+    /// </summary>
+    [JsonPropertyName("WedaNode")]
+    public SubNodeWedaNodeConfigDto? WedaNode { get; set; }
+
+    /// <summary>
+    /// Serilog logging configuration
+    /// </summary>
+    [JsonPropertyName("Serilog")]
+    public Dictionary<string, JsonElement>? Serilog { get; set; }
+}
+
+/// <summary>
+/// WedaNode (NATS) connection configuration DTO.
+/// Maps to the WedaNode section in systemcfg.json.
+/// </summary>
+public class SubNodeWedaNodeConfigDto
+{
+    /// <summary>
+    /// NATS server URL
+    /// </summary>
+    [JsonPropertyName("Url")]
+    public string? Url { get; set; }
+
+    /// <summary>
+    /// Connection name
+    /// </summary>
+    [JsonPropertyName("Name")]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Authentication strategy (None, UserPassword, Token, TlsCert, CredFile)
+    /// </summary>
+    [JsonPropertyName("AuthStrategy")]
+    public string? AuthStrategy { get; set; }
+
+    /// <summary>
+    /// Username for UserPassword authentication
+    /// </summary>
+    [JsonPropertyName("Username")]
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Password for UserPassword authentication
+    /// </summary>
+    [JsonPropertyName("Password")]
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// Token for Token authentication
+    /// </summary>
+    [JsonPropertyName("Token")]
+    public string? Token { get; set; }
+
+    /// <summary>
+    /// Credential file path for CredFile authentication
+    /// </summary>
+    [JsonPropertyName("CredFile")]
+    public string? CredFile { get; set; }
+
+    /// <summary>
+    /// Serializer type (json, protobuf, default)
+    /// </summary>
+    [JsonPropertyName("SerializerType")]
+    public string? SerializerType { get; set; }
+}
+
+/// <summary>
+/// Device configuration DTO (devicecfg.json structure).
+/// Contains SubNode info and device configurations.
+/// </summary>
+public class SubNodeDeviceCfgDto
+{
+    private Dictionary<string, SubNodeDeviceConfigDto>? _deviceConfigs;
+
+    /// <summary>
+    /// SubNode information and settings
+    /// </summary>
+    [JsonPropertyName("SubNode")]
+    public SubNodeInfoDto? SubNode { get; set; }
+
+    /// <summary>
+    /// Dictionary of device configurations keyed by device name (case-insensitive).
+    /// </summary>
+    [JsonPropertyName("DeviceConfigs")]
+    public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs
+    {
+        get => _deviceConfigs;
+        set
+        {
+            if (value != null && value.Comparer != StringComparer.OrdinalIgnoreCase)
+            {
+                _deviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>(value, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                _deviceConfigs = value;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// SubNode information DTO
+/// </summary>
+public class SubNodeInfoDto
+{
+    /// <summary>
+    /// SubNode name
+    /// </summary>
+    [JsonPropertyName("Name")]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Whether to auto-generate DTDL
+    /// </summary>
+    [JsonPropertyName("AutoGenEnabled")]
+    public bool AutoGenEnabled { get; set; }
+}
+
+/// <summary>
+/// Device configuration DTO matching the devicecfg.json structure
 /// </summary>
 public class SubNodeDeviceConfigDto
 {
     /// <summary>
     /// Whether this device is enabled
     /// </summary>
-    [JsonPropertyName("enabled")]
+    [JsonPropertyName("Enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Device name for identification
+    /// Device type (e.g., "TcpModbus", "WebSocket")
     /// </summary>
-    [JsonPropertyName("deviceName")]
-    public string DeviceName { get; set; } = string.Empty;
+    [JsonPropertyName("DeviceType")]
+    public string? DeviceType { get; set; }
 
     /// <summary>
-    /// Device type (e.g., "adamEthernet")
+    /// Alias for DeviceType (backward compatibility)
     /// </summary>
-    [JsonPropertyName("deviceType")]
-    public string DeviceType { get; set; } = string.Empty;
+    [JsonIgnore]
+    public string? SubNodeType
+    {
+        get => DeviceType;
+        set => DeviceType = value;
+    }
 
     /// <summary>
-    /// Path to DTDL file
+    /// DTDL configuration
     /// </summary>
-    [JsonPropertyName("dtdlPath")]
-    public string? DtdlPath { get; set; }
+    [JsonPropertyName("Dtdl")]
+    public SubNodeDtdlConfigDto? Dtdl { get; set; }
+
+    /// <summary>
+    /// Alias for Dtdl.DtdlPath (backward compatibility)
+    /// </summary>
+    [JsonIgnore]
+    public string? DtdlPath
+    {
+        get => Dtdl?.DtdlPath;
+        set
+        {
+            Dtdl ??= new SubNodeDtdlConfigDto();
+            Dtdl.DtdlPath = value;
+        }
+    }
 
     /// <summary>
     /// Device capabilities
     /// </summary>
-    [JsonPropertyName("deviceCapabilities")]
+    [JsonPropertyName("DeviceCapabilities")]
     public SubNodeDeviceCapabilitiesDto? DeviceCapabilities { get; set; }
 
     /// <summary>
-    /// Communication settings
+    /// Communication settings (protocol-specific).
+    /// Uses object to allow runtime manipulation.
     /// </summary>
-    [JsonPropertyName("communication")]
+    [JsonPropertyName("Communication")]
     public Dictionary<string, object>? Communication { get; set; }
 
     /// <summary>
     /// Sensor configurations
     /// </summary>
-    [JsonPropertyName("sensors")]
-    public List<SubNodeSensorConfigDto>? Sensors { get; set; }
+    [JsonPropertyName("Sensors")]
+    public List<SubNodeSensorReportDto>? Sensors { get; set; }
 
     /// <summary>
     /// Background task periods (milliseconds)
     /// </summary>
-    [JsonPropertyName("periods")]
+    [JsonPropertyName("Periods")]
     public SubNodePeriodsDto? Periods { get; set; }
+}
+
+/// <summary>
+/// DTDL configuration DTO
+/// </summary>
+public class SubNodeDtdlConfigDto
+{
+    /// <summary>
+    /// Whether to auto-generate DTDL from sensors
+    /// </summary>
+    [JsonPropertyName("AutoGenEnabled")]
+    public bool AutoGenEnabled { get; set; }
+
+    /// <summary>
+    /// Path to DTDL file (when AutoGenEnabled is false)
+    /// </summary>
+    [JsonPropertyName("DtdlPath")]
+    public string? DtdlPath { get; set; }
+
+    /// <summary>
+    /// DTDL interface object (auto-generated or loaded from file).
+    /// Contains @context, @id, @type, and contents for the device.
+    /// </summary>
+    [JsonPropertyName("DtdlInterface")]
+    public object? DtdlInterface { get; set; }
 }
 
 /// <summary>
@@ -197,26 +470,26 @@ public class SubNodePeriodsDto
     /// <summary>
     /// Telemetry reading period (ms)
     /// </summary>
-    [JsonPropertyName("readTelemetry")]
+    [JsonPropertyName("ReadTelemetry")]
     public int ReadTelemetry { get; set; }
 
     /// <summary>
     /// Telemetry sending period (ms)
     /// </summary>
-    [JsonPropertyName("sendTelemetry")]
+    [JsonPropertyName("SendTelemetry")]
     public int SendTelemetry { get; set; }
 
     /// <summary>
     /// Health reporting period (ms)
     /// </summary>
-    [JsonPropertyName("reportHealth")]
+    [JsonPropertyName("ReportHealth")]
     public int ReportHealth { get; set; }
 
     /// <summary>
     /// Configuration sync/report period (ms).
     /// When enabled (> 0), periodically reports device configuration to cloud.
     /// </summary>
-    [JsonPropertyName("reportConfiguration")]
+    [JsonPropertyName("ReportConfiguration")]
     public int ReportConfiguration { get; set; }
 }
 
@@ -228,67 +501,78 @@ public class SubNodeDeviceCapabilitiesDto
     /// <summary>
     /// Manufacturer name
     /// </summary>
-    [JsonPropertyName("manufacturer")]
+    [JsonPropertyName("Manufacturer")]
     public string? Manufacturer { get; set; }
 
     /// <summary>
     /// Device model
     /// </summary>
-    [JsonPropertyName("model")]
+    [JsonPropertyName("Model")]
     public string? Model { get; set; }
 
     /// <summary>
     /// SubNode software version
     /// </summary>
-    [JsonPropertyName("subNodeSwVersion")]
+    [JsonPropertyName("SubNodeSwVersion")]
     public string? SubNodeSwVersion { get; set; }
 
     /// <summary>
     /// Additional device info
     /// </summary>
-    [JsonPropertyName("deviceInfo")]
+    [JsonPropertyName("DeviceInfo")]
     public Dictionary<string, object>? DeviceInfo { get; set; }
 }
 
 /// <summary>
-/// Sensor configuration DTO matching the SubNode appsettings.json structure
+/// Sensor configuration DTO matching the devicecfg.json structure
 /// </summary>
-public class SubNodeSensorConfigDto
+public class SubNodeSensorReportDto
 {
     /// <summary>
     /// Sensor name/identifier
     /// </summary>
-    [JsonPropertyName("name")]
+    [JsonPropertyName("Name")]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Digital Twin Model Identifier
     /// </summary>
-    [JsonPropertyName("dtmi")]
+    [JsonPropertyName("Dtmi")]
     public string? Dtmi { get; set; }
 
     /// <summary>
-    /// Sensor group (AI, DI, DO, AO, etc.)
+    /// Sensor group (AI, DI, DO, AO, TEMP, etc.)
     /// </summary>
-    [JsonPropertyName("sensorGroup")]
+    [JsonPropertyName("SensorGroup")]
     public string? SensorGroup { get; set; }
 
     /// <summary>
-    /// Protocol-specific parameters
+    /// Protocol-specific parameters.
+    /// Uses object to allow runtime manipulation of parameter values.
     /// </summary>
-    [JsonPropertyName("parameters")]
+    [JsonPropertyName("Parameters")]
     public Dictionary<string, object>? Parameters { get; set; }
 
     /// <summary>
-    /// Sensor runtime configuration
+    /// Sensor report configuration (sampling interval, transforms, DSP, thresholds)
     /// </summary>
-    [JsonPropertyName("config")]
-    public SubNodeSensorRuntimeConfigDto? Config { get; set; }
+    [JsonPropertyName("Report")]
+    public SubNodeSensorRuntimeConfigDto? Report { get; set; }
+
+    /// <summary>
+    /// Backward compatibility: Config is an alias for Report
+    /// </summary>
+    [JsonIgnore]
+    public SubNodeSensorRuntimeConfigDto? Config
+    {
+        get => Report;
+        set => Report = value;
+    }
 
     /// <summary>
     /// Additional metadata
     /// </summary>
-    [JsonPropertyName("metadata")]
+    [JsonPropertyName("Metadata")]
     public Dictionary<string, object>? Metadata { get; set; }
 }
 
@@ -300,37 +584,37 @@ public class SubNodeSensorRuntimeConfigDto
     /// <summary>
     /// Whether the sensor is enabled
     /// </summary>
-    [JsonPropertyName("enabled")]
+    [JsonPropertyName("Enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Polling interval in milliseconds
     /// </summary>
-    [JsonPropertyName("interval")]
+    [JsonPropertyName("Interval")]
     public int Interval { get; set; } = 1000;
 
     /// <summary>
     /// Measurement unit
     /// </summary>
-    [JsonPropertyName("unit")]
+    [JsonPropertyName("Unit")]
     public string? Unit { get; set; }
 
     /// <summary>
     /// Transform pipeline configuration
     /// </summary>
-    [JsonPropertyName("transformPipeline")]
+    [JsonPropertyName("TransformPipeline")]
     public List<SubNodeTransformConfigDto>? TransformPipeline { get; set; }
 
     /// <summary>
     /// DSP filter pipeline configuration
     /// </summary>
-    [JsonPropertyName("dspPipeline")]
+    [JsonPropertyName("DspPipeline")]
     public List<SubNodeDspFilterConfigDto>? DspPipeline { get; set; }
 
     /// <summary>
     /// Threshold configuration
     /// </summary>
-    [JsonPropertyName("thresholds")]
+    [JsonPropertyName("Thresholds")]
     public SubNodeThresholdsDto? Thresholds { get; set; }
 }
 
@@ -342,19 +626,20 @@ public class SubNodeTransformConfigDto
     /// <summary>
     /// Transform type (e.g., "Calibration", "UnitConversion")
     /// </summary>
-    [JsonPropertyName("type")]
+    [JsonPropertyName("Type")]
     public string Type { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this transform is enabled
     /// </summary>
-    [JsonPropertyName("enabled")]
+    [JsonPropertyName("Enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Transform-specific parameters
+    /// Transform-specific parameters.
+    /// Uses object to allow runtime manipulation of parameter values.
     /// </summary>
-    [JsonPropertyName("parameters")]
+    [JsonPropertyName("Parameters")]
     public Dictionary<string, object>? Parameters { get; set; }
 }
 
@@ -364,21 +649,22 @@ public class SubNodeTransformConfigDto
 public class SubNodeDspFilterConfigDto
 {
     /// <summary>
-    /// Filter type (e.g., "movingAverage", "kalman")
+    /// Filter type (e.g., "MovingAverage", "Kalman")
     /// </summary>
-    [JsonPropertyName("type")]
+    [JsonPropertyName("Type")]
     public string Type { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this filter is enabled
     /// </summary>
-    [JsonPropertyName("enabled")]
+    [JsonPropertyName("Enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Filter-specific parameters
+    /// Filter-specific parameters.
+    /// Uses object to allow runtime manipulation of parameter values.
     /// </summary>
-    [JsonPropertyName("parameters")]
+    [JsonPropertyName("Parameters")]
     public Dictionary<string, object>? Parameters { get; set; }
 }
 
@@ -390,25 +676,25 @@ public class SubNodeThresholdsDto
     /// <summary>
     /// Upper critical threshold
     /// </summary>
-    [JsonPropertyName("upperCritical")]
+    [JsonPropertyName("UpperCritical")]
     public double? UpperCritical { get; set; }
 
     /// <summary>
     /// Upper warning threshold
     /// </summary>
-    [JsonPropertyName("upperWarning")]
+    [JsonPropertyName("UpperWarning")]
     public double? UpperWarning { get; set; }
 
     /// <summary>
     /// Lower warning threshold
     /// </summary>
-    [JsonPropertyName("lowerWarning")]
+    [JsonPropertyName("LowerWarning")]
     public double? LowerWarning { get; set; }
 
     /// <summary>
     /// Lower critical threshold
     /// </summary>
-    [JsonPropertyName("lowerCritical")]
+    [JsonPropertyName("LowerCritical")]
     public double? LowerCritical { get; set; }
 }
 
@@ -436,4 +722,9 @@ public static class ConfigUpdateStatus
     /// Configuration payload is invalid
     /// </summary>
     public const string Invalid = "invalid";
+
+    /// <summary>
+    /// No update required (configuration unchanged)
+    /// </summary>
+    public const string NoUpdateRequired = "noUpdateRequired";
 }

@@ -73,7 +73,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     };
 
     // Create temperature sensor with transform pipeline
-    var tempSensor = new ModbusSensorConfiguration
+    var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
         Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",
@@ -83,6 +83,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
+    tempSensor.Config.Interval = 5000;
 
     // Add sensor to device
     modbusDeviceConfig.AddSensor(tempSensor);
@@ -91,7 +92,7 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     var deviceConfig = modbusDeviceConfig.ToDeviceConfiguration();
 
     // Load DTDL metadata (required for cloud registration)
-    deviceConfig.LoadDtdl();
+    deviceConfig.InitializeDtdl();
 
     return deviceConfig;
 }

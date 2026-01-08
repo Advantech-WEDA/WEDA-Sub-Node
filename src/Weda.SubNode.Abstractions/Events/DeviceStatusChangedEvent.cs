@@ -7,13 +7,13 @@ namespace Weda.SubNode.Abstractions.Events;
 /// Fired when device transitions between operational states.
 /// </summary>
 /// <param name="DeviceId">The device identifier.</param>
-/// <param name="DeviceType">The device type.</param>
+/// <param name="SubNodeType">The device type.</param>
 /// <param name="PreviousStatus">The status before the change.</param>
 /// <param name="CurrentStatus">The status after the change.</param>
 /// <param name="Timestamp">The timestamp when status changed.</param>
 public sealed record DeviceStatusChangedEvent(
     string DeviceId,
-    DeviceType DeviceType,
+    SubNodeType SubNodeType,
     DeviceStatus PreviousStatus,
     DeviceStatus CurrentStatus,
     DateTimeOffset Timestamp)

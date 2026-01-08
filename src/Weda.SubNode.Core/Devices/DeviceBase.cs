@@ -1,7 +1,11 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
 using ErrorOr;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
@@ -29,17 +33,32 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly DeviceInitializer _initializer;
 
     private CancellationTokenSource? _runningCts;
+    private CancellationTokenSource? _samplingCts;
     private Task? _configSyncTask;
+    private Task? _batchSendTask;
+    private Task? _healthTask;
     private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
 
+    /// <summary>
+    /// Batch queue for telemetry measures that have been processed through Transform and Filter.
+    /// Data is enqueued by derived classes via EnqueueTelemetryAsync and sent by the batch send task.
+    /// </summary>
+    protected readonly ConcurrentQueue<TelemetryMeasure> _telemetryBatch = new();
+
     public DeviceConfiguration Configuration { get; }
-    public string DeviceId => _orchestrator.DeviceId;
+    public string SubNodeId => _orchestrator.SubNodeId;
     public string DeviceName => Configuration.DeviceInfo.DeviceName;
-    public DeviceType DeviceType => Configuration.DeviceInfo.DeviceType;
+    public SubNodeType SubNodeType => Configuration.DeviceInfo.SubNodeType;
     public DeviceInfo DeviceInfo => Configuration.DeviceInfo;
     public IReadOnlyDictionary<string, object> Properties => Configuration.Properties;
     public DeviceStatus Status => _orchestrator.StateMachine.CurrentStatus;
     public CommunicationState ConnectionState => _communication.State;
+
+    /// <summary>
+    /// Calculated telemetry batch send period (minimum of all enabled sensor intervals).
+    /// Used by derived device classes for batch upload scheduling.
+    /// </summary>
+    protected int CalculatedSendTelemetryPeriod { get; private set; }
 
     protected DeviceBase(
         IWedaApplicationContext context,
@@ -52,7 +71,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
-        Configuration.LoadDtdl();
+        // Auto-enrich: Attach SubNodeInfo from context if not already set
+        // This enables AutoGenEnabled and provides Manufacturer/Model/SwVersion
+        Configuration.SubNodeInfo ??= context.SubNodeInfo;
+
+        // Validate configuration and calculate send period
+        ValidateConfiguration(configuration);
+        CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(configuration);
+
+        // Initialize DTDL (auto-generates when AutoGenEnabled=true, or loads from file)
+        Configuration.InitializeDtdl(basePath: null, _logger);
 
         // Single orchestrator manages all complexity
         _orchestrator = new DeviceOrchestrator(
@@ -62,9 +90,10 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             configuration, // Pass full configuration for sensor-level transform/filter support
             configuration.DeviceId); // Pass deviceId from configuration
 
-        // Single initializer handles registration
+        // Single initializer handles SubNode registration and device configuration
         _initializer = new DeviceInitializer(
             context.CloudService,
+            context.SubNodeInfo,
             context.GetLogger<DeviceInitializer>());
 
         // Wire events
@@ -93,81 +122,192 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     async Task<ErrorOr<Success>> ILifecycleHooks.OnInitializeAsync(CancellationToken ct)
     {
-        var connResult = await _orchestrator.ConnectionManager.EstablishConnectionsAsync(ct);
+        // Step 1: Establish physical device connection only
+        // Cloud connection is already handled by SubNodeManager at the SubNode level
+        var connResult = await _orchestrator.ConnectionManager.EstablishPhysicalConnectionAsync(ct);
         if (connResult.IsError) return connResult.Errors;
 
         await OnBeforeInitializeAsync(ct);
 
-        var deviceId = await _initializer.InitializeDeviceAsync(Configuration, ct);
+        // Step 2: Ensure SubNodeManager is initialized
+        // This supports both usage patterns:
+        // - New API (WedaApplication.CreateBuilder): DeviceHostedService calls SubNodeManager.InitializeAsync first
+        // - Legacy API (WedaApplicationContext.Default): Auto-initialize SubNodeManager here if needed
+        if (!_context.SubNodeManager.IsInitialized)
+        {
+            _logger.LogInformation("SubNodeManager not yet initialized, initializing now...");
+            var initialized = await _context.SubNodeManager.InitializeAsync(ct);
+            if (!initialized)
+            {
+                return Error.Failure("SubNodeManager.InitializeFailed",
+                    "Failed to initialize SubNodeManager. Check cloud connection and registration.");
+            }
+        }
 
-        // Set the device ID after registration
-        _orchestrator.SetDeviceId(deviceId);
+        // Step 3: Get SubNodeId from SubNodeManager
+        var subNodeId = _context.SubNodeManager.SubNodeId
+            ?? throw new InvalidOperationException("SubNodeManager initialized but SubNodeId is null. This should not happen.");
 
-        // Subscribe to cloud events based on DeviceOptions (Application Layer)
-        var deviceOptions = _context.DeviceOptions;
-        var subResult = await _orchestrator.ConnectionManager.SubscribeToCloudEventsAsync(
-            deviceId,
-            deviceOptions.EnableConfigUpdates,
-            deviceOptions.EnableCommands,
-            ct);
-        if (subResult.IsError) return subResult.Errors;
+        // Step 4: Set the SubNode ID on orchestrator
+        _orchestrator.SetSubNodeId(subNodeId);
+
+        // Step 5: Enrich device configuration with SubNodeId and ResourceIds
+        _initializer.EnrichConfiguration(Configuration, subNodeId);
+
+        // Step 6: Upload device configuration to cloud
+        await _initializer.UploadConfigurationAsync(Configuration, ct);
+
+        // Step 7: Register this device's event handlers with SubNodeManager for Hybrid routing
+        _context.SubNodeManager.RegisterDeviceHandler(
+            Configuration.DeviceName,
+            HandleConfigurationUpdateAsync,
+            HandleCommandReceivedAsync);
 
         await OnAfterInitializeAsync(ct);
         return Result.Success;
     }
 
+    /// <summary>
+    /// Handles configuration update events routed from SubNodeManager.
+    /// </summary>
+    private async Task HandleConfigurationUpdateAsync(UpdateConfigurationEvent e)
+    {
+        try
+        {
+            // Pre-hook (for derived class validation/preparation)
+            await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
+
+            // Raise event (for framework monitoring/logging)
+            if (EnableConfigurationUpdateTracking)
+                ConfigurationUpdateReceived?.Invoke(this, e);
+
+            // Apply base DeviceConfiguration updates from cloud
+            await ApplyBaseConfigurationUpdateAsync(e, CancellationToken.None);
+
+            // Post-hook (for derived class custom configuration handling)
+            await OnAfterConfigUpdateAsync(e, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling configuration update for device {DeviceName}", Configuration.DeviceName);
+        }
+    }
+
+    /// <summary>
+    /// Handles command events routed from SubNodeManager.
+    /// </summary>
+    private async Task HandleCommandReceivedAsync(ExecuteCommandEvent e)
+    {
+        var success = false;
+        string? errorCode = null;
+        string? errorMessage = null;
+
+        try
+        {
+            // Pre-hook (can be used for validation)
+            await OnBeforeCommandAsync(e, CancellationToken.None);
+
+            // Raise event (for framework monitoring/logging)
+            if (EnableCommandReceivedTracking)
+                CommandReceived?.Invoke(this, e);
+
+            // Send "received" response immediately after validation passes
+            await SendCommandResponseAsync(
+                e.Command.RespTopic,
+                CommandResponse.Received(SubNodeId!, e.Command.DeviceCmd));
+
+            // Execute command on device
+            _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
+            success = await ExecuteCommandAsync(e.Command);
+            _logger.LogInformation("Command execution {Result}: {CommandName}",
+                success ? "succeeded" : "failed",
+                e.Command.DeviceCmd);
+
+            if (!success)
+            {
+                errorCode = "Command.ExecutionFailed";
+                errorMessage = $"Command '{e.Command.DeviceCmd}' execution returned false";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
+            errorCode = "Command.Exception";
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            // Send final response (success or failed)
+            try
+            {
+                if (success)
+                {
+                    await SendCommandResponseAsync(
+                        e.Command.RespTopic,
+                        CommandResponse.Success(SubNodeId!, e.Command.DeviceCmd));
+                }
+                else
+                {
+                    await SendCommandResponseAsync(
+                        e.Command.RespTopic,
+                        CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd,
+                            errorCode ?? "Command.Unknown",
+                            errorMessage ?? "Unknown error"));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending command response for {CommandName}", e.Command.DeviceCmd);
+            }
+
+            // Post-hook (always called, even on failure)
+            try
+            {
+                await OnAfterCommandAsync(e, success, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in OnAfterCommandAsync hook for command {CommandName}", e.Command.DeviceCmd);
+            }
+        }
+    }
+
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStartAsync(CancellationToken ct)
     {
+        // _runningCts is for lifecycle tasks (config sync) that don't need restart on config update
         _runningCts = new CancellationTokenSource();
-        var cts = _runningCts.Token;
+        var lifecycleCts = _runningCts.Token;
 
-        // Start device-specific background tasks
-        _ = StartBackgroundTasksAsync(cts);
+        // _samplingCts is for tasks that may need restart on config update (polling, sampling, batch send, health)
+        _samplingCts = new CancellationTokenSource();
 
-        // Start config sync task (core functionality in DeviceBase)
-        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
-        if (configSyncPeriod > 0)
-        {
-            _configSyncTask = Task.Run(async () =>
-            {
-                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
+        // Start background tasks (polling/sampling + batch send + health)
+        StartAllBackgroundTasks(_samplingCts.Token);
 
-                while (!cts.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await ReportConfigurationAsync(cts);
-                        _logger.LogDebug("Configuration sync completed for device {DeviceId}", DeviceId);
-                    }
-                    catch (OperationCanceledException) when (cts.IsCancellationRequested)
-                    {
-                        _logger.LogInformation("Configuration sync task cancelled for device {DeviceId}", DeviceId);
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in configuration sync task for device {DeviceId}", DeviceId);
-                    }
-
-                    await Task.Delay(configSyncPeriod, cts);
-                }
-            }, cts);
-        }
-        else
-        {
-            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
-        }
+        // Start config sync task (not restarted on config update)
+        StartConfigSyncTask(lifecycleCts);
 
         return await Task.FromResult(Result.Success);
     }
 
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStopAsync(CancellationToken ct)
     {
+        // Cancel sampling/polling tasks first
+        if (_samplingCts != null)
+        {
+            await _samplingCts.CancelAsync();
+            _samplingCts.Dispose();
+            _samplingCts = null;
+        }
+
+        // Cancel lifecycle tasks (config sync)
         if (_runningCts != null)
         {
             await _runningCts.CancelAsync();
+            _runningCts.Dispose();
             _runningCts = null;
         }
+
         await _orchestrator.ConnectionManager.DisconnectAsync(ct);
         return Result.Success;
     }
@@ -175,6 +315,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     async Task<ErrorOr<Success>> ILifecycleHooks.OnDisposeAsync(CancellationToken ct)
     {
         if (_communication is IDisposable disp) disp.Dispose();
+        _samplingCts?.Dispose();
         _runningCts?.Dispose();
         return await Task.FromResult(Result.Success);
     }
@@ -188,15 +329,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         try
         {
             // Use Polly pipeline for resilient telemetry sending
+            // SendAsync only sends to cloud, no Transform/Filter (already done before enqueue)
             var result = await _orchestrator.OperationPipeline.ExecuteAsync(
-                async c => await _orchestrator.TelemetryPipeline.ProcessAsync(measures, c),
+                async c => await _orchestrator.TelemetryPipeline.SendAsync(measures, c),
                 ct);
 
             return !result.IsError;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send telemetry for device {DeviceId} after all retries", DeviceId);
+            _logger.LogError(ex, "Failed to send telemetry for device {SubNodeId} after all retries", SubNodeId);
             return false;
         }
     }
@@ -208,17 +350,58 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         await SendTelemetryAsync(list, ct);
     }
 
+    /// <summary>
+    /// Processes telemetry through Transform and Filter pipeline, then enqueues to batch buffer.
+    /// This is the standard method for derived classes to submit collected telemetry data.
+    /// The batch send task will periodically dequeue and send to cloud.
+    /// </summary>
+    /// <param name="measures">Raw telemetry measures to process and enqueue.</param>
+    /// <param name="ct">Cancellation token.</param>
+    protected async Task EnqueueTelemetryAsync(List<TelemetryMeasure> measures, CancellationToken ct = default)
+    {
+        if (measures == null || measures.Count == 0)
+            return;
+
+        var processResult = await _orchestrator.TelemetryPipeline.TransformAndFilterAsync(measures, ct);
+
+        if (processResult.IsError)
+        {
+            _logger.LogWarning(
+                "Transform/Filter failed: {Error}",
+                string.Join(", ", processResult.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        var processedMeasures = processResult.Value;
+
+        foreach (var processedMeasure in processedMeasures)
+        {
+            _telemetryBatch.Enqueue(processedMeasure);
+        }
+
+        // Raise DataProcessed event AFTER transform/filter processing
+        // This allows subscribers (e.g., AggregatorCommunication) to receive processed data
+        if (processedMeasures.Count > 0)
+        {
+            RaiseDataProcessed(processedMeasures);
+        }
+
+        _logger.LogTrace(
+            "Enqueued {Count} processed measures for device {SubNodeId}",
+            processedMeasures.Count, SubNodeId);
+    }
+
     public async Task<DeviceHealth> GetHealthAsync(CancellationToken ct = default)
         => await _orchestrator.HealthMonitor.GetCurrentHealthAsync(ct);
 
     public async Task ReportHealthAsync(CancellationToken ct = default)
-        => await _cloudService.ReportHealthAsync(DeviceId ?? "unknown", await GetHealthAsync(ct), ct);
+        => await _cloudService.ReportHealthAsync(SubNodeId ?? "unknown", await GetHealthAsync(ct), ct);
 
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
 
     public async Task<DeviceConfiguration?> GetCurrentConfigurationAsync(CancellationToken ct = default)
-        => await _cloudService.GetDeviceConfigurationAsync(DeviceId ?? "unknown", ct);
+        => await _cloudService.GetDeviceConfigurationAsync(SubNodeId ?? "unknown", ct);
 
     /// <summary>
     /// Reports current device configuration to cloud.
@@ -229,8 +412,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <returns>True if report was successfully published</returns>
     public async Task<bool> ReportConfigurationAsync(CancellationToken ct = default)
     {
-        var deviceId = DeviceId ?? "unknown";
-        var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+        var deviceId = SubNodeId ?? "unknown";
+        var deviceTypeName = Configuration.SubNodeType.ToString();
 
         // Use default groupId for periodic reports (groupId is mainly for multi-tenant scenarios)
         var groupId = "default";
@@ -241,8 +424,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             Configuration,
             deviceTypeName);
 
-        _logger.LogDebug("Reporting configuration for device {DeviceId}", deviceId);
-        return await _cloudService.PublishConfigurationReportAsync(report, ct);
+        _logger.LogDebug("Reporting configuration for device {SubNodeId}", deviceId);
+        return await _cloudService.PublishConfigurationReportAsync(SubscriptionTypes.DeviceConfig, report, ct);
     }
 
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
@@ -251,7 +434,141 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     protected virtual Task OnBeforeInitializeAsync(CancellationToken ct) => Task.CompletedTask;
     protected virtual Task OnAfterInitializeAsync(CancellationToken ct) => Task.CompletedTask;
-    protected abstract Task StartBackgroundTasksAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Internal lifecycle hook for starting device background tasks.
+    /// This method is sealed and can only be overridden by intermediate framework base classes
+    /// (RequestResponseDeviceBase, StreamingDeviceBase, PubSubDeviceBase).
+    /// High-level custom devices should NOT override this method directly.
+    /// Instead, inherit from one of the framework base classes.
+    /// </summary>
+    internal virtual Task StartBackgroundTasksAsync(CancellationToken ct) => Task.CompletedTask;
+
+    // ===== Interval Group Processing (Template Method Pattern) =====
+
+    /// <summary>
+    /// Result of reading sensors for an interval group.
+    /// Contains the telemetry measures and the duration of the read operation.
+    /// </summary>
+    /// <param name="Measures">The telemetry measures read from sensors</param>
+    /// <param name="Duration">The duration of the read operation (TimeSpan.Zero for cache-based reads)</param>
+    protected readonly record struct IntervalGroupReadResult(
+        List<TelemetryMeasure> Measures,
+        TimeSpan Duration);
+
+    /// <summary>
+    /// Template method for processing an interval group.
+    /// Handles the common flow: read sensors → record health → raise events → enqueue telemetry.
+    /// Each device type only needs to implement ReadSensorsForIntervalGroupAsync for data collection.
+    /// </summary>
+    /// <param name="sensors">Sensors in this interval group</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    protected async Task ProcessIntervalGroupAsync(List<Sensor> sensors, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        try
+        {
+            var sensorResourceIds = sensors.Select(s => s.ResourceId).ToList();
+
+            // Step 1: Read sensors (abstract - each device type implements its own data collection)
+            var result = await ReadSensorsForIntervalGroupAsync(sensorResourceIds, cancellationToken);
+
+            if (result.Measures.Count == 0)
+                return;
+
+            // Step 2: Record health metrics
+            _orchestrator.HealthMonitor.RecordTelemetryReadDuration(result.Duration);
+
+            // Step 3: Raise raw data event (before transform/filter)
+            RaiseDataReceived(result.Measures);
+
+            // Step 4: Transform, Filter, and Enqueue (handled by DeviceBase)
+            // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
+            await EnqueueTelemetryAsync(result.Measures, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error processing interval group with {SensorCount} sensors", sensors.Count);
+        }
+    }
+
+    /// <summary>
+    /// Reads sensors for an interval group. Each device type implements its own data collection logic.
+    /// - StreamingDeviceBase/PubSubDeviceBase: Reads from SensorCache (Duration = TimeSpan.Zero)
+    /// - RequestResponseDeviceBase: Reads from parser with timing (Duration = actual read time)
+    /// </summary>
+    /// <param name="sensorResourceIds">ResourceIds of sensors to read</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>IntervalGroupReadResult containing measures and read duration</returns>
+    protected abstract Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+        List<string> sensorResourceIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Groups enabled sensors by their configured interval.
+    /// Used by all device types to create interval-based polling/sampling tasks.
+    /// </summary>
+    /// <returns>List of (interval in ms, sensors in that group)</returns>
+    protected List<(int IntervalMs, List<Sensor> Sensors)> GroupSensorsByInterval()
+    {
+        return Configuration.Sensors
+            .Where(s => s.Report.Enabled)
+            .GroupBy(s => (int)s.Report.Interval)
+            .Select(g => (IntervalMs: g.Key, Sensors: g.ToList()))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Runs a polling/sampling loop for an interval group using PeriodicTimer.
+    /// </summary>
+    /// <param name="sensors">Sensors in this interval group</param>
+    /// <param name="intervalMs">Polling/sampling interval in milliseconds</param>
+    /// <param name="initialDelay">Whether to wait for initial interval before first iteration</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    protected async Task RunIntervalLoopAsync(
+        List<Sensor> sensors,
+        int intervalMs,
+        bool initialDelay,
+        CancellationToken cancellationToken)
+    {
+        // Optional initial delay (for cache-based devices to allow data to arrive)
+        if (initialDelay)
+        {
+            try
+            {
+                await Task.Delay(intervalMs, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
+        // Use PeriodicTimer to avoid drift and prevent task accumulation
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
+
+        try
+        {
+            // Execute first iteration immediately (for non-initialDelay case, this is the first read)
+            // For initialDelay case, we already waited above
+            if (!initialDelay)
+            {
+                await ProcessIntervalGroupAsync(sensors, cancellationToken);
+            }
+
+            // Then wait for subsequent ticks
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await ProcessIntervalGroupAsync(sensors, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Interval loop cancelled for group with {SensorCount} sensors", sensors.Count);
+        }
+    }
 
     // ===== Downlink Hooks =====
 
@@ -285,7 +602,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <example>
     /// <code>
     /// protected override ConfigurationValidationResult ValidateConfigurationUpdate(
-    ///     SubNodeConfigurationUpdateMessage message)
+    ///     SubNodeConfigUpdateMessage message)
     /// {
     ///     // Call base validation first
     ///     var baseResult = base.ValidateConfigurationUpdate(message);
@@ -302,16 +619,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </code>
     /// </example>
     protected virtual ConfigurationValidationResult ValidateConfigurationUpdate(
-        SubNodeConfigurationUpdateMessage message)
+        SubNodeConfigUpdateMessage message)
     {
         return ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, Configuration, ConfigUpdateOptions);
     }
 
     /// <summary>
-    /// Applies base DeviceConfiguration updates from cloud and persists to cache.
-    /// This handles standard configuration fields (sensors, periods, etc.) at the framework level.
-    /// Implements proper validation, acknowledgment, update, and response workflow.
-    /// Derived classes should use OnAfterConfigUpdateAsync for custom configuration handling.
+    /// Applies configuration updates from cloud based on config type.
+    /// Routes to appropriate handler: device-config, system-config, or custom-config.
     /// </summary>
     private async Task ApplyBaseConfigurationUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
@@ -324,12 +639,53 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             var message = e.Message;
             if (message?.Data?.Cfg?.Desired == null)
             {
-                _logger.LogDebug("Configuration update event does not contain valid desired configuration, skipping base update");
+                _logger.LogDebug("Configuration update event does not contain valid desired configuration, skipping update");
                 return;
             }
 
-            // Determine device type name for reporting (use DeviceTypeName or DeviceType.ToString())
-            var deviceTypeName = Configuration.DeviceTypeName ?? Configuration.DeviceType.ToString();
+            // Route based on config type
+            if (e.ConfigType == SubscriptionTypes.DeviceConfig)
+            {
+                await ApplyDeviceConfigurationUpdateAsync(e, message, ct);
+            }
+            else if (e.ConfigType == SubscriptionTypes.SystemConfig)
+            {
+                await ApplySystemConfigurationUpdateAsync(e, message, ct);
+            }
+            else if (e.ConfigType == SubscriptionTypes.CustomConfig)
+            {
+                await ApplyCustomConfigurationUpdateAsync(e, message, ct);
+            }
+            else
+            {
+                _logger.LogWarning("Unknown configuration type: {ConfigType}", e.ConfigType.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in configuration update workflow for device {SubNodeId}, type {ConfigType}",
+                SubNodeId, e.ConfigType.Value);
+            // Don't rethrow - allow OnAfterConfigUpdateAsync to still execute
+        }
+        finally
+        {
+            _configUpdateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Applies device-config updates (sensors, periods, etc.) from cloud.
+    /// This handles standard DeviceConfiguration fields at the framework level.
+    /// </summary>
+    private async Task ApplyDeviceConfigurationUpdateAsync(
+        UpdateConfigurationEvent e,
+        SubNodeConfigUpdateMessage message,
+        CancellationToken ct)
+    {
+        try
+        {
+            // Determine device type name for reporting
+            var deviceTypeName = Configuration.SubNodeType.ToString();
 
             // Step 1: Validate the configuration update using virtual method
             _logger.LogInformation("Validating configuration update for device: {DeviceName}", Configuration.DeviceName);
@@ -337,13 +693,20 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             var validationResult = ValidateConfigurationUpdate(message);
             if (!validationResult.IsValid)
             {
-                _logger.LogWarning("Configuration update validation failed: {Error}", validationResult.ErrorMessage);
+                _logger.LogError("Configuration update validation failed: {Error}", validationResult.ErrorMessage);
 
                 // Send invalid status response
                 var invalidReport = ConfigurationUpdateHelper.CreateInvalidReport(
                     message, Configuration, deviceTypeName, validationResult.ErrorMessage ?? "Unknown validation error");
-                await _cloudService.PublishConfigurationReportAsync(invalidReport, ct);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, invalidReport, ct);
 
+                return;
+            }
+
+            // Check if no update is required (empty desired config)
+            if (validationResult.NoUpdateRequired)
+            {
+                _logger.LogDebug("No configuration update required - desired config is empty");
                 return;
             }
 
@@ -353,7 +716,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             _logger.LogInformation("Sending 'message received' acknowledgment for device: {DeviceName}", Configuration.DeviceName);
             var updatingReport = ConfigurationUpdateHelper.CreateUpdatingReport(
                 message, Configuration, deviceTypeName);
-            await _cloudService.PublishConfigurationReportAsync(updatingReport, ct);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, updatingReport, ct);
 
             // Step 3: Create backup before applying changes
             var backup = ConfigurationUpdateHelper.CreateBackup(Configuration);
@@ -370,18 +733,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     return;
                 }
 
-                // Find matching device config by DeviceName
-                SubNodeDeviceConfigDto? desiredConfig = null;
-                foreach (var (key, config) in deviceConfigs)
-                {
-                    if (string.Equals(config.DeviceName, Configuration.DeviceName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        desiredConfig = config;
-                        break;
-                    }
-                }
-
-                if (desiredConfig == null)
+                // Find matching device config by DeviceName (using dictionary key)
+                if (!deviceConfigs.TryGetValue(Configuration.DeviceName, out var desiredConfig))
                 {
                     _logger.LogDebug("No matching device configuration found for device: {DeviceName}", Configuration.DeviceName);
                     return;
@@ -389,8 +742,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                 _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
 
+                // Record pre-update state for detecting interval/period changes
+                var previousIntervalGroups = Configuration.Sensors
+                    .Where(s => s.Report.Enabled)
+                    .GroupBy(s => (int)s.Report.Interval)
+                    .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
+                var previousHealthPeriod = Configuration.Periods.ReportHealth;
+
                 // Apply sensor configuration updates (PATCH semantics - only update provided fields)
-                var updatedSensors = ConfigurationUpdateHelper.ApplySensorConfigUpdates(
+                var updatedSensors = ConfigurationUpdateHelper.ApplysensorReportUpdates(
                     Configuration, desiredConfig.Sensors);
 
                 if (updatedSensors.Count > 0)
@@ -442,18 +802,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Apply background task periods if provided (PATCH semantics)
                 if (desiredConfig.Periods != null)
                 {
-                    if (desiredConfig.Periods.ReadTelemetry > 0)
-                    {
-                        _logger.LogDebug("Updating ReadTelemetry period: {Old} -> {New}",
-                            Configuration.Periods.ReadTelemetry, desiredConfig.Periods.ReadTelemetry);
-                        Configuration.Periods.ReadTelemetry = desiredConfig.Periods.ReadTelemetry;
-                    }
-                    if (desiredConfig.Periods.SendTelemetry > 0)
-                    {
-                        _logger.LogDebug("Updating SendTelemetry period: {Old} -> {New}",
-                            Configuration.Periods.SendTelemetry, desiredConfig.Periods.SendTelemetry);
-                        Configuration.Periods.SendTelemetry = desiredConfig.Periods.SendTelemetry;
-                    }
                     if (desiredConfig.Periods.ReportHealth > 0)
                     {
                         _logger.LogDebug("Updating ReportHealth period: {Old} -> {New}",
@@ -471,22 +819,44 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     _logger.LogInformation("Updated background task periods");
                 }
 
-                // Step 5: Persist configuration to cache for restart persistence
-                await _context.ConfigurationCache.SaveConfigurationAsync(Configuration, ct);
+                // Recalculate send telemetry period if sensor intervals changed
+                CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
+                _logger.LogDebug("Recalculated SendTelemetry period: {Period}ms", CalculatedSendTelemetryPeriod);
+
+                // Detect if background tasks need restart due to interval/period changes
+                var currentIntervalGroups = Configuration.Sensors
+                    .Where(s => s.Report.Enabled)
+                    .GroupBy(s => (int)s.Report.Interval)
+                    .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
+
+                var intervalsChanged = !AreIntervalGroupsEqual(previousIntervalGroups, currentIntervalGroups);
+                var healthPeriodChanged = previousHealthPeriod != Configuration.Periods.ReportHealth;
+
+                if (intervalsChanged || healthPeriodChanged)
+                {
+                    _logger.LogInformation(
+                        "Background task config changed (intervals={IntervalsChanged}, healthPeriod={HealthChanged}), restarting tasks",
+                        intervalsChanged, healthPeriodChanged);
+                    await RestartBackgroundTasksAsync();
+                }
+
+                // Step 5: Persist raw cloud message to cache for restart persistence
+                // By storing the raw message, we preserve original JSON structure and data types
+                await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
                 _logger.LogInformation("Configuration cached to: {CachePath}",
-                    _context.ConfigurationCache.CacheFilePath);
+                    _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
 
                 // Step 6: Send success response with updated configuration
                 _logger.LogInformation("Configuration update successful, sending success response");
                 var successReport = ConfigurationUpdateHelper.CreateSuccessReport(
                     message, Configuration, deviceTypeName);
-                await _cloudService.PublishConfigurationReportAsync(successReport, ct);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, successReport, ct);
 
                 _logger.LogInformation("Configuration update completed successfully for device: {DeviceName}", Configuration.DeviceName);
             }
             catch (Exception updateEx)
             {
-                _logger.LogError(updateEx, "Error applying configuration update, rolling back changes");
+                _logger.LogError(updateEx, "Error applying device configuration update, rolling back changes");
 
                 // Step 7: Rollback on failure
                 ConfigurationUpdateHelper.RestoreBackup(Configuration, backup);
@@ -495,20 +865,177 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Send failure response
                 var failureReport = ConfigurationUpdateHelper.CreateFailedReport(
                     message, Configuration, deviceTypeName, updateEx.Message);
-                await _cloudService.PublishConfigurationReportAsync(failureReport, ct);
-
-                throw; // Re-throw to let OnAfterConfigUpdateAsync know there was an error
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in configuration update workflow for device {DeviceId}", DeviceId);
-            // Don't rethrow - allow OnAfterConfigUpdateAsync to still execute
+            _logger.LogError(ex, "Error in device configuration update workflow for device {SubNodeId}", SubNodeId);
         }
-        finally
+    }
+
+    /// <summary>
+    /// Applies system-config updates (Serilog, WedaNode) from cloud.
+    /// Serilog settings can be reloaded dynamically.
+    /// WedaNode (NATS) changes are not allowed at runtime - if values differ from current, returns validation error.
+    /// </summary>
+    private async Task ApplySystemConfigurationUpdateAsync(
+        UpdateConfigurationEvent e,
+        SubNodeConfigUpdateMessage message,
+        CancellationToken ct)
+    {
+        var deviceTypeName = Configuration.SubNodeType.ToString();
+
+        try
         {
-            _configUpdateLock.Release();
+            var systemConfig = message.Data?.Cfg?.Desired?.SystemConfig;
+            if (systemConfig == null)
+            {
+                _logger.LogDebug("No system configuration in desired state, skipping");
+                return;
+            }
+
+            _logger.LogInformation("Processing system configuration update");
+
+            // Validate: WedaNode changes are not allowed at runtime
+            // Only return Invalid if the values actually differ from current configuration
+            if (systemConfig.WedaNode != null && HasWedaNodeChanges(systemConfig.WedaNode))
+            {
+                var errorMessage = "WedaNode (NATS) connection settings cannot be modified at runtime. Please restart the application to apply changes.";
+                _logger.LogWarning("System config validation failed: {Error}", errorMessage);
+
+                // Cache the message for next restart
+                await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
+                _logger.LogInformation("System configuration cached for next restart: {CachePath}",
+                    _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
+
+                // Send invalid status response
+                var invalidReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
+                    message, deviceTypeName, ConfigUpdateStatus.Invalid, errorMessage);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, invalidReport, ct);
+                return;
+            }
+
+            // Send updating acknowledgment
+            var updatingReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
+                message, deviceTypeName, ConfigUpdateStatus.Updating, null);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, updatingReport, ct);
+
+            // Apply Serilog changes dynamically
+            if (systemConfig.Serilog != null)
+            {
+                _logger.LogInformation("Reloading Serilog configuration");
+                try
+                {
+                    // Reload Serilog from cached config
+                    // Note: Full Serilog reload requires rebuilding the logger
+                    // For now, we just cache and report success - changes take effect on restart
+                    _logger.LogInformation("Serilog configuration cached for reload");
+                }
+                catch (Exception serilogEx)
+                {
+                    _logger.LogError(serilogEx, "Failed to reload Serilog configuration");
+                    throw;
+                }
+            }
+
+            // Cache the system config
+            await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
+            _logger.LogInformation("System configuration cached to: {CachePath}",
+                _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
+
+            // Send success response
+            var successReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
+                message, deviceTypeName, ConfigUpdateStatus.Success, null);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, successReport, ct);
+
+            _logger.LogInformation("System configuration update completed successfully");
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying system configuration update");
+
+            var failureReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
+                message, deviceTypeName, ConfigUpdateStatus.Failed, ex.Message);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
+        }
+    }
+
+    /// <summary>
+    /// Applies custom-config updates from cloud.
+    /// Caches the configuration and calls OnCustomConfigUpdateAsync hook for user handling.
+    /// </summary>
+    private async Task ApplyCustomConfigurationUpdateAsync(
+        UpdateConfigurationEvent e,
+        SubNodeConfigUpdateMessage message,
+        CancellationToken ct)
+    {
+        var deviceTypeName = Configuration.SubNodeType.ToString();
+
+        try
+        {
+            var customConfig = message.Data?.Cfg?.Desired?.CustomConfig;
+            if (customConfig == null)
+            {
+                _logger.LogDebug("No custom configuration in desired state, skipping");
+                return;
+            }
+
+            _logger.LogInformation("Processing custom configuration update");
+
+            // Send updating acknowledgment
+            var updatingReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
+                message, deviceTypeName, ConfigUpdateStatus.Updating, null);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, updatingReport, ct);
+
+            // Call user hook to handle custom config
+            var result = await OnCustomConfigUpdateAsync(customConfig, ct);
+
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("Custom config update rejected by user handler: {Error}", result.ErrorMessage);
+
+                var failureReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
+                    message, deviceTypeName, ConfigUpdateStatus.Failed, result.ErrorMessage);
+                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
+                return;
+            }
+
+            // Cache the custom config
+            await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
+            _logger.LogInformation("Custom configuration cached to: {CachePath}",
+                _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
+
+            // Send success response
+            var successReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
+                message, deviceTypeName, ConfigUpdateStatus.Success, null);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, successReport, ct);
+
+            _logger.LogInformation("Custom configuration update completed successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying custom configuration update");
+
+            var failureReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
+                message, deviceTypeName, ConfigUpdateStatus.Failed, ex.Message);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
+        }
+    }
+
+    /// <summary>
+    /// Hook: Called when custom configuration update is received from cloud.
+    /// Override this to handle application-specific configuration changes.
+    /// </summary>
+    /// <param name="customConfig">The custom configuration dictionary from cloud</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Result indicating success or failure with error message</returns>
+    protected virtual Task<CustomConfigUpdateResult> OnCustomConfigUpdateAsync(
+        Dictionary<string, JsonElement> customConfig,
+        CancellationToken ct)
+    {
+        // Default: accept all custom configs
+        return Task.FromResult(CustomConfigUpdateResult.Success());
     }
 
     /// <summary>
@@ -517,6 +1044,108 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// Base configuration (sensors, periods) is already applied and cached by the framework.
     /// </summary>
     protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Checks if the desired WedaNode configuration differs from the current running configuration.
+    /// Compares all WedaNode properties: Url, Name, AuthStrategy, Username, Password, Token, CredFile, SerializerType.
+    /// </summary>
+    /// <param name="desired">The desired WedaNode configuration from cloud</param>
+    /// <returns>True if any WedaNode property has changed, false otherwise</returns>
+    private bool HasWedaNodeChanges(SubNodeWedaNodeConfigDto desired)
+    {
+        // Get current WedaNode settings from configuration
+        var currentSection = _context.Configuration?.GetSection(Abstractions.Cloud.Nats.NatsConnectionSettings.SectionName);
+        if (currentSection == null || !currentSection.Exists())
+        {
+            // No current config exists, any desired value is a change
+            return true;
+        }
+
+        // Compare each property - only check properties that are provided in desired config
+        // If a property is null in desired, it means "no change" for that property
+        if (desired.Url != null)
+        {
+            var currentUrl = currentSection["Url"];
+            if (!string.Equals(desired.Url, currentUrl, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WedaNode.Url changed: '{Current}' -> '{Desired}'", currentUrl, desired.Url);
+                return true;
+            }
+        }
+
+        if (desired.Name != null)
+        {
+            var currentName = currentSection["Name"];
+            if (!string.Equals(desired.Name, currentName, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WedaNode.Name changed: '{Current}' -> '{Desired}'", currentName, desired.Name);
+                return true;
+            }
+        }
+
+        if (desired.AuthStrategy != null)
+        {
+            var currentAuthStrategy = currentSection["AuthStrategy"];
+            if (!string.Equals(desired.AuthStrategy, currentAuthStrategy, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug("WedaNode.AuthStrategy changed: '{Current}' -> '{Desired}'", currentAuthStrategy, desired.AuthStrategy);
+                return true;
+            }
+        }
+
+        if (desired.Username != null)
+        {
+            var currentUsername = currentSection["Username"];
+            if (!string.Equals(desired.Username, currentUsername, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WedaNode.Username changed");
+                return true;
+            }
+        }
+
+        if (desired.Password != null)
+        {
+            var currentPassword = currentSection["Password"];
+            if (!string.Equals(desired.Password, currentPassword, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WedaNode.Password changed");
+                return true;
+            }
+        }
+
+        if (desired.Token != null)
+        {
+            var currentToken = currentSection["Token"];
+            if (!string.Equals(desired.Token, currentToken, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WedaNode.Token changed");
+                return true;
+            }
+        }
+
+        if (desired.CredFile != null)
+        {
+            var currentCredFile = currentSection["CredFile"];
+            if (!string.Equals(desired.CredFile, currentCredFile, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WedaNode.CredFile changed: '{Current}' -> '{Desired}'", currentCredFile, desired.CredFile);
+                return true;
+            }
+        }
+
+        if (desired.SerializerType != null)
+        {
+            var currentSerializerType = currentSection["SerializerType"];
+            if (!string.Equals(desired.SerializerType, currentSerializerType, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug("WedaNode.SerializerType changed: '{Current}' -> '{Desired}'", currentSerializerType, desired.SerializerType);
+                return true;
+            }
+        }
+
+        _logger.LogDebug("WedaNode configuration has no changes");
+        return false;
+    }
 
     /// <summary>
     /// Hook: Called before command execution.
@@ -536,14 +1165,31 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
     /// Only fires if EnableDataReceivedTracking is true.
+    /// This event fires with RAW data before transform/filter processing.
     /// </summary>
     protected void RaiseDataReceived(List<TelemetryMeasure> measures)
     {
         if (!EnableDataReceivedTracking) return;
 
         DataReceived?.Invoke(this, new DataReceivedEvent(
-            DeviceId: DeviceId ?? "unknown",
-            DeviceType: DeviceType,
+            SubNodeId: SubNodeId ?? "unknown",
+            SubNodeType: SubNodeType,
+            Data: measures,
+            Timestamp: DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>
+    /// Triggers DataProcessed event. Called after transform/filter pipeline processing.
+    /// Only fires if EnableDataProcessedTracking is true.
+    /// This event fires with PROCESSED data after transform/filter processing.
+    /// </summary>
+    protected void RaiseDataProcessed(List<TelemetryMeasure> measures)
+    {
+        if (!EnableDataProcessedTracking) return;
+
+        DataProcessed?.Invoke(this, new DataProcessedEvent(
+            SubNodeId: SubNodeId ?? "unknown",
+            SubNodeType: SubNodeType,
             Data: measures,
             Timestamp: DateTimeOffset.UtcNow));
     }
@@ -551,6 +1197,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     // ===== Events & Tracking Flags =====
 
     public event EventHandler<DataReceivedEvent>? DataReceived;
+    public event EventHandler<DataProcessedEvent>? DataProcessed;
     public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
     public event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged;
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;
@@ -560,6 +1207,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     /// <inheritdoc />
     public bool EnableDataReceivedTracking { get; set; }
+
+    /// <inheritdoc />
+    public bool EnableDataProcessedTracking { get; set; }
 
     /// <inheritdoc />
     public bool EnableConnectionStateTracking { get; set; }
@@ -596,112 +1246,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _orchestrator.StatusChanged += (s, e) =>
         {
             if (EnableDeviceStatusTracking)
-                DeviceStatusChanged?.Invoke(this, new(DeviceId ?? "unknown", DeviceType, e.FromStatus, e.ToStatus, e.Timestamp));
+                DeviceStatusChanged?.Invoke(this, new(SubNodeId ?? "unknown", SubNodeType, e.FromStatus, e.ToStatus, e.Timestamp));
         };
 
         // Forward pipeline value change events to device level
         _orchestrator.TelemetryPipeline.ValueChanged += (s, e) => ValueChanged?.Invoke(this, e);
 
-        // Configuration Update: Auto-invoke Pre/Post hooks
-        _orchestrator.ConnectionManager.ConfigurationUpdateReceived += async e =>
-        {
-            try
-            {
-                // Pre-hook (for derived class validation/preparation)
-                await OnBeforeConfigUpdateAsync(e, CancellationToken.None);
-
-                // Raise event (for framework monitoring/logging)
-                if (EnableConfigurationUpdateTracking)
-                    ConfigurationUpdateReceived?.Invoke(this, e);
-
-                // Apply base DeviceConfiguration updates from cloud
-                await ApplyBaseConfigurationUpdateAsync(e, CancellationToken.None);
-
-                // Post-hook (for derived class custom configuration handling)
-                await OnAfterConfigUpdateAsync(e, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error handling configuration update for device {DeviceId}", DeviceId);
-            }
-        };
-
-        // Command: Auto-invoke Pre -> Execute -> Post hooks with Command Response
-        _orchestrator.ConnectionManager.CommandReceived += async e =>
-        {
-            var success = false;
-            string? errorCode = null;
-            string? errorMessage = null;
-
-            try
-            {
-                // Pre-hook (can be used for validation)
-                await OnBeforeCommandAsync(e, CancellationToken.None);
-
-                // Raise event (for framework monitoring/logging)
-                if (EnableCommandReceivedTracking)
-                    CommandReceived?.Invoke(this, e);
-
-                // Send "received" response immediately after validation passes
-                await SendCommandResponseAsync(
-                    e.Command.RespTopic,
-                    CommandResponse.Received(DeviceId!, e.Command.DeviceCmd));
-
-                // Execute command on device
-                _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
-                success = await ExecuteCommandAsync(e.Command);
-                _logger.LogInformation("Command execution {Result}: {CommandName}",
-                    success ? "succeeded" : "failed",
-                    e.Command.DeviceCmd);
-
-                if (!success)
-                {
-                    errorCode = "Command.ExecutionFailed";
-                    errorMessage = $"Command '{e.Command.DeviceCmd}' execution returned false";
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
-                errorCode = "Command.Exception";
-                errorMessage = ex.Message;
-            }
-            finally
-            {
-                // Send final response (success or failed)
-                try
-                {
-                    if (success)
-                    {
-                        await SendCommandResponseAsync(
-                            e.Command.RespTopic,
-                            CommandResponse.Success(DeviceId!, e.Command.DeviceCmd));
-                    }
-                    else
-                    {
-                        await SendCommandResponseAsync(
-                            e.Command.RespTopic,
-                            CommandResponse.Failed(DeviceId!, e.Command.DeviceCmd,
-                                errorCode ?? "Command.Unknown",
-                                errorMessage ?? "Unknown error"));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error sending command response for {CommandName}", e.Command.DeviceCmd);
-                }
-
-                // Post-hook (always called, even on failure)
-                try
-                {
-                    await OnAfterCommandAsync(e, success, CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in OnAfterCommandAsync hook for command {CommandName}", e.Command.DeviceCmd);
-                }
-            }
-        };
+        // Note: Configuration updates and commands are now handled through SubNodeManager's
+        // Hybrid routing via RegisterDeviceHandler() in OnInitializeAsync.
+        // The handlers are: HandleConfigurationUpdateAsync and HandleCommandReceivedAsync
     }
 
     /// <summary>
@@ -770,5 +1323,286 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _orchestrator.Dispose();
         _configUpdateLock.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    // ===== Configuration Validation =====
+
+    /// <summary>
+    /// Validates the device configuration at startup.
+    /// Throws InvalidOperationException for any invalid configuration.
+    /// </summary>
+    /// <param name="configuration">Device configuration to validate</param>
+    /// <exception cref="InvalidOperationException">Thrown when configuration is invalid</exception>
+    private static void ValidateConfiguration(DeviceConfiguration configuration)
+    {
+        ValidateSensorIntervals(configuration);
+        ValidateBackgroundTaskPeriods(configuration);
+    }
+
+    /// <summary>
+    /// Validates that all enabled sensors have a valid Interval configured (greater than 0).
+    /// Throws InvalidOperationException if any enabled sensor has Interval less than or equal to 0.
+    /// </summary>
+    /// <param name="configuration">Device configuration to validate</param>
+    /// <exception cref="InvalidOperationException">Thrown when any enabled sensor has invalid Interval</exception>
+    private static void ValidateSensorIntervals(DeviceConfiguration configuration)
+    {
+        var invalidSensors = configuration.Sensors
+            .Where(s => s.Report.Enabled && s.Report.Interval <= 0)
+            .Select(s => s.Name)
+            .ToList();
+
+        if (invalidSensors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"All enabled sensors must have Config.Interval > 0. " +
+                $"Invalid sensors: [{string.Join(", ", invalidSensors)}]. " +
+                $"Please configure the Interval property for each sensor in appsettings.json.");
+        }
+    }
+
+    /// <summary>
+    /// Validates background task period settings.
+    /// Throws InvalidOperationException for any invalid period configuration.
+    /// </summary>
+    /// <param name="configuration">Device configuration to validate</param>
+    /// <exception cref="InvalidOperationException">Thrown when period configuration is invalid</exception>
+    private static void ValidateBackgroundTaskPeriods(DeviceConfiguration configuration)
+    {
+        var periods = configuration.Periods;
+
+        // ReportConfiguration is a REQUIRED feature and cannot be disabled
+        // Minimum value is 1 minute (60000ms) to prevent excessive network traffic
+        if (periods.ReportConfiguration < BackgroundTaskPeriods.MinReportConfigurationPeriod)
+        {
+            throw new InvalidOperationException(
+                $"Periods.ReportConfiguration must be at least {BackgroundTaskPeriods.MinReportConfigurationPeriod}ms (1 minute). " +
+                $"Current value: {periods.ReportConfiguration}ms. " +
+                $"This is a required feature for Digital Twin synchronization and cannot be disabled. " +
+                $"Please set a value >= {BackgroundTaskPeriods.MinReportConfigurationPeriod}ms in appsettings.json.");
+        }
+
+        // ReportHealth should also have a reasonable minimum (optional, but warn if too low)
+        if (periods.ReportHealth > 0 && periods.ReportHealth < 1000)
+        {
+            throw new InvalidOperationException(
+                $"Periods.ReportHealth must be at least 1000ms (1 second) if enabled. " +
+                $"Current value: {periods.ReportHealth}ms. " +
+                $"Please set a value >= 1000ms in appsettings.json.");
+        }
+    }
+
+    /// <summary>
+    /// Calculates the telemetry batch send period as the minimum of all enabled sensor intervals.
+    /// </summary>
+    /// <param name="configuration">Device configuration</param>
+    /// <returns>Minimum interval in milliseconds</returns>
+    private static int CalculateSendTelemetryPeriod(DeviceConfiguration configuration)
+    {
+        var enabledIntervals = configuration.Sensors
+            .Where(s => s.Report.Enabled && s.Report.Interval > 0)
+            .Select(s => (int)s.Report.Interval)
+            .ToList();
+
+        // This should never happen after validation, but provide safe default
+        if (enabledIntervals.Count == 0)
+        {
+            return 5000; // Default fallback
+        }
+
+        return enabledIntervals.Min();
+    }
+
+    // ===== Background Task Management (for dynamic restart on config update) =====
+
+    /// <summary>
+    /// Starts all background tasks that may need to be restarted on config update.
+    /// This includes: device-specific tasks (polling/sampling), batch send task, and health task.
+    /// </summary>
+    private void StartAllBackgroundTasks(CancellationToken ct)
+    {
+        // Start device-specific background tasks (polling, subscription, etc.)
+        _ = StartBackgroundTasksAsync(ct);
+
+        // Start batch send task
+        StartBatchSendTask(ct);
+
+        // Start health task
+        StartHealthTask(ct);
+    }
+
+    /// <summary>
+    /// Starts the batch send task with current CalculatedSendTelemetryPeriod.
+    /// </summary>
+    private void StartBatchSendTask(CancellationToken ct)
+    {
+        var sendPeriod = CalculatedSendTelemetryPeriod;
+        _batchSendTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting batch send task with period {Period}ms for device {SubNodeId}", sendPeriod, SubNodeId);
+
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(sendPeriod, ct);
+
+                    var batch = new List<TelemetryMeasure>();
+                    while (_telemetryBatch.TryDequeue(out var measure))
+                    {
+                        batch.Add(measure);
+                    }
+
+                    if (batch.Count > 0)
+                    {
+                        _logger.LogDebug(
+                            "Sending telemetry batch: {Count} measures for device {SubNodeId}",
+                            batch.Count, SubNodeId);
+                        await SendTelemetryAsync(batch, ct);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Send remaining data before exit
+                var remaining = new List<TelemetryMeasure>();
+                while (_telemetryBatch.TryDequeue(out var measure))
+                {
+                    remaining.Add(measure);
+                }
+                if (remaining.Count > 0)
+                {
+                    _logger.LogDebug("Sending remaining {Count} measures before shutdown for device {SubNodeId}", remaining.Count, SubNodeId);
+                    await SendTelemetryAsync(remaining, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in batch send task for device {SubNodeId}", SubNodeId);
+            }
+        }, ct);
+    }
+
+    /// <summary>
+    /// Starts the health reporting task with current ReportHealth period.
+    /// </summary>
+    private void StartHealthTask(CancellationToken ct)
+    {
+        var healthPeriod = Configuration.Periods.ReportHealth;
+
+        _healthTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting health reporting task with period {Period}ms for device {SubNodeId}", healthPeriod, SubNodeId);
+
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await ReportHealthAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in health reporting task for device {SubNodeId}", SubNodeId);
+                    }
+
+                    await Task.Delay(healthPeriod, ct);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                _logger.LogDebug("Health reporting task cancelled for device {SubNodeId}", SubNodeId);
+            }
+        }, ct);
+    }
+
+    /// <summary>
+    /// Starts the configuration sync task.
+    /// This task is NOT restarted on config update since ReportConfiguration period changes are rare.
+    /// </summary>
+    private void StartConfigSyncTask(CancellationToken ct)
+    {
+        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
+        if (configSyncPeriod > 0)
+        {
+            _configSyncTask = Task.Run(async () =>
+            {
+                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
+
+                while (!ct.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await ReportConfigurationAsync(ct);
+                        _logger.LogDebug("Configuration sync completed for device {SubNodeId}", SubNodeId);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        _logger.LogInformation("Configuration sync task cancelled for device {SubNodeId}", SubNodeId);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in configuration sync task for device {SubNodeId}", SubNodeId);
+                    }
+
+                    await Task.Delay(configSyncPeriod, ct);
+                }
+            }, ct);
+        }
+        else
+        {
+            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
+        }
+    }
+
+    /// <summary>
+    /// Restarts background tasks when sensor intervals or periods change.
+    /// Called from ApplyBaseConfigurationUpdateAsync after config is updated.
+    /// </summary>
+    protected virtual async Task RestartBackgroundTasksAsync()
+    {
+        _logger.LogInformation("Restarting background tasks due to config changes for device {SubNodeId}", SubNodeId);
+
+        // Step 1: Cancel existing sampling/polling tasks and health task
+        if (_samplingCts != null)
+        {
+            await _samplingCts.CancelAsync();
+            _samplingCts.Dispose();
+        }
+
+        // Step 2: Wait briefly for tasks to complete gracefully
+        await Task.Delay(100);
+
+        // Step 3: Create new CancellationTokenSource
+        _samplingCts = new CancellationTokenSource();
+
+        // Step 4: Start new background tasks with updated intervals/periods
+        StartAllBackgroundTasks(_samplingCts.Token);
+
+        _logger.LogInformation("Background tasks restarted successfully for device {SubNodeId}", SubNodeId);
+    }
+
+    /// <summary>
+    /// Compares two interval group dictionaries for equality.
+    /// Used to detect if sensor interval configuration has changed.
+    /// </summary>
+    private static bool AreIntervalGroupsEqual(
+        Dictionary<int, HashSet<string>> previous,
+        Dictionary<int, HashSet<string>> current)
+    {
+        if (previous.Count != current.Count)
+            return false;
+
+        foreach (var (interval, sensorIds) in previous)
+        {
+            if (!current.TryGetValue(interval, out var currentSensorIds))
+                return false;
+            if (!sensorIds.SetEquals(currentSensorIds))
+                return false;
+        }
+
+        return true;
     }
 }

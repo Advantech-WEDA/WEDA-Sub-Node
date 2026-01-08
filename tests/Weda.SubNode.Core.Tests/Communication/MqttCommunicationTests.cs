@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Events;
-using Weda.SubNode.Core.Communication;
+using Weda.SubNode.Core.Communication.Common;
+using Weda.SubNode.Core.Communication.Mqtt;
 using Xunit;
 
 namespace Weda.SubNode.Core.Tests.Communication;
@@ -31,7 +32,7 @@ public class MqttCommunicationTests
         // Assert
         Assert.NotNull(mqtt);
         Assert.IsAssignableFrom<ICommunication>(mqtt);
-        Assert.IsAssignableFrom<IMessageBroker>(mqtt);
+        Assert.IsAssignableFrom<IPubSub>(mqtt);
     }
 
     [Fact]
@@ -44,7 +45,7 @@ public class MqttCommunicationTests
 
     #endregion
 
-    #region IMessageBroker Tests
+    #region IPubSub Tests
 
     [Fact]
     public async Task SubscribeAsync_WhenNotConnected_ShouldReturnFalse()

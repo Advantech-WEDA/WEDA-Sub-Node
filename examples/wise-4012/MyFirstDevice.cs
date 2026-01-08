@@ -22,15 +22,17 @@ namespace Wise4012Example;
 public class MyFirstDevice : TcpModbusDevice
 {
     /// <summary>
-    /// Creates MyFirstDevice using ApplicationContext.
-    /// Configuration is automatically retrieved from context.
+    /// Creates MyFirstDevice using ApplicationContext and config key.
+    /// Configuration is retrieved from context.DeviceConfigs[configKey].
     /// </summary>
-    public MyFirstDevice(IWedaApplicationContext context)
-        : base(context)
+    /// <param name="context">The application context</param>
+    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    public MyFirstDevice(IWedaApplicationContext context, string configKey)
+        : base(context, configKey)
     {
         // Subscribe to DataReceived event to process telemetry
-        // EnableDataReceivedTracking = true;
-        // DataReceived += OnDataReceived;
+        EnableDataReceivedTracking = true;
+        DataReceived += OnDataReceived;
     }
 
     /// <summary>
@@ -50,7 +52,7 @@ public class MyFirstDevice : TcpModbusDevice
                 _logger.LogInformation("{SensorName}: {Value} (Enabled={Enabled})",
                     sensor.Name,
                     measure.Value,
-                    sensor.Config.Enabled);
+                    sensor.Report.Enabled);
             }
         }
     }
@@ -67,7 +69,7 @@ public class MyFirstDevice : TcpModbusDevice
     /// </summary>
     protected override Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
-        _logger.LogInformation("Configuration update applied for device: {DeviceId}", DeviceId);
+        _logger.LogInformation("Configuration update applied for device: {SubNodeId}", SubNodeId);
 
         // Get the strongly-typed message from the event
         var message = e.Message;

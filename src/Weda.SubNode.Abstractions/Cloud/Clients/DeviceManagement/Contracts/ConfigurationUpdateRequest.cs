@@ -37,7 +37,7 @@ public record ConfigStateDto(
 /// Desired configuration from cloud
 /// </summary>
 public record DesiredConfigDto(
-    IReadOnlyList<SensorConfigUpdateDto>? Sensors,
+    IReadOnlyList<SensorReportUpdateDto>? Sensors,
     CommunicationConfigDto? Communication,
     SystemConfigDto? System);
 
@@ -45,7 +45,7 @@ public record DesiredConfigDto(
 /// Reported configuration from device
 /// </summary>
 public record ReportedConfigDto(
-    IReadOnlyList<SensorConfigReportDto>? Sensors,
+    IReadOnlyList<SensorReportReportDto>? Sensors,
     CommunicationConfigDto? Communication,
     SystemConfigDto? System,
     DeviceStatusDto? DeviceStatus);
@@ -53,7 +53,7 @@ public record ReportedConfigDto(
 /// <summary>
 /// Sensor configuration update (from cloud)
 /// </summary>
-public record SensorConfigUpdateDto(
+public record SensorReportUpdateDto(
     string SensorId,
     bool Enabled,
     int Interval,
@@ -64,7 +64,7 @@ public record SensorConfigUpdateDto(
 /// <summary>
 /// Sensor configuration report (to cloud)
 /// </summary>
-public record SensorConfigReportDto(
+public record SensorReportReportDto(
     string SensorId,
     bool Enabled,
     int Interval,

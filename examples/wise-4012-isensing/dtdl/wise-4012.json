@@ -1,0 +1,51 @@
+{
+    "@id": "dtmi:advantech:EdgeSync:DeviceSensors;1",
+    "@type": "Interface",
+    "displayName": "EdgySync Device Measurement Definitions",
+    "contents": [
+        {
+            "@id": "dtmi:advantech:EdgeSync:AI;1",
+            "@type": "Telemetry",
+            "name": "AI",
+            "displayName": "Analog Input",
+            "schema": "double",
+            "description": "This is Analog Input field"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:DI;1",
+            "@type": "Telemetry",
+            "name": "DI",
+            "displayName": "Digital Input",
+            "schema": "boolean",
+            "description": "This is Digital Input field"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:DO;1",
+            "@type": "Telemetry",
+            "name": "DO",
+            "displayName": "Digital Output",
+            "schema": "boolean",
+            "writeable": true,
+            "description": "This is Digital Input field"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Voltage;1",
+            "@type": "Telemetry",
+            "name": "voltage",
+            "displayName": "Voltage",
+            "schema": "boolean",
+            "writeable": true,
+            "description": "Voltage"
+        },
+        {
+            "@id": "dtmi:advantech:EdgeSync:Temperature;1",
+            "@type": "Temperature",
+            "name": "temperature",
+            "displayName": "Temperature",
+            "schema": "boolean",
+            "writeable": true,
+            "description": "measurement temperature"
+        }
+    ],
+    "@context": "dtmi:dtdl:context;2"
+}

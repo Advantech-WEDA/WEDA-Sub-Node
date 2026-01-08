@@ -86,7 +86,7 @@ dotnet run
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://your-cloud-server:4224"
   },
   "DeviceConfigs": {

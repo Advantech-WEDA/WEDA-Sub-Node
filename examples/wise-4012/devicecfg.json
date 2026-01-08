@@ -1,0 +1,87 @@
+{
+  "SubNode": {
+    "Name": "Wise4012",
+    "SubNodeType": "AdamEthernet",
+    "Manufacturer": "Advantech",
+    "Model": "WISE-4012",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "MyFirstDevice": {
+      "Enabled": true,
+      "Dtdl": {
+        "DtdlPath": "examples/wise-4012/dtdl/wise-4012.json",
+        "AutoGenEnabled": true
+      },
+      "DeviceCommunication": {
+        "Host": "172.16.8.122",
+        "Port": 502
+      },
+      "Properties": {
+        "SlaveId": 1
+      },
+      "Sensors": [
+        {
+          "Name": "channel.0",
+          "SensorGroup": "AI",
+          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 0,
+            "RegisterCount": 1,
+            "DataType": "UInt16"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        },
+        {
+          "Name": "channel.1",
+          "SensorGroup": "AI",
+          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 1,
+            "RegisterCount": 1,
+            "DataType": "UInt16"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        },
+        {
+          "Name": "channel.2",
+          "SensorGroup": "AI",
+          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 2,
+            "RegisterCount": 1,
+            "DataType": "UInt16"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        },
+        {
+          "Name": "channel.3",
+          "SensorGroup": "AI",
+          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 3,
+            "RegisterCount": 1,
+            "DataType": "UInt16"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        }
+      ]
+    }
+  }
+}

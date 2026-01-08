@@ -1,0 +1,11 @@
+{
+  "SubNode": {
+    "Name": "MySubNode",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "YourCompany",
+    "Model": "SubNode-Template",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+  }
+}

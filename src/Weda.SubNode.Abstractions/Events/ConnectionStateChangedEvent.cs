@@ -8,13 +8,13 @@ namespace Weda.SubNode.Abstractions.Events;
 /// Fired when communication state transitions (e.g., Connected → Disconnected).
 /// </summary>
 /// <param name="DeviceId">The device identifier.</param>
-/// <param name="DeviceType">The device type.</param>
+/// <param name="SubNodeType">The device type.</param>
 /// <param name="PreviousState">The connection state before the change.</param>
 /// <param name="CurrentState">The connection state after the change.</param>
 /// <param name="Timestamp">The timestamp when connection state changed.</param>
 public sealed record ConnectionStateChangedEvent(
     string DeviceId,
-    DeviceType DeviceType,
+    SubNodeType SubNodeType,
     CommunicationState PreviousState,
     CommunicationState CurrentState,
     DateTimeOffset Timestamp)

@@ -58,6 +58,7 @@ public class ModbusBatchPerformanceTests
         var batchReader = new ModbusBatchReader(
             batchComm,
             slaveId: 1,
+            ModbusByteOrder.BigEndian,
             _logger,
             ModbusBatchOptimizationOptions.Default);
         var batchStopwatch = Stopwatch.StartNew();
@@ -114,6 +115,7 @@ public class ModbusBatchPerformanceTests
         var batchReader = new ModbusBatchReader(
             batchComm,
             slaveId: 1,
+            ModbusByteOrder.BigEndian,
             _logger,
             ModbusBatchOptimizationOptions.Default);
         await batchReader.ReadSensorsAsync(sensors, CancellationToken.None);

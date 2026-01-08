@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
-using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Core.Storage;
 using Xunit;
 
@@ -10,11 +10,14 @@ namespace Weda.SubNode.Core.Tests.Storage;
 /// <summary>
 /// Unit tests for JsonConfigurationCache.
 /// Tests the configuration cache mechanism for UC9868 (cloud-driven config updates).
+/// Multi-Cache Design: Separate cache files per config type:
+/// - .weda/systemcfg.cache.json - System configuration
+/// - .weda/devicecfg.cache.json - Device configuration
+/// - .weda/customcfg.cache.json - Custom configuration
 /// </summary>
 public class JsonConfigurationCacheTests : IDisposable
 {
     private readonly string _testDirectory;
-    private readonly string _cacheFilePath;
     private readonly JsonConfigurationCache _cache;
 
     public JsonConfigurationCacheTests()
@@ -23,9 +26,8 @@ public class JsonConfigurationCacheTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), $"config-cache-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDirectory);
 
-        _cacheFilePath = Path.Combine(_testDirectory, JsonConfigurationCache.DefaultFileName);
         _cache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
     }
 
@@ -44,7 +46,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheNotExists_ReturnsFalse()
     {
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         exists.ShouldBeFalse();
@@ -54,11 +56,11 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheExists_ReturnsTrue()
     {
         // Arrange
-        var config = CreateTestConfiguration();
-        await _cache.SaveConfigurationAsync(config);
+        var message = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         exists.ShouldBeTrue();
@@ -68,110 +70,130 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ExistsAsync_WhenCacheFileIsEmpty_ReturnsFalse()
     {
         // Arrange
-        await File.WriteAllTextAsync(_cacheFilePath, string.Empty);
+        var cachePath = _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+        await File.WriteAllTextAsync(cachePath, string.Empty);
 
         // Act
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         exists.ShouldBeFalse();
     }
 
-    #endregion
-
-    #region SaveConfigurationAsync Tests
-
     [Fact]
-    public async Task SaveConfigurationAsync_CreatesFile()
+    public async Task ExistsAsync_DifferentConfigTypes_AreIndependent()
     {
         // Arrange
-        var config = CreateTestConfiguration();
+        var message = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+
+        // Act & Assert
+        (await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig)).ShouldBeTrue();
+        (await _cache.ExistsAsync(SubscriptionTypes.SystemConfig)).ShouldBeFalse();
+        (await _cache.ExistsAsync(SubscriptionTypes.CustomConfig)).ShouldBeFalse();
+    }
+
+    #endregion
+
+    #region SaveRawConfigurationAsync Tests
+
+    [Fact]
+    public async Task SaveRawConfigurationAsync_CreatesFile()
+    {
+        // Arrange
+        var message = CreateTestCloudMessage();
 
         // Act
-        await _cache.SaveConfigurationAsync(config);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Assert
-        File.Exists(_cacheFilePath).ShouldBeTrue();
+        var cachePath = _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+        File.Exists(cachePath).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task SaveConfigurationAsync_WithNullConfig_ThrowsArgumentNullException()
+    public async Task SaveRawConfigurationAsync_WithNullMessage_ThrowsArgumentNullException()
     {
         // Act & Assert
         await Should.ThrowAsync<ArgumentNullException>(
-            () => _cache.SaveConfigurationAsync(null!));
+            () => _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, null!));
     }
 
     [Fact]
-    public async Task SaveConfigurationAsync_PreservesAllProperties()
+    public async Task SaveRawConfigurationAsync_PreservesAllProperties()
     {
         // Arrange
-        var config = CreateTestConfiguration();
-        config.Sensors[0].Config.Enabled = false;
-        config.Sensors[0].Config.Interval = 2000;
-        config.Periods.ReadTelemetry = 10000;
+        var message = CreateTestCloudMessage();
+        var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        desiredConfig.Sensors![0].Report!.Enabled = false;
+        desiredConfig.Sensors[0].Report!.Interval = 2000;
+        desiredConfig.Periods!.ReportHealth = 10000;
 
         // Act
-        await _cache.SaveConfigurationAsync(config);
-        var loaded = await _cache.GetConfigurationAsync();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loaded.ShouldNotBeNull();
-        loaded.DeviceName.ShouldBe(config.DeviceName);
-        loaded.Sensors[0].Config.Enabled.ShouldBeFalse();
-        loaded.Sensors[0].Config.Interval.ShouldBe(2000);
-        loaded.Periods.ReadTelemetry.ShouldBe(10000);
+        loaded.DeviceId.ShouldBe(message.DeviceId);
+        var loadedConfig = loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        loadedConfig.Sensors![0].Report!.Enabled.ShouldBeFalse();
+        loadedConfig.Sensors[0].Report!.Interval.ShouldBe(2000);
+        loadedConfig.Periods!.ReportHealth.ShouldBe(10000);
     }
 
     #endregion
 
-    #region GetConfigurationAsync Tests
+    #region GetRawConfigurationAsync Tests
 
     [Fact]
-    public async Task GetConfigurationAsync_WhenCacheNotExists_ReturnsNull()
+    public async Task GetRawConfigurationAsync_WhenCacheNotExists_ReturnsNull()
     {
         // Act
-        var config = await _cache.GetConfigurationAsync();
+        var message = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        config.ShouldBeNull();
+        message.ShouldBeNull();
     }
 
     [Fact]
-    public async Task GetConfigurationAsync_WhenCacheExists_ReturnsConfiguration()
+    public async Task GetRawConfigurationAsync_WhenCacheExists_ReturnsMessage()
     {
         // Arrange
-        var original = CreateTestConfiguration();
-        await _cache.SaveConfigurationAsync(original);
+        var original = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, original);
 
         // Act
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loaded.ShouldNotBeNull();
-        loaded.DeviceName.ShouldBe(original.DeviceName);
-        loaded.DeviceType.ShouldBe(original.DeviceType);
+        loaded.DeviceId.ShouldBe(original.DeviceId);
+        loaded.GroupId.ShouldBe(original.GroupId);
+        loaded.Cmd.ShouldBe(original.Cmd);
     }
 
     [Fact]
-    public async Task GetConfigurationAsync_PreservesSensorConfigurations()
+    public async Task GetRawConfigurationAsync_PreservesSensorReporturations()
     {
         // Arrange
-        var original = CreateTestConfiguration();
-        original.Sensors[0].Config.Enabled = false;
-        original.Sensors[1].Config.Enabled = true;
-        original.Sensors[1].Config.Interval = 5000;
-        await _cache.SaveConfigurationAsync(original);
+        var original = CreateTestCloudMessage();
+        var desiredConfig = original.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        desiredConfig.Sensors![0].Report!.Enabled = false;
+        desiredConfig.Sensors![1].Report!.Enabled = true;
+        desiredConfig.Sensors[1].Report!.Interval = 5000;
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, original);
 
         // Act
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         loaded.ShouldNotBeNull();
-        loaded.Sensors.Count.ShouldBe(2);
-        loaded.Sensors[0].Config.Enabled.ShouldBeFalse();
-        loaded.Sensors[1].Config.Enabled.ShouldBeTrue();
-        loaded.Sensors[1].Config.Interval.ShouldBe(5000);
+        var loadedConfig = loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        loadedConfig.Sensors!.Count.ShouldBe(2);
+        loadedConfig.Sensors[0].Report!.Enabled.ShouldBeFalse();
+        loadedConfig.Sensors[1].Report!.Enabled.ShouldBeTrue();
+        loadedConfig.Sensors[1].Report!.Interval.ShouldBe(5000);
     }
 
     #endregion
@@ -182,22 +204,41 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task DeleteCacheAsync_WhenCacheExists_DeletesFile()
     {
         // Arrange
-        var config = CreateTestConfiguration();
-        await _cache.SaveConfigurationAsync(config);
-        File.Exists(_cacheFilePath).ShouldBeTrue();
+        var message = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        var cachePath = _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig);
+        File.Exists(cachePath).ShouldBeTrue();
 
         // Act
-        await _cache.DeleteCacheAsync();
+        await _cache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        File.Exists(_cacheFilePath).ShouldBeFalse();
+        File.Exists(cachePath).ShouldBeFalse();
     }
 
     [Fact]
     public async Task DeleteCacheAsync_WhenCacheNotExists_DoesNotThrow()
     {
         // Act & Assert - Should not throw
-        await Should.NotThrowAsync(() => _cache.DeleteCacheAsync());
+        await Should.NotThrowAsync(() => _cache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig));
+    }
+
+    [Fact]
+    public async Task DeleteAllCachesAsync_DeletesAllCacheFiles()
+    {
+        // Arrange
+        var message = CreateTestCloudMessage();
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.SystemConfig, message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.CustomConfig, message);
+
+        // Act
+        await _cache.DeleteAllCachesAsync();
+
+        // Assert
+        (await _cache.ExistsAsync(SubscriptionTypes.SystemConfig)).ShouldBeFalse();
+        (await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig)).ShouldBeFalse();
+        (await _cache.ExistsAsync(SubscriptionTypes.CustomConfig)).ShouldBeFalse();
     }
 
     #endregion
@@ -208,7 +249,7 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task GetLastModifiedAsync_WhenCacheNotExists_ReturnsNull()
     {
         // Act
-        var lastModified = await _cache.GetLastModifiedAsync();
+        var lastModified = await _cache.GetLastModifiedAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         lastModified.ShouldBeNull();
@@ -218,13 +259,13 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task GetLastModifiedAsync_WhenCacheExists_ReturnsDateTime()
     {
         // Arrange
-        var config = CreateTestConfiguration();
+        var message = CreateTestCloudMessage();
         var beforeSave = DateTimeOffset.UtcNow.AddSeconds(-1);
-        await _cache.SaveConfigurationAsync(config);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
         var afterSave = DateTimeOffset.UtcNow.AddSeconds(1);
 
         // Act
-        var lastModified = await _cache.GetLastModifiedAsync();
+        var lastModified = await _cache.GetLastModifiedAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
         lastModified.ShouldNotBeNull();
@@ -237,17 +278,29 @@ public class JsonConfigurationCacheTests : IDisposable
     #region CacheFilePath Tests
 
     [Fact]
-    public void CacheFilePath_ReturnsConfiguredPath()
+    public void CacheDirectoryPath_ReturnsConfiguredPath()
     {
         // Assert
-        _cache.CacheFilePath.ShouldBe(_cacheFilePath);
+        _cache.CacheDirectoryPath.ShouldBe(_testDirectory);
     }
 
     [Fact]
-    public void DefaultFileName_IsCorrect()
+    public void GetCacheFilePath_ReturnsCorrectPathForEachConfigType()
     {
         // Assert
-        JsonConfigurationCache.DefaultFileName.ShouldBe(".device-config-cache.json");
+        _cache.GetCacheFilePath(SubscriptionTypes.SystemConfig)
+            .ShouldBe(Path.Combine(_testDirectory, "systemcfg.cache.json"));
+        _cache.GetCacheFilePath(SubscriptionTypes.DeviceConfig)
+            .ShouldBe(Path.Combine(_testDirectory, "devicecfg.cache.json"));
+        _cache.GetCacheFilePath(SubscriptionTypes.CustomConfig)
+            .ShouldBe(Path.Combine(_testDirectory, "customcfg.cache.json"));
+    }
+
+    [Fact]
+    public void DefaultCacheDirectory_IsCorrect()
+    {
+        // Assert
+        JsonConfigurationCache.DefaultCacheDirectory.ShouldBe(".weda");
     }
 
     #endregion
@@ -258,28 +311,28 @@ public class JsonConfigurationCacheTests : IDisposable
     public async Task ConcurrentAccess_DoesNotCorruptCache()
     {
         // Arrange
-        var config = CreateTestConfiguration();
         var tasks = new List<Task>();
 
         // Act - Multiple concurrent saves and reads
         for (int i = 0; i < 10; i++)
         {
+            var iteration = i;
             tasks.Add(Task.Run(async () =>
             {
-                var testConfig = CreateTestConfiguration();
-                testConfig.DeviceName = $"Device-{Guid.NewGuid():N}";
-                await _cache.SaveConfigurationAsync(testConfig);
-                await _cache.GetConfigurationAsync();
+                var testMessage = CreateTestCloudMessage();
+                testMessage.SeqId = iteration;
+                await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, testMessage);
+                await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
             }));
         }
 
         await Task.WhenAll(tasks);
 
-        // Assert - Cache should still be valid
-        var exists = await _cache.ExistsAsync();
+        // Assert - Cache should be valid
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
         exists.ShouldBeTrue();
 
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
         loaded.ShouldNotBeNull();
     }
 
@@ -290,152 +343,237 @@ public class JsonConfigurationCacheTests : IDisposable
     [Fact]
     public async Task UC9868_DisableSensor_PersistsAcrossRestart()
     {
-        // Arrange - Initial configuration with all sensors enabled
-        var config = CreateTestConfiguration();
-        config.Sensors[0].Config.Enabled = true;
-        config.Sensors[1].Config.Enabled = true;
+        // Arrange - Initial message with all sensors enabled
+        var message = CreateTestCloudMessage();
+        var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        desiredConfig.Sensors![0].Report!.Enabled = true;
+        desiredConfig.Sensors[1].Report!.Enabled = true;
 
         // Act - Simulate cloud update disabling channel.0
-        config.Sensors[0].Config.Enabled = false;
-        await _cache.SaveConfigurationAsync(config);
+        desiredConfig.Sensors[0].Report!.Enabled = false;
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart by creating new cache instance
         var newCache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedConfig = await newCache.GetConfigurationAsync();
+        var loadedMessage = await newCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert - Configuration should persist disabled state
-        loadedConfig.ShouldNotBeNull();
-        loadedConfig.Sensors[0].Config.Enabled.ShouldBeFalse();
-        loadedConfig.Sensors[1].Config.Enabled.ShouldBeTrue();
+        loadedMessage.ShouldNotBeNull();
+        var loadedConfig = loadedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        loadedConfig.Sensors![0].Report!.Enabled.ShouldBeFalse();
+        loadedConfig.Sensors[1].Report!.Enabled.ShouldBeTrue();
     }
 
     [Fact]
     public async Task UC9868_UpdateInterval_PersistsAcrossRestart()
     {
         // Arrange
-        var config = CreateTestConfiguration();
-        config.Sensors[0].Config.Interval = 1000;
+        var message = CreateTestCloudMessage();
+        var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        desiredConfig.Sensors![0].Report!.Interval = 1000;
 
         // Act - Simulate cloud update changing interval
-        config.Sensors[0].Config.Interval = 5000;
-        await _cache.SaveConfigurationAsync(config);
+        desiredConfig.Sensors[0].Report!.Interval = 5000;
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart
         var newCache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedConfig = await newCache.GetConfigurationAsync();
+        var loadedMessage = await newCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        loadedConfig.ShouldNotBeNull();
-        loadedConfig.Sensors[0].Config.Interval.ShouldBe(5000);
+        loadedMessage.ShouldNotBeNull();
+        var loadedConfig = loadedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        loadedConfig.Sensors![0].Report!.Interval.ShouldBe(5000);
     }
 
     [Fact]
     public async Task UC9868_UpdatePeriods_PersistsAcrossRestart()
     {
         // Arrange
-        var config = CreateTestConfiguration();
+        var message = CreateTestCloudMessage();
 
         // Act - Simulate cloud update changing periods
-        config.Periods.ReadTelemetry = 10000;
-        config.Periods.SendTelemetry = 15000;
-        config.Periods.ReportHealth = 120000;
-        await _cache.SaveConfigurationAsync(config);
+        var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        desiredConfig.Periods!.ReportHealth = 120000;
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Simulate restart
         var newCache = new JsonConfigurationCache(
-            _cacheFilePath,
+            _testDirectory,
             NullLogger<JsonConfigurationCache>.Instance);
 
-        var loadedConfig = await newCache.GetConfigurationAsync();
+        var loadedMessage = await newCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        loadedConfig.ShouldNotBeNull();
-        loadedConfig.Periods.ReadTelemetry.ShouldBe(10000);
-        loadedConfig.Periods.SendTelemetry.ShouldBe(15000);
-        loadedConfig.Periods.ReportHealth.ShouldBe(120000);
+        loadedMessage.ShouldNotBeNull();
+        var loadedConfig = loadedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        loadedConfig.Periods!.ReportHealth.ShouldBe(120000);
     }
 
     [Fact]
     public async Task UC9868_ResetToAppSettings_DeleteCacheWorks()
     {
         // Arrange - Save a modified configuration
-        var config = CreateTestConfiguration();
-        config.Sensors[0].Config.Enabled = false;
-        await _cache.SaveConfigurationAsync(config);
+        var message = CreateTestCloudMessage();
+        var desiredConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        desiredConfig.Sensors![0].Report!.Enabled = false;
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
 
         // Act - Reset to appsettings.json by deleting cache
-        await _cache.DeleteCacheAsync();
+        await _cache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig);
 
         // Assert
-        var exists = await _cache.ExistsAsync();
+        var exists = await _cache.ExistsAsync(SubscriptionTypes.DeviceConfig);
         exists.ShouldBeFalse();
 
-        var loaded = await _cache.GetConfigurationAsync();
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
         loaded.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task UC9868_MultipleDevices_SingleCacheFile()
+    {
+        // Arrange - Create message with multiple devices
+        var message = CreateTestCloudMessage();
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["SecondDevice"] = new SubNodeDeviceConfigDto
+        {
+            Enabled = true,
+            SubNodeType = "adamEthernet",
+            Sensors = new List<SubNodeSensorReportDto>
+            {
+                new SubNodeSensorReportDto
+                {
+                    Name = "sensor.0",
+                    Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 }
+                }
+            },
+            Periods = new SubNodePeriodsDto { ReportHealth = 30000 }
+        };
+
+        // Act
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, message);
+        var loaded = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
+
+        // Assert - Both devices should be in the single cache file
+        loaded.ShouldNotBeNull();
+        loaded.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!.Count.ShouldBe(2);
+        loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs!.ContainsKey("TestDevice").ShouldBeTrue();
+        loaded.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs!.ContainsKey("SecondDevice").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task MultipleConfigTypes_StoreAndRetrieveIndependently()
+    {
+        // Arrange
+        var systemMessage = CreateTestCloudMessage();
+        systemMessage.DeviceId = "system-device";
+
+        var deviceMessage = CreateTestCloudMessage();
+        deviceMessage.DeviceId = "device-device";
+
+        var customMessage = CreateTestCloudMessage();
+        customMessage.DeviceId = "custom-device";
+
+        // Act
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.SystemConfig, systemMessage);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.DeviceConfig, deviceMessage);
+        await _cache.SaveRawConfigurationAsync(SubscriptionTypes.CustomConfig, customMessage);
+
+        // Assert
+        var loadedSystem = await _cache.GetRawConfigurationAsync(SubscriptionTypes.SystemConfig);
+        var loadedDevice = await _cache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig);
+        var loadedCustom = await _cache.GetRawConfigurationAsync(SubscriptionTypes.CustomConfig);
+
+        loadedSystem.ShouldNotBeNull();
+        loadedSystem.DeviceId.ShouldBe("system-device");
+
+        loadedDevice.ShouldNotBeNull();
+        loadedDevice.DeviceId.ShouldBe("device-device");
+
+        loadedCustom.ShouldNotBeNull();
+        loadedCustom.DeviceId.ShouldBe("custom-device");
     }
 
     #endregion
 
     #region Helper Methods
 
-    private static DeviceConfiguration CreateTestConfiguration()
+    private static SubNodeConfigUpdateMessage CreateTestCloudMessage()
     {
-        return new DeviceConfiguration
+        return new SubNodeConfigUpdateMessage
         {
-            DeviceName = "TestDevice",
-            DeviceType = DeviceType.AdamEthernet,
-            DeviceCapabilities = new DeviceCapabilities
+            DeviceId = "device-123",
+            GroupId = "default",
+            Cmd = "updateCmd",
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = "req-456",
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Data = new SubNodeConfigUpdateData
             {
-                Manufacturer = "Test",
-                Model = "TestModel",
-                SubNodeSwVersion = "0.0.1",
-                DeviceInfo = new Dictionary<string, object>()
-            },
-            Communication = new Dictionary<string, object>
-            {
-                ["Host"] = "localhost",
-                ["Port"] = 502
-            },
-            Sensors = new List<Sensor>
-            {
-                new Sensor
+                Cfg = new SubNodeConfigState
                 {
-                    Name = "channel.0",
-                    ResourceId = "channel-0",
-                    Dtmi = "dtmi:test:sensor;1",
-                    SensorGroup = SensorGroup.AI,
-                    Parameters = new Dictionary<string, object>(),
-                    Config = new SensorConfig
+                    Desired = new SubNodeDesiredConfigSections
                     {
-                        Enabled = true,
-                        Interval = 1000
-                    }
-                },
-                new Sensor
-                {
-                    Name = "channel.1",
-                    ResourceId = "channel-1",
-                    Dtmi = "dtmi:test:sensor;1",
-                    SensorGroup = SensorGroup.AI,
-                    Parameters = new Dictionary<string, object>(),
-                    Config = new SensorConfig
-                    {
-                        Enabled = true,
-                        Interval = 1000
+                        DeviceCfg = new SubNodeDeviceCfgDto
+                        {
+                            DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
+                            {
+                                ["TestDevice"] = new SubNodeDeviceConfigDto
+                                {
+                                    Enabled = true,
+                                    DeviceType = "adamEthernet",
+                                    DeviceCapabilities = new SubNodeDeviceCapabilitiesDto
+                                    {
+                                        Manufacturer = "Test",
+                                        Model = "TestModel",
+                                        SubNodeSwVersion = "0.0.1"
+                                    },
+                                    Communication = new Dictionary<string, object>
+                                    {
+                                        ["Host"] = "localhost",
+                                        ["Port"] = 502
+                                    },
+                                    Sensors = new List<SubNodeSensorReportDto>
+                                    {
+                                        new SubNodeSensorReportDto
+                                        {
+                                            Name = "channel.0",
+                                            Dtmi = "dtmi:test:sensor;1",
+                                            SensorGroup = "AI",
+                                            Config = new SubNodeSensorRuntimeConfigDto
+                                            {
+                                                Enabled = true,
+                                                Interval = 1000
+                                            }
+                                        },
+                                        new SubNodeSensorReportDto
+                                        {
+                                            Name = "channel.1",
+                                            Dtmi = "dtmi:test:sensor;1",
+                                            SensorGroup = "AI",
+                                            Config = new SubNodeSensorRuntimeConfigDto
+                                            {
+                                                Enabled = true,
+                                                Interval = 1000
+                                            }
+                                        }
+                                    },
+                                    Periods = new SubNodePeriodsDto
+                                    {
+                                        ReportHealth = 60000,
+                                        ReportConfiguration = 1800000
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            },
-            Periods = new BackgroundTaskPeriods
-            {
-                ReadTelemetry = 5000,
-                SendTelemetry = 5000,
-                ReportHealth = 60000
             }
         };
     }

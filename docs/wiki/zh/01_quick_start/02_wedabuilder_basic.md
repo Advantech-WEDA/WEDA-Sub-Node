@@ -295,7 +295,7 @@ builder.AddLogging(logging =>
     "MyFirstDevice": {
       "Enabled": true,
       "DeviceName": "My Modbus Device",
-      "DeviceType": "AdamEthernet",
+      "SubNodeType": "AdamEthernet",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
         "Model": "Demo"
@@ -379,7 +379,7 @@ SDK 提供標準的 DTDL 定義檔案在 `assets/dtdl/dtmi/advantech/edgesync/de
     "MySecondDevice": {
       "Enabled": true,
       "DeviceName": "Humidity Sensor",
-      "DeviceType": "AdamEthernet",
+      "SubNodeType": "AdamEthernet",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
         "Model": "Demo"
@@ -450,7 +450,7 @@ dotnet run
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://production-server:4222",
     "CredFile": "/path/to/nats.creds"
   }

@@ -1,0 +1,35 @@
+{
+  "@id": "dtmi:custom:aggregator;1",
+  "@type": "Interface",
+  "displayName": "Power Aggregator",
+  "contents": [
+    {
+      "@id": "dtmi:custom:voltage;1",
+      "@type": "Telemetry",
+      "name": "voltage",
+      "displayName": "Voltage",
+      "description": "Aggregated voltage reading from source device",
+      "schema": "double",
+      "unit": "volt"
+    },
+    {
+      "@id": "dtmi:custom:current;1",
+      "@type": "Telemetry",
+      "name": "current",
+      "displayName": "Current",
+      "description": "Aggregated current reading from source device",
+      "schema": "double",
+      "unit": "ampere"
+    },
+    {
+      "@id": "dtmi:custom:power;1",
+      "@type": "Telemetry",
+      "name": "power",
+      "displayName": "Power",
+      "description": "Calculated electrical power (Watts = Voltage × Current)",
+      "schema": "double",
+      "unit": "watt"
+    }
+  ],
+  "@context": "dtmi:dtdl:context;2"
+}

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Host.Configuration;
 
 namespace Weda.SubNode.Host;
 
@@ -17,12 +17,10 @@ namespace Weda.SubNode.Host;
 public class WedaApplication : IAsyncDisposable
 {
     private readonly IHost _host;
-    private readonly IReadOnlyList<DeviceConfiguration> _deviceConfigurations;
 
-    internal WedaApplication(IHost host, IReadOnlyList<DeviceConfiguration> deviceConfigurations)
+    internal WedaApplication(IHost host)
     {
         _host = host;
-        _deviceConfigurations = deviceConfigurations;
         Services = host.Services;
     }
 
@@ -37,8 +35,10 @@ public class WedaApplication : IAsyncDisposable
     /// - Serilog logging from appsettings.json (with console output)
     /// - Configuration from appsettings.json, environment variables, and command-line arguments
     /// - Default cloud service
-    /// - Automatic device scanning from appsettings.json
     /// - Telemetry and health reporting
+    ///
+    /// NOTE: Devices must be explicitly registered via AddDevice&lt;TDevice&gt;().
+    /// Auto-scanning (ScanDevicesFromConfiguration) has been removed for explicit device registration.
     ///
     /// Command-line arguments can override any configuration value:
     /// - --Nats:Url=nats://localhost:4222          (override NATS URL)
@@ -55,15 +55,36 @@ public class WedaApplication : IAsyncDisposable
 
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
-        // Configure default settings with priority:
-        // 1. appsettings.json (lowest priority)
+        // Configure settings with priority (lowest to highest):
+        // 1. appsettings.json (Serilog config - not cloud-synced)
         // 2. appsettings.{Environment}.json
-        // 3. Environment variables
-        // 4. Command-line arguments (highest priority)
+        // 3. systemcfg.json → loaded into "SystemConfig" section (WedaNode)
+        // 4. devicecfg.json → loaded into "DeviceConfig" section (SubNode + DeviceConfigs)
+        // 5. customcfg.json → loaded into "CustomConfig" section (user-defined)
+        // 6. Environment variables
+        // 7. Command-line arguments (highest priority)
+        //
+        // Final configuration structure:
+        // {
+        //   "Serilog": {},           // from appsettings.json (not cloud-synced)
+        //   "SystemConfig": {        // from systemcfg.json
+        //     "WedaNode": {}
+        //   },
+        //   "DeviceConfig": {        // from devicecfg.json
+        //     "SubNode": {},
+        //     "DeviceConfigs": {}
+        //   },
+        //   "CustomConfig": {}       // from customcfg.json
+        // }
         hostBuilder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            // Serilog configuration (not cloud-synced)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
+            // Cloud-synced config files loaded into separate sections
+            .AddJsonFileToSection("systemcfg.json", "SystemConfig", optional: true, reloadOnChange: true)
+            .AddJsonFileToSection("devicecfg.json", "DeviceConfig", optional: true, reloadOnChange: true)
+            .AddJsonFileToSection("customcfg.json", "CustomConfig", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .AddCommandLine(args ?? Array.Empty<string>());
 
@@ -104,9 +125,6 @@ public class WedaApplication : IAsyncDisposable
         // User can override by calling .UseMockCloud() for testing
         builder.UseDefaultCloud();
 
-        // Auto-scan devices from configuration
-        builder.ScanDevicesFromConfiguration();
-
         // Enable all features by default (uplink + downlink)
         builder.AddTelemetry();           // Uplink: Send telemetry data
         builder.AddHealthReporting();     // Uplink: Send health status
@@ -125,7 +143,7 @@ public class WedaApplication : IAsyncDisposable
     ///
     /// User is responsible for:
     /// - Adding logging (call .AddLogging() to configure from appsettings.json)
-    /// - Adding devices (manually or via ScanDevicesFromConfiguration)
+    /// - Adding devices via AddDevice&lt;TDevice&gt;()
     /// - Adding telemetry and health reporting (if needed)
     ///
     /// Command-line arguments can override any configuration value:
@@ -143,12 +161,18 @@ public class WedaApplication : IAsyncDisposable
 
         var hostBuilder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args ?? Array.Empty<string>());
 
-        // Configuration - load appsettings.json, environment variables, and command-line arguments
-        // Priority: appsettings.json < environment variables < command-line arguments
+        // Configuration - load config files, environment variables, and command-line arguments
+        // Each cloud-synced config file is loaded into its own section to prevent key conflicts
+        // Priority (lowest to highest): appsettings.json < section-prefixed configs < env vars < args
         hostBuilder.Configuration
             .SetBasePath(Directory.GetCurrentDirectory())
+            // Serilog configuration (not cloud-synced)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddJsonFile($"appsettings.{hostBuilder.Environment.EnvironmentName}.json", optional: true)
+            // Cloud-synced config files loaded into separate sections
+            .AddJsonFileToSection("systemcfg.json", "SystemConfig", optional: true, reloadOnChange: true)
+            .AddJsonFileToSection("devicecfg.json", "DeviceConfig", optional: true, reloadOnChange: true)
+            .AddJsonFileToSection("customcfg.json", "CustomConfig", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .AddCommandLine(args ?? Array.Empty<string>());
 
@@ -171,7 +195,6 @@ public class WedaApplication : IAsyncDisposable
         {
             var logger = Services.GetRequiredService<ILogger<WedaApplication>>();
             logger.LogInformation("Starting Weda SubNode Application");
-            logger.LogInformation("Registered {DeviceCount} device(s)", _deviceConfigurations.Count);
 
             await _host.RunAsync(cancellationToken);
         }

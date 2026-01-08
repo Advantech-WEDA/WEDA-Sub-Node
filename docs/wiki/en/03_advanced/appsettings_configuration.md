@@ -23,6 +23,7 @@ This document provides a complete configuration reference for Weda SubNode SDK's
 - [NATS Messaging Configuration](#nats-messaging-configuration)
 - [Device Configuration (DeviceConfigs)](#device-configuration-deviceconfigs)
   - [Basic Device Fields](#basic-device-fields)
+  - [Background Task Periods](#background-task-periods)
   - [Device Capabilities](#device-capabilities)
   - [Communication Settings](#communication-settings)
   - [Sensor Configuration](#sensor-configuration)
@@ -42,7 +43,7 @@ The `appsettings.json` file contains three main sections:
 ```json
 {
   "Serilog": { ... },      // Logging configuration
-  "Nats": { ... },         // NATS messaging configuration
+  "WedaNode": { ... },         // NATS messaging configuration
   "DeviceConfigs": { ... } // Device configurations (multiple devices supported)
 }
 ```
@@ -112,7 +113,7 @@ Configure NATS messaging connection settings for cloud service communication.
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "SerializerType": "json",
@@ -148,7 +149,7 @@ The SDK supports multiple NATS authentication strategies:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "AuthStrategy": "None"
@@ -160,7 +161,7 @@ The SDK supports multiple NATS authentication strategies:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "AuthStrategy": "UserPassword",
@@ -174,7 +175,7 @@ The SDK supports multiple NATS authentication strategies:
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "AuthStrategy": "Token",
@@ -189,7 +190,7 @@ Recommended authentication method for production environments. The credential fi
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://nats.example.com:4222",
     "Name": "default",
     "AuthStrategy": "CredFile",
@@ -204,7 +205,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 
 ```json
 {
-  "Nats": {
+  "WedaNode": {
     "Url": "tls://nats.example.com:4222",
     "Name": "default",
     "AuthStrategy": "TlsCert",
@@ -238,7 +239,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 > Example using environment variables:
 > ```json
 > {
->   "Nats": {
+>   "WedaNode": {
 >     "Password": "${NATS_PASSWORD}"
 >   }
 > }
@@ -248,7 +249,7 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 
 ## Device Configuration (DeviceConfigs)
 
-`DeviceConfigs` is a dictionary where the key is the configuration name (used as DeviceTypeName), and the value is the device configuration object.
+`DeviceConfigs` is a dictionary where the key is the configuration name (used as SubNodeTypeName), and the value is the device configuration object.
 
 ```json
 {
@@ -271,8 +272,12 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
     "MyFirstDevice": {
       "Enabled": true,
       "DeviceName": "MyWiseDevice4012",
-      "DeviceType": "adamEthernet",
-      "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json"
+      "SubNodeType": "adamEthernet",
+      "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
+      "Periods": {
+        "ReadTelemetry": 5000,
+        "SendTelemetry": 0
+      }
     }
   }
 }
@@ -282,14 +287,205 @@ Use mutual TLS authentication; URL must use `tls://` protocol.
 |-------|------|----------|-------------|---------|
 | `Enabled` | boolean | No | Whether to enable this device (only effective with auto-scan) | true |
 | `DeviceName` | string | Yes | Device name (for identification), registered with Weda.Core | - |
-| `DeviceType` | string | Yes | Device type (AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice) | - |
+| `SubNodeType` | string | Yes | Device type (AdamEthernet/SerialDevice/DaqDevice/SystemMonitor/CustomDevice) | - |
 | `DtdlPath` | string | Yes | DTDL file path (relative to project root) | - |
+| `Periods` | object | No | Background task period settings (see below) | See defaults |
 
 #### Important Notes
 
 - **DeviceId**: Should NOT be set in appsettings.json; assigned by cloud or retrieved from localStorage
-- **DeviceTypeName**: Should NOT be set in appsettings.json; automatically assigned from Config Key (e.g., "MyFirstDevice")
+- **SubNodeTypeName**: Should NOT be set in appsettings.json; automatically assigned from Config Key (e.g., "MyFirstDevice")
 - **Enabled**: Only effective when using auto-scan (see below)
+
+---
+
+### Background Task Periods
+
+The `Periods` configuration controls the execution intervals for device background tasks, including telemetry reading, uploading, and health reporting.
+
+```json
+{
+  "DeviceConfigs": {
+    "MyFirstDevice": {
+      "Periods": {
+        "ReadTelemetry": 5000,
+        "SendTelemetry": 0,
+        "ReportHealth": 60000,
+        "PollCommands": 5000,
+        "ReportConfiguration": 300000
+      }
+    }
+  }
+}
+```
+
+#### Periods Field Descriptions
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `ReadTelemetry` | number | Telemetry sampling period (milliseconds), used as default when Sensor's `Interval` is not set | 5000 |
+| `SendTelemetry` | number | Telemetry upload mode control (see below) | 0 |
+| `ReportHealth` | number | Health status reporting period (milliseconds) | 60000 |
+| `PollCommands` | number | Command polling period (milliseconds) | 5000 |
+| `ReportConfiguration` | number | Configuration reporting period (milliseconds) | 300000 |
+
+#### ReadTelemetry Sampling Period
+
+`ReadTelemetry` defines the device-level default sampling period. When a Sensor's `Config.Interval` is not set (value is 0 or negative), this value is used as a fallback.
+
+**Priority Order**:
+1. `Sensor.Config.Interval` (if set and > 0)
+2. `Device.Periods.ReadTelemetry` (fallback default)
+
+```json
+{
+  "DeviceConfigs": {
+    "MyDevice": {
+      "Periods": {
+        "ReadTelemetry": 5000  // Default: sample every 5 seconds
+      },
+      "Sensors": [
+        {
+          "Name": "temperature",
+          "Config": {
+            "Interval": 1000  // Uses 1 second (overrides default)
+          }
+        },
+        {
+          "Name": "humidity",
+          "Config": {
+            "Interval": 0     // Uses 5 seconds (falls back to ReadTelemetry)
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+#### SendTelemetry Upload Mode
+
+`SendTelemetry` controls the telemetry data upload behavior, providing two modes:
+
+| Value | Mode | Description |
+|-------|------|-------------|
+| `0` | Realtime Upload | Upload data to cloud immediately after each sample |
+| `> 0` | Batch Upload | Collect multiple samples and upload at specified interval |
+
+##### Realtime Mode (SendTelemetry = 0)
+
+```json
+{
+  "Periods": {
+    "ReadTelemetry": 1000,
+    "SendTelemetry": 0  // Realtime mode
+  }
+}
+```
+
+**Behavior**: Sample every 1 second, upload to cloud immediately after sampling.
+
+**Applicable Scenarios**:
+- Applications requiring real-time monitoring
+- High data immediacy requirements
+- Stable network, frequent uploads not a problem
+
+##### Batch Mode (SendTelemetry > 0)
+
+```json
+{
+  "Periods": {
+    "ReadTelemetry": 1000,
+    "SendTelemetry": 10000  // Batch mode: upload every 10 seconds
+  }
+}
+```
+
+**Behavior**: Sample every 1 second and store in internal buffer, batch upload all buffered data every 10 seconds.
+
+**Applicable Scenarios**:
+- Limited or unstable network resources
+- Need to reduce network request frequency
+- Reduce cloud service load
+- Mobile device power saving requirements
+
+#### Architecture Overview
+
+The SDK uses a unified **SensorCache architecture**. Whether Pull mode (like Modbus) or Push mode (like MQTT, WebSocket), the data flow is the same:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Pull Mode (Modbus)           Push Mode (MQTT/WebSocket)        │
+│  ┌──────────┐                 ┌──────────┐                      │
+│  │ Device   │                 │ External │                      │
+│  │ Request  │                 │ Message  │                      │
+│  └────┬─────┘                 └────┬─────┘                      │
+│       │                            │                            │
+│       ▼                            ▼                            │
+│  ┌──────────────────────────────────────────┐                   │
+│  │            SensorCache                    │                   │
+│  │  (Unified cache like Modbus registers)    │                   │
+│  └────────────────────┬─────────────────────┘                   │
+│                       │                                         │
+│                       ▼  ReadTelemetry (Sampling)               │
+│  ┌──────────────────────────────────────────┐                   │
+│  │         Device Sampling Task             │                   │
+│  │  (Reads at SensorReport.Interval period) │                   │
+│  └────────────────────┬─────────────────────┘                   │
+│                       │                                         │
+│         ┌─────────────┴─────────────┐                           │
+│         │                           │                           │
+│         ▼                           ▼                           │
+│   SendTelemetry = 0           SendTelemetry > 0                 │
+│   ┌─────────────┐             ┌─────────────┐                   │
+│   │ Realtime    │             │ Batch       │                   │
+│   │ Upload      │             │ Upload      │                   │
+│   └─────────────┘             └─────────────┘                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Concepts**:
+- **SensorCache**: All data sources (Pull/Push) write to cache first, unified processing
+- **Sampling Task**: Reads from cache at `SensorReport.Interval` or `Periods.ReadTelemetry` interval
+- **Upload Task**: Realtime or batch upload based on `SendTelemetry` setting
+
+#### Complete Examples
+
+```json
+{
+  "DeviceConfigs": {
+    "HighFrequencyDevice": {
+      "Periods": {
+        "ReadTelemetry": 100,     // 100ms high-frequency sampling
+        "SendTelemetry": 5000,    // Batch upload every 5 seconds (avoid network congestion)
+        "ReportHealth": 30000
+      },
+      "Sensors": [
+        {
+          "Name": "vibration",
+          "Config": {
+            "Interval": 50       // 50ms ultra-high-frequency sampling (overrides default)
+          }
+        }
+      ]
+    },
+    "LowPowerDevice": {
+      "Periods": {
+        "ReadTelemetry": 60000,   // Sample once per minute
+        "SendTelemetry": 300000,  // Batch upload every 5 minutes (power saving mode)
+        "ReportHealth": 600000
+      }
+    },
+    "RealtimeMonitor": {
+      "Periods": {
+        "ReadTelemetry": 1000,    // 1 second sampling
+        "SendTelemetry": 0,       // Realtime upload (instant monitoring)
+        "ReportHealth": 60000
+      }
+    }
+  }
+}
+```
 
 ---
 
@@ -327,13 +523,13 @@ var app = builder.Build();
     "ProductionDevice": {
       "Enabled": true,      // Will be added
       "DeviceName": "WISE-4012-A",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     },
     "TestDevice": {
       "Enabled": false,     // Will NOT be added
       "DeviceName": "WISE-4012-B",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": { ... }
     }
   }
@@ -378,7 +574,7 @@ var app = builder.Build();
     "MyDevice": {
       "Enabled": false,     // Will NOT be checked
       "DeviceName": "WISE-4012",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "Communication": {
         "Host": "192.168.1.100",
         "Port": 502,
@@ -487,9 +683,9 @@ Describes basic device information and capabilities.
 
 ### Communication Settings
 
-Different `DeviceType` values require different communication parameters.
+Different `SubNodeType` values require different communication parameters.
 
-#### Modbus TCP (DeviceType: "adamEthernet")
+#### Modbus TCP (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -507,7 +703,7 @@ Different `DeviceType` values require different communication parameters.
 | `Port` | number | No | Modbus TCP communication port | 502 |
 | `SlaveId` | number | No | Modbus Slave/Unit ID | 1 |
 
-#### ISensing MQTT (DeviceType: "adamEthernet")
+#### ISensing MQTT (SubNodeType: "adamEthernet")
 
 ```json
 {
@@ -954,7 +1150,7 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
       }
     ]
   },
-  "Nats": {
+  "WedaNode": {
     "Url": "nats://localhost:4222",
     "Name": "default",
     "SerializerType": "json",
@@ -964,7 +1160,7 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
     "MyWiseDevice": {
       "Enabled": true,
       "DeviceName": "WISE-4012-Factory-Floor",
-      "DeviceType": "adamEthernet",
+      "SubNodeType": "adamEthernet",
       "DtdlPath": "assets/dtdl/dtmi/advantech/edgesync/wise-4012.json",
       "DeviceCapabilities": {
         "Manufacturer": "Advantech",
@@ -1104,7 +1300,7 @@ Here is a complete `appsettings.json` example demonstrating all configurable fie
 The following fields should **NOT** appear in appsettings.json:
 
 - `DeviceId` - Assigned by cloud or retrieved from localStorage
-- `DeviceTypeName` - Automatically assigned from DeviceConfigs key
+- `SubNodeTypeName` - Automatically assigned from DeviceConfigs key
 
 ### 2. DtdlPath Paths
 

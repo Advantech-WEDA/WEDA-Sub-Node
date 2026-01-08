@@ -13,17 +13,17 @@ public static class Wise4012SeConfigurationExtensions
     /// </summary>
     public static string GetMacAddress(this DeviceConfiguration config)
     {
-        return config.Communication.TryGetValue("MacAddress", out var mac)
+        return config.DeviceCommunication.TryGetValue("MacAddress", out var mac)
             ? mac?.ToString() ?? throw new InvalidOperationException("MacAddress not found in communication configuration")
             : throw new InvalidOperationException("MacAddress not found in communication configuration");
     }
 
     /// <summary>
-    /// Get Manufacturer from Communication settings (defaults to "Advantech")
+    /// Get Manufacturer from DeviceCommunication settings (defaults to "Advantech")
     /// </summary>
     public static string GetManufacturer(this DeviceConfiguration config)
     {
-        return config.Communication.TryGetValue("Manufacturer", out var mfg)
+        return config.DeviceCommunication.TryGetValue("Manufacturer", out var mfg)
             ? mfg?.ToString() ?? "Advantech"
             : "Advantech";
     }
@@ -46,7 +46,7 @@ public static class Wise4012SeConfigurationExtensions
                 ? field?.ToString() ?? sensor.Name
                 : sensor.Name,
             SensorType = ParseSensorType(sensor.SensorGroup),
-            Unit = sensor.Config.Unit ?? string.Empty,
+            Unit = sensor.Report.Unit ?? string.Empty,
             Metadata = sensor.Metadata
         };
     }

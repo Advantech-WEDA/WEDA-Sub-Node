@@ -49,12 +49,12 @@ internal class DeviceFactory : IDeviceFactory
                     $"(DeviceConfiguration, ICommunication, IWedaCloudService, ILogger<DeviceBase>?)");
             }
 
-            _logger.LogInformation("Created device instance: {DeviceType}", typeof(TDevice).Name);
+            _logger.LogInformation("Created device instance: {SubNodeType}", typeof(TDevice).Name);
             return device;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create device of type {DeviceType}", typeof(TDevice).Name);
+            _logger.LogError(ex, "Failed to create device of type {SubNodeType}", typeof(TDevice).Name);
             throw;
         }
     }
