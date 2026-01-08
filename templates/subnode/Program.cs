@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Host;
 using Weda.SubNode.Host.Context;
 using Weda.SubNode.Core;
 using Weda.SubNode.Core.Protocols.Modbus;
@@ -9,45 +10,24 @@ using WedaSubNode;
 
 try
 {
-    // create a WedaApplicationContext with system configuration
-    // SDK will automatically load appsettings.json for Configuration and LoggerFactory
-    using var context = new WedaApplicationContext(options =>
-    {
-        // remove this line to enable real cloud service
-        options.CloudService = WedaFactory.Cloud.Mock;
-    });
+    // Create WedaApplicationContext with mock cloud (remove UseMockCloud for real cloud)
+    using var context = new WedaApplicationContext(options => options.CloudService = WedaFactory.Cloud.Mock);
 
-    // Configure Modbus Simulator programmatically
+    // Configure and start Modbus Simulator
     var simulator = await ConfigureTcpModbusSimulator(context);
 
-    // Configure Device programmatically
-    var deviceConfig = ConfigureDeviceConfiguration();
+    // SubNode manages lifecycle: Initialize all → Aggregate upload → Start all
+    await using var subNode = new SubNode(context);
+    subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
 
-    var device = new MyFirstDevice(context, deviceConfig);
+    await subNode.InitializeAsync();
+    await subNode.StartAsync();
 
-    if (!await device.InitializeAsync())
-    {
-        Console.WriteLine("Failed to initialize device");
-        return;
-    }
+    Console.WriteLine("SubNode started. Press Ctrl+C to stop...");
 
-    await device.StartAsync();
-    Console.WriteLine("MyFirstDevice started. Press Ctrl+C to stop...");
-
-    // Wait for cancellation
     var cts = new CancellationTokenSource();
-    Console.CancelKeyPress += (s, e) =>
-    {
-        e.Cancel = true;
-        cts.Cancel();
-    };
-
+    Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
     await Task.Delay(Timeout.Infinite, cts.Token);
-
-    // Graceful shutdown
-    await device.StopAsync();
-    device.Dispose();
-    await simulator.StopAsync();
 }
 catch (OperationCanceledException)
 {

@@ -1,27 +1,21 @@
 using Serilog;
+using Weda.SubNode.Host;
 using Weda.SubNode.Host.Context;
 using Wise4012ISensingExample;
 
 try
 {
-    var device = new MyFirstISensingDevice(WedaApplicationContext.Default, "MyFirstDevice");
+    await using var subNode = new SubNode(WedaApplicationContext.Default);
+    subNode.AddDevice(new MyFirstISensingDevice(subNode.Context, "MyFirstDevice"));
 
-    if (!await device.InitializeAsync())
-    {
-        Log.Error("Failed to initialize device");
-        return;
-    }
+    await subNode.InitializeAsync();
+    await subNode.StartAsync();
 
-    await device.StartAsync();
-    Log.Information("Device started. Press Ctrl+C to stop...");
+    Log.Information("SubNode started. Press Ctrl+C to stop...");
 
     var cts = new CancellationTokenSource();
-    
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
     await Task.Delay(Timeout.Infinite, cts.Token);
-
-    await device.StopAsync();
-    device.Dispose();
 }
 catch (OperationCanceledException)
 {

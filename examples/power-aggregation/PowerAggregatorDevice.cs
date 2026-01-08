@@ -50,7 +50,7 @@ public class PowerAggregatorDevice : AggregatorDevice
         foreach (var measure in e.Data)
         {
             _logger.LogInformation(
-                "[PowerSensor] DataReceived: ResourceId={ResourceId}, Value={Value}, Timestamp={Timestamp}",
+                "[PowerSensor] DataReceived: ResourceId={ResourceId}, Value={Value:F2}, Timestamp={Timestamp}",
                 measure.ResourceId, measure.Value, e.Timestamp);
         }
     }

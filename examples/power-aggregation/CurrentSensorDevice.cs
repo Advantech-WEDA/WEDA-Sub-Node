@@ -32,7 +32,7 @@ public class CurrentSensorDevice : TcpModbusDevice
         foreach (var measure in e.Data)
         {
             _logger.LogInformation(
-                "[CurrentSensor] DataReceived: ResourceId={ResourceId}, Value={Value}, Timestamp={Timestamp}",
+                "[CurrentSensor] DataReceived: ResourceId={ResourceId}, Value={Value:F2}, Timestamp={Timestamp}",
                 measure.ResourceId, measure.Value, e.Timestamp);
         }
     }

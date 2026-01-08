@@ -155,28 +155,24 @@ try
 {
     // 1. 建立 ApplicationContext (使用 Mock 雲端服務)
     using var context = new WedaApplicationContext(options =>
-    {
-        options.CloudService = WedaFactory.Cloud.Mock;
-    });
+        options.CloudService = WedaFactory.Cloud.Mock);
 
     // 2. 啟動 Modbus Simulator
     var simulator = await ConfigureTcpModbusSimulator(context);
 
-    // 3. 設定並啟動裝置
-    var deviceConfig = ConfigureDeviceConfiguration();
-    var device = new MyFirstDevice(context, deviceConfig);
-    await device.InitializeAsync();
-    await device.StartAsync();
+    // 3. 使用 SubNode 管理裝置生命週期
+    await using var subNode = new SubNode(context);
+    subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
 
-    // 4. 等待停止訊號
+    await subNode.InitializeAsync();
+    await subNode.StartAsync();
+
+    Console.WriteLine("SubNode started. Press Ctrl+C to stop...");
+
+    // 4. 等待停止訊號 (SubNode 會自動優雅關閉)
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
     await Task.Delay(Timeout.Infinite, cts.Token);
-
-    // 5. 優雅關閉
-    await device.StopAsync();
-    device.Dispose();
-    await simulator.StopAsync();
 }
 catch (OperationCanceledException)
 {

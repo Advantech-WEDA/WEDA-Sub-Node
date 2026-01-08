@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
@@ -293,61 +294,36 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Routes configuration update events using Hybrid mode:
-    /// 1. Try targeted routing based on DeviceName in message
-    /// 2. Fallback to broadcast if no targeted handler found
-    /// 3. Fire general event for external subscribers
+    /// Routes configuration update events.
+    /// SubNode is the Aggregate Root - all config updates are handled here first:
+    /// - SystemConfig: SubNodeManager handles directly (Serilog, WedaNode settings)
+    /// - CustomConfig: SubNodeManager handles directly + fires event for external subscribers
+    /// - DeviceConfig: SubNodeManager dispatches to individual devices
     /// </summary>
     private async Task RouteConfigurationUpdateAsync(UpdateConfigurationEvent e)
     {
         _logger.LogDebug("Routing configuration update: ConfigType={ConfigType}, SeqId={SeqId}",
             e.ConfigType.Value, e.Message?.SeqId);
 
-        var handled = false;
-
-        // Step 1: Try targeted routing based on DeviceConfigs in message
-        var targetDeviceNames = e.Message?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs?.Keys;
-
-        if (targetDeviceNames != null)
+        // Route based on ConfigType - SubNode is the Aggregate Root
+        if (e.ConfigType == SubscriptionTypes.SystemConfig)
         {
-            foreach (var deviceName in targetDeviceNames)
-            {
-                if (_deviceHandlers.TryGetValue(deviceName, out var handlers))
-                {
-                    _logger.LogDebug("Targeted routing to device: {DeviceName}", deviceName);
-                    try
-                    {
-                        await handlers.ConfigHandler(e);
-                        handled = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
-                    }
-                }
-            }
+            await HandleSystemConfigUpdateAsync(e);
+        }
+        else if (e.ConfigType == SubscriptionTypes.CustomConfig)
+        {
+            await HandleCustomConfigUpdateAsync(e);
+        }
+        else if (e.ConfigType == SubscriptionTypes.DeviceConfig)
+        {
+            await HandleDeviceConfigUpdateAsync(e);
+        }
+        else
+        {
+            _logger.LogWarning("Unknown ConfigType: {ConfigType}", e.ConfigType.Value);
         }
 
-        // Step 2: Fallback to broadcast if no targeted handlers found
-        if (!handled)
-        {
-            _logger.LogDebug("Broadcasting configuration update to all {Count} registered devices",
-                _deviceHandlers.Count);
-
-            foreach (var (deviceName, handlers) in _deviceHandlers)
-            {
-                try
-                {
-                    await handlers.ConfigHandler(e);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in broadcast config handler for device: {DeviceName}", deviceName);
-                }
-            }
-        }
-
-        // Step 3: Fire general event for external subscribers
+        // Fire general event for external subscribers (all config types)
         if (ConfigurationUpdateReceived != null)
         {
             try
@@ -357,6 +333,92 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in general ConfigurationUpdateReceived handler");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles SystemConfig updates (Serilog, WedaNode settings).
+    /// SubNodeManager handles this directly - no dispatch to devices.
+    /// </summary>
+    private Task HandleSystemConfigUpdateAsync(UpdateConfigurationEvent e)
+    {
+        _logger.LogInformation("Handling SystemConfig update: SeqId={SeqId}", e.Message?.SeqId);
+
+        // TODO: Apply system configuration changes
+        // - Serilog settings
+        // - WedaNode settings
+        // - Other SubNode-level settings
+
+        _logger.LogDebug("SystemConfig update processed");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Handles CustomConfig updates (user-defined settings).
+    /// SubNodeManager handles this directly - no dispatch to devices.
+    /// </summary>
+    private Task HandleCustomConfigUpdateAsync(UpdateConfigurationEvent e)
+    {
+        _logger.LogInformation("Handling CustomConfig update: SeqId={SeqId}", e.Message?.SeqId);
+
+        // TODO: Apply custom configuration changes
+        // Custom config is SubNode-level, handled here
+        // External subscribers can listen via ConfigurationUpdateReceived event
+
+        _logger.LogDebug("CustomConfig update processed");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Handles DeviceConfig updates.
+    /// SubNodeManager dispatches to individual devices based on DeviceConfigs keys.
+    /// </summary>
+    private async Task HandleDeviceConfigUpdateAsync(UpdateConfigurationEvent e)
+    {
+        _logger.LogInformation("Handling DeviceConfig update: SeqId={SeqId}", e.Message?.SeqId);
+
+        var deviceConfigs = e.Message?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+
+        if (deviceConfigs == null || deviceConfigs.Count == 0)
+        {
+            _logger.LogDebug("No DeviceConfigs in message, broadcasting to all devices");
+
+            // Broadcast to all registered devices
+            foreach (var (deviceName, handlers) in _deviceHandlers)
+            {
+                try
+                {
+                    await handlers.ConfigHandler(e);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
+                }
+            }
+            return;
+        }
+
+        // Dispatch to specific devices based on DeviceConfigs keys
+        _logger.LogDebug("Dispatching DeviceConfig to {Count} device(s)", deviceConfigs.Count);
+
+        foreach (var deviceName in deviceConfigs.Keys)
+        {
+            if (_deviceHandlers.TryGetValue(deviceName, out var handlers))
+            {
+                _logger.LogDebug("Dispatching to device: {DeviceName}", deviceName);
+                try
+                {
+                    await handlers.ConfigHandler(e);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("No handler registered for device: {DeviceName}", deviceName);
             }
         }
     }

@@ -371,29 +371,33 @@ using var loggerFactory = new SerilogLoggerFactory(Log.Logger);
 ```csharp
 try
 {
-    // ===== Part 2: Simulator Configuration (Testing) =====
-    // ★ For local testing only, remove when connecting real devices ★
-    var simulator = await ConfigureTcpModbusSimulator();
-
-    // ===== Part 3: Device Configuration =====
-    // ★ Define your device parameters (Host, Port, Sensors) ★
-    var deviceConfig = ConfigureDeviceConfiguration();
-
-    // ===== Part 4: ApplicationContext Creation =====
+    // ===== Part 2: ApplicationContext Creation =====
     // ★ Configure SDK runtime environment ★
     using var context = new WedaApplicationContext(options =>
-    {
-        options.LoggerFactory = loggerFactory;           // Provide logger
-        options.CloudService = WedaFactory.Cloud.Mock;   // ★ Cloud service switch ★
-    });
+        options.CloudService = WedaFactory.Cloud.Mock);  // ★ Cloud service switch ★
+
+    // ===== Part 3: Simulator Configuration (Testing) =====
+    // ★ For local testing only, remove when connecting real devices ★
+    var simulator = await ConfigureTcpModbusSimulator(context);
 ```
 
-#### 📝 Parts 2-4 Explanation
+#### 📝 Parts 2-3 Explanation
 
-**Part 2: Simulator (Test Environment)**
+**Part 2: ApplicationContext (Runtime Environment)**
 
 ```csharp
-var simulator = await ConfigureTcpModbusSimulator();
+using var context = new WedaApplicationContext(options =>
+    options.CloudService = WedaFactory.Cloud.Mock);
+```
+
+| Option | Purpose | When to Modify |
+|--------|---------|----------------|
+| `CloudService` | Cloud connection | ✅ Mock → Real Cloud |
+
+**Part 3: Simulator (Test Environment)**
+
+```csharp
+var simulator = await ConfigureTcpModbusSimulator(context);
 ```
 
 | Purpose | When to Use | When to Remove |
@@ -401,40 +405,18 @@ var simulator = await ConfigureTcpModbusSimulator();
 | Simulate Modbus device | ✅ Local development | ❌ Production deployment |
 | Generate fake data | ✅ No real hardware | ❌ Connecting real devices |
 
-**Part 3: Device Configuration**
-
 ```csharp
-var deviceConfig = ConfigureDeviceConfiguration();
-```
+    // ===== Part 4: SubNode Lifecycle Management =====
+    // SubNode manages device lifecycle automatically via IAsyncDisposable
+    await using var subNode = new SubNode(context);
+    subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
 
-Defined at file bottom, contains:
-- ✅ **Must modify**: When connecting real devices
-- ✅ **Frequently modified**: Adjust Host/Port, add Sensors
+    await subNode.InitializeAsync();  // Initialize all devices
+    await subNode.StartAsync();       // Start all devices
 
-**Part 4: ApplicationContext (Runtime Environment)**
+    Console.WriteLine("SubNode started. Press Ctrl+C to stop...");
 
-```csharp
-using var context = new WedaApplicationContext(options =>
-{
-    options.LoggerFactory = loggerFactory;        // ❌ No modification
-    options.CloudService = WedaFactory.Cloud.Mock; // ✅ Modify when switching cloud
-});
-```
-
-| Option | Purpose | When to Modify |
-|--------|---------|----------------|
-| `LoggerFactory` | Provide logging | ❌ Never |
-| `CloudService` | Cloud connection | ✅ Mock → Real Cloud |
-
-```csharp
-    // ===== Part 5: Device Lifecycle Management =====
-    var device = new MyFirstDevice(context, deviceConfig);  // Create instance
-    await device.InitializeAsync();                         // Initialize (connect, register)
-    await device.StartAsync();                              // Start (begin reading data)
-
-    Log.Information("MyFirstDevice started. Press Ctrl+C to stop...");
-
-    // ===== Part 6: Wait & Graceful Shutdown =====
+    // ===== Part 5: Wait for Stop Signal =====
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) =>
     {
@@ -443,38 +425,36 @@ using var context = new WedaApplicationContext(options =>
     };
     await Task.Delay(Timeout.Infinite, cts.Token);  // Run until Ctrl+C
 
-    // ===== Part 7: Graceful Shutdown =====
-    await device.StopAsync();       // Stop reading data
-    device.Dispose();               // Release resources
-    await simulator.StopAsync();    // Stop Simulator (if any)
+    // ===== Part 6: Graceful Shutdown =====
+    // SubNode automatically disposes via 'await using' pattern
+    // No need to manually call StopAsync() or Dispose()
 }
 catch (OperationCanceledException)
 {
-    Log.Information("Application stopped");
-}
-finally
-{
-    await Log.CloseAndFlushAsync();  // Ensure all logs are written
+    Console.WriteLine("Application stopped");
 }
 ```
 
-#### 📝 Parts 5-7 Explanation
+#### 📝 Parts 4-6 Explanation
 
-**Part 5: Device Lifecycle (Manual Management)**
+**Part 4: SubNode Lifecycle (Automatic Management)**
 
 ```csharp
-var device = new MyFirstDevice(context, deviceConfig);
-await device.InitializeAsync();  // ← Step 1
-await device.StartAsync();       // ← Step 2
+await using var subNode = new SubNode(context);
+subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
+
+await subNode.InitializeAsync();  // ← Step 1
+await subNode.StartAsync();       // ← Step 2
 ```
 
 | Method | Purpose | SDK Internal Behavior |
 |--------|---------|----------------------|
-| `new MyFirstDevice()` | Create instance | Subscribe events, prepare resources |
-| `InitializeAsync()` | Initialize | Connect Modbus, register with cloud |
-| `StartAsync()` | Start | Begin periodic data reading |
+| `new SubNode()` | Create SubNode container | Prepare device management |
+| `AddDevice()` | Add device to SubNode | Register device for lifecycle management |
+| `InitializeAsync()` | Initialize all devices | Connect Modbus, register with cloud, upload configs |
+| `StartAsync()` | Start all devices | Begin periodic data reading |
 
-**Part 6: Wait Signal (Why this pattern?)**
+**Part 5: Wait Signal (Why this pattern?)**
 
 ```csharp
 Console.CancelKeyPress += (s, e) =>
@@ -491,18 +471,12 @@ await Task.Delay(Timeout.Infinite, cts.Token);
 | `cts.Cancel()` | Trigger cancellation | Exit `Task.Delay` |
 | `Task.Delay(Infinite)` | Wait indefinitely | Keep program running |
 
-**Part 7: Graceful Shutdown**
+**Part 6: Graceful Shutdown (Automatic via await using)**
 
-```csharp
-await device.StopAsync();       // ← Step 1: Stop background work
-device.Dispose();               // ← Step 2: Release resources
-await simulator.StopAsync();    // ← Step 3: Stop Simulator
-```
-
-**Why order matters?**
-1. Stop reading data first (prevent new operations)
-2. Release resources (close connections, unsubscribe events)
-3. Stop Simulator last (ensure device fully stopped)
+The `await using` pattern automatically calls `DisposeAsync()` when the scope exits:
+- Stops all devices gracefully
+- Releases all resources
+- No manual cleanup code needed
 
 #### 🎯 Program.cs Extension Guide
 
@@ -512,18 +486,15 @@ await simulator.StopAsync();    // ← Step 3: Stop Simulator
 
 ```csharp
 // ❌ Remove this line
-// var simulator = await ConfigureTcpModbusSimulator();
+// var simulator = await ConfigureTcpModbusSimulator(context);
 
-// Modify DeviceConfiguration
-var deviceConfig = ConfigureDeviceConfiguration();  // Change Host/Port inside
+// Modify ConfigureDeviceConfiguration() to use real Host/Port
+// SubNode usage remains unchanged
+await using var subNode = new SubNode(context);
+subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
 
-// Create device (unchanged)
-var device = new MyFirstDevice(context, deviceConfig);
-await device.InitializeAsync();
-await device.StartAsync();
-
-// ❌ Remove simulator shutdown
-// await simulator.StopAsync();
+await subNode.InitializeAsync();
+await subNode.StartAsync();
 ```
 
 ##### Scenario 2: Switch to real cloud service
@@ -533,8 +504,6 @@ await device.StartAsync();
 ```csharp
 using var context = new WedaApplicationContext(options =>
 {
-    options.LoggerFactory = loggerFactory;
-
     // ❌ Remove or comment out Mock
     // options.CloudService = WedaFactory.Cloud.Mock;
 
@@ -555,21 +524,20 @@ If you want more automated lifecycle management, switch to `wedabuilder` or `wed
 
 | Feature | subnode | wedabuilder |
 |---------|---------|---------|
-| Lifecycle | Manual management | Auto-managed (HostedService) |
+| Lifecycle | SubNode + await using | Auto-managed (HostedService) |
 | Control | ✅ Full control over each step | 🟡 Less control |
-| Code Size | 🟡 More (~80 lines) | ✅ Minimal (3 lines) |
+| Code Size | 🟡 More (~20 lines) | ✅ Minimal (3 lines) |
 | Use Case | Learning, prototyping, full customization | Quick deployment, standard scenarios |
 
 #### 📊 Program.cs Code Classification
 
 | Code Section | Needs Modification | When | What to Change |
 |--------------|-------------------|------|----------------|
-| Configuration & Logging | ❌ Never | - | - |
+| ApplicationContext | ✅ Yes | Deploy to production | Mock → NATS |
 | Simulator configuration | ✅ Yes | Connect real device | Remove or comment |
 | DeviceConfiguration | ✅ Frequently | Every project | Host/Port/Sensors |
-| CloudService | ✅ Yes | Deploy to production | Mock → NATS |
-| Lifecycle management | ❌ Rarely | - | Unless changing architecture |
-| Graceful Shutdown | ❌ Never | - | - |
+| SubNode lifecycle | ❌ Rarely | - | Pattern is standard |
+| Graceful Shutdown | ❌ Never | - | Handled by await using |
 
 ---
 
