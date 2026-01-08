@@ -1,0 +1,303 @@
+{
+  "SubNode": {
+    "Name": "MySysAgent",
+    "SubNodeType": "SystemMonitor",
+    "Manufacturer": "Advantech",
+    "Model": "SystemAgent",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "SystemAgentDeviceConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Sensors": [
+        {
+          "Name": "cpu.usage",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "usage"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "cpu.load.1m",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "load1"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "cpu.load.5m",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "load5"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "cpu.load.15m",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "load15"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.total",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "total"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.available",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "available"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.used",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "used"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "memory.cached",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "cached"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          }
+        },
+        {
+          "Name": "disk.root.total",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "total",
+            "MountPoint": "/"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "disk.root.available",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "available",
+            "MountPoint": "/"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "disk.root.used",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "used",
+            "MountPoint": "/"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "disk.root.usage_percent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "usage_percent",
+            "MountPoint": "/"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          }
+        },
+        {
+          "Name": "network.en0.bytes_sent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "bytes_sent",
+            "Interface": "en0"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.bytes_received",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "bytes_received",
+            "Interface": "en0"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.packets_sent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "packets_sent",
+            "Interface": "en0"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.packets_received",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "packets_received",
+            "Interface": "en0"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          }
+        },
+        {
+          "Name": "network.en0.errors",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "errors",
+            "Interface": "en0"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 25000
+          }
+        },
+        {
+          "Name": "hwinfo.motherboard",
+          "Parameters": {
+            "MetricType": "hwinfo",
+            "MetricName": "motherboardname"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 60000
+          }
+        },
+        {
+          "Name": "temperature",
+          "Parameters": {
+            "MetricType": "temperature"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "voltage",
+          "Parameters": {
+            "MetricType": "voltage"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "fanspeed",
+          "Parameters": {
+            "MetricType": "fanspeed"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "gpio",
+          "Parameters": {
+            "MetricType": "gpio"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 6000
+          }
+        },
+        {
+          "Name": "watchdog",
+          "Parameters": {
+            "MetricType": "watchdog"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 6000
+          }
+        },
+        {
+          "Name": "thermalprotection",
+          "Parameters": {
+            "MetricType": "thermalprotection"
+          },
+          "Config": {
+            "Enabled": true,
+            "Interval": 6000
+          }
+        }
+      ]
+    }
+  }
+}

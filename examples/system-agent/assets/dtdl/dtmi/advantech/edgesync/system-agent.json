@@ -1,0 +1,249 @@
+{
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent;1",
+  "@type": "Interface",
+  "displayName": "System Resource Collector",
+  "description": "Cross-platform system resource collection for CPU, memory, disk, and network metrics",
+  "contents": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",
+      "@type": "Telemetry",
+      "name": "CpuUsage",
+      "displayName": "CPU Usage",
+      "schema": "double",
+      "description": "Overall CPU usage percentage (0-100)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuCore;1",
+      "@type": "Telemetry",
+      "name": "CpuCore",
+      "displayName": "CPU Core Usage",
+      "schema": "double",
+      "description": "Per-core CPU usage percentage (0-100)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:LoadAverage;1",
+      "@type": "Telemetry",
+      "name": "LoadAverage",
+      "displayName": "Load Average",
+      "schema": "double",
+      "description": "System load average (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryTotal;1",
+      "@type": "Telemetry",
+      "name": "MemoryTotal",
+      "displayName": "Total Memory",
+      "schema": "long",
+      "description": "Total system memory in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1",
+      "@type": "Telemetry",
+      "name": "MemoryUsed",
+      "displayName": "Used Memory",
+      "schema": "long",
+      "description": "Used memory in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryAvailable;1",
+      "@type": "Telemetry",
+      "name": "MemoryAvailable",
+      "displayName": "Available Memory",
+      "schema": "long",
+      "description": "Available memory in bytes (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryCached;1",
+      "@type": "Telemetry",
+      "name": "MemoryCached",
+      "displayName": "Cached Memory",
+      "schema": "long",
+      "description": "Cached memory in bytes (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryBuffers;1",
+      "@type": "Telemetry",
+      "name": "MemoryBuffers",
+      "displayName": "Memory Buffers",
+      "schema": "long",
+      "description": "Memory buffers in bytes (Linux only)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskTotal;1",
+      "@type": "Telemetry",
+      "name": "DiskTotal",
+      "displayName": "Disk Total Space",
+      "schema": "long",
+      "description": "Total disk space in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsed;1",
+      "@type": "Telemetry",
+      "name": "DiskUsed",
+      "displayName": "Disk Used Space",
+      "schema": "long",
+      "description": "Used disk space in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskAvailable;1",
+      "@type": "Telemetry",
+      "name": "DiskAvailable",
+      "displayName": "Disk Available Space",
+      "schema": "long",
+      "description": "Available disk space in bytes"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1",
+      "@type": "Telemetry",
+      "name": "DiskUsagePercent",
+      "displayName": "Disk Usage Percentage",
+      "schema": "double",
+      "description": "Disk usage percentage (0-100)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1",
+      "@type": "Telemetry",
+      "name": "NetworkBytesSent",
+      "displayName": "Network Bytes Sent",
+      "schema": "long",
+      "description": "Total bytes sent on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesReceived;1",
+      "@type": "Telemetry",
+      "name": "NetworkBytesReceived",
+      "displayName": "Network Bytes Received",
+      "schema": "long",
+      "description": "Total bytes received on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsSent;1",
+      "@type": "Telemetry",
+      "name": "NetworkPacketsSent",
+      "displayName": "Network Packets Sent",
+      "schema": "long",
+      "description": "Total packets sent on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsReceived;1",
+      "@type": "Telemetry",
+      "name": "NetworkPacketsReceived",
+      "displayName": "Network Packets Received",
+      "schema": "long",
+      "description": "Total packets received on network interface"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrors;1",
+      "@type": "Telemetry",
+      "name": "NetworkErrors",
+      "displayName": "Network Errors",
+      "schema": "long",
+      "description": "Total network packet errors (incoming + outgoing)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechPlatform:MotherboardName;1",
+      "@type": "Telemetry",
+      "name": "MotherboardName",
+      "displayName": "Motherboard Name",
+      "schema": "string",
+      "description": "Advantech motherboard model name"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechPlatform:Manufacturer;1",
+      "@type": "Telemetry",
+      "name": "Manufacturer",
+      "displayName": "Manufacturer",
+      "schema": "string",
+      "description": "Platform manufacturer name"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechPlatform:BiosRevision;1",
+      "@type": "Telemetry",
+      "name": "BiosRevision",
+      "displayName": "BIOS Revision",
+      "schema": "string",
+      "description": "BIOS firmware revision"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechPlatform:DriverVersion;1",
+      "@type": "Telemetry",
+      "name": "DriverVersion",
+      "displayName": "SUSI Driver Version",
+      "schema": "string",
+      "description": "Advantech SUSI Driver version"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechPlatform:LibraryVersion;1",
+      "@type": "Telemetry",
+      "name": "LibraryVersion",
+      "displayName": "SUSI Library Version",
+      "schema": "string",
+      "description": "Advantech SUSI Library version"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechPlatform:EcRevision;1",
+      "@type": "Telemetry",
+      "name": "EcRevision",
+      "displayName": "EC Firmware Revision",
+      "schema": "string",
+      "description": "Embedded Controller firmware revision"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechSensors:Temperatures;1",
+      "@type": "Telemetry",
+      "name": "Temperatures",
+      "displayName": "Temperature Sensors",
+      "schema": "string",
+      "description": "Onboard temperature sensor readings (JSON array)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechSensors:Voltages;1",
+      "@type": "Telemetry",
+      "name": "Voltages",
+      "displayName": "Voltage Sensors",
+      "schema": "string",
+      "description": "Onboard voltage sensor readings (JSON array)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechSensors:FanSpeeds;1",
+      "@type": "Telemetry",
+      "name": "FanSpeeds",
+      "displayName": "Fan Speed Sensors",
+      "schema": "string",
+      "description": "Onboard fan speed sensor readings (JSON array)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechGpio:IsSupported;1",
+      "@type": "Telemetry",
+      "name": "GpioSupported",
+      "displayName": "GPIO Support Status",
+      "schema": "boolean",
+      "description": "Whether GPIO functionality is supported"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechGpio:PinNames;1",
+      "@type": "Telemetry",
+      "name": "GpioPinNames",
+      "displayName": "GPIO Pin Names",
+      "schema": "string",
+      "description": "Available GPIO pin names (JSON array)"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechWatchdog:IsSupported;1",
+      "@type": "Telemetry",
+      "name": "WatchdogSupported",
+      "displayName": "Watchdog Support Status",
+      "schema": "boolean",
+      "description": "Whether hardware watchdog is supported"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:AdvantechThermal:IsSupported;1",
+      "@type": "Telemetry",
+      "name": "ThermalSupported",
+      "displayName": "Thermal Protection Support",
+      "schema": "boolean",
+      "description": "Whether thermal protection is supported"
+    }
+  ],
+  "@context": "dtmi:dtdl:context;2"
+}
