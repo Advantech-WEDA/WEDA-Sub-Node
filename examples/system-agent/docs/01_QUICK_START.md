@@ -121,25 +121,40 @@ docker compose logs -f
 **正常日誌（應該看到）**：
 
 ```
-[OK] Configuration file is valid
-[OK] Device configuration is valid
-[INF] Using device 'system-agent-Device-01' configuration from appsettings.json
-[INF] Starting Weda SubNode Application
-[INF] Creating NATS connection to nats://192.168.1.100:4222 with auth strategy: UserPassword
-[INF] NATS connection verified - RTT: 1.5274ms
-[INF] Connected to Weda Cloud Service
-[INF] Registering device system-agent-Device-01 with Cloud
-[INF] Device registered: DeviceId=261404103115014144
-[INF] Configuration validation passed: 30 sensors enabled
-[INF] All connections established successfully
+Starting Weda SubNode Application
+......
+Auto-generated DTDL for device 'SystemAgentDeviceConfig' with 24 sensors
+Loaded 1 device configuration(s): [SystemAgentDeviceConfig]
+......
+Connecting to WedaNode
+......
+Connected to WedaNode
+......
+SubNode registered with ID: 267492018484150272
+......
+Uploading device configuration: DeviceId=267492018484150272, DeviceName=SystemAgentDeviceConfig
+Configuration uploaded successfully: DeviceId=267492018484150272, Status=applied
+Uploading device response:True,code:0 where DeviceId=267492018484150272, DeviceName=SystemAgentDeviceConfig
+Device configuration uploaded successfully
+Device initialized successfully in 169ms
 ```
 
 **持續運行後會看到**：
 ```
-[INF] Found 2 network interfaces
-[INF] Collected 2 network metrics
-[INF] Sending telemetry: DeviceId=261404103115014144, MeasureCount=26
-[INF] Telemetry sent successfully
+Collect system metrics for types: cpu, network
+Found 12 network interfaces
+Network lo: RX=26714696, TX=26714696, RxPkts=38972, TxPkts=38972, RxErrs=0, TxErrs=0
+```
+
+**subscribe telemetry**：
+用剛剛log看到的DeviceId做telemetry的subscribe
+```
+nats sub "eco1j.weda.{DeviceId}.telemetry" 
+```
+會收到類似下面的資訊
+```
+[#4] Received on "eco1j.weda.267492018484150272.telemetry"
+{"seqId":174,"timestamp":1767854994911,"data":{"measures":[{"sensorId":"e5a50","value":"EPC-R7300","timestamp":1767854994716},{"sensorId":"e6638","value":{"cpU-therm":60.4,"gpU-therm":61.1},"timestamp":1767854994716},{"sensorId":"6c042","value":{},"timestamp":1767854994716},{"sensorId":"4aab2","value":{},"timestamp":1767854994716},{"sensorId":"45027","value":{"isSupported":true,"pinNames":["UIO_GPIO2","UIO_GPIO4","UIO_GPIO5","UIO_GPIO6","UIO_GPIO7","UIO_GPIO8","UIO_GPIO9","UIO_GPIO10","UIO_GPIO11_CPU","UIO_GPIO12_CPU","CN13_GPIO1","CN13_GPIO7","CN13_GPIO9","CN13_GPIO11","CN13_GPIO12","CN13_GPIO13","UIO_GPIO11_Expender","UIO_GPIO12_Expender","UIO_ID_SW"],"pinStateDetails":{}},"timestamp":1767854994716},{"sensorId":"b47c5","value":{"isSupported":true,"timerIds":["WatchdogTimer1"],"timerDetails":{"watchdogTimer1":{"cap":{"isStoppable":false,"delayMaximum":10000,"delayMinimum":0,"eventMaximum":0,"eventMinimum":0,"resetMaximum":20000,"resetMinimum":11000,"unit":1000,"supportFlags":"unsupported"},"config":{"delay":0,"eventTimeout":0,"resetTimeout":0,"eventType":"disabled"}}}},"timestamp":1767854994716},{"sensorId":"bc01f","value":{"isSupported":false,"zoneIds":[],"zoneDetails":{}},"timestamp":1767854994716}]}}
 ```
 
 ### 3. 常見問題
