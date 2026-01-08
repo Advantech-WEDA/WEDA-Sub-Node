@@ -123,34 +123,6 @@ public sealed class DeviceInitializer
         }
 
         // Success logging is handled by WedaCloudService and DeviceAgentClient
-        // No need for duplicate log here
-    }
-
-    /// <summary>
-    /// Complete initialization flow for SubNode architecture:
-    /// 1. Ensure SubNode is registered (gets or creates SubNode DeviceId)
-    /// 2. Enrich device configuration with SubNode DeviceId and sensor ResourceIds
-    /// 3. Upload device configuration to cloud
-    /// </summary>
-    /// <param name="configuration">Device configuration to initialize</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>The SubNode's DeviceId (shared by all devices in this SubNode)</returns>
-    public async Task<string> InitializeDeviceAsync(DeviceConfiguration configuration, CancellationToken ct = default)
-    {
-        // Step 1: Ensure SubNode is registered (only registers once, subsequent calls return cached DeviceId)
-        var subNodeDeviceId = await EnsureSubNodeRegisteredAsync(ct);
-
-        // Step 2: Enrich configuration using SubNode architecture
-        // resourceId = sha1(subNodeDeviceId + deviceName + sensorName)
-        EnrichConfiguration(configuration, subNodeDeviceId);
-
-        // Step 3: Upload device configuration to cloud
-        await UploadConfigurationAsync(configuration, ct);
-
-        _logger.LogInformation(
-            "Device '{DeviceName}' initialized under SubNode '{SubNodeName}' (DeviceId: {DeviceId})",
-            configuration.DeviceInfo.DeviceName, _subNodeInfo.Name, subNodeDeviceId);
-
-        return subNodeDeviceId;
+        // No need for duplicate log here    
     }
 }

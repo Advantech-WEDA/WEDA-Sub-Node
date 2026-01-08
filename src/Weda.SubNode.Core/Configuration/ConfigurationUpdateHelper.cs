@@ -400,6 +400,32 @@ public static partial class ConfigurationUpdateHelper
         return updatedSensors;
     }
 
+    public static List<string> ApplyNewSensors(
+        DeviceConfiguration deviceConfig,
+        IReadOnlyList<SubNodeSensorReportDto>? desiredSensors,
+        string deviceResourceId)
+    {
+        var addedSensors = new List<string>();
+
+        if (desiredSensors == null || desiredSensors.Count == 0)
+            return addedSensors;
+
+        var existingSensorNames = deviceConfig.Sensors
+            .Select(s => s.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var desiredSensor in desiredSensors)
+        {
+            if (existingSensorNames.Contains(desiredSensor!.Name))
+                continue;
+
+            var newSensor = MapToSensor(desiredSensor, deviceResourceId);
+            deviceConfig.Sensors.Add(newSensor);
+            addedSensors.Add(newSensor.Name);
+        }
+        return addedSensors;
+    }
+
     /// <summary>
     /// Applies DSP filter pipeline updates for a specific sensor.
     /// Updates existing filters' Enabled state and parameters without recreating instances.
@@ -1196,7 +1222,7 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="currentCfg">Current device configuration</param>
     /// <param name="desiredSensors">Desired sensor configurations from cloud</param>
     /// <returns>True if DeviceCaps needs to be re-uploaded</returns>
-    public static bool HasDtmiDelta(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto> desiredSensors)
+    public static bool HasDtmiDelta(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
     {
         if (desiredSensors == null || desiredSensors.Count == 0)
             return false;
@@ -1249,5 +1275,35 @@ public static partial class ConfigurationUpdateHelper
         }    
 
         return changes;
+    }
+
+    private static Sensor MapToSensor(SubNodeSensorReportDto dto, string deviceResourceId)
+    {
+        var sensor = new Sensor
+        {
+            Name = dto.Name,
+            Dtmi = dto.Dtmi,
+            SensorGroup = SensorGroupExtensions.ParseSensorGroup(dto.SensorGroup!),
+            Parameters = dto.Parameters,
+            Metadata = dto.Metadata,
+            DeviceResourceId = deviceResourceId
+        };
+
+        if (dto.Report != null)
+        {
+            sensor.Report.Enabled = dto.Report.Enabled;
+            sensor.Report.Interval = dto.Report.Interval;
+            sensor.Report.Unit = dto.Report.Unit;
+
+            sensor.Report.Thresholds = new ThresholdConfig
+            {
+                UpperCritical = dto.Report.Thresholds?.UpperCritical,
+                UpperWarning = dto.Report.Thresholds?.UpperWarning,
+                LowerWarning = dto.Report.Thresholds?.LowerWarning,
+                LowerCritical = dto.Report.Thresholds?.LowerCritical
+            };
+        }
+
+        return sensor;
     }
 }
