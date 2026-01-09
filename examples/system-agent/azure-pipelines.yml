@@ -1,0 +1,60 @@
+name: $(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - examples/system-agent/**
+      - .azure-pipelines-docker.yml
+
+variables:
+  CONTAINER_REGISTRY_SERVICE_CONNECTION: 'Edge COA Harbor'
+  REGISTRY_HOST: 'harbor.arfa.wise-paas.com'
+  IMAGE_REPOSITORY: 'edge-coa/system-agent'
+  IMAGE_TAG: '$(Build.BuildNumber)'
+
+stages:
+- stage: Build_Image
+  displayName: 'Build & Push Multi-Arch'
+  jobs:
+  - job: Build
+    displayName: 'Build & Push Multi-Arch'
+    pool:
+      name: 'CI Agent Pool'
+    steps:
+    - checkout: self
+      fetchDepth: 0
+
+    - task: Docker@2
+      displayName: 'Login Harbor'
+      inputs:
+        command: 'login'
+        containerRegistry: $(CONTAINER_REGISTRY_SERVICE_CONNECTION)
+
+    - script: |
+        set -euo pipefail
+        docker buildx version || true
+        docker buildx create --driver docker-container --use --name multiarch || docker buildx use multiarch
+        docker run --privileged --rm tonistiigi/binfmt --install arm64,amd64 || true
+        docker buildx inspect --bootstrap
+        docker buildx ls
+      displayName: 'Setup buildx'
+
+    - script: |
+        set -euo pipefail
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          -f $(Build.SourcesDirectory)/examples/system-agent/Dockerfile \
+          -t $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):latest \
+          -t $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG) \
+          $(Build.SourcesDirectory) \
+          --push
+      displayName: 'Build & Push Image'
+
+    - script: |
+        set -euo pipefail
+        docker buildx imagetools inspect $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):latest
+        docker buildx imagetools inspect $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+      displayName: 'Verify Manifest'

@@ -1,0 +1,38 @@
+version: '2.4'
+
+services:
+  system-agent:
+    image: harbor.arfa.wise-paas.com/edge-coa/system-agent:latest
+    container_name: system-agent
+    privileged: true
+    restart: unless-stopped
+    network_mode: host
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      # Configuration - .json must be in same directory as docker-compose.yml
+      - /opt/Advantech/system-monitor/appsettings.json:/app/appsettings.json
+      - /opt/Advantech/system-monitor/customcfg.json:/app/customcfg.json
+      - /opt/Advantech/system-monitor/devicecfg.json:/app/devicecfg.json
+      - /opt/Advantech/system-monitor/systemcfg.json:/app/systemcfg.json
+      
+      # Persist .weda directory for device registration (避免重複註冊)
+      - ./weda-data:/app/.weda
+      
+      # ARM64 Advantech SUSI Driver mounts
+      - /etc/board:/etc/board:ro
+      - /usr/lib/Advantech/:/usr/lib/Advantech/:ro
+      - /lib/libSUSI-4.00.so:/lib/libSUSI-4.00.so:ro
+      - /lib/libSUSI-4.00.so.1:/lib/libSUSI-4.00.so.1:ro
+      - /lib/libSUSI-4.00.so.1.0.0:/lib/libSUSI-4.00.so.1.0.0:ro
+      - /lib/libjansson.a:/lib/libjansson.a:ro
+      - /lib/libjansson.so:/lib/libjansson.so:ro
+      - /lib/libjansson.so.4:/lib/libjansson.so.4:ro
+      - /lib/libjansson.so.4.11.0:/lib/libjansson.so.4.11.0:ro
+      - /lib/libSusiIoT.so:/lib/libSusiIoT.so:ro
+      - /lib/libSusiIoT.so.1.0.0:/lib/libSusiIoT.so.1.0.0:ro
+      # Device access
+      - /dev:/dev

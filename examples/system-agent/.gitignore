@@ -1,0 +1,10 @@
+# Weda SubNode device registration data (persisted via docker volume)
+weda-data/
+
+# Build outputs
+bin/
+obj/
+publish/
+
+# Docker artifacts
+*.tar

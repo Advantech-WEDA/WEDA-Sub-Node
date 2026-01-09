@@ -1,4 +1,5 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -46,11 +47,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012Builder", "examples
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testdevice", "examples\testdevice\testdevice.csproj", "{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemMonitorDevice", "examples\system-monitor\SystemMonitorDevice.csproj", "{49AB7585-FC42-4E52-8A8F-88743EB856A0}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "stock-monitor", "examples\stock-monitor\stock-monitor.csproj", "{5D17CBB9-3080-4621-9A20-0D99527C6F6A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowerAggregation", "examples\power-aggregation\PowerAggregation.csproj", "{49459EB9-0E73-41C5-A85E-4D4192653D95}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemAgentDevice", "examples\system-agent\SystemAgentDevice.csproj", "{623A6013-FE4B-720B-2B45-F608A26FB25E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -266,18 +267,6 @@ Global
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}.Release|x64.Build.0 = Release|Any CPU
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}.Release|x86.ActiveCfg = Release|Any CPU
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}.Release|x86.Build.0 = Release|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x64.Build.0 = Debug|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Debug|x86.Build.0 = Debug|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x64.ActiveCfg = Release|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x64.Build.0 = Release|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x86.ActiveCfg = Release|Any CPU
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0}.Release|x86.Build.0 = Release|Any CPU
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -302,6 +291,18 @@ Global
 		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x64.Build.0 = Release|Any CPU
 		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x86.ActiveCfg = Release|Any CPU
 		{49459EB9-0E73-41C5-A85E-4D4192653D95}.Release|x86.Build.0 = Release|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Debug|x64.Build.0 = Debug|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Debug|x86.Build.0 = Debug|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Release|x64.ActiveCfg = Release|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Release|x64.Build.0 = Release|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Release|x86.ActiveCfg = Release|Any CPU
+		{623A6013-FE4B-720B-2B45-F608A26FB25E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -323,8 +324,8 @@ Global
 		{D80B5DC4-ADD0-B355-1CED-0956DF3E0F52} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 		{443202A0-477E-47D7-9944-E28DCA4E0F7A} = {D80B5DC4-ADD0-B355-1CED-0956DF3E0F52}
 		{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1} = {16671E85-B961-4076-AC39-3004C9A0BE38}
-		{49AB7585-FC42-4E52-8A8F-88743EB856A0} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 		{5D17CBB9-3080-4621-9A20-0D99527C6F6A} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 		{49459EB9-0E73-41C5-A85E-4D4192653D95} = {16671E85-B961-4076-AC39-3004C9A0BE38}
+		{623A6013-FE4B-720B-2B45-F608A26FB25E} = {16671E85-B961-4076-AC39-3004C9A0BE38}
 	EndGlobalSection
 EndGlobal
