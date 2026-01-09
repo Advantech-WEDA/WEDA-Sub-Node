@@ -39,16 +39,18 @@ public class GpuCollector
     {
         try
         {
-            if (NvmlNativeMethods.nvmlInit() != nvmlReturn.Success) return 0;
+            if (NvmlNativeMethods.nvmlInit() != nvmlReturn.Success) return int.MinValue;
 
             try
             {
                 nvmlDevice device = default;
 
-                if (NvmlNativeMethods.nvmlDeviceGetHandleByIndex(0, ref device) != nvmlReturn.Success) return 0;
+                if (NvmlNativeMethods.nvmlDeviceGetHandleByIndex(0, ref device) != nvmlReturn.Success)
+                    return int.MinValue;
 
                 nvmlUtilization utilization = default;
-                if (NvmlNativeMethods.nvmlDeviceGetUtilizationRates(device, ref utilization) != nvmlReturn.Success) return 0;
+                if (NvmlNativeMethods.nvmlDeviceGetUtilizationRates(device, ref utilization) != nvmlReturn.Success)
+                    return int.MinValue;
 
                 return (int)utilization.gpu; // 0~100
             }
@@ -59,7 +61,7 @@ public class GpuCollector
         }
         catch
         {
-            return 0;
+            return int.MinValue;
         }
     }
 
