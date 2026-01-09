@@ -248,10 +248,12 @@ public class MockCloudService : IWedaCloudService
             configType.Value,
             report.Data?.Cfg?.Reported?.Status ?? "unknown");
 
-        if (report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs != null)
+        var desiredConfigs = report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        if (desiredConfigs != null)
         {
-            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
+            foreach (var (deviceKey, deviceConfig) in desiredConfigs)
             {
+                if (deviceConfig == null) continue;
                 _logger.LogDebug(
                     "  Desired config for '{DeviceKey}': SensorCount={SensorCount}",
                     deviceKey,

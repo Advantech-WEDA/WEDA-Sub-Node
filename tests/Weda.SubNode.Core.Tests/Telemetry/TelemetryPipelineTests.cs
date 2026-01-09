@@ -370,7 +370,7 @@ public sealed class TelemetryPipelineTests
     #region Statistics Tests
 
     [Fact]
-    public async Task GetStatistics_InitialState_ShouldReturnZeros()
+    public void GetStatistics_InitialState_ShouldReturnZeros()
     {
         // Act
         var stats = _pipeline.GetStatistics();

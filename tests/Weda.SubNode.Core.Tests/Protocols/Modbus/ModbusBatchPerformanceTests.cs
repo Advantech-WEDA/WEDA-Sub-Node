@@ -205,5 +205,9 @@ public class PerformanceTrackingCommunication : IRequestResponseCommunication<by
     public CommunicationState State => CommunicationState.Connected;
     public bool IsConnected => true;
     public event EventHandler<ConnectionStateChangedEvent>? StateChanged;
+
+    // Suppress CS0067: Event required by interface, invoke to satisfy compiler
+    protected virtual void OnStateChanged(ConnectionStateChangedEvent e) => StateChanged?.Invoke(this, e);
+
     public void Dispose() { }
 }

@@ -40,10 +40,10 @@ public static class Wise4012SeConfigurationExtensions
         {
             ResourceId = sensor.ResourceId,
             Name = sensor.Name,
-            Dtmi = sensor.Dtmi,
+            Dtmi = sensor.Dtmi ?? string.Empty,
             SensorGroup = sensor.SensorGroup,
-            FieldName = parameters.TryGetValue("FieldName", out var field)
-                ? field?.ToString() ?? sensor.Name
+            FieldName = parameters.TryGetValue("FieldName", out var field) && field != null
+                ? field.ToString() ?? sensor.Name
                 : sensor.Name,
             SensorType = ParseSensorType(sensor.SensorGroup),
             Unit = sensor.Report.Unit ?? string.Empty,

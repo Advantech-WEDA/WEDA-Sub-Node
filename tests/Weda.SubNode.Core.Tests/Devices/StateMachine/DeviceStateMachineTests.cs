@@ -180,7 +180,7 @@ public class DeviceStateMachineTests
     }
 
     [Fact]
-    public void ConcurrentTransitions_ShouldBeSerialized()
+    public async Task ConcurrentTransitions_ShouldBeSerialized()
     {
         // Arrange
         var stateMachine = new DeviceStateMachine(TestDeviceId, DeviceStatus.Initializing);
@@ -208,7 +208,7 @@ public class DeviceStateMachineTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Assert
         stateMachine.CurrentStatus.ShouldBe(DeviceStatus.Ready);

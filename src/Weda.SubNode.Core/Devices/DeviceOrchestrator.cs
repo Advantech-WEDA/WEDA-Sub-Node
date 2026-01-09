@@ -47,6 +47,9 @@ public sealed class DeviceOrchestrator : IDisposable
     public event EventHandler<TelemetryPipelineStageEvent>? TelemetryPipelineStageExecuting;
     public event EventHandler<DeviceLifecycleEvent>? LifecycleExecuting;
 
+    internal void RaiseRetryAttempting(RetryAttemptEvent e) => RetryAttempting?.Invoke(this, e);
+    internal void RaiseCircuitBreakerStateChanged(CircuitBreakerStateChangedEvent e) => CircuitBreakerStateChanged?.Invoke(this, e);
+
     public DeviceOrchestrator(
         IWedaApplicationContext context,
         ICommunication communication,

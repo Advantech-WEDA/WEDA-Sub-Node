@@ -94,7 +94,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
             }
         };
 
-        ExecuteCommandAsync(command, cancellationToken);
+        // Fire and forget - command execution result is not needed for GetConfig
+        _ = ExecuteCommandAsync(command, cancellationToken);
 
         // Note: In real implementation, this would wait for response from device
         // For now, return empty dictionary indicating command was sent

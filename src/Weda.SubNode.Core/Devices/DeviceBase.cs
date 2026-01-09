@@ -328,13 +328,38 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 async c => await _orchestrator.TelemetryPipeline.SendAsync(measures, c),
                 ct);
 
-            return !result.IsError;
+            var success = !result.IsError;
+
+            // Raise TelemetrySent event if tracking is enabled
+            if (EnableTelemetrySentTracking)
+            {
+                RaiseTelemetrySentEvent(measures.Count, success, null);
+            }
+
+            return success;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send telemetry for device {SubNodeId} after all retries", SubNodeId);
+
+            // Raise TelemetrySent event with error if tracking is enabled
+            if (EnableTelemetrySentTracking)
+            {
+                RaiseTelemetrySentEvent(measures.Count, false, ex.Message);
+            }
+
             return false;
         }
+    }
+
+    private void RaiseTelemetrySentEvent(int measureCount, bool success, string? error)
+    {
+        TelemetrySent?.Invoke(this, new TelemetrySentEvent(
+            DeviceId: SubNodeId ?? "unknown",
+            MeasureCount: measureCount,
+            Success: success,
+            Timestamp: DateTimeOffset.UtcNow)
+        { Error = error });
     }
 
     public async Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken ct = default, params IDspFilter[] filters)
@@ -714,7 +739,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             try
             {
                 // Find the device config for this device
-                var deviceConfigs = message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs;
+                var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
                 if (deviceConfigs == null)
                 {
                     _logger.LogDebug("No device configurations in desired state");

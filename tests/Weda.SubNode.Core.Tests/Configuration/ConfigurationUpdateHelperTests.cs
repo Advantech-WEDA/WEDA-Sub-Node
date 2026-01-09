@@ -672,11 +672,12 @@ public class ConfigurationUpdateHelperTests
         ConfigurationUpdateHelper.ApplysensorReportUpdates(config, desiredSensors);
 
         // Assert
-        config.Sensors[0].Report.Thresholds.ShouldNotBeNull();
-        config.Sensors[0].Report.Thresholds!.UpperCritical.ShouldBe(100);
-        config.Sensors[0].Report.Thresholds.UpperWarning.ShouldBe(80);
-        config.Sensors[0].Report.Thresholds.LowerWarning.ShouldBe(20);
-        config.Sensors[0].Report.Thresholds.LowerCritical.ShouldBe(0);
+        var thresholds = config.Sensors[0].Report.Thresholds;
+        thresholds.ShouldNotBeNull();
+        thresholds!.UpperCritical.ShouldBe(100);
+        thresholds.UpperWarning.ShouldBe(80);
+        thresholds.LowerWarning.ShouldBe(20);
+        thresholds.LowerCritical.ShouldBe(0);
     }
 
     [Fact]
@@ -973,8 +974,9 @@ public class ConfigurationUpdateHelperTests
         config.Sensors[0].Report.Interval = 1000;
 
         var cachedMessage = CreateValidMessage();
-        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!.Enabled = false;
-        cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs["TestDevice"].Sensors[0].Config!.Interval = 5000;
+        var deviceConfig = cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        deviceConfig.Sensors![0].Config!.Enabled = false;
+        deviceConfig.Sensors[0].Config!.Interval = 5000;
 
         // Act
         var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
@@ -994,8 +996,9 @@ public class ConfigurationUpdateHelperTests
         config.Periods.ReportConfiguration = 1800000;
 
         var cachedMessage = CreateValidMessage();
-        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportHealth = 120000;
-        cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs["TestDevice"].Periods!.ReportConfiguration = 3600000;
+        var deviceConfig = cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        deviceConfig.Periods!.ReportHealth = 120000;
+        deviceConfig.Periods!.ReportConfiguration = 3600000;
 
         // Act
         var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);

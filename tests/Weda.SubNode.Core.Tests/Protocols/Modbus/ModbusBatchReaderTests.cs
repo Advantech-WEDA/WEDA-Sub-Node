@@ -210,6 +210,9 @@ public class MockModbusCommunication : IRequestResponseCommunication<byte[], byt
     public bool IsConnected => true;
     public event EventHandler<ConnectionStateChangedEvent>? StateChanged;
 
+    // Suppress CS0067: Event required by interface, invoke to satisfy compiler
+    protected virtual void OnStateChanged(ConnectionStateChangedEvent e) => StateChanged?.Invoke(this, e);
+
     public void Dispose()
     {
         // No-op for mock

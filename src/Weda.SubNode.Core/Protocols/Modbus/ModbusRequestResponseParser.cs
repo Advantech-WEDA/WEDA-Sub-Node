@@ -499,27 +499,19 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     /// <summary>
     /// Write sensor data to device (if protocol supports write operations)
     /// </summary>
-    public async Task<bool> WriteSensorDataAsync(
+    public Task<bool> WriteSensorDataAsync(
         IEnumerable<TelemetryMeasure> measures,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            // TODO: Implement Modbus write operations
-            // For each measure:
-            // 1. Look up sensor metadata to get register address
-            // 2. Encode value to ushort[]
-            // 3. Build Modbus write request (FC 16: Write Multiple Registers)
-            // 4. Send request and validate response
+        // TODO: Implement Modbus write operations
+        // For each measure:
+        // 1. Look up sensor metadata to get register address
+        // 2. Encode value to ushort[]
+        // 3. Build Modbus write request (FC 16: Write Multiple Registers)
+        // 4. Send request and validate response
 
-            _logger.LogWarning("WriteSensorDataAsync not yet implemented for Modbus");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error writing sensor data");
-            return false;
-        }
+        _logger.LogWarning("WriteSensorDataAsync not yet implemented for Modbus");
+        return Task.FromResult(false);
     }
 
     // ===== Private Protocol Methods =====
