@@ -248,6 +248,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             _cloudService,
             _subNodeInfo,
             _options.ConnectionOptions,
+            _deviceRegistry,
             _loggerFactory.CreateLogger<SubNodeManager>());
     }
 

@@ -2,10 +2,13 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Core.Configuration;
+using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core;
@@ -18,6 +21,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 {
     private readonly IWedaCloudService _cloudService;
     private readonly SubNodeInfo _subNodeInfo;
+    private readonly IDeviceRegistry _deviceRegistry;
     private readonly ILogger<SubNodeManager> _logger;
 
     private readonly ResiliencePipeline<bool> _pipeline;
@@ -31,10 +35,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private bool _isInitialized;
     private string? _subNodeId;
 
+
     public SubNodeManager(
         IWedaCloudService cloudService,
         SubNodeInfo subNodeInfo,
         ConnectionOptions connectionOptions,
+        IDeviceRegistry deviceRegistry,
         ILogger<SubNodeManager> logger)
     {
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
@@ -42,6 +48,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
         _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
+        _deviceRegistry = deviceRegistry;
 
         // Unlimited retry pipeline for upload (handles Device.NotFound with exponential backoff)
         _uploadPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
@@ -233,7 +240,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// <inheritdoc />
     public void RegisterDeviceHandler(
         string deviceName,
-        Func<UpdateConfigurationEvent, Task> configHandler,
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler,
         Func<ExecuteCommandEvent, Task>? commandHandler = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
@@ -373,53 +380,140 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// <summary>
     /// Handles DeviceConfig updates.
     /// SubNodeManager dispatches to individual devices based on DeviceConfigs keys.
+    /// SubNodeManager is responsible for publishing all reports (updating/success/failed/invalid).
+    /// If any device reports DTMI delta, triggers re-upload of all configurations.
     /// </summary>
     private async Task HandleDeviceConfigUpdateAsync(UpdateConfigurationEvent e)
     {
         _logger.LogInformation("Handling DeviceConfig update: SeqId={SeqId}", e.Message?.SeqId);
 
-        var deviceConfigs = e.Message?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        var message = e.Message;
+        if (message == null)
+        {
+            _logger.LogWarning("DeviceConfig update message is null");
+            return;
+        }
+
+        var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        var needsReUpload = false;
+        var results = new List<(string DeviceName, ConfigUpdateResult Result)>();
 
         if (deviceConfigs == null || deviceConfigs.Count == 0)
         {
             _logger.LogDebug("No DeviceConfigs in message, broadcasting to all devices");
 
-            // Broadcast to all registered devices
             foreach (var (deviceName, handlers) in _deviceHandlers)
             {
-                try
+                var result = await ProcessDeviceConfigUpdateAsync(deviceName, handlers, e);
+                results.Add((deviceName, result));
+            }
+        }
+        else
+        {
+            _logger.LogDebug("Dispatching DeviceConfig to {Count} device(s)", deviceConfigs.Count);
+
+            foreach (var deviceName in deviceConfigs.Keys)
+            {
+                if (_deviceHandlers.TryGetValue(deviceName, out var handlers))
                 {
-                    await handlers.ConfigHandler(e);
+                    _logger.LogDebug("Dispatching to device: {DeviceName}", deviceName);
+                    var result = await ProcessDeviceConfigUpdateAsync(deviceName, handlers, e);
+                    results.Add((deviceName, result));
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
+                    _logger.LogWarning("No handler registered for device: {DeviceName}", deviceName);
                 }
             }
+        }
+
+        // Publish reports and check for DTMI delta
+        foreach (var (deviceName, result) in results)
+        {
+            await PublishConfigurationReportAsync(e, message, result);
+            needsReUpload |= result.HasDtmiDelta;
+        }
+
+        if (needsReUpload)
+        {
+            _logger.LogInformation("DTMI delta detected, triggering configuration re-upload");
+            var devices = _deviceRegistry.GetAllDevices().ToList();
+            var configurations = new DeviceConfigurations(devices);
+            await UploadDeviceConfigurationsAsync(configurations, default);
+        }
+    }
+
+    /// <summary>
+    /// Processes configuration update for a single device.
+    /// Sends updating report before calling handler, then returns result.
+    /// </summary>
+    private async Task<ConfigUpdateResult> ProcessDeviceConfigUpdateAsync(
+        string deviceName,
+        DeviceHandlers handlers,
+        UpdateConfigurationEvent e)
+    {
+        try
+        {
+            // Call device handler to apply configuration
+            var result = await handlers.ConfigHandler(e);
+
+            _logger.LogDebug(
+                "Device {DeviceName} config update result: Status={Status}, HasDtmiDelta={HasDtmiDelta}",
+                deviceName, result.Status, result.HasDtmiDelta);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
+
+            // Return failed result - need device info from registry
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device != null)
+            {
+                return ConfigUpdateResult.Failed(
+                    device.Configuration,
+                    device.SubNodeType.ToString(),
+                    ex.Message);
+            }
+
+            // Device not found in registry - this shouldn't happen
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Publishes configuration report based on the update result.
+    /// </summary>
+    private async Task PublishConfigurationReportAsync(
+        UpdateConfigurationEvent e,
+        SubNodeConfigUpdateMessage message,
+        ConfigUpdateResult result)
+    {
+        // Skip publishing for Skipped status (no update required)
+        if (result.Status == DeviceConfigUpdateStatus.Skipped)
+        {
+            _logger.LogDebug("Skipping report publish for device {DeviceName} - no update required",
+                result.Configuration.DeviceName);
             return;
         }
 
-        // Dispatch to specific devices based on DeviceConfigs keys
-        _logger.LogDebug("Dispatching DeviceConfig to {Count} device(s)", deviceConfigs.Count);
-
-        foreach (var deviceName in deviceConfigs.Keys)
+        var report = result.Status switch
         {
-            if (_deviceHandlers.TryGetValue(deviceName, out var handlers))
-            {
-                _logger.LogDebug("Dispatching to device: {DeviceName}", deviceName);
-                try
-                {
-                    await handlers.ConfigHandler(e);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("No handler registered for device: {DeviceName}", deviceName);
-            }
+            DeviceConfigUpdateStatus.Invalid => ConfigurationUpdateHelper.CreateInvalidReport(
+                message, result.Configuration, result.DeviceTypeName, result.ErrorMessage ?? "Validation failed"),
+            DeviceConfigUpdateStatus.Success => ConfigurationUpdateHelper.CreateSuccessReport(
+                message, result.Configuration, result.DeviceTypeName),
+            DeviceConfigUpdateStatus.Failed => ConfigurationUpdateHelper.CreateFailedReport(
+                message, result.Configuration, result.DeviceTypeName, result.ErrorMessage ?? "Update failed"),
+            _ => null
+        };
+
+        if (report != null)
+        {
+            _logger.LogDebug("Publishing {Status} report for device {DeviceName}",
+                result.Status, result.Configuration.DeviceName);
+            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, report, default);
         }
     }
 
@@ -480,6 +574,6 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// Container for device-specific event handlers.
     /// </summary>
     private sealed record DeviceHandlers(
-        Func<UpdateConfigurationEvent, Task> ConfigHandler,
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> ConfigHandler,
         Func<ExecuteCommandEvent, Task>? CommandHandler);
 }
