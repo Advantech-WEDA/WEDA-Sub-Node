@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 using SystemAgentExample.Communication.Collectors;
 using SystemAgentExample.Models;
+using SystemAgentExample.Protocols;
 
 using Device = Advantech.Edge.Device;
 
@@ -39,7 +40,7 @@ public class LocalSystemResourceCollector
         // Attempt to initialize Advantech Device
         // If initialization fails (e.g., non-Advantech hardware), log warning and continue
         Device? advantechEdgeDevice = null;
-        
+
         try
         {
             advantechEdgeDevice = new Device();
@@ -65,7 +66,7 @@ public class LocalSystemResourceCollector
         {
             _logger.LogWarning(ex, "Advantech Device initialization failed ({ExceptionType}). Hardware metrics unavailable.", ex.GetType().Name);
         }
-        
+
         _hardwarePlatformCollector = new HardwarePlatformCollector(_logger, advantechEdgeDevice);
     }
 
@@ -77,10 +78,19 @@ public class LocalSystemResourceCollector
         return await CollectMetricsAsync(
             new HashSet<string>
             {
-                "cpu", "memory", "disk", "network", "system", "gpu",
-                "hwinfo",
-                "temperature","voltage","fanspeed",
-                "gpio","watchdog","thermalprotection"
+                SupportedDataType.Cpu,
+                SupportedDataType.Memory,
+                SupportedDataType.Disk,
+                SupportedDataType.Network,
+                SupportedDataType.Gpu,
+                SupportedDataType.System,
+                SupportedDataType.Temperature,
+                SupportedDataType.Voltage,
+                SupportedDataType.Fanspeed,
+                SupportedDataType.Hwinfo,
+                SupportedDataType.Gpio,
+                SupportedDataType.Watchdog,
+                SupportedDataType.Thermalprotection
             },
             ct);
     }
@@ -119,37 +129,37 @@ public class LocalSystemResourceCollector
         {
             switch (metricType.ToLowerInvariant())
             {
-                case "cpu":
+                case SupportedDataType.Cpu:
                     cpuTask = _cpuCollector.CollectCpuMetricsAsync(ct);
                     tasks.Add(cpuTask);
                     break;
 
-                case "memory":
+                case SupportedDataType.Memory:
                     ramTask = _ramCollector.CollectRamMetricsAsync(ct);
                     tasks.Add(ramTask);
                     break;
 
-                case "disk":
+                case SupportedDataType.Disk:
                     diskTask = _diskCollector.CollectDiskMetricsAsync(ct);
                     tasks.Add(diskTask);
                     break;
 
-                case "network":
+                case SupportedDataType.Network:
                     networkTask = Task.Run(() => _networkCollector.CollectNetworkMetrics(), ct);
                     tasks.Add(networkTask);
                     break;
 
-                case "system":
+                case SupportedDataType.System:
                     systemTask = _systemCollector.CollectSystemMetricsAsync(ct);
                     tasks.Add(systemTask);
                     break;
 
-                case "gpu":
+                case SupportedDataType.Gpu:
                     gpuTask = Task.Run(() => _gpuCollector.CollectGpuMetrics(), ct);
                     tasks.Add(gpuTask);
                     break;
 
-                case "hwinfo":
+                case SupportedDataType.Hwinfo:
                     if (_hardwarePlatformCollector != null)
                     {
                         hardwareInfoTask = Task.Run(() => _hardwarePlatformCollector.CollectHardwareInfoMetrics(), ct);
@@ -157,7 +167,7 @@ public class LocalSystemResourceCollector
                     }
                     break;
 
-                case "temperature":
+                case SupportedDataType.Temperature:
                     if (_hardwarePlatformCollector != null)
                     {
                         temperatureTask = Task.Run(() => _hardwarePlatformCollector.CollectTemperatureMetrics(), ct);
@@ -165,7 +175,7 @@ public class LocalSystemResourceCollector
                     }
                     break;
 
-                case "voltage":
+                case SupportedDataType.Voltage:
                     if (_hardwarePlatformCollector != null)
                     {
                         voltageTask = Task.Run(() => _hardwarePlatformCollector.CollectVoltageMetrics(), ct);
@@ -173,7 +183,7 @@ public class LocalSystemResourceCollector
                     }
                     break;
 
-                case "fanspeed":
+                case SupportedDataType.Fanspeed:
                     if (_hardwarePlatformCollector != null)
                     {
                         fanSpeedTask = Task.Run(() => _hardwarePlatformCollector.CollectFanSpeedMetrics(), ct);
@@ -181,7 +191,7 @@ public class LocalSystemResourceCollector
                     }
                     break;
 
-                case "gpio":
+                case SupportedDataType.Gpio:
                     if (_hardwarePlatformCollector != null)
                     {
                         gpioTask = Task.Run(() => _hardwarePlatformCollector.CollectGpioMetrics(), ct);
@@ -189,7 +199,7 @@ public class LocalSystemResourceCollector
                     }
                     break;
 
-                case "watchdog":
+                case SupportedDataType.Watchdog:
                     if (_hardwarePlatformCollector != null)
                     {
                         watchdogTask = Task.Run(() => _hardwarePlatformCollector.CollectWatchdogMetrics(), ct);
@@ -197,7 +207,7 @@ public class LocalSystemResourceCollector
                     }
                     break;
 
-                case "thermalprotection":
+                case SupportedDataType.Thermalprotection:
                     if (_hardwarePlatformCollector != null)
                     {
                         thermalProtectionTask = Task.Run(() => _hardwarePlatformCollector.CollectThermalProtectionMetrics(), ct);

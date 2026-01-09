@@ -1,13 +1,35 @@
 using ErrorOr;
+
 using Microsoft.Extensions.Logging;
+
 using SystemAgentExample.Communication;
 using SystemAgentExample.Models;
+
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace SystemAgentExample.Protocols;
+
+
+public static class SupportedDataType
+{
+    public const string Cpu = "cpu";
+    public const string Memory = "memory";
+    public const string Disk = "disk";
+    public const string Network = "network";
+    public const string Gpu = "gpu";
+    public const string System = "system";
+    public const string Temperature = "temperature";
+    public const string Voltage = "voltage";
+    public const string Fanspeed = "fanspeed";
+    public const string Hwinfo = "hwinfo";
+    public const string Gpio = "gpio";
+    public const string Watchdog = "watchdog";
+    public const string Thermalprotection = "thermalprotection";
+}
+
 
 /// <summary>
 /// Protocol parser for system metrics.
@@ -34,19 +56,19 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     public string ProtocolName => "LocalSystem";
 
     public IReadOnlyList<string> SupportedDataTypes => [
-        "cpu", 
-        "memory", 
-        "disk", 
-        "network",
-        "gpu",
-        "system",
-        "temperature",
-        "voltage",
-        "fanspeed",
-        "hwinfo",
-        "gpio",
-        "watchdog",
-        "thermalprotection"
+        SupportedDataType.Cpu,
+        SupportedDataType.Memory,
+        SupportedDataType.Disk,
+        SupportedDataType.Network,
+        SupportedDataType.Gpu,
+        SupportedDataType.System,
+        SupportedDataType.Temperature,
+        SupportedDataType.Voltage,
+        SupportedDataType.Fanspeed,
+        SupportedDataType.Hwinfo,
+        SupportedDataType.Gpio,
+        SupportedDataType.Watchdog,
+        SupportedDataType.Thermalprotection
     ];
 
     public bool SupportsBidirectional => false;
@@ -162,19 +184,19 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     {
         return metricType.ToLowerInvariant() switch
         {
-            "cpu" => metricName != null ? GetCpuMetric(rawData.Cpu, metricName) : null,
-            "memory" => metricName != null ? GetMemoryMetric(rawData.Ram, metricName) : null,
-            "disk" => metricName != null ? GetDiskMetric(rawData.Disks, metricName, sensor) : null,
-            "network" => metricName != null ? GetNetworkMetric(rawData.Networks, metricName, sensor) : null,
-            "gpu" => metricName != null ? GetGpuMetric(rawData.Gpu, metricName) : null,
-            "system" => metricName != null ? GetSystemMetric(rawData.System, metricName) : null,
-            "hwinfo" => metricName != null ? GetHardwareInfoMetric(rawData.HardwareInfo, metricName) : null,
-            "temperature" => GetTemperatureMetric(rawData.Temperature, metricName, sensor),
-            "voltage" => GetVoltageMetric(rawData.Voltage, metricName, sensor),
-            "fanspeed" => GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor),
-            "gpio" => GetGpioMetric(rawData.Gpio, metricName),
-            "watchdog" => GetWatchdogMetric(rawData.Watchdog, metricName),
-            "thermalprotection" => GetThermalProtectionMetric(rawData.ThermalProtection, metricName),
+            SupportedDataType.Cpu => metricName != null ? GetCpuMetric(rawData.Cpu, metricName) : null,
+            SupportedDataType.Memory => metricName != null ? GetMemoryMetric(rawData.Ram, metricName) : null,
+            SupportedDataType.Disk => metricName != null ? GetDiskMetric(rawData.Disks, metricName, sensor) : null,
+            SupportedDataType.Network => metricName != null ? GetNetworkMetric(rawData.Networks, metricName, sensor) : null,
+            SupportedDataType.Gpu => metricName != null ? GetGpuMetric(rawData.Gpu, metricName) : null,
+            SupportedDataType.System => metricName != null ? GetSystemMetric(rawData.System, metricName) : null,
+            SupportedDataType.Hwinfo => metricName != null ? GetHardwareInfoMetric(rawData.HardwareInfo, metricName) : null,
+            SupportedDataType.Temperature => GetTemperatureMetric(rawData.Temperature, metricName, sensor),
+            SupportedDataType.Voltage => GetVoltageMetric(rawData.Voltage, metricName, sensor),
+            SupportedDataType.Fanspeed => GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor),
+            SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName),
+            SupportedDataType.Watchdog => GetWatchdogMetric(rawData.Watchdog, metricName),
+            SupportedDataType.Thermalprotection => GetThermalProtectionMetric(rawData.ThermalProtection, metricName),
             _ => null
         };
     }
