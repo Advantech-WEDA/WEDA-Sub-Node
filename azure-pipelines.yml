@@ -5,8 +5,7 @@ trigger:
   branches:
     include:
       - main
-      - develop
-      - feature/*
+      - release/*
   paths:
     exclude:
       - README.md
