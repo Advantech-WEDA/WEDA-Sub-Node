@@ -107,6 +107,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<bool> StartAsync(CancellationToken ct = default)
     {
+        if (!_context.SubNodeManager.IsInitialized)
+        {
+            _logger.LogInformation("SubNodeManager not initialized, initializing now for standalone device testing.");
+            var initialized = await _context.SubNodeManager.InitializeAsync(ct);
+            if (!initialized)
+            {
+                _logger.LogError("Failed to initialize SubNodeMnager");
+                return false;
+            }
+        }
         if (Status != DeviceStatus.Ready && !await InitializeAsync(ct))
             return false;
         return !(await _orchestrator.LifecycleManager.StartAsync(ct)).IsError;
@@ -126,19 +136,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         await OnBeforeInitializeAsync(ct);
 
-        // Step 2: Ensure SubNodeManager is initialized
-        // This supports both usage patterns:
-        // - New API (WedaApplication.CreateBuilder): DeviceHostedService calls SubNodeManager.InitializeAsync first
-        // - Legacy API (WedaApplicationContext.Default): Auto-initialize SubNodeManager here if needed
+        // Step 2: Verify SubNodeManager is initialized
+        // SubNode is the aggregation root - the device initialization must be triggered by SubNode's initialization
         if (!_context.SubNodeManager.IsInitialized)
         {
-            _logger.LogInformation("SubNodeManager not yet initialized, initializing now...");
-            var initialized = await _context.SubNodeManager.InitializeAsync(ct);
-            if (!initialized)
-            {
-                return Error.Failure("SubNodeManager.InitializeFailed",
-                    "Failed to initialize SubNodeManager. Check cloud connection and registration.");
-            }
+            return Error.Failure("Device.InitializeFailed",
+                "Failed to initialize Device. Suggest use SubNode.InitializeAsync() instead.");
         }
 
         // Step 3: Get SubNodeId from SubNodeManager
