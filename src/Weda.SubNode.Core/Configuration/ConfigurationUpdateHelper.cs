@@ -372,7 +372,7 @@ public static partial class ConfigurationUpdateHelper
             // Apply config updates (PATCH semantics - only update provided fields)
             if (desiredSensor.Config != null)
             {
-                sensor.Report.Enabled = desiredSensor.Report.Enabled;
+                sensor.Report.Enabled = desiredSensor.Report?.Enabled ?? sensor.Report.Enabled;
                 sensor.Report.Interval = desiredSensor.Config.Interval;
 
                 // Only update unit if provided
@@ -618,7 +618,7 @@ public static partial class ConfigurationUpdateHelper
                 continue;
 
             // Apply DSP pipeline updates
-            if (desiredSensor.Config?.DspPipeline != null)
+            if (desiredSensor.Config?.DspPipeline != null && desiredSensor.Report?.DspPipeline != null)
             {
                 var dspResult = ApplyDspPipelineUpdates(sensor.Report, desiredSensor.Report.DspPipeline);
                 if (dspResult.IsError)
@@ -631,7 +631,7 @@ public static partial class ConfigurationUpdateHelper
             }
 
             // Apply Transform pipeline updates
-            if (desiredSensor.Config?.TransformPipeline != null)
+            if (desiredSensor.Config?.TransformPipeline != null && desiredSensor.Report?.TransformPipeline != null)
             {
                 var transformResult = ApplyTransformPipelineUpdates(sensor.Report, desiredSensor.Report.TransformPipeline);
                 if (transformResult.IsError)
@@ -659,13 +659,12 @@ public static partial class ConfigurationUpdateHelper
         DeviceConfiguration baseConfig,
         SubNodeConfigUpdateMessage cachedMessage)
     {
-        if (cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs == null)
+        var deviceConfigs = cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        if (deviceConfigs == null)
             return false;
 
-        var deviceConfigs = cachedMessage.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs;
-
         // Find matching device config by DeviceName (using dictionary key)
-        if (!deviceConfigs.TryGetValue(baseConfig.DeviceName, out var matchingConfig))
+        if (!deviceConfigs.TryGetValue(baseConfig.DeviceName, out var matchingConfig) || matchingConfig == null)
         {
             return false;
         }
@@ -827,7 +826,7 @@ public static partial class ConfigurationUpdateHelper
                 continue;
 
             // Validate DSP pipeline parameters
-            if (desiredSensor.Config?.DspPipeline != null)
+            if (desiredSensor.Config?.DspPipeline != null && desiredSensor.Report?.DspPipeline != null)
             {
                 var dspValidationResult = ValidateDspPipelineParameters(
                     sensor.Name,
@@ -840,7 +839,7 @@ public static partial class ConfigurationUpdateHelper
             }
 
             // Validate Transform pipeline parameters
-            if (desiredSensor.Config?.TransformPipeline != null)
+            if (desiredSensor.Config?.TransformPipeline != null && desiredSensor.Report?.TransformPipeline != null)
             {
                 var transformValidationResult = ValidateTransformPipelineParameters(
                     sensor.Name,

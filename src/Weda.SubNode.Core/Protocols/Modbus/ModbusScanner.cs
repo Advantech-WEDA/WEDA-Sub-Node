@@ -360,7 +360,7 @@ public class ModbusScanner
                 sb.AppendLine("**Parsed Values**:");
                 foreach (var (dataType, value) in result.ParsedValues.Where(kv => kv.Value != null))
                 {
-                    var validation = IsValidParsedValue(dataType, value) ? "[OK]" : "[ERR]";
+                    var validation = IsValidParsedValue(dataType, value!) ? "[OK]" : "[ERR]";
                     sb.AppendLine($"- {validation} **{dataType}**: `{value}`");
                 }
                 sb.AppendLine();

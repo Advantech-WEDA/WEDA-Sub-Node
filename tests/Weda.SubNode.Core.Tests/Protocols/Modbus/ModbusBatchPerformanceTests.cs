@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Core.Protocols.Modbus;
 using Xunit;
@@ -207,10 +206,8 @@ public class PerformanceTrackingCommunication : IRequestResponseCommunication<by
     public bool IsConnected => true;
     public event EventHandler<ConnectionStateChangedEvent>? StateChanged;
 
-    protected virtual void OnStateChanged(ConnectionStateChangedEvent e)
-    {
-        StateChanged?.Invoke(this, e);
-    }
+    // Suppress CS0067: Event required by interface, invoke to satisfy compiler
+    protected virtual void OnStateChanged(ConnectionStateChangedEvent e) => StateChanged?.Invoke(this, e);
 
     public void Dispose() { }
 }

@@ -21,23 +21,13 @@ public interface IDeviceAgentClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Upload device configuration to DMA
+    /// Upload device configuration to Weda Node
     /// Used for configuration synchronization
     /// </summary>
     /// <param name="configuration">Device configuration</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Configuration upload response</returns>
+    /// <returns>Configurations upload response</returns>
     Task<ConfigurationUploadResponse> UploadDeviceConfigurationAsync(
-        DeviceConfiguration configuration,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get current device configuration from DMA
-    /// </summary>
-    /// <param name="deviceId">Device ID</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Device configuration or null if not found</returns>
-    Task<DeviceConfiguration?> GetDeviceConfigurationAsync(
-        string deviceId,
+        DeviceConfigurations configuration,
         CancellationToken cancellationToken = default);
 }

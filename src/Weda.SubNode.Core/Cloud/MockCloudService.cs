@@ -1,5 +1,8 @@
+using ErrorOr;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
@@ -73,7 +76,9 @@ public class MockCloudService : IWedaCloudService
         return Task.FromResult<string?>(mockDeviceId);
     }
 
-    public Task<bool> UploadDeviceConfigurationAsync(DeviceConfiguration configuration, CancellationToken cancellationToken = default)
+    public Task<ErrorOr<bool>> UploadDeviceConfigurationAsync(
+        DeviceConfiguration configuration,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
             "Device registration (simulated): DeviceName={DeviceId}, Type={SubNodeType}, Manufacturer={Manufacturer}, Model={Model}",
@@ -98,7 +103,7 @@ public class MockCloudService : IWedaCloudService
 
         _deviceConfiguration = configuration;
 
-        return Task.FromResult(true);
+        return Task.FromResult<ErrorOr<bool>>(true);
     }
 
     public Task<DeviceConfiguration?> GetDeviceConfigurationAsync(string deviceId, CancellationToken cancellationToken = default)
@@ -243,10 +248,12 @@ public class MockCloudService : IWedaCloudService
             configType.Value,
             report.Data?.Cfg?.Reported?.Status ?? "unknown");
 
-        if (report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs != null)
+        var desiredConfigs = report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        if (desiredConfigs != null)
         {
-            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Desired.SubNodeDeviceConfig.DeviceConfigs)
+            foreach (var (deviceKey, deviceConfig) in desiredConfigs)
             {
+                if (deviceConfig == null) continue;
                 _logger.LogDebug(
                     "  Desired config for '{DeviceKey}': SensorCount={SensorCount}",
                     deviceKey,
@@ -287,6 +294,31 @@ public class MockCloudService : IWedaCloudService
             "[MockCloud] Command response: Topic={Topic}, Status={Status}, Command={Command}",
             responseTopic, response.Status, response.Command);
         return Task.FromResult(true);
+    }
+
+    public Task ResetRegistrationAsync(CancellationToken ct = default)
+    {
+        _logger.LogInformation("Reset registration (simulated)");
+        return Task.CompletedTask;
+    }
+
+    public Task<ErrorOr<bool>> UploadDeviceConfigurationsAsync(
+        DeviceConfigurations configurations,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Upload device configurations (simulated): Count={Count}",
+            configurations.Count);
+
+        foreach (var (deviceName, config) in configurations)
+        {
+            _logger.LogDebug(
+                "  - Device: {DeviceName}, SensorCount={SensorCount}",
+                deviceName,
+                config.Sensors.Count);
+        }
+
+        return Task.FromResult<ErrorOr<bool>>(true);
     }
 
     private class NoOpDisposable : IDisposable

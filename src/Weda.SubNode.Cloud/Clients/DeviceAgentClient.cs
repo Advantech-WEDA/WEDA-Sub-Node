@@ -16,7 +16,7 @@ public class DeviceAgentClient : IDeviceAgentClient
 {
     private readonly ILogger<DeviceAgentClient> _logger;
     private readonly NatsClient _client;
-    private DeviceConfiguration? _deviceConfiguration;
+    private DeviceConfigurations? _deviceConfigurations;
 
     public DeviceAgentClient(
         NatsClient client,
@@ -57,47 +57,35 @@ public class DeviceAgentClient : IDeviceAgentClient
 
     private const string UploadDeviceConfigurationSubject = "eco1j.weda.dm.cfg.update.req";
     public async Task<ConfigurationUploadResponse> UploadDeviceConfigurationAsync(
-        DeviceConfiguration configuration,
+        DeviceConfigurations configurations,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentException.ThrowIfNullOrEmpty(configuration.DeviceId);
+        if (configurations.Count == 0)
+        {
+            throw new ArgumentException("DeviceConfigurations must not be empty", nameof(configurations));
+        }
 
         // Convert to DTO using mapping extension
-        var dto = configuration.ToConfigurationDto();
+        var dto = configurations.ToConfigurationDto();
         var request = ConfigurationUploadRequest.Create(dto);
+
+        _logger.LogInformation(
+            "Uploading Subode configuration: DeviceId={DeviceId}, DeviceCountSensorCount={SensorCount}",
+            dto.DeviceId,
+            dto.DeviceCapabilities.Sensors.Count);
 
         var response = await _client.RequestAsync<ConfigurationUploadRequest, ConfigurationUploadResponse>(
             subject: UploadDeviceConfigurationSubject,
             data: request,
             cancellationToken: cancellationToken);
 
-        _deviceConfiguration = configuration;
+        _deviceConfigurations = configurations;
 
         _logger.LogInformation(
             "Configuration uploaded successfully: DeviceId={DeviceId}, Status={Status}",
-            configuration.DeviceId,
+            dto.DeviceId,
             response.Data?.Data?.ConfigurationStatus);
 
         return response.Data!;
-    }
-
-    public async Task<DeviceConfiguration?> GetDeviceConfigurationAsync(
-        string deviceId,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Getting device configuration: DeviceId={DeviceId}", deviceId);
-
-        // TODO: Request configuration via NATS JetStream
-        // var response = await _jetStreamClient.RequestAsync<DeviceConfiguration>(
-        //     subject: $"weda.dma.config.get.{deviceId}",
-        //     cancellationToken: cancellationToken);
-
-        // Mock response for now
-        await Task.Delay(100, cancellationToken);
-
-        _logger.LogWarning("Get device configuration not implemented yet, returning null");
-
-        return _deviceConfiguration;
     }
 }

@@ -1,3 +1,4 @@
+using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 
 namespace Weda.SubNode.Abstractions.Context;
@@ -27,6 +28,15 @@ public interface ISubNodeManager
     /// <param name="ct">Cancellation token</param>
     /// <returns>True if initialization succeeded, false otherwise</returns>
     Task<bool> InitializeAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Uploads all device configurations to cloud and aggregated as a single request.
+    /// Should be called after all devices have been initialized and enriched with ResourceIds.
+    /// </summary>
+    /// <param name="configurations">All configurations to upload</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if upload succeed, false otherwise</returns>
+    Task<bool> UploadDeviceConfigurationsAsync(DeviceConfigurations configurations, CancellationToken cancellationToken);
 
     /// <summary>
     /// Event fired when a configuration update is received from cloud.

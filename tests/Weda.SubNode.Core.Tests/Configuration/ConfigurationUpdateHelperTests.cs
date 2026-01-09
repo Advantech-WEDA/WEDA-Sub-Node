@@ -672,11 +672,12 @@ public class ConfigurationUpdateHelperTests
         ConfigurationUpdateHelper.ApplysensorReportUpdates(config, desiredSensors);
 
         // Assert
-        config.Sensors[0].Report.Thresholds.ShouldNotBeNull();
-        config.Sensors[0].Report.Thresholds!.UpperCritical.ShouldBe(100);
-        config.Sensors[0].Report.Thresholds!.UpperWarning.ShouldBe(80);
-        config.Sensors[0].Report.Thresholds!.LowerWarning.ShouldBe(20);
-        config.Sensors[0].Report.Thresholds!.LowerCritical.ShouldBe(0);
+        var thresholds = config.Sensors[0].Report.Thresholds;
+        thresholds.ShouldNotBeNull();
+        thresholds!.UpperCritical.ShouldBe(100);
+        thresholds.UpperWarning.ShouldBe(80);
+        thresholds.LowerWarning.ShouldBe(20);
+        thresholds.LowerCritical.ShouldBe(0);
     }
 
     [Fact]
@@ -973,8 +974,9 @@ public class ConfigurationUpdateHelperTests
         config.Sensors[0].Report.Interval = 1000;
 
         var cachedMessage = CreateValidMessage();
-        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!.Enabled = false;
-        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!.Interval = 5000;
+        var deviceConfig = cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        deviceConfig.Sensors![0].Config!.Enabled = false;
+        deviceConfig.Sensors[0].Config!.Interval = 5000;
 
         // Act
         var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
@@ -994,8 +996,9 @@ public class ConfigurationUpdateHelperTests
         config.Periods.ReportConfiguration = 1800000;
 
         var cachedMessage = CreateValidMessage();
-        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportHealth = 120000;
-        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportConfiguration = 3600000;
+        var deviceConfig = cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
+        deviceConfig.Periods!.ReportHealth = 120000;
+        deviceConfig.Periods!.ReportConfiguration = 3600000;
 
         // Act
         var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
@@ -1004,221 +1007,6 @@ public class ConfigurationUpdateHelperTests
         result.ShouldBeTrue();
         config.Periods.ReportHealth.ShouldBe(120000);
         config.Periods.ReportConfiguration.ShouldBe(3600000);
-    }
-
-    [Fact]
-    public void HasDtmiDelta_WithNullDesiredSensors_ReturnsFalse()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1" }]
-        };
-
-        var result = ConfigurationUpdateHelper.HasDtmiDelta(config, null);
-
-        result.ShouldBeFalse(); 
-    }
-
-    [Fact]
-    public void HasDtmiDelta_WithEmptyDesiredSensors_ReturnsFalse()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1" }]
-        };
-
-        var result = ConfigurationUpdateHelper.HasDtmiDelta(config, []);
-
-        result.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void HasDtmiDelta_WtihNewSensor_ReturnsTrue()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1" }]
-        };
-
-        var desiredSensor = new List<SubNodeSensorReportDto>
-        {
-            new() { Name = "sensor2", Dtmi = "dtmi:test:sensor2;1" }
-        };
-
-        var result = ConfigurationUpdateHelper.HasDtmiDelta(config, desiredSensor);
-
-        result.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void HasDtmiDelta_WithSameDtmi_ReturnsFalse()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1" }]
-        };
-
-        var desiredSensors = new List<SubNodeSensorReportDto>
-        {
-            new() { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1"}
-        };
-
-        var result = ConfigurationUpdateHelper.HasDtmiDelta(config, desiredSensors);
-
-        result.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void HasDtmiDelta_WithCaseInsensitiveName_ReturnsFalse()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "Sensor1", Dtmi = "dtmi:test:sensor1;1" }]
-        };
-
-        var desiredSensors = new List<SubNodeSensorReportDto>
-        {
-            new() { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1"}
-        };
-
-        var result = ConfigurationUpdateHelper.HasDtmiDelta(config, desiredSensors);
-
-        result.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void HasDtmiDelta_WithUpgradedDtmi_ReturnsTrue()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1" }]
-        };
-
-        var desiredSensors = new List<SubNodeSensorReportDto>
-        {
-            new() { Name = "sensor1", Dtmi = "dtmi:test:sensor1;2"}
-        };
-
-        var result = ConfigurationUpdateHelper.HasDtmiDelta(config, desiredSensors);
-
-        result.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void ApplyNewSensors_WithNullDesired_ReturnsEmptyList()
-    {
-        var config = new DeviceConfiguration();
-
-        var result = ConfigurationUpdateHelper.ApplyNewSensors(config, null, "device-123");
-
-        result.ShouldBeEmpty();
-        config.Sensors.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void ApplyNewSensors_WithEmptyDesired_ReturnsEmptyList()
-    {
-        var config = new DeviceConfiguration();
-
-        var result = ConfigurationUpdateHelper.ApplyNewSensors(config, [], "device-123");
-
-        result.ShouldBeEmpty();
-        config.Sensors.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void ApplyNewSensors_WithNewSensor_AddsSensorToConfig()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "existing" }]
-        };
-
-        var desiredSensors = new List<SubNodeSensorReportDto>
-        {
-            new()
-            {
-                Name = "newSensor",
-                Dtmi = "dtmi:test:new;1",
-                SensorGroup = "AI",
-                Report = new SubNodeSensorRuntimeConfigDto
-                {
-                    Enabled = true,
-                    Interval = 5000
-                }
-            }
-        };
-
-        var result = ConfigurationUpdateHelper.ApplyNewSensors(config, desiredSensors, "device-123");
-
-        result.ShouldContain("newSensor");
-        config.Sensors.Count.ShouldBe(2);
-        config.Sensors.ShouldContain(s => s.Name == "newSensor");
-    }
-
-    [Fact]
-    public void ApplyNewSensors_WithExistingSensor_DoesNotAddDuplicate()
-    {
-        var config = new DeviceConfiguration
-        {
-            Sensors = [new Sensor { Name = "sensor1" }]
-        };
-
-        var desiredSensors = new List<SubNodeSensorReportDto>
-        {
-            new() { Name = "sensor1", Dtmi = "dtmi:test:sensor1;1" }
-        };
-
-        var result = ConfigurationUpdateHelper.ApplyNewSensors(config, desiredSensors, "device-123");
-
-        result.ShouldBeEmpty();
-        config.Sensors.Count.ShouldBe(1);
-    }
-
-    [Fact]
-    public void ApplyNewSensors_MapsAllProperties()
-    {
-        var config = new DeviceConfiguration { Sensors = [] };
-
-        var desiredSensors = new List<SubNodeSensorReportDto>
-        {
-            new()
-            {
-                Name = "testSensor",
-                Dtmi = "dtmi:test:sensor;1",
-                SensorGroup = "DI",
-                Parameters = new Dictionary<string, object> { ["key"] = "value" },
-                Metadata = new Dictionary<string, object> { ["meta"] = "data" },
-                Report = new SubNodeSensorRuntimeConfigDto
-                {
-                    Enabled = true,
-                    Interval = 3000,
-                    Unit = "celsius",
-                    Thresholds = new SubNodeThresholdsDto
-                    {
-                        UpperCritical = 100,
-                        UpperWarning = 80,
-                        LowerWarning = 20,
-                        LowerCritical = 0
-                    }
-                }
-            }
-        };
-
-        ConfigurationUpdateHelper.ApplyNewSensors(config, desiredSensors!, "device-456");
-
-        var sensor = config.Sensors.Single();
-        sensor.Name.ShouldBe("testSensor");
-        sensor.Dtmi.ShouldBe("dtmi:test:sensor;1");
-        sensor.SensorGroup.ShouldBe(SensorGroup.DI);
-        sensor.DeviceResourceId.ShouldBe("device-456");
-        sensor.Report.Enabled.ShouldBeTrue();
-        sensor.Report.Interval.ShouldBe(3000);
-        sensor.Report.Unit.ShouldBe("celsius");
-        sensor.Report.Thresholds?.UpperCritical.ShouldBe(100);
-        sensor.Report.Thresholds?.UpperWarning.ShouldBe(80);
-        sensor.Report.Thresholds?.LowerWarning.ShouldBe(20);
-        sensor.Report.Thresholds?.LowerCritical.ShouldBe(0);
     }
 
     #endregion

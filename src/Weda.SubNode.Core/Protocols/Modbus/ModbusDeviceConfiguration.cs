@@ -19,7 +19,7 @@ public static class ModbusDeviceConfigurationExtensions
         {
             ResourceId = sensor.ResourceId,
             Name = sensor.Name,
-            Dtmi = sensor.Dtmi,
+            Dtmi = sensor.Dtmi ?? string.Empty,
             SensorGroup = sensor.SensorGroup,
             RegisterType = Enum.Parse<ModbusRegisterType>(
                 parameters.GetValueOrDefault("RegisterType")?.ToString() ?? "HoldingRegister"),

@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using ErrorOr;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
@@ -90,9 +88,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             configuration, // Pass full configuration for sensor-level transform/filter support
             configuration.DeviceId); // Pass deviceId from configuration
 
-        // Single initializer handles SubNode registration and device configuration
+        // Single initializer handles device configuration enrichment
         _initializer = new DeviceInitializer(
-            context.CloudService,
             context.SubNodeInfo,
             context.GetLogger<DeviceInitializer>());
 
@@ -154,10 +151,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Step 5: Enrich device configuration with SubNodeId and ResourceIds
         _initializer.EnrichConfiguration(Configuration, subNodeId);
 
-        // Step 6: Upload device configuration to cloud
-        await _initializer.UploadConfigurationAsync(Configuration, ct);
-
-        // Step 7: Register this device's event handlers with SubNodeManager for Hybrid routing
+        // Step 6: Register this device's event handlers with SubNodeManager for Hybrid routing
         _context.SubNodeManager.RegisterDeviceHandler(
             Configuration.DeviceName,
             HandleConfigurationUpdateAsync,
@@ -334,13 +328,38 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 async c => await _orchestrator.TelemetryPipeline.SendAsync(measures, c),
                 ct);
 
-            return !result.IsError;
+            var success = !result.IsError;
+
+            // Raise TelemetrySent event if tracking is enabled
+            if (EnableTelemetrySentTracking)
+            {
+                RaiseTelemetrySentEvent(measures.Count, success, null);
+            }
+
+            return success;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send telemetry for device {SubNodeId} after all retries", SubNodeId);
+
+            // Raise TelemetrySent event with error if tracking is enabled
+            if (EnableTelemetrySentTracking)
+            {
+                RaiseTelemetrySentEvent(measures.Count, false, ex.Message);
+            }
+
             return false;
         }
+    }
+
+    private void RaiseTelemetrySentEvent(int measureCount, bool success, string? error)
+    {
+        TelemetrySent?.Invoke(this, new TelemetrySentEvent(
+            DeviceId: SubNodeId ?? "unknown",
+            MeasureCount: measureCount,
+            Success: success,
+            Timestamp: DateTimeOffset.UtcNow)
+        { Error = error });
     }
 
     public async Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken ct = default, params IDspFilter[] filters)
@@ -399,9 +418,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
-
-    public async Task<DeviceConfiguration?> GetCurrentConfigurationAsync(CancellationToken ct = default)
-        => await _cloudService.GetDeviceConfigurationAsync(SubNodeId ?? "unknown", ct);
 
     /// <summary>
     /// Reports current device configuration to cloud.
@@ -625,8 +641,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     /// <summary>
-    /// Applies configuration updates from cloud based on config type.
-    /// Routes to appropriate handler: device-config, system-config, or custom-config.
+    /// Applies configuration updates from cloud.
+    /// NOTE: SubNodeManager (Aggregate Root) now handles SystemConfig and CustomConfig directly.
+    /// DeviceBase only handles DeviceConfig updates dispatched from SubNodeManager.
     /// </summary>
     private async Task ApplyBaseConfigurationUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
@@ -643,22 +660,18 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 return;
             }
 
-            // Route based on config type
+            // SubNodeManager is the Aggregate Root - it routes only DeviceConfig to devices
+            // SystemConfig and CustomConfig are handled by SubNodeManager directly
             if (e.ConfigType == SubscriptionTypes.DeviceConfig)
             {
                 await ApplyDeviceConfigurationUpdateAsync(e, message, ct);
             }
-            else if (e.ConfigType == SubscriptionTypes.SystemConfig)
-            {
-                await ApplySystemConfigurationUpdateAsync(e, message, ct);
-            }
-            else if (e.ConfigType == SubscriptionTypes.CustomConfig)
-            {
-                await ApplyCustomConfigurationUpdateAsync(e, message, ct);
-            }
             else
             {
-                _logger.LogWarning("Unknown configuration type: {ConfigType}", e.ConfigType.Value);
+                // This should not happen - SubNodeManager should not route non-DeviceConfig to devices
+                _logger.LogWarning(
+                    "Received unexpected ConfigType: {ConfigType}. SubNodeManager should handle this.",
+                    e.ConfigType.Value);
             }
         }
         catch (Exception ex)
@@ -726,7 +739,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             try
             {
                 // Find the device config for this device
-                var deviceConfigs = message.Data.Cfg.Desired.SubNodeDeviceConfig?.DeviceConfigs;
+                var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
                 if (deviceConfigs == null)
                 {
                     _logger.LogDebug("No device configurations in desired state");
@@ -822,8 +835,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     Configuration.InitializeDtdl(null, logger: _logger);
                     _logger.LogDebug("DTDL re-initialized");
 
-                    // Re-upload DeviceCaps to cloud
-                    await _initializer.UploadConfigurationAsync(Configuration, ct);
+                    //// Re-upload DeviceCaps to cloud
+                    //await _initializer.UploadDeviceConfigurationsAsync(Configuration, ct);
                 }
 
                 // Apply background task periods if provided (PATCH semantics)
@@ -901,169 +914,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         }
     }
 
-    /// <summary>
-    /// Applies system-config updates (Serilog, WedaNode) from cloud.
-    /// Serilog settings can be reloaded dynamically.
-    /// WedaNode (NATS) changes are not allowed at runtime - if values differ from current, returns validation error.
-    /// </summary>
-    private async Task ApplySystemConfigurationUpdateAsync(
-        UpdateConfigurationEvent e,
-        SubNodeConfigUpdateMessage message,
-        CancellationToken ct)
-    {
-        var deviceTypeName = Configuration.SubNodeType.ToString();
-
-        try
-        {
-            var systemConfig = message.Data?.Cfg?.Desired?.SystemConfig;
-            if (systemConfig == null)
-            {
-                _logger.LogDebug("No system configuration in desired state, skipping");
-                return;
-            }
-
-            _logger.LogInformation("Processing system configuration update");
-
-            // Validate: WedaNode changes are not allowed at runtime
-            // Only return Invalid if the values actually differ from current configuration
-            if (systemConfig.WedaNode != null && HasWedaNodeChanges(systemConfig.WedaNode))
-            {
-                var errorMessage = "WedaNode (NATS) connection settings cannot be modified at runtime. Please restart the application to apply changes.";
-                _logger.LogWarning("System config validation failed: {Error}", errorMessage);
-
-                // Cache the message for next restart
-                await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
-                _logger.LogInformation("System configuration cached for next restart: {CachePath}",
-                    _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
-
-                // Send invalid status response
-                var invalidReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
-                    message, deviceTypeName, ConfigUpdateStatus.Invalid, errorMessage);
-                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, invalidReport, ct);
-                return;
-            }
-
-            // Send updating acknowledgment
-            var updatingReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
-                message, deviceTypeName, ConfigUpdateStatus.Updating, null);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, updatingReport, ct);
-
-            // Apply Serilog changes dynamically
-            if (systemConfig.Serilog != null)
-            {
-                _logger.LogInformation("Reloading Serilog configuration");
-                try
-                {
-                    // Reload Serilog from cached config
-                    // Note: Full Serilog reload requires rebuilding the logger
-                    // For now, we just cache and report success - changes take effect on restart
-                    _logger.LogInformation("Serilog configuration cached for reload");
-                }
-                catch (Exception serilogEx)
-                {
-                    _logger.LogError(serilogEx, "Failed to reload Serilog configuration");
-                    throw;
-                }
-            }
-
-            // Cache the system config
-            await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
-            _logger.LogInformation("System configuration cached to: {CachePath}",
-                _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
-
-            // Send success response
-            var successReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
-                message, deviceTypeName, ConfigUpdateStatus.Success, null);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, successReport, ct);
-
-            _logger.LogInformation("System configuration update completed successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error applying system configuration update");
-
-            var failureReport = ConfigurationUpdateHelper.CreateSystemConfigReport(
-                message, deviceTypeName, ConfigUpdateStatus.Failed, ex.Message);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
-        }
-    }
-
-    /// <summary>
-    /// Applies custom-config updates from cloud.
-    /// Caches the configuration and calls OnCustomConfigUpdateAsync hook for user handling.
-    /// </summary>
-    private async Task ApplyCustomConfigurationUpdateAsync(
-        UpdateConfigurationEvent e,
-        SubNodeConfigUpdateMessage message,
-        CancellationToken ct)
-    {
-        var deviceTypeName = Configuration.SubNodeType.ToString();
-
-        try
-        {
-            var customConfig = message.Data?.Cfg?.Desired?.CustomConfig;
-            if (customConfig == null)
-            {
-                _logger.LogDebug("No custom configuration in desired state, skipping");
-                return;
-            }
-
-            _logger.LogInformation("Processing custom configuration update");
-
-            // Send updating acknowledgment
-            var updatingReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
-                message, deviceTypeName, ConfigUpdateStatus.Updating, null);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, updatingReport, ct);
-
-            // Call user hook to handle custom config
-            var result = await OnCustomConfigUpdateAsync(customConfig, ct);
-
-            if (!result.IsSuccess)
-            {
-                _logger.LogWarning("Custom config update rejected by user handler: {Error}", result.ErrorMessage);
-
-                var failureReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
-                    message, deviceTypeName, ConfigUpdateStatus.Failed, result.ErrorMessage);
-                await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
-                return;
-            }
-
-            // Cache the custom config
-            await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
-            _logger.LogInformation("Custom configuration cached to: {CachePath}",
-                _context.ConfigurationCache.GetCacheFilePath(e.ConfigType));
-
-            // Send success response
-            var successReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
-                message, deviceTypeName, ConfigUpdateStatus.Success, null);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, successReport, ct);
-
-            _logger.LogInformation("Custom configuration update completed successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error applying custom configuration update");
-
-            var failureReport = ConfigurationUpdateHelper.CreateCustomConfigReport(
-                message, deviceTypeName, ConfigUpdateStatus.Failed, ex.Message);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, failureReport, ct);
-        }
-    }
-
-    /// <summary>
-    /// Hook: Called when custom configuration update is received from cloud.
-    /// Override this to handle application-specific configuration changes.
-    /// </summary>
-    /// <param name="customConfig">The custom configuration dictionary from cloud</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Result indicating success or failure with error message</returns>
-    protected virtual Task<CustomConfigUpdateResult> OnCustomConfigUpdateAsync(
-        Dictionary<string, JsonElement> customConfig,
-        CancellationToken ct)
-    {
-        // Default: accept all custom configs
-        return Task.FromResult(CustomConfigUpdateResult.Success());
-    }
+    // NOTE: ApplySystemConfigurationUpdateAsync and ApplyCustomConfigurationUpdateAsync
+    // have been removed. SubNodeManager (Aggregate Root) now handles SystemConfig and
+    // CustomConfig updates directly. Only DeviceConfig is dispatched to devices.
 
     /// <summary>
     /// Hook: Called after configuration update is applied.
@@ -1072,107 +925,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
-    /// <summary>
-    /// Checks if the desired WedaNode configuration differs from the current running configuration.
-    /// Compares all WedaNode properties: Url, Name, AuthStrategy, Username, Password, Token, CredFile, SerializerType.
-    /// </summary>
-    /// <param name="desired">The desired WedaNode configuration from cloud</param>
-    /// <returns>True if any WedaNode property has changed, false otherwise</returns>
-    private bool HasWedaNodeChanges(SubNodeWedaNodeConfigDto desired)
-    {
-        // Get current WedaNode settings from configuration
-        var currentSection = _context.Configuration?.GetSection(Abstractions.Cloud.Nats.NatsConnectionSettings.SectionName);
-        if (currentSection == null || !currentSection.Exists())
-        {
-            // No current config exists, any desired value is a change
-            return true;
-        }
-
-        // Compare each property - only check properties that are provided in desired config
-        // If a property is null in desired, it means "no change" for that property
-        if (desired.Url != null)
-        {
-            var currentUrl = currentSection["Url"];
-            if (!string.Equals(desired.Url, currentUrl, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WedaNode.Url changed: '{Current}' -> '{Desired}'", currentUrl, desired.Url);
-                return true;
-            }
-        }
-
-        if (desired.Name != null)
-        {
-            var currentName = currentSection["Name"];
-            if (!string.Equals(desired.Name, currentName, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WedaNode.Name changed: '{Current}' -> '{Desired}'", currentName, desired.Name);
-                return true;
-            }
-        }
-
-        if (desired.AuthStrategy != null)
-        {
-            var currentAuthStrategy = currentSection["AuthStrategy"];
-            if (!string.Equals(desired.AuthStrategy, currentAuthStrategy, StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogDebug("WedaNode.AuthStrategy changed: '{Current}' -> '{Desired}'", currentAuthStrategy, desired.AuthStrategy);
-                return true;
-            }
-        }
-
-        if (desired.Username != null)
-        {
-            var currentUsername = currentSection["Username"];
-            if (!string.Equals(desired.Username, currentUsername, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WedaNode.Username changed");
-                return true;
-            }
-        }
-
-        if (desired.Password != null)
-        {
-            var currentPassword = currentSection["Password"];
-            if (!string.Equals(desired.Password, currentPassword, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WedaNode.Password changed");
-                return true;
-            }
-        }
-
-        if (desired.Token != null)
-        {
-            var currentToken = currentSection["Token"];
-            if (!string.Equals(desired.Token, currentToken, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WedaNode.Token changed");
-                return true;
-            }
-        }
-
-        if (desired.CredFile != null)
-        {
-            var currentCredFile = currentSection["CredFile"];
-            if (!string.Equals(desired.CredFile, currentCredFile, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WedaNode.CredFile changed: '{Current}' -> '{Desired}'", currentCredFile, desired.CredFile);
-                return true;
-            }
-        }
-
-        if (desired.SerializerType != null)
-        {
-            var currentSerializerType = currentSection["SerializerType"];
-            if (!string.Equals(desired.SerializerType, currentSerializerType, StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogDebug("WedaNode.SerializerType changed: '{Current}' -> '{Desired}'", currentSerializerType, desired.SerializerType);
-                return true;
-            }
-        }
-
-        _logger.LogDebug("WedaNode configuration has no changes");
-        return false;
-    }
+    // NOTE: HasWedaNodeChanges has been removed.
+    // SystemConfig updates (including WedaNode) are now handled by SubNodeManager directly.
 
     /// <summary>
     /// Hook: Called before command execution.

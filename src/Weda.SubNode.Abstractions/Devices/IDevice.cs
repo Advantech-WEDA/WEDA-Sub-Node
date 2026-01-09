@@ -19,6 +19,10 @@ public interface IDevice : IDisposable
     string SubNodeId { get; }
 
     /// <summary>
+    /// Device Name
+    /// </summary>
+    string DeviceName { get; }
+    /// <summary>
     /// Device type (e.g., "adamEthernet", "modbusRTU")
     /// </summary>
     SubNodeType SubNodeType { get; }
@@ -84,11 +88,6 @@ public interface IDevice : IDisposable
     /// Returns device ID if successful, null otherwise
     /// </summary>
     Task<string?> RegisterAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get current configuration from cloud
-    /// </summary>
-    Task<DeviceConfiguration?> GetCurrentConfigurationAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Send telemetry to cloud with optional runtime DSP filters
