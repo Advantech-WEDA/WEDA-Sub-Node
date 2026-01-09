@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using ManagedCuda.Nvml;
 
 using Microsoft.Extensions.Logging;
 
@@ -39,30 +39,28 @@ public class GpuCollector
     {
         try
         {
-            var psi = new ProcessStartInfo("nvidia-smi", "--query-gpu=utilization.gpu --format=csv,noheader,nounits")
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            if (NvmlNativeMethods.nvmlInit() != nvmlReturn.Success) return 0;
 
-            using var process = Process.Start(psi);
-            if (process != null)
+            try
             {
-                var output = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExit();
+                nvmlDevice device = default;
 
-                if (int.TryParse(output, out var utilization))
-                {
-                    return utilization;
-                }
+                if (NvmlNativeMethods.nvmlDeviceGetHandleByIndex(0, ref device) != nvmlReturn.Success) return 0;
+
+                nvmlUtilization utilization = default;
+                if (NvmlNativeMethods.nvmlDeviceGetUtilizationRates(device, ref utilization) != nvmlReturn.Success) return 0;
+
+                return (int)utilization.gpu; // 0~100
+            }
+            finally
+            {
+                NvmlNativeMethods.nvmlShutdown();
             }
         }
         catch
         {
-            // nvidia-smi not available or failed
+            return 0;
         }
-
-        return 0;
     }
+
 }

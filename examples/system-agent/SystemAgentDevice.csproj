@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Advantech.Edge" />
+    <PackageReference Include="ManagedCuda-Nvml.NETStandard" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Serilog" />

@@ -6,6 +6,7 @@
   <ItemGroup Label="Weda SubNode SDK">
     <!-- Weda SubNode SDK Packages -->
     <PackageVersion Include="Advantech.Edge" Version="1.1.0" />
+    <PackageVersion Include="ManagedCuda-Nvml.NETStandard" Version="9.1.300" />
     <PackageVersion Include="Weda.SubNode.Abstractions" Version="1.0.0" />
     <PackageVersion Include="Weda.SubNode.Core" Version="1.0.0" />
     <PackageVersion Include="Weda.SubNode.Devices" Version="1.0.0" />
