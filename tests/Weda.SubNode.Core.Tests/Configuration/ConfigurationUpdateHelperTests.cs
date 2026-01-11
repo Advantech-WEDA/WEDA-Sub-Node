@@ -739,7 +739,7 @@ public class ConfigurationUpdateHelperTests
         {
             ReportHealthPeriod = 120000,
             ReportConfigurationPeriod = 3600000,
-            SensorBackups = new List<sensorReportBackup>
+            SensorBackups = new List<SensorReportBackup>
             {
                 new()
                 {
@@ -790,7 +790,7 @@ public class ConfigurationUpdateHelperTests
         {
             ReportHealthPeriod = 60000,
             ReportConfigurationPeriod = 1800000,
-            SensorBackups = new List<sensorReportBackup>
+            SensorBackups = new List<SensorReportBackup>
             {
                 new()
                 {

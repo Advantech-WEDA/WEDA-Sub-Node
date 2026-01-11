@@ -121,3 +121,68 @@ public enum DeviceConfigUpdateStatus
     /// </summary>
     Failed = 3
 }
+
+/// <summary>
+/// Result of validating a configuration update (Phase 1 of two-phase commit).
+/// Used by SubNodeManager to validate all devices before applying any changes.
+/// </summary>
+public sealed record ConfigUpdateValidationResult
+{
+    /// <summary>
+    /// Whether the validation passed.
+    /// </summary>
+    public required bool IsValid { get; init; }
+
+    /// <summary>
+    /// Whether no update is required (empty desired config).
+    /// </summary>
+    public bool IsSkipped { get; init; }
+
+    /// <summary>
+    /// Whether a DTMI delta was detected (requires re-upload).
+    /// </summary>
+    public bool HasDtmiDelta { get; init; }
+
+    /// <summary>
+    /// Error message when IsValid is false.
+    /// </summary>
+    public string? ErrorMessage { get; init; }
+
+    /// <summary>
+    /// Device type name for reporting.
+    /// </summary>
+    public required string DeviceTypeName { get; init; }
+
+    /// <summary>
+    /// Creates a result indicating validation passed.
+    /// </summary>
+    public static ConfigUpdateValidationResult Valid(string deviceTypeName, bool hasDtmiDelta = false)
+        => new()
+        {
+            IsValid = true,
+            DeviceTypeName = deviceTypeName,
+            HasDtmiDelta = hasDtmiDelta
+        };
+
+    /// <summary>
+    /// Creates a result indicating validation failed.
+    /// </summary>
+    public static ConfigUpdateValidationResult Invalid(string deviceTypeName, string errorMessage)
+        => new()
+        {
+            IsValid = false,
+            ErrorMessage = errorMessage,
+            DeviceTypeName = deviceTypeName
+        };
+
+    /// <summary>
+    /// Creates a result indicating no update is required.
+    /// </summary>
+    public static ConfigUpdateValidationResult Skipped(string deviceTypeName)
+        => new()
+        {
+            IsValid = true,
+            IsSkipped = true,
+            DeviceTypeName = deviceTypeName
+        };
+}

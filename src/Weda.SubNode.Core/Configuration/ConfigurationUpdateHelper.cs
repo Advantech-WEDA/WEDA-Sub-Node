@@ -1,8 +1,10 @@
 using ErrorOr;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
+using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 
@@ -300,7 +302,7 @@ public static partial class ConfigurationUpdateHelper
         {
             ReportHealthPeriod = config.Periods.ReportHealth,
             ReportConfigurationPeriod = config.Periods.ReportConfiguration,
-            SensorBackups = config.Sensors.Select(s => new sensorReportBackup
+            SensorBackups = config.Sensors.Select(s => new SensorReportBackup
             {
                 Name = s.Name,
                 Enabled = s.Report.Enabled,
@@ -1027,28 +1029,6 @@ public static partial class ConfigurationUpdateHelper
 }
 
 /// <summary>
-/// Backup snapshot of device configuration for rollback purposes.
-/// </summary>
-public class DeviceConfigurationBackup
-{
-    public int ReportHealthPeriod { get; set; }
-    public int ReportConfigurationPeriod { get; set; }
-    public List<sensorReportBackup> SensorBackups { get; set; } = [];
-}
-
-/// <summary>
-/// Backup snapshot of sensor configuration.
-/// </summary>
-public class sensorReportBackup
-{
-    public string Name { get; set; } = string.Empty;
-    public bool Enabled { get; set; }
-    public double Interval { get; set; }
-    public string? Unit { get; set; }
-    public ThresholdConfig? Thresholds { get; set; }
-}
-
-/// <summary>
 /// Result of applying DSP pipeline updates.
 /// </summary>
 public class DspPipelineUpdateResult
@@ -1304,5 +1284,83 @@ public static partial class ConfigurationUpdateHelper
         }
 
         return sensor;
+    }
+
+    /// <summary>
+    /// Creates an aggregated configuration report containing all device configurations.
+    /// Used by SubNodeManager to publish a single report for transaction-based updates.
+    /// </summary>
+    /// <param name="incomingMessage">The original cloud message</param>
+    /// <param name="deviceRegistry">Device registry to get current configurations</param>
+    /// <param name="validationResults">Validation results for each device</param>
+    /// <param name="applyResults">Apply results for each device (null if validation failed)</param>
+    /// <param name="overallStatus">Overall transaction status</param>
+    /// <returns>Aggregated configuration report message</returns>
+    public static SubNodeConfigUpdateMessage CreateAggregatedReport(
+        SubNodeConfigUpdateMessage incomingMessage,
+        IDeviceRegistry deviceRegistry,
+        Dictionary<string, ConfigUpdateValidationResult> validationResults,
+        Dictionary<string, ConfigUpdateResult>? applyResults,
+        string overallStatus)
+    {
+        // Build DeviceConfigs dictionary from all devices
+        // Use OrdinalIgnoreCase to match SubNodeDeviceCfgDto's internal comparer
+        var deviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>(StringComparer.OrdinalIgnoreCase);
+        string? errorMessage = null;
+
+        foreach (var (deviceName, validationResult) in validationResults)
+        {
+            var device = deviceRegistry.FindDevice(deviceName);
+            if (device == null) continue;
+
+            // Try to get apply result for this device
+            ConfigUpdateResult? applyResult = null;
+            applyResults?.TryGetValue(deviceName, out applyResult);
+
+            // Use apply result configuration if available, otherwise use current configuration
+            var config = applyResult?.Configuration ?? device.Configuration;
+
+            var deviceTypeName = validationResult.DeviceTypeName;
+            deviceConfigs[deviceTypeName] = ToSubNodeDeviceConfigDto(config);
+
+            // Capture first error message
+            if (errorMessage == null)
+            {
+                if (!validationResult.IsValid)
+                {
+                    errorMessage = $"Device '{deviceName}': {validationResult.ErrorMessage}";
+                }
+                else if (applyResult?.Status == DeviceConfigUpdateStatus.Failed)
+                {
+                    errorMessage = $"Device '{deviceName}': {applyResult.ErrorMessage}";
+                }
+            }
+        }
+
+        return new SubNodeConfigUpdateMessage
+        {
+            DeviceId = incomingMessage.DeviceId,
+            GroupId = incomingMessage.GroupId,
+            Cmd = "updateCmdResponse",
+            SeqId = incomingMessage.SeqId,
+            ReqSeqId = incomingMessage.ReqSeqId,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    // Include the original desired state
+                    Desired = incomingMessage.Data?.Cfg?.Desired,
+                    // Include the aggregated reported state
+                    Reported = new SubNodeReportedConfig
+                    {
+                        DeviceConfigs = deviceConfigs,
+                        Status = overallStatus,
+                        ErrorMessage = errorMessage,
+                        LastUpdateTime = DateTimeOffset.UtcNow
+                    }
+                }
+            }
+        };
     }
 }

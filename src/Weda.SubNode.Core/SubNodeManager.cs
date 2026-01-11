@@ -4,6 +4,7 @@ using Polly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
@@ -378,10 +379,9 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Handles DeviceConfig updates.
-    /// SubNodeManager dispatches to individual devices based on DeviceConfigs keys.
-    /// SubNodeManager is responsible for publishing all reports (updating/success/failed/invalid).
-    /// If any device reports DTMI delta, triggers re-upload of all configurations.
+    /// Handles DeviceConfig updates with transaction semantics.
+    /// SubNode is the Aggregation Root - all devices must succeed or all rollback.
+    /// Publishes a single aggregated report containing all device configurations.
     /// </summary>
     private async Task HandleDeviceConfigUpdateAsync(UpdateConfigurationEvent e)
     {
@@ -394,127 +394,182 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return;
         }
 
+        // Determine which devices to update
         var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
-        var needsReUpload = false;
-        var results = new List<(string DeviceName, ConfigUpdateResult Result)>();
+        var targetDeviceNames = GetTargetDeviceNames(deviceConfigs);
 
-        if (deviceConfigs == null || deviceConfigs.Count == 0)
+        if (targetDeviceNames.Count == 0)
         {
-            _logger.LogDebug("No DeviceConfigs in message, broadcasting to all devices");
+            _logger.LogDebug("No target devices for config update");
+            return;
+        }
 
-            foreach (var (deviceName, handlers) in _deviceHandlers)
+        _logger.LogInformation("Processing config update for {Count} device(s): {Devices}",
+            targetDeviceNames.Count, string.Join(", ", targetDeviceNames));
+
+        // ===== Phase 1: Validate All =====
+        var validationResults = new Dictionary<string, ConfigUpdateValidationResult>();
+        var hasValidationFailure = false;
+
+        foreach (var deviceName in targetDeviceNames)
+        {
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device == null)
             {
-                var result = await ProcessDeviceConfigUpdateAsync(deviceName, handlers, e);
-                results.Add((deviceName, result));
+                _logger.LogWarning("Device {DeviceName} not found in registry", deviceName);
+                continue;
+            }
+
+            var validationResult = await device.ValidateConfigurationUpdateAsync(message, default);
+            validationResults[deviceName] = validationResult;
+
+            if (!validationResult.IsValid)
+            {
+                hasValidationFailure = true;
+                _logger.LogWarning("Validation failed for device {DeviceName}: {Error}",
+                    deviceName, validationResult.ErrorMessage);
             }
         }
-        else
-        {
-            _logger.LogDebug("Dispatching DeviceConfig to {Count} device(s)", deviceConfigs.Count);
 
-            foreach (var deviceName in deviceConfigs.Keys)
+        // If any validation failed, publish aggregated failed report and return
+        if (hasValidationFailure)
+        {
+            _logger.LogError("Transaction aborted: validation failed for one or more devices");
+            await PublishAggregatedReportAsync(e, message, validationResults, null, ConfigUpdateStatus.Invalid);
+            return;
+        }
+
+        // Check if all devices are skipped (no update required)
+        if (validationResults.Values.All(r => r.IsSkipped))
+        {
+            _logger.LogDebug("All devices skipped - no update required");
+            return;
+        }
+
+        // ===== Phase 2: Create Backups =====
+        var backups = new Dictionary<string, DeviceConfigurationBackup>();
+        var devicesToUpdate = validationResults
+            .Where(kvp => !kvp.Value.IsSkipped)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var deviceName in devicesToUpdate)
+        {
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device != null)
             {
-                if (_deviceHandlers.TryGetValue(deviceName, out var handlers))
-                {
-                    _logger.LogDebug("Dispatching to device: {DeviceName}", deviceName);
-                    var result = await ProcessDeviceConfigUpdateAsync(deviceName, handlers, e);
-                    results.Add((deviceName, result));
-                }
-                else
-                {
-                    _logger.LogWarning("No handler registered for device: {DeviceName}", deviceName);
-                }
+                backups[deviceName] = device.CreateConfigurationBackup();
             }
         }
 
-        // Publish reports and check for DTMI delta
-        foreach (var (deviceName, result) in results)
+        _logger.LogDebug("Created backups for {Count} device(s)", backups.Count);
+
+        // ===== Phase 3: Apply All (with rollback on failure) =====
+        var applyResults = new Dictionary<string, ConfigUpdateResult>();
+        var appliedDevices = new List<string>();
+        var hasApplyFailure = false;
+        string? failedDeviceName = null;
+
+        foreach (var deviceName in devicesToUpdate)
         {
-            await PublishConfigurationReportAsync(e, message, result);
-            needsReUpload |= result.HasDtmiDelta;
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device == null)
+                continue;
+
+            var backup = backups[deviceName];
+            var applyResult = await device.ApplyValidatedConfigurationAsync(message, backup, default);
+            applyResults[deviceName] = applyResult;
+
+            if (applyResult.Status == DeviceConfigUpdateStatus.Failed)
+            {
+                hasApplyFailure = true;
+                failedDeviceName = deviceName;
+                _logger.LogError("Apply failed for device {DeviceName}: {Error}",
+                    deviceName, applyResult.ErrorMessage);
+                break;
+            }
+
+            appliedDevices.Add(deviceName);
+            _logger.LogDebug("Successfully applied config to device {DeviceName}", deviceName);
         }
 
-        if (needsReUpload)
+        // Rollback if any apply failed
+        if (hasApplyFailure)
+        {
+            _logger.LogWarning("Transaction failed at device {DeviceName}, rolling back {Count} device(s)",
+                failedDeviceName, appliedDevices.Count);
+
+            foreach (var deviceName in appliedDevices)
+            {
+                var device = _deviceRegistry.FindDevice(deviceName);
+                if (device != null && backups.TryGetValue(deviceName, out var backup))
+                {
+                    await device.RollbackConfigurationAsync(backup, default);
+                    _logger.LogInformation("Rolled back device {DeviceName}", deviceName);
+                }
+            }
+
+            await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Failed);
+            return;
+        }
+
+        // ===== Phase 4: Publish Aggregated Success Report =====
+        var hasDtmiDelta = validationResults.Values.Any(r => r.HasDtmiDelta) ||
+                          applyResults.Values.Any(r => r.HasDtmiDelta);
+
+        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
+
+        // Re-upload configurations if DTMI delta detected
+        if (hasDtmiDelta)
         {
             _logger.LogInformation("DTMI delta detected, triggering configuration re-upload");
             var devices = _deviceRegistry.GetAllDevices().ToList();
             var configurations = new DeviceConfigurations(devices);
             await UploadDeviceConfigurationsAsync(configurations, default);
         }
+
+        _logger.LogInformation("DeviceConfig update transaction completed successfully for {Count} device(s)",
+            devicesToUpdate.Count);
     }
 
     /// <summary>
-    /// Processes configuration update for a single device.
-    /// Sends updating report before calling handler, then returns result.
+    /// Gets the list of device names to update from the message.
     /// </summary>
-    private async Task<ConfigUpdateResult> ProcessDeviceConfigUpdateAsync(
-        string deviceName,
-        DeviceHandlers handlers,
-        UpdateConfigurationEvent e)
+    private List<string> GetTargetDeviceNames(Dictionary<string, SubNodeDeviceConfigDto>? deviceConfigs)
     {
-        try
+        if (deviceConfigs == null || deviceConfigs.Count == 0)
         {
-            // Call device handler to apply configuration
-            var result = await handlers.ConfigHandler(e);
-
-            _logger.LogDebug(
-                "Device {DeviceName} config update result: Status={Status}, HasDtmiDelta={HasDtmiDelta}",
-                deviceName, result.Status, result.HasDtmiDelta);
-
-            return result;
+            // Broadcast to all registered devices
+            return _deviceHandlers.Keys.ToList();
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
 
-            // Return failed result - need device info from registry
-            var device = _deviceRegistry.FindDevice(deviceName);
-            if (device != null)
-            {
-                return ConfigUpdateResult.Failed(
-                    device.Configuration,
-                    device.SubNodeType.ToString(),
-                    ex.Message);
-            }
-
-            // Device not found in registry - this shouldn't happen
-            throw;
-        }
+        // Only update devices specified in the message
+        return deviceConfigs.Keys
+            .Where(name => _deviceHandlers.ContainsKey(name))
+            .ToList();
     }
 
     /// <summary>
-    /// Publishes configuration report based on the update result.
+    /// Publishes an aggregated configuration report containing all device configurations.
     /// </summary>
-    private async Task PublishConfigurationReportAsync(
+    private async Task PublishAggregatedReportAsync(
         UpdateConfigurationEvent e,
         SubNodeConfigUpdateMessage message,
-        ConfigUpdateResult result)
+        Dictionary<string, ConfigUpdateValidationResult> validationResults,
+        Dictionary<string, ConfigUpdateResult>? applyResults,
+        string overallStatus)
     {
-        // Skip publishing for Skipped status (no update required)
-        if (result.Status == DeviceConfigUpdateStatus.Skipped)
-        {
-            _logger.LogDebug("Skipping report publish for device {DeviceName} - no update required",
-                result.Configuration.DeviceName);
-            return;
-        }
+        var report = ConfigurationUpdateHelper.CreateAggregatedReport(
+            message,
+            _deviceRegistry,
+            validationResults,
+            applyResults,
+            overallStatus);
 
-        var report = result.Status switch
-        {
-            DeviceConfigUpdateStatus.Invalid => ConfigurationUpdateHelper.CreateInvalidReport(
-                message, result.Configuration, result.DeviceTypeName, result.ErrorMessage ?? "Validation failed"),
-            DeviceConfigUpdateStatus.Success => ConfigurationUpdateHelper.CreateSuccessReport(
-                message, result.Configuration, result.DeviceTypeName),
-            DeviceConfigUpdateStatus.Failed => ConfigurationUpdateHelper.CreateFailedReport(
-                message, result.Configuration, result.DeviceTypeName, result.ErrorMessage ?? "Update failed"),
-            _ => null
-        };
+        _logger.LogInformation("Publishing aggregated {Status} report for {Count} device(s)",
+            overallStatus, validationResults.Count);
 
-        if (report != null)
-        {
-            _logger.LogDebug("Publishing {Status} report for device {DeviceName}",
-                result.Status, result.Configuration.DeviceName);
-            await _cloudService.PublishConfigurationReportAsync(e.ConfigType, report, default);
-        }
+        await _cloudService.PublishConfigurationReportAsync(e.ConfigType, report, default);
     }
 
     /// <summary>

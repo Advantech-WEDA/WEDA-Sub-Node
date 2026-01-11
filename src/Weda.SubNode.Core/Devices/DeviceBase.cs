@@ -906,6 +906,223 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     // have been removed. SubNodeManager (Aggregate Root) now handles SystemConfig and
     // CustomConfig updates directly. Only DeviceConfig is dispatched to devices.
 
+    // ===== Two-Phase Configuration Update (for Transaction Semantics) =====
+
+    /// <summary>
+    /// Phase 1: Validates configuration update without modifying state.
+    /// Called by SubNodeManager to validate all devices before applying any.
+    /// </summary>
+    /// <param name="message">The configuration update message</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Validation result with status and optional error message</returns>
+    public virtual async Task<ConfigUpdateValidationResult> ValidateConfigurationUpdateAsync(
+        SubNodeConfigUpdateMessage message,
+        CancellationToken ct)
+    {
+        var deviceTypeName = Configuration.SubNodeType.ToString();
+
+        await _configUpdateLock.WaitAsync(ct);
+        try
+        {
+            // Pre-hook for derived class validation
+            await OnBeforeConfigUpdateAsync(
+                new UpdateConfigurationEvent(
+                    SubNodeId ?? "unknown",
+                    SubscriptionTypes.DeviceConfig,
+                    message,
+                    DateTimeOffset.UtcNow), ct);
+
+            // Check for valid message structure
+            if (message?.Data?.Cfg?.Desired == null)
+            {
+                return ConfigUpdateValidationResult.Skipped(deviceTypeName);
+            }
+
+            // Find device config for this device
+            var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+            if (deviceConfigs == null || !deviceConfigs.TryGetValue(Configuration.DeviceName, out var desiredConfig))
+            {
+                return ConfigUpdateValidationResult.Skipped(deviceTypeName);
+            }
+
+            // Validate using the existing validation method
+            var validationResult = ValidateConfigurationUpdate(message);
+            if (!validationResult.IsValid)
+            {
+                return ConfigUpdateValidationResult.Invalid(deviceTypeName, validationResult.ErrorMessage ?? "Validation failed");
+            }
+
+            if (validationResult.NoUpdateRequired)
+            {
+                return ConfigUpdateValidationResult.Skipped(deviceTypeName);
+            }
+
+            // Check for DTMI delta
+            var hasDtmiDelta = ConfigurationUpdateHelper.HasDtmiDelta(Configuration, desiredConfig.Sensors);
+
+            return ConfigUpdateValidationResult.Valid(deviceTypeName, hasDtmiDelta);
+        }
+        finally
+        {
+            _configUpdateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Phase 2: Applies a validated configuration update.
+    /// Only called after all devices pass validation.
+    /// </summary>
+    /// <param name="message">The configuration update message</param>
+    /// <param name="backup">The backup created before apply phase</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Result of applying the configuration</returns>
+    public virtual async Task<ConfigUpdateResult> ApplyValidatedConfigurationAsync(
+        SubNodeConfigUpdateMessage message,
+        DeviceConfigurationBackup backup,
+        CancellationToken ct)
+    {
+        var deviceTypeName = Configuration.SubNodeType.ToString();
+
+        await _configUpdateLock.WaitAsync(ct);
+        try
+        {
+            var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+            if (deviceConfigs == null || !deviceConfigs.TryGetValue(Configuration.DeviceName, out var desiredConfig))
+            {
+                return ConfigUpdateResult.NoUpdateRequired(Configuration, deviceTypeName);
+            }
+
+            var hasDtmiDelta = false;
+
+            // Record pre-update state for detecting interval/period changes
+            var previousIntervalGroups = Configuration.Sensors
+                .Where(s => s.Report.Enabled)
+                .GroupBy(s => (int)s.Report.Interval)
+                .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
+            var previousHealthPeriod = Configuration.Periods.ReportHealth;
+
+            // Apply sensor configuration updates
+            var updatedSensors = ConfigurationUpdateHelper.ApplysensorReportUpdates(
+                Configuration, desiredConfig.Sensors);
+
+            if (updatedSensors.Count > 0)
+            {
+                _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
+                    updatedSensors.Count, string.Join(", ", updatedSensors));
+            }
+
+            // Apply pipeline updates
+            var pipelineUpdateResult = ConfigurationUpdateHelper.ApplyAllPipelineUpdates(
+                Configuration, desiredConfig.Sensors);
+
+            if (pipelineUpdateResult.IsError)
+            {
+                throw new InvalidOperationException($"Pipeline update failed: {pipelineUpdateResult.FirstError.Description}");
+            }
+
+            // Check for DTMI delta
+            if (ConfigurationUpdateHelper.HasDtmiDelta(Configuration, desiredConfig.Sensors))
+            {
+                hasDtmiDelta = true;
+                var addedSensors = ConfigurationUpdateHelper.ApplyNewSensors(
+                    Configuration, desiredConfig.Sensors!, Configuration.DeviceId!);
+                if (addedSensors.Count > 0)
+                {
+                    _logger.LogInformation("Added {Count} new sensors", addedSensors.Count);
+                }
+                Configuration.InitializeDtdl(null, logger: _logger);
+            }
+
+            // Apply periods
+            if (desiredConfig.Periods != null)
+            {
+                if (desiredConfig.Periods.ReportHealth > 0)
+                    Configuration.Periods.ReportHealth = desiredConfig.Periods.ReportHealth;
+                if (desiredConfig.Periods.ReportConfiguration >= 0)
+                    Configuration.Periods.ReportConfiguration = desiredConfig.Periods.ReportConfiguration;
+            }
+
+            // Recalculate send telemetry period
+            CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
+
+            // Check if background tasks need restart
+            var currentIntervalGroups = Configuration.Sensors
+                .Where(s => s.Report.Enabled)
+                .GroupBy(s => (int)s.Report.Interval)
+                .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
+
+            var intervalsChanged = !AreIntervalGroupsEqual(previousIntervalGroups, currentIntervalGroups);
+            var healthPeriodChanged = previousHealthPeriod != Configuration.Periods.ReportHealth;
+
+            if (intervalsChanged || healthPeriodChanged)
+            {
+                await RestartBackgroundTasksAsync();
+            }
+
+            // Cache configuration
+            var e = new UpdateConfigurationEvent(
+                SubNodeId ?? "unknown",
+                SubscriptionTypes.DeviceConfig,
+                message,
+                DateTimeOffset.UtcNow);
+            await _context.ConfigurationCache.SaveRawConfigurationAsync(e.ConfigType, message, ct);
+
+            // Post-hook
+            await OnAfterConfigUpdateAsync(e, ct);
+
+            return ConfigUpdateResult.Success(Configuration, deviceTypeName, hasDtmiDelta);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying validated configuration");
+            return ConfigUpdateResult.Failed(Configuration, deviceTypeName, ex.Message);
+        }
+        finally
+        {
+            _configUpdateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Rollback configuration to a backup state.
+    /// Called when any device fails during the apply phase.
+    /// </summary>
+    /// <param name="backup">The backup to restore from</param>
+    /// <param name="ct">Cancellation token</param>
+    public virtual async Task RollbackConfigurationAsync(
+        DeviceConfigurationBackup backup,
+        CancellationToken ct)
+    {
+        await _configUpdateLock.WaitAsync(ct);
+        try
+        {
+            _logger.LogInformation("Rolling back configuration for device: {DeviceName}", Configuration.DeviceName);
+            ConfigurationUpdateHelper.RestoreBackup(Configuration, backup);
+
+            // Recalculate send telemetry period after rollback
+            CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
+
+            // Restart background tasks with rolled-back configuration
+            await RestartBackgroundTasksAsync();
+
+            _logger.LogInformation("Configuration rollback completed for device: {DeviceName}", Configuration.DeviceName);
+        }
+        finally
+        {
+            _configUpdateLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Creates a backup of the current configuration.
+    /// Called by SubNodeManager before the apply phase.
+    /// </summary>
+    /// <returns>A backup that can be used for rollback</returns>
+    public DeviceConfigurationBackup CreateConfigurationBackup()
+    {
+        return ConfigurationUpdateHelper.CreateBackup(Configuration);
+    }
+
     /// <summary>
     /// Hook: Called after configuration update is applied.
     /// Use this to handle custom/device-specific configuration changes.
