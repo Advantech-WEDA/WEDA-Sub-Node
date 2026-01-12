@@ -139,7 +139,7 @@ public class SubNodeManagerTests : IAsyncDisposable
         // Assert - Should publish exactly ONE aggregated report (not 3)
         reportPublishCount.ShouldBe(1, "Should publish exactly ONE aggregated report for all devices");
         publishedReport.ShouldNotBeNull();
-        publishedReport!.Data?.Cfg?.Reported?.Status.ShouldBe(ConfigUpdateStatus.Success);
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Success);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class SubNodeManagerTests : IAsyncDisposable
 
         // Assert
         publishedReport.ShouldNotBeNull();
-        publishedReport!.Data?.Cfg?.Reported?.Status.ShouldBe(ConfigUpdateStatus.Invalid,
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Invalid,
             "Should publish Invalid status when any validation fails");
 
         // Verify apply was NOT called on device-1 (because device-2 validation failed)
@@ -257,7 +257,7 @@ public class SubNodeManagerTests : IAsyncDisposable
 
         // Assert
         publishedReport.ShouldNotBeNull();
-        publishedReport!.Data?.Cfg?.Reported?.Status.ShouldBe(ConfigUpdateStatus.Failed,
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Failed,
             "Should publish Failed status when any apply fails");
 
         // Verify device-1 was rolled back (because device-2 apply failed)
@@ -300,7 +300,7 @@ public class SubNodeManagerTests : IAsyncDisposable
 
         // Assert
         publishedReport.ShouldNotBeNull();
-        var deviceConfigs = publishedReport!.Data?.Cfg?.Reported?.DeviceConfigs;
+        var deviceConfigs = publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.DeviceConfigs;
         deviceConfigs.ShouldNotBeNull();
         // Note: DeviceConfigs keyed by deviceTypeName, so both devices with same type share key
         deviceConfigs!.Count.ShouldBeGreaterThanOrEqualTo(1);

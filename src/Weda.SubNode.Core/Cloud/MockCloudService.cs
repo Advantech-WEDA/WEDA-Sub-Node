@@ -242,11 +242,12 @@ public class MockCloudService : IWedaCloudService
         SubNodeConfigUpdateMessage report,
         CancellationToken cancellationToken = default)
     {
+        var status = report.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status ?? "unknown";
         _logger.LogInformation(
             "Publish configuration report (simulated): DeviceId={DeviceId}, Type={ConfigType}, Status={Status}",
             report.DeviceId,
             configType.Value,
-            report.Data?.Cfg?.Reported?.Status ?? "unknown");
+            status);
 
         var desiredConfigs = report.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
         if (desiredConfigs != null)
@@ -261,9 +262,10 @@ public class MockCloudService : IWedaCloudService
             }
         }
 
-        if (report.Data?.Cfg?.Reported?.DeviceConfigs != null)
+        var reportedConfigs = report.Data?.Cfg?.Reported?.DeviceCfg?.DeviceConfigs;
+        if (reportedConfigs != null)
         {
-            foreach (var (deviceKey, deviceConfig) in report.Data.Cfg.Reported.DeviceConfigs)
+            foreach (var (deviceKey, deviceConfig) in reportedConfigs)
             {
                 _logger.LogDebug(
                     "  Reported config for '{DeviceKey}': SensorCount={SensorCount}",

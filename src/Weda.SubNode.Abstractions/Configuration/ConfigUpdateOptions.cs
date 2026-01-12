@@ -27,22 +27,28 @@ public enum ConfigUpdateMode
 public record ConfigUpdateOptions
 {
     /// <summary>
-    /// Default options for REPLACE mode (Shadow-compatible).
-    /// Requires complete payload with all devices and sensors.
+    /// Default options with whitelist-style behavior.
+    /// Allows partial updates - only provided fields are updated.
+    /// Unknown sensors are ignored, partial sensor updates are allowed.
     /// </summary>
     public static ConfigUpdateOptions Default => new();
 
     /// <summary>
-    /// Relaxed options for PATCH mode.
-    /// Allows partial updates - only provided fields are updated.
-    /// Unknown sensors are ignored, partial sensor updates are allowed.
+    /// Strict options for REPLACE mode (Shadow-compatible).
+    /// Requires complete payload with all devices and sensors present.
+    /// Unknown sensors will cause validation to fail.
     /// </summary>
-    public static ConfigUpdateOptions Relaxed => new()
+    public static ConfigUpdateOptions Strict => new()
     {
-        UpdateMode = ConfigUpdateMode.Patch,
-        RejectUnknownSensors = false,
-        RequireAllSensors = false
+        UpdateMode = ConfigUpdateMode.Replace,
+        RejectUnknownSensors = true,
+        RequireAllSensors = true
     };
+
+    /// <summary>
+    /// Alias for Default (backward compatibility).
+    /// </summary>
+    public static ConfigUpdateOptions Relaxed => Default;
 
     /// <summary>
     /// The update mode: Replace (complete payload) or Patch (partial updates).
@@ -90,16 +96,16 @@ public record ConfigUpdateOptions
     /// Rejects configuration updates that contain sensors not in the current configuration.
     /// When false, unknown sensors are silently ignored during apply.
     /// When true, unknown sensors will cause validation to fail.
-    /// Default: true (Replace mode requires known sensors only)
+    /// Default: false (allows whitelist-style partial updates)
     /// </summary>
-    public bool RejectUnknownSensors { get; init; } = true;
+    public bool RejectUnknownSensors { get; init; } = false;
 
     /// <summary>
     /// Requires that all existing sensors must be present in the update.
     /// When true, partial updates (only some sensors) will fail validation.
-    /// Default: true (Replace mode requires complete payload)
+    /// Default: false (allows whitelist-style partial updates)
     /// </summary>
-    public bool RequireAllSensors { get; init; } = true;
+    public bool RequireAllSensors { get; init; } = false;
 
     /// <summary>
     /// Validates Transform and DSP Filter pipeline parameters before applying updates.

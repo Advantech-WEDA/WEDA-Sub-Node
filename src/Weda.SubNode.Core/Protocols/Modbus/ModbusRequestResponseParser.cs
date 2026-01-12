@@ -109,6 +109,25 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 
     public bool SupportsBidirectional => true;
 
+    /// <summary>
+    /// Refresh sensor metadata from current configuration.
+    /// Must be called after sensors are added/removed/updated at runtime.
+    /// </summary>
+    public void RefreshSensorMetadata()
+    {
+        _sensorMetadata.Clear();
+
+        foreach (var sensor in _configuration.Sensors)
+        {
+            var register = sensor.ToModbusRegister();
+            _sensorMetadata[register.Name] = register;
+        }
+
+        _logger.LogDebug(
+            "Refreshed Modbus sensor metadata: {SensorCount} sensors",
+            _sensorMetadata.Count);
+    }
+
     // ===== IRequestResponseProtocolParser Implementation =====
 
     /// <summary>

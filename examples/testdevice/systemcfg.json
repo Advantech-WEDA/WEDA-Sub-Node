@@ -2,7 +2,7 @@
   "WedaNode": {
     "Url": "172.22.160.197:4224",
     "AuthStrategy": "UserPassword",
-    "Username": "advantech",
+    "Username": "advantech_nats",
     "Password": "3671be64607240cbc2b95af99c9a3b28fb5f9aa3fbe51f501478f1a678e19d48"
   }
 }

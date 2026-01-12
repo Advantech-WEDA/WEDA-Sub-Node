@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
@@ -29,6 +30,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected readonly IWedaApplicationContext _context;
     protected readonly DeviceOrchestrator _orchestrator;
     protected readonly DeviceInitializer _initializer;
+    private readonly IProtocolParserCore? _protocolParser;
 
     private CancellationTokenSource? _runningCts;
     private CancellationTokenSource? _samplingCts;
@@ -61,10 +63,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected DeviceBase(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        ICommunication communication)
+        IProtocolParserCore protocolParser)
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        _communication = communication ?? throw new ArgumentNullException(nameof(communication));
+        _protocolParser = protocolParser ?? throw new ArgumentNullException(nameof(protocolParser));
+        _communication = protocolParser.Communication ?? throw new ArgumentNullException(nameof(protocolParser.Communication));
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
@@ -863,7 +866,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
             _logger.LogDebug("Recalculated SendTelemetry period: {Period}ms", CalculatedSendTelemetryPeriod);
 
-            // Detect if background tasks need restart due to interval/period changes
+            // Detect if background tasks need restart due to interval/period/sensor changes
             var currentIntervalGroups = Configuration.Sensors
                 .Where(s => s.Report.Enabled)
                 .GroupBy(s => (int)s.Report.Interval)
@@ -872,11 +875,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             var intervalsChanged = !AreIntervalGroupsEqual(previousIntervalGroups, currentIntervalGroups);
             var healthPeriodChanged = previousHealthPeriod != Configuration.Periods.ReportHealth;
 
-            if (intervalsChanged || healthPeriodChanged)
+            // Also restart if sensors were added (hasDtmiDelta indicates new sensors)
+            if (intervalsChanged || healthPeriodChanged || hasDtmiDelta)
             {
                 _logger.LogInformation(
-                    "Background task config changed (intervals={IntervalsChanged}, healthPeriod={HealthChanged}), restarting tasks",
-                    intervalsChanged, healthPeriodChanged);
+                    "Background task config changed (intervals={IntervalsChanged}, healthPeriod={HealthChanged}, sensorsAdded={SensorsAdded}), restarting tasks",
+                    intervalsChanged, healthPeriodChanged, hasDtmiDelta);
                 await RestartBackgroundTasksAsync();
             }
 
@@ -992,8 +996,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 return ConfigUpdateResult.NoUpdateRequired(Configuration, deviceTypeName);
             }
 
-            var hasDtmiDelta = false;
-
             // Record pre-update state for detecting interval/period changes
             var previousIntervalGroups = Configuration.Sensors
                 .Where(s => s.Report.Enabled)
@@ -1001,17 +1003,26 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
             var previousHealthPeriod = Configuration.Periods.ReportHealth;
 
-            // Apply sensor configuration updates
-            var updatedSensors = ConfigurationUpdateHelper.ApplysensorReportUpdates(
-                Configuration, desiredConfig.Sensors);
+            // Apply sensor replacement (REPLACE mode - desired sensors become the new list)
+            var sensorResult = ConfigurationUpdateHelper.ReplaceSensors(
+                Configuration, desiredConfig.Sensors, Configuration.DeviceId!);
 
-            if (updatedSensors.Count > 0)
+            if (sensorResult.HasChanges)
             {
-                _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
-                    updatedSensors.Count, string.Join(", ", updatedSensors));
+                if (sensorResult.AddedSensors.Count > 0)
+                    _logger.LogInformation("Added {Count} sensors: {Names}",
+                        sensorResult.AddedSensors.Count, string.Join(", ", sensorResult.AddedSensors));
+
+                if (sensorResult.RemovedSensors.Count > 0)
+                    _logger.LogInformation("Removed {Count} sensors: {Names}",
+                        sensorResult.RemovedSensors.Count, string.Join(", ", sensorResult.RemovedSensors));
+
+                if (sensorResult.UpdatedSensors.Count > 0)
+                    _logger.LogInformation("Updated {Count} sensors: {Names}",
+                        sensorResult.UpdatedSensors.Count, string.Join(", ", sensorResult.UpdatedSensors));
             }
 
-            // Apply pipeline updates
+            // Apply pipeline updates for existing sensors
             var pipelineUpdateResult = ConfigurationUpdateHelper.ApplyAllPipelineUpdates(
                 Configuration, desiredConfig.Sensors);
 
@@ -1020,16 +1031,32 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 throw new InvalidOperationException($"Pipeline update failed: {pipelineUpdateResult.FirstError.Description}");
             }
 
-            // Check for DTMI delta
-            if (ConfigurationUpdateHelper.HasDtmiDelta(Configuration, desiredConfig.Sensors))
+            // Apply Dtdl.AutoGenEnabled if changed
+            var hasDtmiDelta = sensorResult.RequiresDtdlRegeneration;
+            if (desiredConfig.Dtdl != null)
             {
-                hasDtmiDelta = true;
-                var addedSensors = ConfigurationUpdateHelper.ApplyNewSensors(
-                    Configuration, desiredConfig.Sensors!, Configuration.DeviceId!);
-                if (addedSensors.Count > 0)
+                var previousAutoGenEnabled = Configuration.Dtdl.AutoGenEnabled;
+                var desiredAutoGenEnabled = desiredConfig.Dtdl.AutoGenEnabled;
+
+                if (previousAutoGenEnabled != desiredAutoGenEnabled)
                 {
-                    _logger.LogInformation("Added {Count} new sensors", addedSensors.Count);
+                    Configuration.Dtdl.AutoGenEnabled = desiredAutoGenEnabled;
+                    _logger.LogInformation(
+                        "Dtdl.AutoGenEnabled changed from {Previous} to {Desired}",
+                        previousAutoGenEnabled, desiredAutoGenEnabled);
+
+                    // If enabling auto-generation, reset DtdlInterface to trigger regeneration
+                    if (desiredAutoGenEnabled)
+                    {
+                        Configuration.DtdlInterface = null;
+                        hasDtmiDelta = true;
+                    }
                 }
+            }
+
+            // Regenerate DTDL if needed
+            if (hasDtmiDelta)
+            {
                 Configuration.InitializeDtdl(null, logger: _logger);
             }
 
@@ -1053,8 +1080,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
             var intervalsChanged = !AreIntervalGroupsEqual(previousIntervalGroups, currentIntervalGroups);
             var healthPeriodChanged = previousHealthPeriod != Configuration.Periods.ReportHealth;
+            var sensorsChanged = sensorResult.HasChanges;
 
-            if (intervalsChanged || healthPeriodChanged)
+            if (sensorsChanged || intervalsChanged || healthPeriodChanged)
             {
                 await RestartBackgroundTasksAsync();
             }
@@ -1551,20 +1579,24 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     {
         _logger.LogInformation("Restarting background tasks due to config changes for device {SubNodeId}", SubNodeId);
 
-        // Step 1: Cancel existing sampling/polling tasks and health task
+        // Step 1: Refresh parser's sensor metadata to reflect configuration changes
+        // This ensures new sensors are recognized by the parser
+        _protocolParser?.RefreshSensorMetadata();
+
+        // Step 2: Cancel existing sampling/polling tasks and health task
         if (_samplingCts != null)
         {
             await _samplingCts.CancelAsync();
             _samplingCts.Dispose();
         }
 
-        // Step 2: Wait briefly for tasks to complete gracefully
+        // Step 3: Wait briefly for tasks to complete gracefully
         await Task.Delay(100);
 
-        // Step 3: Create new CancellationTokenSource
+        // Step 4: Create new CancellationTokenSource
         _samplingCts = new CancellationTokenSource();
 
-        // Step 4: Start new background tasks with updated intervals/periods
+        // Step 5: Start new background tasks with updated intervals/periods
         StartAllBackgroundTasks(_samplingCts.Token);
 
         _logger.LogInformation("Background tasks restarted successfully for device {SubNodeId}", SubNodeId);

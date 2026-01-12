@@ -281,7 +281,7 @@ public class ConfigurationUpdateHelperTests
     }
 
     [Fact]
-    public void ValidateDeviceConfiguration_Should_ReturnFailure_When_UnknownSensorProvided()
+    public void ValidateDeviceConfiguration_Should_ReturnFailure_When_UnknownSensorProvided_WithStrictOptions()
     {
         // Arrange
         var message = CreateValidMessage();
@@ -292,9 +292,10 @@ public class ConfigurationUpdateHelperTests
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 }
             });
         var currentConfig = CreateDeviceConfiguration("TestDevice");
+        var options = ConfigUpdateOptions.Strict; // Strict mode rejects unknown sensors
 
         // Act
-        var result = ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, currentConfig);
+        var result = ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, currentConfig, options);
 
         // Assert
         result.IsValid.ShouldBeFalse();
@@ -324,16 +325,17 @@ public class ConfigurationUpdateHelperTests
     }
 
     [Fact]
-    public void ValidateDeviceConfiguration_Should_ReturnFailure_When_RequiredSensorMissing()
+    public void ValidateDeviceConfiguration_Should_ReturnFailure_When_RequiredSensorMissing_WithStrictOptions()
     {
         // Arrange
         var message = CreateValidMessage();
         // Remove one sensor from the message
         message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors!.RemoveAt(1);
         var currentConfig = CreateDeviceConfiguration("TestDevice");
+        var options = ConfigUpdateOptions.Strict; // Strict mode requires all sensors
 
         // Act
-        var result = ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, currentConfig);
+        var result = ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, currentConfig, options);
 
         // Assert
         result.IsValid.ShouldBeFalse();
@@ -475,31 +477,44 @@ public class ConfigurationUpdateHelperTests
     #region ConfigUpdateOptions Tests
 
     [Fact]
-    public void ConfigUpdateOptions_Default_Should_UseReplaceMode()
+    public void ConfigUpdateOptions_Default_Should_AllowPartialUpdates()
     {
         // Act
         var options = ConfigUpdateOptions.Default;
 
-        // Assert
+        // Assert - Default now uses whitelist-style (partial updates allowed)
         options.UpdateMode.ShouldBe(ConfigUpdateMode.Replace);
         options.ValidateDeviceName.ShouldBeTrue();
         options.ValidatePeriods.ShouldBeTrue();
         options.ValidateSensors.ShouldBeTrue();
         options.ValidateThresholds.ShouldBeTrue();
+        options.RejectUnknownSensors.ShouldBeFalse(); // Changed: allows unknown sensors
+        options.RequireAllSensors.ShouldBeFalse(); // Changed: allows partial updates
+    }
+
+    [Fact]
+    public void ConfigUpdateOptions_Strict_Should_RequireCompletePayload()
+    {
+        // Act
+        var options = ConfigUpdateOptions.Strict;
+
+        // Assert - Strict mode requires complete payload
+        options.UpdateMode.ShouldBe(ConfigUpdateMode.Replace);
         options.RejectUnknownSensors.ShouldBeTrue();
         options.RequireAllSensors.ShouldBeTrue();
     }
 
     [Fact]
-    public void ConfigUpdateOptions_Relaxed_Should_UsePatchMode()
+    public void ConfigUpdateOptions_Relaxed_Should_BeAliasForDefault()
     {
         // Act
-        var options = ConfigUpdateOptions.Relaxed;
+        var relaxed = ConfigUpdateOptions.Relaxed;
+        var defaultOpts = ConfigUpdateOptions.Default;
 
-        // Assert
-        options.UpdateMode.ShouldBe(ConfigUpdateMode.Patch);
-        options.RejectUnknownSensors.ShouldBeFalse();
-        options.RequireAllSensors.ShouldBeFalse();
+        // Assert - Relaxed is alias for Default
+        relaxed.UpdateMode.ShouldBe(defaultOpts.UpdateMode);
+        relaxed.RejectUnknownSensors.ShouldBe(defaultOpts.RejectUnknownSensors);
+        relaxed.RequireAllSensors.ShouldBe(defaultOpts.RequireAllSensors);
     }
 
     [Fact]
@@ -849,7 +864,7 @@ public class ConfigurationUpdateHelperTests
         var report = ConfigurationUpdateHelper.CreateUpdatingReport(incomingMessage, config, "TestDevice");
 
         // Assert
-        report.Data!.Cfg!.Reported!.Status.ShouldBe(ConfigUpdateStatus.Updating);
+        report.Data!.Cfg!.Reported!.DeviceCfg!.Message!.Status.ShouldBe(ConfigUpdateStatus.Updating);
         report.Cmd.ShouldBe("updateCmdResponse");
         report.DeviceId.ShouldBe(incomingMessage.DeviceId);
     }
@@ -865,7 +880,7 @@ public class ConfigurationUpdateHelperTests
         var report = ConfigurationUpdateHelper.CreateSuccessReport(incomingMessage, config, "TestDevice");
 
         // Assert
-        report.Data!.Cfg!.Reported!.Status.ShouldBe(ConfigUpdateStatus.Success);
+        report.Data!.Cfg!.Reported!.DeviceCfg!.Message!.Status.ShouldBe(ConfigUpdateStatus.Success);
     }
 
     [Fact]
@@ -880,8 +895,8 @@ public class ConfigurationUpdateHelperTests
         var report = ConfigurationUpdateHelper.CreateFailedReport(incomingMessage, config, "TestDevice", errorMessage);
 
         // Assert
-        report.Data!.Cfg!.Reported!.Status.ShouldBe(ConfigUpdateStatus.Failed);
-        report.Data.Cfg.Reported.ErrorMessage?.ShouldBe(errorMessage);
+        report.Data!.Cfg!.Reported!.DeviceCfg!.Message!.Status.ShouldBe(ConfigUpdateStatus.Failed);
+        report.Data.Cfg.Reported.DeviceCfg.Message.ErrorMessage?.ShouldBe(errorMessage);
     }
 
     [Fact]
@@ -896,8 +911,8 @@ public class ConfigurationUpdateHelperTests
         var report = ConfigurationUpdateHelper.CreateInvalidReport(incomingMessage, config, "TestDevice", errorMessage);
 
         // Assert
-        report.Data!.Cfg!.Reported!.Status.ShouldBe(ConfigUpdateStatus.Invalid);
-        report.Data.Cfg.Reported.ErrorMessage?.ShouldBe(errorMessage);
+        report.Data!.Cfg!.Reported!.DeviceCfg!.Message!.Status.ShouldBe(ConfigUpdateStatus.Invalid);
+        report.Data.Cfg.Reported.DeviceCfg.Message.ErrorMessage?.ShouldBe(errorMessage);
     }
 
     [Fact]
@@ -912,7 +927,7 @@ public class ConfigurationUpdateHelperTests
         // Assert
         report.Data!.Cfg!.Desired.ShouldBeNull();
         report.Data.Cfg.Reported.ShouldNotBeNull();
-        report.Data.Cfg.Reported!.Status.ShouldBe(ConfigUpdateStatus.Success);
+        report.Data.Cfg.Reported!.DeviceCfg!.Message!.Status.ShouldBe(ConfigUpdateStatus.Success);
         report.Cmd.ShouldBe("configReport");
     }
 
@@ -929,7 +944,7 @@ public class ConfigurationUpdateHelperTests
         var report = ConfigurationUpdateHelper.CreateSuccessReport(incomingMessage, config, "TestDevice");
 
         // Assert
-        var reportedConfig = report.Data!.Cfg!.Reported!.DeviceConfigs!["TestDevice"];
+        var reportedConfig = report.Data!.Cfg!.Reported!.DeviceCfg!.DeviceConfigs!["TestDevice"];
         reportedConfig.Sensors![0].Report!.Enabled.ShouldBeFalse();
         reportedConfig.Sensors[0].Report!.Interval.ShouldBe(5000);
     }
@@ -1007,6 +1022,111 @@ public class ConfigurationUpdateHelperTests
         result.ShouldBeTrue();
         config.Periods.ReportHealth.ShouldBe(120000);
         config.Periods.ReportConfiguration.ShouldBe(3600000);
+    }
+
+    [Fact]
+    public void ApplyCachedConfiguration_Should_AddNewSensor_When_DesiredHasMoreSensors()
+    {
+        // Arrange: Start with 1 sensor
+        var config = new DeviceConfiguration
+        {
+            DeviceName = "TestDevice",
+            DeviceId = "test-device-id",
+            SubNodeInfo = new SubNodeInfo
+            {
+                Name = "TestSubNode",
+                SubNodeType = SubNodeType.CustomDevice,
+                Manufacturer = "Test",
+                Model = "TestModel",
+                SwVersion = "1.0"
+            },
+            Dtdl = new DtdlConfig { AutoGenEnabled = true },
+            DeviceCommunication = new Dictionary<string, object>
+            {
+                ["Host"] = "localhost",
+                ["Port"] = 502
+            },
+            Sensors =
+            [
+                new Sensor
+                {
+                    Name = "temperature.sensor",
+                    Dtmi = "dtmi:test:sensor;1",
+                    SensorGroup = SensorGroup.TEMP,
+                    Parameters = new Dictionary<string, object>(),
+                    Report = new SensorReport
+                    {
+                        Enabled = true,
+                        Interval = 1000,
+                        Unit = "celsius"
+                    }
+                }
+            ]
+        };
+
+        config.Sensors.Count.ShouldBe(1);
+
+        // Create cached message with 2 sensors
+        var cachedMessage = new SubNodeConfigUpdateMessage
+        {
+            DeviceId = "device-123",
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    Desired = new SubNodeDesiredConfigSections
+                    {
+                        DeviceCfg = new SubNodeDeviceCfgDto
+                        {
+                            DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
+                            {
+                                ["TestDevice"] = new SubNodeDeviceConfigDto
+                                {
+                                    Sensors =
+                                    [
+                                        new SubNodeSensorReportDto
+                                        {
+                                            Name = "temperature.sensor",
+                                            SensorGroup = "TEMP",
+                                            Report = new SubNodeSensorRuntimeConfigDto
+                                            {
+                                                Enabled = true,
+                                                Interval = 2000
+                                            }
+                                        },
+                                        new SubNodeSensorReportDto
+                                        {
+                                            Name = "temperature.sensor.2",
+                                            SensorGroup = "TEMP",
+                                            Report = new SubNodeSensorRuntimeConfigDto
+                                            {
+                                                Enabled = true,
+                                                Interval = 3000
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        // Act
+        var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
+
+        // Assert
+        result.ShouldBeTrue();
+        config.Sensors.Count.ShouldBe(2);
+
+        var sensor1 = config.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor");
+        sensor1.ShouldNotBeNull();
+        sensor1!.Report.Interval.ShouldBe(2000);
+
+        var sensor2 = config.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor.2");
+        sensor2.ShouldNotBeNull();
+        sensor2!.Report.Interval.ShouldBe(3000);
     }
 
     #endregion
@@ -1130,6 +1250,291 @@ public class ConfigurationUpdateHelperTests
                 ReportConfiguration = 1800000
             }
         };
+    }
+
+    #endregion
+
+    #region ReplaceSensors Tests
+
+    [Fact]
+    public void ReplaceSensors_Should_AddNewSensors_When_DesiredContainsNewSensors()
+    {
+        // Arrange
+        var deviceConfig = CreateDeviceConfiguration("TestDevice");
+        var originalSensorCount = deviceConfig.Sensors.Count;
+
+        var desiredSensors = new List<SubNodeSensorReportDto>
+        {
+            // Keep existing sensor
+            new()
+            {
+                Name = "channel.0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 1000
+                }
+            },
+            // Add new sensor
+            new()
+            {
+                Name = "new.sensor",
+                SensorGroup = "TEMP",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 2000,
+                    TransformPipeline =
+                    [
+                        new SubNodeTransformConfigDto
+                        {
+                            Type = "UnitConversion",
+                            Enabled = true,
+                            Parameters = new Dictionary<string, object>
+                            {
+                                ["FromUnit"] = "celsius",
+                                ["ToUnit"] = "fahrenheit"
+                            }
+                        }
+                    ]
+                }
+            }
+        };
+
+        // Act
+        var result = ConfigurationUpdateHelper.ReplaceSensors(
+            deviceConfig, desiredSensors, "test-device-id");
+
+        // Assert
+        result.AddedSensors.ShouldContain("new.sensor");
+        result.RemovedSensors.ShouldContain("channel.1"); // Was in original but not in desired
+        result.HasChanges.ShouldBeTrue();
+
+        // Verify new sensor was added with TransformPipeline
+        var newSensor = deviceConfig.Sensors.FirstOrDefault(s => s.Name == "new.sensor");
+        newSensor.ShouldNotBeNull();
+        newSensor.Report.TransformPipeline.Count.ShouldBe(1);
+        newSensor.Report.TransformPipeline[0].Type.ShouldBe("UnitConversion");
+        newSensor.Report.TransformPipeline[0].Parameters["FromUnit"].ShouldBe("celsius");
+        newSensor.Report.TransformPipeline[0].Parameters["ToUnit"].ShouldBe("fahrenheit");
+    }
+
+    [Fact]
+    public void ReplaceSensors_Should_RemoveSensors_When_NotInDesiredList()
+    {
+        // Arrange
+        var deviceConfig = CreateDeviceConfiguration("TestDevice");
+        deviceConfig.Sensors.Count.ShouldBe(2); // channel.0, channel.1
+
+        // Desired only contains channel.0
+        var desiredSensors = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel.0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 1000
+                }
+            }
+        };
+
+        // Act
+        var result = ConfigurationUpdateHelper.ReplaceSensors(
+            deviceConfig, desiredSensors, "test-device-id");
+
+        // Assert
+        result.RemovedSensors.ShouldContain("channel.1");
+        result.AddedSensors.ShouldBeEmpty();
+        deviceConfig.Sensors.Count.ShouldBe(1);
+        deviceConfig.Sensors[0].Name.ShouldBe("channel.0");
+    }
+
+    [Fact]
+    public void ReplaceSensors_Should_UpdateExistingSensors_When_ConfigChanged()
+    {
+        // Arrange
+        var deviceConfig = CreateDeviceConfiguration("TestDevice");
+        var originalInterval = deviceConfig.Sensors[0].Report.Interval;
+
+        var desiredSensors = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel.0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 5000 // Changed from 1000
+                }
+            },
+            new()
+            {
+                Name = "channel.1",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 1000
+                }
+            }
+        };
+
+        // Act
+        var result = ConfigurationUpdateHelper.ReplaceSensors(
+            deviceConfig, desiredSensors, "test-device-id");
+
+        // Assert
+        result.UpdatedSensors.ShouldContain("channel.0");
+        result.AddedSensors.ShouldBeEmpty();
+        result.RemovedSensors.ShouldBeEmpty();
+        deviceConfig.Sensors.First(s => s.Name == "channel.0").Report.Interval.ShouldBe(5000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_Should_ReturnNoChanges_When_DesiredSensorsIsNull()
+    {
+        // Arrange
+        var deviceConfig = CreateDeviceConfiguration("TestDevice");
+        var originalCount = deviceConfig.Sensors.Count;
+
+        // Act
+        var result = ConfigurationUpdateHelper.ReplaceSensors(
+            deviceConfig, null, "test-device-id");
+
+        // Assert
+        result.HasChanges.ShouldBeFalse();
+        deviceConfig.Sensors.Count.ShouldBe(originalCount);
+    }
+
+    [Fact]
+    public void ReplaceSensors_Should_MapDspPipeline_When_AddingNewSensor()
+    {
+        // Arrange
+        var deviceConfig = CreateDeviceConfiguration("TestDevice");
+
+        var desiredSensors = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "sensor.with.dsp",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 1000,
+                    DspPipeline =
+                    [
+                        new SubNodeDspFilterConfigDto
+                        {
+                            Type = "kalman",
+                            Enabled = true,
+                            Parameters = new Dictionary<string, object>
+                            {
+                                ["ProcessNoise"] = 0.01,
+                                ["MeasurementNoise"] = 0.1
+                            }
+                        }
+                    ]
+                }
+            }
+        };
+
+        // Act
+        var result = ConfigurationUpdateHelper.ReplaceSensors(
+            deviceConfig, desiredSensors, "test-device-id");
+
+        // Assert
+        result.AddedSensors.ShouldContain("sensor.with.dsp");
+
+        var newSensor = deviceConfig.Sensors.FirstOrDefault(s => s.Name == "sensor.with.dsp");
+        newSensor.ShouldNotBeNull();
+        newSensor.Report.DspPipeline.Count.ShouldBe(1);
+        newSensor.Report.DspPipeline[0].Type.ShouldBe("kalman");
+        newSensor.Report.DspPipeline[0].Parameters["ProcessNoise"].ShouldBe(0.01);
+    }
+
+    [Fact]
+    public void ReplaceSensors_Should_RemoveTwoAndAddOne_When_NamesDoNotMatch()
+    {
+        // Arrange: Original has 3 sensors
+        var deviceConfig = CreateDeviceConfiguration("TestDevice");
+        deviceConfig.Sensors.Add(new Sensor
+        {
+            Name = "temperature.sensor3",
+            Dtmi = "dtmi:test:temp3;1",
+            SensorGroup = SensorGroup.AI,
+            Parameters = new Dictionary<string, object>(),
+            Report = new SensorReport { Enabled = true, Interval = 1000 }
+        });
+        deviceConfig.Sensors.Count.ShouldBe(3); // channel.0, channel.1, temperature.sensor3
+
+        // Desired has 2 sensors with different names:
+        // - channel.0 (exists)
+        // - temperature.sensor.NEW (does not exist, should be added)
+        var desiredSensors = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel.0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 1000
+                }
+            },
+            new()
+            {
+                Name = "temperature.sensor.NEW",
+                SensorGroup = "TEMP",
+                Report = new SubNodeSensorRuntimeConfigDto
+                {
+                    Enabled = true,
+                    Interval = 2000,
+                    TransformPipeline =
+                    [
+                        new SubNodeTransformConfigDto
+                        {
+                            Type = "UnitConversion",
+                            Enabled = true,
+                            Parameters = new Dictionary<string, object>
+                            {
+                                ["FromUnit"] = "celsius",
+                                ["ToUnit"] = "kelvin"
+                            }
+                        }
+                    ]
+                }
+            }
+        };
+
+        // Act
+        var result = ConfigurationUpdateHelper.ReplaceSensors(
+            deviceConfig, desiredSensors, "test-device-id");
+
+        // Assert
+        // Should remove 2 sensors: channel.1 and temperature.sensor3
+        result.RemovedSensors.Count.ShouldBe(2);
+        result.RemovedSensors.ShouldContain("channel.1");
+        result.RemovedSensors.ShouldContain("temperature.sensor3");
+
+        // Should add 1 sensor: temperature.sensor.NEW
+        result.AddedSensors.Count.ShouldBe(1);
+        result.AddedSensors.ShouldContain("temperature.sensor.NEW");
+
+        // Final count should be 2 (channel.0 kept, temperature.sensor.NEW added)
+        deviceConfig.Sensors.Count.ShouldBe(2);
+
+        // Verify the new sensor was properly added
+        var newSensor = deviceConfig.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor.NEW");
+        newSensor.ShouldNotBeNull();
+        newSensor!.Report.TransformPipeline.Count.ShouldBe(1);
+        newSensor.Report.TransformPipeline[0].Type.ShouldBe("UnitConversion");
     }
 
     #endregion

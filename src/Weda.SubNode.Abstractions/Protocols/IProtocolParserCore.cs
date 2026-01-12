@@ -27,4 +27,11 @@ public interface IProtocolParserCore
     /// Whether this protocol supports bidirectional communication (read and write)
     /// </summary>
     bool SupportsBidirectional { get; }
+
+    /// <summary>
+    /// Refresh internal sensor metadata after configuration changes.
+    /// Called by DeviceBase when sensors are added/removed/updated at runtime.
+    /// Parsers that cache sensor metadata must implement this to update their internal state.
+    /// </summary>
+    void RefreshSensorMetadata() { }
 }

@@ -496,10 +496,17 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         // Rollback if any apply failed
         if (hasApplyFailure)
         {
-            _logger.LogWarning("Transaction failed at device {DeviceName}, rolling back {Count} device(s)",
-                failedDeviceName, appliedDevices.Count);
+            // Include the failed device in rollback (it may have partial changes)
+            var devicesToRollback = new List<string>(appliedDevices);
+            if (failedDeviceName != null && !devicesToRollback.Contains(failedDeviceName))
+            {
+                devicesToRollback.Add(failedDeviceName);
+            }
 
-            foreach (var deviceName in appliedDevices)
+            _logger.LogWarning("Transaction failed at device {DeviceName}, rolling back {Count} device(s)",
+                failedDeviceName, devicesToRollback.Count);
+
+            foreach (var deviceName in devicesToRollback)
             {
                 var device = _deviceRegistry.FindDevice(deviceName);
                 if (device != null && backups.TryGetValue(deviceName, out var backup))
@@ -513,7 +520,11 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return;
         }
 
-        // ===== Phase 4: Publish Aggregated Success Report =====
+        // ===== Phase 4: Update RawDeviceCfgJson and Publish Aggregated Success Report =====
+        // Update RawDeviceCfgJson with the desired config from the message
+        // This ensures Report content reflects the last applied configuration
+        UpdateRawDeviceCfgJson(message, appliedDevices);
+
         var hasDtmiDelta = validationResults.Values.Any(r => r.HasDtmiDelta) ||
                           applyResults.Values.Any(r => r.HasDtmiDelta);
 
@@ -570,6 +581,40 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             overallStatus, validationResults.Count);
 
         await _cloudService.PublishConfigurationReportAsync(e.ConfigType, report, default);
+    }
+
+    /// <summary>
+    /// Updates RawDeviceCfgJson on each successfully applied device with the desired configuration.
+    /// This ensures Report content reflects the last applied cloud configuration.
+    /// </summary>
+    private void UpdateRawDeviceCfgJson(
+        SubNodeConfigUpdateMessage message,
+        List<string> appliedDevices)
+    {
+        // Use RawDeviceCfg (raw JSON) to preserve original structure (e.g., SensorInfo)
+        var rawDeviceCfg = message.Data?.Cfg?.Desired?.RawDeviceCfg;
+        if (!rawDeviceCfg.HasValue)
+            return;
+
+        try
+        {
+            var rawJson = rawDeviceCfg.Value.Clone();
+
+            // Update each applied device's RawDeviceCfgJson
+            foreach (var deviceName in appliedDevices)
+            {
+                var device = _deviceRegistry.FindDevice(deviceName);
+                if (device != null)
+                {
+                    device.Configuration.RawDeviceCfgJson = rawJson;
+                    _logger.LogDebug("Updated RawDeviceCfgJson for device {DeviceName}", deviceName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update RawDeviceCfgJson for applied devices");
+        }
     }
 
     /// <summary>
