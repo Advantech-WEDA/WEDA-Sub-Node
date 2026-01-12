@@ -217,28 +217,6 @@ docker compose logs
 docker compose logs --tail 100
 ```
 
-**容器偶爾崩潰 (Exit 139)**
-
-容器運行一段時間後突然退出，日誌顯示 `Exit 139`（即 `Segmentation Fault`）：
-
-```
-container exited with code 139
-```
-
-**原因**：
-這是 Advantech.Edge 庫的已知 Finalizer bug：當系統缺少 Advantech SUSI 硬體驅動時，雖然應用程式的初始化正常並繼續執行，但庫內部的 `SusiLib.Finalize()` 會在垃圾回收 (GC) 時拋出 `NullReferenceException`，由於 Finalizer 異常在 .NET GC 執行緒執行，無法被應用程式的 try-catch 捕獲，導致整個程式崩潰
-
-**解決方法**：
-- **這是已知現象**，不影響系統功能
-- Docker Compose 設置了 `restart: unless-stopped`，容器會自動重啟並繼續運行
-- 異常發生後容器會自動重啟，之後的運行次數會逐漸趨於穩定
-- 若要完全避免此問題，可在目標裝置上安裝 Advantech SUSI 驅動（通常不需要）
-
-**如何判斷是否為此問題**：
-- 日誌中有 `Failed to initialize Advantech Device collector` 訊息
-- 容器啟動後在短時間內崩潰一次，之後穩定運行
-- 其他 collectors（CPU、Memory）正常採集並發送監測資料
-
 **架構不支援的裝置上運行**
 
 如果使用的 CPU 架構不匹配，會出現以下錯誤：
@@ -269,8 +247,8 @@ qemu-x86_64: Could not open '/lib64/ld-linux-x86-64.so.2': No such file or direc
 
 **警告訊息**：
 ```
-[WRN] Failed to initialize Advantech Device. Advantech-specific metrics will not be available.
-[ERR] System.DllNotFoundException: Unable to load shared library 'libSUSI-4.00.so'
+Advantech driver DLL not found. Hardware metrics unavailable.
+System.DllNotFoundException: Unable to load shared library 'libSUSI-4.00.so' or one of its dependencies. In order to help diagnose loading problems, consider using a tool like strace. If you're using glibc, consider setting the LD_DEBUG environment variable:
 ```
 
 **行為**：
