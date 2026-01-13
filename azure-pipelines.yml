@@ -29,7 +29,8 @@ pool:
 
 variables:
   buildConfiguration: 'Release'
-      dotnetVersion: '10.0.x'  testResultsDirectory: '$(Build.ArtifactStagingDirectory)/TestResults'
+  dotnetVersion: '10.0.x'  
+  testResultsDirectory: '$(Build.ArtifactStagingDirectory)/TestResults'
   coverageThreshold: 60
 
 stages:
