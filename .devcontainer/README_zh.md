@@ -4,7 +4,7 @@
 
 此開發容器提供了一個完整配置的 Weda SubNode SDK 開發環境，包括：
 
-- **.NET 9.0 SDK** - 最新的 .NET 開發工具
+- **.NET 10.0 SDK** - 最新的 .NET 開發工具
 - **Weda SubNode Templates** - 預先安裝的專案範本
 - **VS Code 擴充套件** - 預先安裝的 C#、Docker、Git 擴充套件
 - **CLI 工具** - Entity Framework CLI、dotnet-format 等
@@ -206,4 +206,4 @@ A: 初始映像檔約 1-2 GB，但會在多個專案間共用基礎映像檔。
 A: 可以！每個專案可以有自己的容器執行個體。
 
 **Q: 如何更新容器內的 SDK 版本？**
-A: 修改 `Dockerfile` 中的基礎映像版本（例如 `FROM mcr.microsoft.com/dotnet/sdk:9.0`），然後重建容器。
+A: 修改 `Dockerfile` 中的基礎映像版本（例如 `FROM mcr.microsoft.com/dotnet/sdk:10.0`），然後重建容器。

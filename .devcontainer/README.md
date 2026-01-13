@@ -4,7 +4,7 @@ English / [繁體中文](README_zh.md)
 
 This development container provides a fully configured environment for developing with the Weda SubNode SDK, including:
 
-- **.NET 9.0 SDK** - Latest .NET development tools
+- **.NET 10.0 SDK** - Latest .NET development tools
 - **Weda SubNode Templates** - Pre-installed project templates
 - **VS Code Extensions** - Pre-installed C#, Docker, Git extensions
 - **CLI Tools** - Entity Framework CLI, dotnet-format, etc.

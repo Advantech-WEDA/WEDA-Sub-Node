@@ -41,7 +41,7 @@ templates:
 
 ## 先決條件
 
-- 已安裝 .NET 9.0 SDK
+- 已安裝 .NET 10.0 SDK
 - 已安裝 Weda SubNode 模板(參考 [安裝模板](01_install_templates.md))
 
 ---

@@ -63,7 +63,7 @@ WISE-4012 with iSensing intelligent diagnostic features.
 
 ### Prerequisites
 
-1. **.NET 9.0 SDK** installed
+1. **.NET 10.0 SDK** installed
 2. **Real hardware** or **Modbus TCP server** running
 3. **Cloud configuration** (or use Mock Cloud for testing)
 

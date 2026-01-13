@@ -186,7 +186,7 @@ log_info "=== Step 6: Testing JsonConfigurationCache directly ==="
 
 # Create a simple C# script to test the cache
 cat > "$TEST_DIR/test-cache.csx" << 'CSHARP'
-#r "nuget: Microsoft.Extensions.Logging, 9.0.0"
+#r "nuget: Microsoft.Extensions.Logging, 10.0.0"
 using System;
 using System.IO;
 using System.Text.Json;

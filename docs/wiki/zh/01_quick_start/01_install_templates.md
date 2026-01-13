@@ -25,12 +25,12 @@ translations:
 
 安裝模板前，請確認您已安裝：
 
-- **.NET 9.0 SDK** 或更新版本
+- **.NET 10.0 SDK** 或更新版本
   ```bash
   dotnet --version  # 應輸出 9.0.x 或更高版本
   ```
 
-如果尚未安裝 .NET 9.0 SDK：
+如果尚未安裝 .NET 10.0 SDK：
 - **macOS**: `brew install dotnet@9`
 - **Windows**: 從 [dotnet.microsoft.com](https://dotnet.microsoft.com/download) 下載
 - **Linux**: 參考 [Microsoft 安裝說明](https://learn.microsoft.com/zh-tw/dotnet/core/install/linux)
@@ -261,7 +261,7 @@ chmod +x scripts/install-templates.sh
 bash scripts/install-templates.sh
 ```
 
-### 問題 3：找不到 .NET 9.0 SDK
+### 問題 3：找不到 .NET 10.0 SDK
 
 **症狀**：
 ```
@@ -269,7 +269,7 @@ dotnet: command not found
 ```
 
 **解決方式**：
-安裝 .NET 9.0 SDK：
+安裝 .NET 10.0 SDK：
 - macOS: `brew install dotnet@9`
 - Windows/Linux: 從 [dotnet.microsoft.com](https://dotnet.microsoft.com/download) 下載
 

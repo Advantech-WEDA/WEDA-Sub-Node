@@ -167,7 +167,7 @@ public class MyFeatureTests
 測試會在 Azure DevOps Pipeline 中自動執行：
 
 - **觸發條件**：每次 PR 和提交到 main/develop 分支
-- **環境**：Ubuntu Latest、.NET 9.0
+- **環境**：Ubuntu Latest、.NET 10.0
 - **覆蓋率檢查**：若覆蓋率 < 60% 則 Pipeline 失敗
 - **測試結果**：發佈為建置成品
 

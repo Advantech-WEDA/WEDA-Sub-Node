@@ -82,7 +82,7 @@ lang: "zh"
 
 ## 先決條件
 
-- .NET 9.0 SDK
+- .NET 10.0 SDK
 - 已安裝 Weda SubNode SDK 模板
 
 ## 快速開始

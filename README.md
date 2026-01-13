@@ -31,7 +31,7 @@ Everything is pre-installed: .NET SDK, project templates, and all development to
 Install dependencies manually on your local machine:
 
 **Requirements:**
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Code editor (VS Code, Visual Studio, or Rider)
 - Git (for cloning repository)
 
