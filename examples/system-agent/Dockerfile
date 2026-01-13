@@ -43,8 +43,7 @@ RUN RID=$(cat /rid.txt) && \
 
 # Runtime stage: Use slim runtime-deps for self-contained apps
 # runtime-deps is minimal, designed for self-contained .NET apps
-# FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-bookworm-slim
-FROM mcr.microsoft.com/dotnet/runtime:9.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/runtime:9.0-noble AS final
 
 # Declare TARGETARCH after FROM (buildx automatically provides this)
 ARG TARGETARCH
@@ -65,4 +64,4 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 USER root
 
 # Entry point
-ENTRYPOINT ["./SystemAgentDevice"]
+ENTRYPOINT ["/app/SystemAgentDevice"]
