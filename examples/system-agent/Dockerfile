@@ -57,6 +57,13 @@ COPY --from=build /app/publish/ ./
 # Ensure the main executable has execute permission
 RUN chmod +x SystemAgentDevice
 
+# Single layer for all runtime setup including CVE fix
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gpgv=2.4.4-2ubuntu17.4 && \
+    chmod +x dmagent script/run.sh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # Optional: reduce globalization dependencies
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
