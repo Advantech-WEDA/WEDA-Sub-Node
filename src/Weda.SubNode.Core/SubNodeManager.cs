@@ -33,8 +33,14 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 
     private IDisposable? _configSubscription;
     private IDisposable? _commandSubscription;
+    private CancellationTokenSource? _configSyncCts;
+    private Task? _configSyncTask;
     private bool _isInitialized;
     private string? _subNodeId;
+
+    // Track last config update status for periodic reports
+    private string _lastConfigUpdateStatus = ConfigUpdateStatus.Success;
+    private string? _lastConfigUpdateError;
 
 
     public SubNodeManager(
@@ -109,6 +115,9 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             // Step 3: Subscribe to cloud events (once for all devices)
             await SubscribeToCloudEventsAsync(_subNodeId, ct);
             _logger.LogInformation("Subscribed to cloud events");
+
+            // Step 4: Start configuration sync background task
+            StartConfigSyncTask();
 
             _isInitialized = true;
             _logger.LogInformation("SubNodeManager initialization completed successfully");
@@ -570,6 +579,27 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         Dictionary<string, ConfigUpdateResult>? applyResults,
         string overallStatus)
     {
+        // Capture error message for periodic reports
+        string? errorMessage = null;
+        foreach (var (deviceName, validationResult) in validationResults)
+        {
+            if (errorMessage != null) break;
+
+            if (!validationResult.IsValid)
+            {
+                errorMessage = $"Device '{deviceName}': {validationResult.ErrorMessage}";
+            }
+            else if (applyResults?.TryGetValue(deviceName, out var applyResult) == true &&
+                     applyResult.Status == DeviceConfigUpdateStatus.Failed)
+            {
+                errorMessage = $"Device '{deviceName}': {applyResult.ErrorMessage}";
+            }
+        }
+
+        // Update last config update status for periodic reports
+        _lastConfigUpdateStatus = overallStatus;
+        _lastConfigUpdateError = errorMessage;
+
         var report = ConfigurationUpdateHelper.CreateAggregatedReport(
             message,
             _deviceRegistry,
@@ -655,9 +685,82 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Starts the background task for periodic configuration sync.
+    /// Reports aggregated configuration of all devices to cloud at the minimum ReportConfiguration period.
+    /// </summary>
+    private void StartConfigSyncTask()
+    {
+        // Get minimum ReportConfiguration period from all devices
+        var devices = _deviceRegistry.GetAllDevices();
+        var minPeriod = devices
+            .Select(d => d.Configuration.Periods.ReportConfiguration)
+            .Where(p => p > 0)
+            .DefaultIfEmpty(0)
+            .Min();
+
+        if (minPeriod <= 0)
+        {
+            _logger.LogDebug("Configuration sync disabled (all devices have ReportConfiguration period = 0)");
+            return;
+        }
+
+        _configSyncCts = new CancellationTokenSource();
+        var ct = _configSyncCts.Token;
+
+        _configSyncTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting configuration sync task with period {Period}ms", minPeriod);
+
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(minPeriod, ct);
+
+                    if (string.IsNullOrEmpty(_subNodeId))
+                        continue;
+
+                    var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
+                        _subNodeId,
+                        "default",
+                        _deviceRegistry,
+                        _lastConfigUpdateStatus,
+                        _lastConfigUpdateError);
+
+                    await _cloudService.PublishConfigurationReportAsync(
+                        SubscriptionTypes.DeviceConfig,
+                        report,
+                        ct);
+
+                    _logger.LogDebug("Configuration sync completed for SubNode {SubNodeId}", _subNodeId);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    _logger.LogInformation("Configuration sync task cancelled");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in configuration sync task");
+                }
+            }
+        }, ct);
+
+        _logger.LogInformation("Configuration sync task started with period {Period}ms", minPeriod);
+    }
+
     public async ValueTask DisposeAsync()
     {
         _logger.LogDebug("Disposing SubNodeManager");
+
+        // Cancel and wait for config sync task
+        if (_configSyncCts != null)
+        {
+            await _configSyncCts.CancelAsync();
+            _configSyncCts.Dispose();
+            _configSyncCts = null;
+        }
 
         _configSubscription?.Dispose();
         _commandSubscription?.Dispose();
