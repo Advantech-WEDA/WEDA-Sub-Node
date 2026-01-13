@@ -1,4 +1,6 @@
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -239,4 +241,47 @@ public interface IDevice : IDisposable
     /// <param name="resourceId">The sensor ResourceId to search for</param>
     /// <returns>The sensor instance or null</returns>
     Sensor? FindSensorByResourceId(string resourceId);
+
+    // ===== Two-Phase Configuration Update (Transaction Semantics) =====
+
+    /// <summary>
+    /// Phase 1: Validates configuration update without modifying state.
+    /// Called by SubNodeManager to validate all devices before applying any.
+    /// </summary>
+    /// <param name="message">The configuration update message</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Validation result with status and optional error message</returns>
+    Task<ConfigUpdateValidationResult> ValidateConfigurationUpdateAsync(
+        SubNodeConfigUpdateMessage message,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Phase 2: Applies a validated configuration update.
+    /// Only called after all devices pass validation.
+    /// </summary>
+    /// <param name="message">The configuration update message</param>
+    /// <param name="backup">The backup created before apply phase</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Result of applying the configuration</returns>
+    Task<ConfigUpdateResult> ApplyValidatedConfigurationAsync(
+        SubNodeConfigUpdateMessage message,
+        DeviceConfigurationBackup backup,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Rollback configuration to a backup state.
+    /// Called when any device fails during the apply phase.
+    /// </summary>
+    /// <param name="backup">The backup to restore from</param>
+    /// <param name="ct">Cancellation token</param>
+    Task RollbackConfigurationAsync(
+        DeviceConfigurationBackup backup,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Creates a backup of the current configuration.
+    /// Called by SubNodeManager before the apply phase.
+    /// </summary>
+    /// <returns>A backup that can be used for rollback</returns>
+    DeviceConfigurationBackup CreateConfigurationBackup();
 }

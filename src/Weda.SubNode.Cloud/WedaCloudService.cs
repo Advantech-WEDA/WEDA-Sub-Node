@@ -377,12 +377,9 @@ public sealed class WedaCloudService : IWedaCloudService
                 topic: configSub.DesiredTopic,
                 handler: async msg =>
                 {
-                    // Log with null-coalescing to show "(empty)" for debugging
                     _logger.LogInformation(
-                        "Received configuration update: Type={Type}, DeviceId={DeviceId}, Cmd={Cmd}, SeqId={SeqId}",
+                        "Received configuration update: Type={Type}, SeqId={SeqId}",
                         configSub.Type.Value,
-                        string.IsNullOrEmpty(msg.DeviceId) ? "(empty)" : msg.DeviceId,
-                        string.IsNullOrEmpty(msg.Cmd) ? "(empty)" : msg.Cmd,
                         msg.SeqId);
 
                     // Skip messages with no actual configuration data (e.g., JetStream replays or acks)
@@ -495,7 +492,7 @@ public sealed class WedaCloudService : IWedaCloudService
             "Publishing configuration report: DeviceId={DeviceId}, Type={ConfigType}, Status={Status}, Topic={Topic}",
             report.DeviceId,
             configType.Value,
-            report.Data?.Cfg?.Reported?.Status ?? "unknown",
+            report.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status ?? "unknown",
             reportedTopic);
 
         try

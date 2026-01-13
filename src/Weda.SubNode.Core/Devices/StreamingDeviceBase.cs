@@ -51,7 +51,7 @@ public class StreamingDeviceBase : DeviceBase
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         IStreamingProtocolParser parser)
-        : base(context, configuration, parser.Communication)
+        : base(context, configuration, parser)
     {
         _parser = parser ?? throw new ArgumentNullException(nameof(parser));
 
