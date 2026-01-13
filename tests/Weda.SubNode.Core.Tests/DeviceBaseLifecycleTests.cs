@@ -7,6 +7,7 @@ using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Devices;
 using Weda.SubNode.TestBase;
@@ -25,6 +26,7 @@ public class DeviceBaseLifecycleTests : IDisposable
     private readonly MockApplicationContext _context;
     private readonly IWedaCloudService _mockCloudService;
     private readonly ICommunication _mockCommunication;
+    private readonly IProtocolParserCore _mockProtocolParser;
     private readonly DeviceConfiguration _testConfig;
 
     public DeviceBaseLifecycleTests()
@@ -33,6 +35,13 @@ public class DeviceBaseLifecycleTests : IDisposable
         _context = new MockApplicationContext();
         _mockCloudService = _context.MockCloudService;
         _mockCommunication = _context.MockCommunication;
+
+        // Create mock protocol parser that wraps the mock communication
+        _mockProtocolParser = Substitute.For<IProtocolParserCore>();
+        _mockProtocolParser.Communication.Returns(_mockCommunication);
+        _mockProtocolParser.ProtocolName.Returns("Test Protocol");
+        _mockProtocolParser.SupportedDataTypes.Returns(new List<string> { "Int16", "Float32" });
+        _mockProtocolParser.SupportsBidirectional.Returns(true);
 
         _testConfig = DeviceConfigurationBuilder.Default()
             .WithDeviceName("test-device")
@@ -83,12 +92,12 @@ public class DeviceBaseLifecycleTests : IDisposable
 
     private TestDevice CreateTestDevice()
     {
-        return new TestDevice(_context, _testConfig, _mockCommunication);
+        return new TestDevice(_context, _testConfig, _mockProtocolParser);
     }
 
     private TestDevice CreateTestDevice(DeviceConfiguration config)
     {
-        return new TestDevice(_context, config, _mockCommunication);
+        return new TestDevice(_context, config, _mockProtocolParser);
     }
 
     #endregion
@@ -714,8 +723,8 @@ internal class TestDevice : DeviceBase
     public TestDevice(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
-        ICommunication communication)
-        : base(context, configuration, communication)
+        IProtocolParserCore protocolParser)
+        : base(context, configuration, protocolParser)
     {
     }
 

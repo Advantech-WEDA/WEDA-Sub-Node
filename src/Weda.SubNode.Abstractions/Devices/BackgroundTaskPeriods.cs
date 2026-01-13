@@ -5,8 +5,8 @@ namespace Weda.SubNode.Abstractions.Devices;
 /// </summary>
 public class BackgroundTaskPeriods
 {
-    public const int MinReportConfigurationPeriod = 60_000;
-    public const int DefaultReportConfigurationPeriod = 1_800_000;
+    public const int MinReportConfigurationPeriod = 10_000;
+    public const int DefaultReportConfigurationPeriod = 60_000;
 
     /// <summary>
     /// Health reporting period (default: 60000ms = 1 minute)
