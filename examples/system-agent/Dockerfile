@@ -2,7 +2,7 @@
 
 # Build stage: FORCE AMD64 for build to avoid QEMU issues
 # The SDK will cross-compile to target architecture
-FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:9.0.11 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:9.0 AS build
 
 # Declare TARGETARCH (buildx provides this based on --platform flag)
 ARG TARGETARCH
