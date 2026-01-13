@@ -2,10 +2,14 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Core.Configuration;
+using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core;
@@ -18,6 +22,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 {
     private readonly IWedaCloudService _cloudService;
     private readonly SubNodeInfo _subNodeInfo;
+    private readonly IDeviceRegistry _deviceRegistry;
     private readonly ILogger<SubNodeManager> _logger;
 
     private readonly ResiliencePipeline<bool> _pipeline;
@@ -28,13 +33,21 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 
     private IDisposable? _configSubscription;
     private IDisposable? _commandSubscription;
+    private CancellationTokenSource? _configSyncCts;
+    private Task? _configSyncTask;
     private bool _isInitialized;
     private string? _subNodeId;
+
+    // Track last config update status for periodic reports
+    private string _lastConfigUpdateStatus = ConfigUpdateStatus.Success;
+    private string? _lastConfigUpdateError;
+
 
     public SubNodeManager(
         IWedaCloudService cloudService,
         SubNodeInfo subNodeInfo,
         ConnectionOptions connectionOptions,
+        IDeviceRegistry deviceRegistry,
         ILogger<SubNodeManager> logger)
     {
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
@@ -42,6 +55,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
         _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
+        _deviceRegistry = deviceRegistry;
 
         // Unlimited retry pipeline for upload (handles Device.NotFound with exponential backoff)
         _uploadPipeline = RetryPolicyFactory.CreateAlwaysRetryBool(
@@ -101,6 +115,9 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             // Step 3: Subscribe to cloud events (once for all devices)
             await SubscribeToCloudEventsAsync(_subNodeId, ct);
             _logger.LogInformation("Subscribed to cloud events");
+
+            // Step 4: Start configuration sync background task
+            StartConfigSyncTask();
 
             _isInitialized = true;
             _logger.LogInformation("SubNodeManager initialization completed successfully");
@@ -233,7 +250,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// <inheritdoc />
     public void RegisterDeviceHandler(
         string deviceName,
-        Func<UpdateConfigurationEvent, Task> configHandler,
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler,
         Func<ExecuteCommandEvent, Task>? commandHandler = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
@@ -371,55 +388,262 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Handles DeviceConfig updates.
-    /// SubNodeManager dispatches to individual devices based on DeviceConfigs keys.
+    /// Handles DeviceConfig updates with transaction semantics.
+    /// SubNode is the Aggregation Root - all devices must succeed or all rollback.
+    /// Publishes a single aggregated report containing all device configurations.
     /// </summary>
     private async Task HandleDeviceConfigUpdateAsync(UpdateConfigurationEvent e)
     {
         _logger.LogInformation("Handling DeviceConfig update: SeqId={SeqId}", e.Message?.SeqId);
 
-        var deviceConfigs = e.Message?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
-
-        if (deviceConfigs == null || deviceConfigs.Count == 0)
+        var message = e.Message;
+        if (message == null)
         {
-            _logger.LogDebug("No DeviceConfigs in message, broadcasting to all devices");
-
-            // Broadcast to all registered devices
-            foreach (var (deviceName, handlers) in _deviceHandlers)
-            {
-                try
-                {
-                    await handlers.ConfigHandler(e);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
-                }
-            }
+            _logger.LogWarning("DeviceConfig update message is null");
             return;
         }
 
-        // Dispatch to specific devices based on DeviceConfigs keys
-        _logger.LogDebug("Dispatching DeviceConfig to {Count} device(s)", deviceConfigs.Count);
+        // Determine which devices to update
+        var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        var targetDeviceNames = GetTargetDeviceNames(deviceConfigs);
 
-        foreach (var deviceName in deviceConfigs.Keys)
+        if (targetDeviceNames.Count == 0)
         {
-            if (_deviceHandlers.TryGetValue(deviceName, out var handlers))
+            _logger.LogDebug("No target devices for config update");
+            return;
+        }
+
+        _logger.LogInformation("Processing config update for {Count} device(s): {Devices}",
+            targetDeviceNames.Count, string.Join(", ", targetDeviceNames));
+
+        // ===== Phase 1: Validate All =====
+        var validationResults = new Dictionary<string, ConfigUpdateValidationResult>();
+        var hasValidationFailure = false;
+
+        foreach (var deviceName in targetDeviceNames)
+        {
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device == null)
             {
-                _logger.LogDebug("Dispatching to device: {DeviceName}", deviceName);
-                try
+                _logger.LogWarning("Device {DeviceName} not found in registry", deviceName);
+                continue;
+            }
+
+            var validationResult = await device.ValidateConfigurationUpdateAsync(message, default);
+            validationResults[deviceName] = validationResult;
+
+            if (!validationResult.IsValid)
+            {
+                hasValidationFailure = true;
+                _logger.LogWarning("Validation failed for device {DeviceName}: {Error}",
+                    deviceName, validationResult.ErrorMessage);
+            }
+        }
+
+        // If any validation failed, publish aggregated failed report and return
+        if (hasValidationFailure)
+        {
+            _logger.LogError("Transaction aborted: validation failed for one or more devices");
+            await PublishAggregatedReportAsync(e, message, validationResults, null, ConfigUpdateStatus.Invalid);
+            return;
+        }
+
+        // Check if all devices are skipped (no update required)
+        if (validationResults.Values.All(r => r.IsSkipped))
+        {
+            _logger.LogDebug("All devices skipped - no update required");
+            return;
+        }
+
+        // ===== Phase 2: Create Backups =====
+        var backups = new Dictionary<string, DeviceConfigurationBackup>();
+        var devicesToUpdate = validationResults
+            .Where(kvp => !kvp.Value.IsSkipped)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var deviceName in devicesToUpdate)
+        {
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device != null)
+            {
+                backups[deviceName] = device.CreateConfigurationBackup();
+            }
+        }
+
+        _logger.LogDebug("Created backups for {Count} device(s)", backups.Count);
+
+        // ===== Phase 3: Apply All (with rollback on failure) =====
+        var applyResults = new Dictionary<string, ConfigUpdateResult>();
+        var appliedDevices = new List<string>();
+        var hasApplyFailure = false;
+        string? failedDeviceName = null;
+
+        foreach (var deviceName in devicesToUpdate)
+        {
+            var device = _deviceRegistry.FindDevice(deviceName);
+            if (device == null)
+                continue;
+
+            var backup = backups[deviceName];
+            var applyResult = await device.ApplyValidatedConfigurationAsync(message, backup, default);
+            applyResults[deviceName] = applyResult;
+
+            if (applyResult.Status == DeviceConfigUpdateStatus.Failed)
+            {
+                hasApplyFailure = true;
+                failedDeviceName = deviceName;
+                _logger.LogError("Apply failed for device {DeviceName}: {Error}",
+                    deviceName, applyResult.ErrorMessage);
+                break;
+            }
+
+            appliedDevices.Add(deviceName);
+            _logger.LogDebug("Successfully applied config to device {DeviceName}", deviceName);
+        }
+
+        // Rollback if any apply failed
+        if (hasApplyFailure)
+        {
+            // Include the failed device in rollback (it may have partial changes)
+            var devicesToRollback = new List<string>(appliedDevices);
+            if (failedDeviceName != null && !devicesToRollback.Contains(failedDeviceName))
+            {
+                devicesToRollback.Add(failedDeviceName);
+            }
+
+            _logger.LogWarning("Transaction failed at device {DeviceName}, rolling back {Count} device(s)",
+                failedDeviceName, devicesToRollback.Count);
+
+            foreach (var deviceName in devicesToRollback)
+            {
+                var device = _deviceRegistry.FindDevice(deviceName);
+                if (device != null && backups.TryGetValue(deviceName, out var backup))
                 {
-                    await handlers.ConfigHandler(e);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in config handler for device: {DeviceName}", deviceName);
+                    await device.RollbackConfigurationAsync(backup, default);
+                    _logger.LogInformation("Rolled back device {DeviceName}", deviceName);
                 }
             }
-            else
+
+            await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Failed);
+            return;
+        }
+
+        // ===== Phase 4: Update RawDeviceCfgJson and Publish Aggregated Success Report =====
+        // Update RawDeviceCfgJson with the desired config from the message
+        // This ensures Report content reflects the last applied configuration
+        UpdateRawDeviceCfgJson(message, appliedDevices);
+
+        var hasDtmiDelta = validationResults.Values.Any(r => r.HasDtmiDelta) ||
+                          applyResults.Values.Any(r => r.HasDtmiDelta);
+
+        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
+
+        // Re-upload configurations if DTMI delta detected
+        if (hasDtmiDelta)
+        {
+            _logger.LogInformation("DTMI delta detected, triggering configuration re-upload");
+            var devices = _deviceRegistry.GetAllDevices().ToList();
+            var configurations = new DeviceConfigurations(devices);
+            await UploadDeviceConfigurationsAsync(configurations, default);
+        }
+
+        _logger.LogInformation("DeviceConfig update transaction completed successfully for {Count} device(s)",
+            devicesToUpdate.Count);
+    }
+
+    /// <summary>
+    /// Gets the list of device names to update from the message.
+    /// </summary>
+    private List<string> GetTargetDeviceNames(Dictionary<string, SubNodeDeviceConfigDto>? deviceConfigs)
+    {
+        if (deviceConfigs == null || deviceConfigs.Count == 0)
+        {
+            // Broadcast to all registered devices
+            return _deviceHandlers.Keys.ToList();
+        }
+
+        // Only update devices specified in the message
+        return deviceConfigs.Keys
+            .Where(name => _deviceHandlers.ContainsKey(name))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Publishes an aggregated configuration report containing all device configurations.
+    /// </summary>
+    private async Task PublishAggregatedReportAsync(
+        UpdateConfigurationEvent e,
+        SubNodeConfigUpdateMessage message,
+        Dictionary<string, ConfigUpdateValidationResult> validationResults,
+        Dictionary<string, ConfigUpdateResult>? applyResults,
+        string overallStatus)
+    {
+        // Capture error message for periodic reports
+        string? errorMessage = null;
+        foreach (var (deviceName, validationResult) in validationResults)
+        {
+            if (errorMessage != null) break;
+
+            if (!validationResult.IsValid)
             {
-                _logger.LogWarning("No handler registered for device: {DeviceName}", deviceName);
+                errorMessage = $"Device '{deviceName}': {validationResult.ErrorMessage}";
             }
+            else if (applyResults?.TryGetValue(deviceName, out var applyResult) == true &&
+                     applyResult.Status == DeviceConfigUpdateStatus.Failed)
+            {
+                errorMessage = $"Device '{deviceName}': {applyResult.ErrorMessage}";
+            }
+        }
+
+        // Update last config update status for periodic reports
+        _lastConfigUpdateStatus = overallStatus;
+        _lastConfigUpdateError = errorMessage;
+
+        var report = ConfigurationUpdateHelper.CreateAggregatedReport(
+            message,
+            _deviceRegistry,
+            validationResults,
+            applyResults,
+            overallStatus);
+
+        _logger.LogInformation("Publishing aggregated {Status} report for {Count} device(s)",
+            overallStatus, validationResults.Count);
+
+        await _cloudService.PublishConfigurationReportAsync(e.ConfigType, report, default);
+    }
+
+    /// <summary>
+    /// Updates RawDeviceCfgJson on each successfully applied device with the desired configuration.
+    /// This ensures Report content reflects the last applied cloud configuration.
+    /// </summary>
+    private void UpdateRawDeviceCfgJson(
+        SubNodeConfigUpdateMessage message,
+        List<string> appliedDevices)
+    {
+        // Use RawDeviceCfg (raw JSON) to preserve original structure (e.g., SensorInfo)
+        var rawDeviceCfg = message.Data?.Cfg?.Desired?.RawDeviceCfg;
+        if (!rawDeviceCfg.HasValue)
+            return;
+
+        try
+        {
+            var rawJson = rawDeviceCfg.Value.Clone();
+
+            // Update each applied device's RawDeviceCfgJson
+            foreach (var deviceName in appliedDevices)
+            {
+                var device = _deviceRegistry.FindDevice(deviceName);
+                if (device != null)
+                {
+                    device.Configuration.RawDeviceCfgJson = rawJson;
+                    _logger.LogDebug("Updated RawDeviceCfgJson for device {DeviceName}", deviceName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update RawDeviceCfgJson for applied devices");
         }
     }
 
@@ -461,9 +685,82 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Starts the background task for periodic configuration sync.
+    /// Reports aggregated configuration of all devices to cloud at the minimum ReportConfiguration period.
+    /// </summary>
+    private void StartConfigSyncTask()
+    {
+        // Get minimum ReportConfiguration period from all devices
+        var devices = _deviceRegistry.GetAllDevices();
+        var minPeriod = devices
+            .Select(d => d.Configuration.Periods.ReportConfiguration)
+            .Where(p => p > 0)
+            .DefaultIfEmpty(0)
+            .Min();
+
+        if (minPeriod <= 0)
+        {
+            _logger.LogDebug("Configuration sync disabled (all devices have ReportConfiguration period = 0)");
+            return;
+        }
+
+        _configSyncCts = new CancellationTokenSource();
+        var ct = _configSyncCts.Token;
+
+        _configSyncTask = Task.Run(async () =>
+        {
+            _logger.LogDebug("Starting configuration sync task with period {Period}ms", minPeriod);
+
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(minPeriod, ct);
+
+                    if (string.IsNullOrEmpty(_subNodeId))
+                        continue;
+
+                    var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
+                        _subNodeId,
+                        "default",
+                        _deviceRegistry,
+                        _lastConfigUpdateStatus,
+                        _lastConfigUpdateError);
+
+                    await _cloudService.PublishConfigurationReportAsync(
+                        SubscriptionTypes.DeviceConfig,
+                        report,
+                        ct);
+
+                    _logger.LogDebug("Configuration sync completed for SubNode {SubNodeId}", _subNodeId);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    _logger.LogInformation("Configuration sync task cancelled");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in configuration sync task");
+                }
+            }
+        }, ct);
+
+        _logger.LogInformation("Configuration sync task started with period {Period}ms", minPeriod);
+    }
+
     public async ValueTask DisposeAsync()
     {
         _logger.LogDebug("Disposing SubNodeManager");
+
+        // Cancel and wait for config sync task
+        if (_configSyncCts != null)
+        {
+            await _configSyncCts.CancelAsync();
+            _configSyncCts.Dispose();
+            _configSyncCts = null;
+        }
 
         _configSubscription?.Dispose();
         _commandSubscription?.Dispose();
@@ -480,6 +777,6 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// Container for device-specific event handlers.
     /// </summary>
     private sealed record DeviceHandlers(
-        Func<UpdateConfigurationEvent, Task> ConfigHandler,
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> ConfigHandler,
         Func<ExecuteCommandEvent, Task>? CommandHandler);
 }

@@ -42,7 +42,7 @@ public class HardwarePlatformCollector
             metrics.LibraryVersion = _advantechEdgeDevice.PlatformInformation.LibraryVersion ?? string.Empty;
             metrics.EcRevision = _advantechEdgeDevice.PlatformInformation.EcRevision ?? string.Empty;
 
-            _logger.LogInformation("Hardware platform information collected: Motherboard={Motherboard}, Manufacturer={Manufacturer}, BIOS={Bios}",
+            _logger.LogDebug("Hardware platform information collected: Motherboard={Motherboard}, Manufacturer={Manufacturer}, BIOS={Bios}",
                 metrics.MotherboardName, metrics.Manufacturer, metrics.BiosRevision);
         }
         catch (Exception ex)
@@ -82,7 +82,7 @@ public class HardwarePlatformCollector
                 {
                     var temperature = _advantechEdgeDevice.OnboardSensors.GetTemperature(source);
                     metrics.Temperatures[source.ToString()] = temperature;
-                    _logger.LogInformation($"{source} Temperature: {temperature} °C");
+                    _logger.LogDebug($"{source} Temperature: {temperature} °C");
                 }
                 catch (Exception ex)
                 {
@@ -90,7 +90,7 @@ public class HardwarePlatformCollector
                 }
             }
 
-            _logger.LogInformation("Temperature metrics collected: {Count} sensors", temperatureSources.Length);
+            _logger.LogDebug("Temperature metrics collected: {Count} sensors", temperatureSources.Length);
         }
         catch (Exception ex)
         {
@@ -136,7 +136,7 @@ public class HardwarePlatformCollector
                 }
             }
 
-            _logger.LogInformation("Voltage metrics collected: {Count} sensors", voltageSources.Length);
+            _logger.LogDebug("Voltage metrics collected: {Count} sensors", voltageSources.Length);
         }
         catch (Exception ex)
         {
@@ -182,7 +182,7 @@ public class HardwarePlatformCollector
                 }
             }
 
-            _logger.LogInformation("Fan speed metrics collected: {Count} fans", fanSources.Length);
+            _logger.LogDebug("Fan speed metrics collected: {Count} fans", fanSources.Length);
         }
         catch (Exception ex)
         {

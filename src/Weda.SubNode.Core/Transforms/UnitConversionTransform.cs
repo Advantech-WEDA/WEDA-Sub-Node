@@ -101,7 +101,8 @@ public class UnitConversionTransform : ITelemetryTransform, IConfigurableTransfo
 
         var transformed = measures.Select(measure =>
         {
-            if (measure.Value is not double and not int and not float)
+            // Skip null or non-numeric values
+            if (measure.Value is null or not double and not int and not float)
                 return measure;
 
             var value = Convert.ToDouble(measure.Value);

@@ -248,6 +248,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             _cloudService,
             _subNodeInfo,
             _options.ConnectionOptions,
+            _deviceRegistry,
             _loggerFactory.CreateLogger<SubNodeManager>());
     }
 
@@ -483,11 +484,13 @@ public class WedaApplicationContext : IWedaApplicationContext
     }
 
     private const string DeviceConfigurationSectionName = "DeviceConfig:DeviceConfigs";
+    private const string DeviceCfgFileName = "devicecfg.json";
 
     /// <summary>
     /// Loads all device configurations from the "DeviceConfig:DeviceConfigs" section.
     /// Located under DeviceConfig section (loaded from devicecfg.json into DeviceConfig section).
     /// Each configuration is enriched with DeviceName (from key) and SubNodeInfo.
+    /// Also stores the raw JSON from devicecfg.json for Report content.
     /// </summary>
     private DeviceConfigurations LoadAllDeviceConfigurations()
     {
@@ -506,6 +509,9 @@ public class WedaApplicationContext : IWedaApplicationContext
             logger.LogDebug("No '{SectionName}' section found in configuration", DeviceConfigurationSectionName);
             return configs;
         }
+
+        // Load raw devicecfg.json for RawDeviceCfgJson (used in Report)
+        var rawDeviceCfgJson = LoadRawDeviceCfgJson(logger);
 
         foreach (var configSection in deviceConfigsSection.GetChildren())
         {
@@ -538,7 +544,11 @@ public class WedaApplicationContext : IWedaApplicationContext
                 // Auto-enrich: Attach SubNodeInfo
                 deviceConfig.SubNodeInfo = _subNodeInfo;
 
+                // Store raw devicecfg.json (for Report content)
+                deviceConfig.RawDeviceCfgJson = rawDeviceCfgJson;
+
                 // Try applying cached cloud configuration (PATCH semantics)
+                // Note: If cache is applied, RawDeviceCfgJson will be updated
                 ApplyCachedConfigurationIfExists(deviceConfig, logger);
 
                 // Auto-load DTDL if enabled
@@ -567,8 +577,37 @@ public class WedaApplicationContext : IWedaApplicationContext
     }
 
     /// <summary>
+    /// Loads the raw JSON content from devicecfg.json for Report content.
+    /// This preserves the original file content for accurate reporting.
+    /// </summary>
+    private System.Text.Json.JsonElement? LoadRawDeviceCfgJson(Microsoft.Extensions.Logging.ILogger logger)
+    {
+        try
+        {
+            var deviceCfgPath = Path.Combine(Directory.GetCurrentDirectory(), DeviceCfgFileName);
+            if (!File.Exists(deviceCfgPath))
+            {
+                logger.LogDebug("devicecfg.json not found at {Path}, RawDeviceCfgJson will be null", deviceCfgPath);
+                return null;
+            }
+
+            var jsonContent = File.ReadAllText(deviceCfgPath);
+            var jsonDocument = System.Text.Json.JsonDocument.Parse(jsonContent);
+
+            logger.LogDebug("Loaded raw devicecfg.json from {Path}", deviceCfgPath);
+            return jsonDocument.RootElement.Clone();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to load raw devicecfg.json");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Applies cached cloud configuration to a device config if cache exists.
     /// Device configurations are stored in the device-config cache.
+    /// Also updates RawDeviceCfgJson from the cache's desired state.
     /// </summary>
     private void ApplyCachedConfigurationIfExists(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
     {
@@ -581,13 +620,30 @@ public class WedaApplicationContext : IWedaApplicationContext
             if (cachedMessage == null)
                 return;
 
+            // Log before applying
+            var desiredSensorCount = cachedMessage.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs
+                ?.GetValueOrDefault(deviceConfig.DeviceName)?.Sensors?.Count ?? 0;
+            var currentSensorCount = deviceConfig.Sensors.Count;
+            logger.LogDebug(
+                "Applying cached configuration to '{DeviceName}': current sensors={CurrentCount}, desired sensors={DesiredCount}",
+                deviceConfig.DeviceName, currentSensorCount, desiredSensorCount);
+
             var applied = ConfigurationUpdateHelper.ApplyCachedConfiguration(deviceConfig, cachedMessage);
             if (applied)
             {
+                // Update RawDeviceCfgJson from cache's desired state (use raw JSON to preserve structure)
+                // This ensures Report reflects the last applied cloud configuration with all fields
+                var rawDeviceCfg = cachedMessage.Data?.Cfg?.Desired?.RawDeviceCfg;
+                if (rawDeviceCfg.HasValue)
+                {
+                    deviceConfig.RawDeviceCfgJson = rawDeviceCfg.Value.Clone();
+                }
+
                 logger.LogInformation(
-                    "Applied cached cloud configuration to '{DeviceName}' from {CachePath}",
+                    "Applied cached cloud configuration to '{DeviceName}' from {CachePath}, final sensor count={SensorCount}",
                     deviceConfig.DeviceName,
-                    _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig));
+                    _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig),
+                    deviceConfig.Sensors.Count);
             }
         }
         catch (Exception ex)

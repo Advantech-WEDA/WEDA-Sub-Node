@@ -41,21 +41,13 @@ RUN RID=$(cat /rid.txt) && \
       -p:DebugType=none \
       -o /app/publish
 
-# Runtime stage: Use target platform runtime
-FROM mcr.microsoft.com/dotnet/runtime:9.0
+# Runtime stage: Use slim runtime-deps for self-contained apps
+# runtime-deps is minimal, designed for self-contained .NET apps
+# FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-bookworm-slim
+FROM mcr.microsoft.com/dotnet/runtime:9.0-alpine AS final
 
 # Declare TARGETARCH after FROM (buildx automatically provides this)
 ARG TARGETARCH
-
-# Install required dependencies for Advantech SUSI Driver
-RUN apt-get update && apt-get install -y \
-    libc6 \
-    libgcc-s1 \
-    libstdc++6 \
-    sudo \
-    wget \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app

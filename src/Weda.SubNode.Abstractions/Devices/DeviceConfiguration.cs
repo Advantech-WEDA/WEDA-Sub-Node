@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
@@ -60,6 +61,15 @@ public class DeviceConfiguration
     public Dictionary<string, object> Metadata { get; set; } = [];
 
     #region Runtime Properties
+
+    /// <summary>
+    /// Raw device configuration JSON for reporting.
+    /// - Initialized from devicecfg.json during startup
+    /// - Updated from desired.devicecfg after successful config-update
+    /// This is used directly in Report to ensure consistency with config files.
+    /// </summary>
+    [JsonIgnore]
+    public JsonElement? RawDeviceCfgJson { get; set; }
 
     /// <summary>
     /// Populated during device initialization from SubNode section.

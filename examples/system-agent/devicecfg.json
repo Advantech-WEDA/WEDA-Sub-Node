@@ -23,6 +23,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 5000
+          },
+          "SensorInfo": { 
+            "Schema": "double",
+            "Description": "SensorInfo Description for cpu.usage",
+            "DisplayName": "SensorInfo DisplayName for cpu.usage"
           }
         },
         {
@@ -35,6 +40,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for cpu.load.1m",
+            "DisplayName": "SensorInfo DisplayName for cpu.load.1m"
           }
         },
         {
@@ -47,6 +57,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for cpu.load.5m",
+            "DisplayName": "SensorInfo DisplayName for cpu.load.5m"
           }
         },
         {
@@ -59,6 +74,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for cpu.load.15m",
+            "DisplayName": "SensorInfo DisplayName for cpu.load.15m"
           }
         },
         {
@@ -71,6 +91,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for memory.total",
+            "DisplayName": "SensorInfo DisplayName for memory.total"
           }
         },
         {
@@ -83,6 +108,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for memory.available",
+            "DisplayName": "SensorInfo DisplayName for memory.available"
           }
         },
         {
@@ -95,6 +125,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for memory.used",
+            "DisplayName": "SensorInfo DisplayName for memory.used"
           }
         },
         {
@@ -107,6 +142,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for memory.cached",
+            "DisplayName": "SensorInfo DisplayName for memory.cached"
           }
         },
         {
@@ -120,6 +160,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for disk.root.total",
+            "DisplayName": "SensorInfo DisplayName for disk.root.total"
           }
         },
         {
@@ -133,6 +178,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for disk.root.available",
+            "DisplayName": "SensorInfo DisplayName for disk.root.available"
           }
         },
         {
@@ -146,6 +196,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for disk.root.used",
+            "DisplayName": "SensorInfo DisplayName for disk.root.used"
           }
         },
         {
@@ -159,6 +214,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for disk.root.usage_percent",
+            "DisplayName": "SensorInfo DisplayName for disk.root.usage_percent"
           }
         },
         {
@@ -172,6 +232,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for network.en0.bytes_sent",
+            "DisplayName": "SensorInfo DisplayName for network.en0.bytes_sent"
           }
         },
         {
@@ -185,6 +250,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for network.en0.bytes_received",
+            "DisplayName": "SensorInfo DisplayName for network.en0.bytes_received"
           }
         },
         {
@@ -198,6 +268,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for network.en0.packets_sent",
+            "DisplayName": "SensorInfo DisplayName for network.en0.packets_sent"
           }
         },
         {
@@ -211,6 +286,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for network.en0.packets_received",
+            "DisplayName": "SensorInfo DisplayName for network.en0.packets_received"
           }
         },
         {
@@ -224,6 +304,11 @@
           "Report": {
             "Enabled": true,
             "Interval": 25000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "SensorInfo Description for network.en0.errors",
+            "DisplayName": "SensorInfo DisplayName for network.en0.errors"
           }
         },
         {
@@ -232,9 +317,14 @@
             "MetricType": "hwinfo",
             "MetricName": "motherboardname"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 60000
+          },
+          "SensorInfo": {
+            "Schema": "string",
+            "Description": "SensorInfo Description for hwinfo.motherboard",
+            "DisplayName": "SensorInfo DisplayName for hwinfo.motherboard"
           }
         },
         {
@@ -242,9 +332,14 @@
           "Parameters": {
             "MetricType": "temperature"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for temperature",
+            "DisplayName": "SensorInfo DisplayName for temperature"
           }
         },
         {
@@ -252,9 +347,14 @@
           "Parameters": {
             "MetricType": "voltage"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for voltage",
+            "DisplayName": "SensorInfo DisplayName for voltage"
           }
         },
         {
@@ -262,9 +362,14 @@
           "Parameters": {
             "MetricType": "fanspeed"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "SensorInfo Description for fanspeed",
+            "DisplayName": "SensorInfo DisplayName for fanspeed"
           }
         },
         {
@@ -272,9 +377,14 @@
           "Parameters": {
             "MetricType": "gpio"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "SensorInfo Description for gpio",
+            "DisplayName": "SensorInfo DisplayName for gpio"
           }
         },
         {
@@ -282,9 +392,14 @@
           "Parameters": {
             "MetricType": "watchdog"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "boolean",
+            "Description": "SensorInfo Description for watchdog",
+            "DisplayName": "SensorInfo DisplayName for watchdog"
           }
         },
         {
@@ -292,9 +407,14 @@
           "Parameters": {
             "MetricType": "thermalprotection"
           },
-          "Config": {
+          "Report": {
             "Enabled": true,
             "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "boolean",
+            "Description": "SensorInfo Description for thermalprotection",
+            "DisplayName": "SensorInfo DisplayName for thermalprotection"
           }
         }
       ]

@@ -1,6 +1,6 @@
 {
   "SubNode": {
-    "Name": "TestDevice456",
+    "Name": "TestDevice",
     "SubNodeType": "AdamEthernet",
     "Manufacturer": "Advantech",
     "Model": "Demo",
@@ -43,7 +43,6 @@
                 "Type": "UnitConversion",
                 "Enabled": true,
                 "Parameters": {
-                  "TargetResourceId": "*",
                   "FromUnit": "celsius",
                   "ToUnit": "fahrenheit"
                 }

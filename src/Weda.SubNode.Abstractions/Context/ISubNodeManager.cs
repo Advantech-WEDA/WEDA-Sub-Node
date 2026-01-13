@@ -53,13 +53,14 @@ public interface ISubNodeManager
     /// <summary>
     /// Registers a device-specific handler for configuration updates.
     /// SubNodeManager will route updates to the appropriate device based on DeviceName in the message.
+    /// SubNodeManager handles report publishing based on ConfigUpdateResult.
     /// </summary>
-    /// <param name="deviceName">The device name to register handler for</param>
-    /// <param name="configHandler">Handler for configuration update events</param>
-    /// <param name="commandHandler">Optional handler for command events</param>
+    /// <param name="deviceName">The device name to register handler for.</param>
+    /// <param name="configHandler">Handler for configuration update events. Returns ConfigUpdateResult for SubNodeManager to publish report.</param>
+    /// <param name="commandHandler">Optional handler for command events.</param>
     void RegisterDeviceHandler(
         string deviceName,
-        Func<UpdateConfigurationEvent, Task> configHandler,
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler,
         Func<ExecuteCommandEvent, Task>? commandHandler = null);
 
     /// <summary>
