@@ -52,18 +52,18 @@ ARG TARGETARCH
 # Using --no-install-recommends to minimize image size
 # Explicitly install patched zlib1g version to fix CVE-2023-45853
 # CVE-2023-45853 is fixed in zlib 1.3 and later, or 1.2.13.1-debian patched versions
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    echo "Checking available zlib1g versions:" && \
-    apt-cache policy zlib1g && \
-    apt-get install -y --no-install-recommends \
-    ca-certificates && \
-    (apt-get install -y --no-install-recommends 'zlib1g>=1:1.2.13' || \
-     apt-get install -y --no-install-recommends zlib1g) && \
-    echo "Installed zlib1g version:" && \
-    dpkg -l | grep zlib1g && \
-    apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# RUN apt-get update && \
+#     apt-get upgrade -y && \
+#     echo "Checking available zlib1g versions:" && \
+#     apt-cache policy zlib1g && \
+#     apt-get install -y --no-install-recommends \
+#     ca-certificates && \
+#     (apt-get install -y --no-install-recommends 'zlib1g>=1:1.2.13' || \
+#      apt-get install -y --no-install-recommends zlib1g) && \
+#     echo "Installed zlib1g version:" && \
+#     dpkg -l | grep zlib1g && \
+#     apt-get clean \
+#     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Create app directory
 WORKDIR /app
