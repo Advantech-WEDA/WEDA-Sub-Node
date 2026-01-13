@@ -4,6 +4,7 @@ trigger:
   branches:
     include:
       - main
+      - release/*
   paths:
     include:
       - examples/system-agent/**
@@ -14,6 +15,7 @@ variables:
   REGISTRY_HOST: 'harbor.arfa.wise-paas.com'
   IMAGE_REPOSITORY: 'edge-coa/system-agent'
   IMAGE_TAG: '$(Build.BuildNumber)'
+  IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL: 'CRITICAL,HIGH'
 
 stages:
 - stage: Build_Image
@@ -58,3 +60,123 @@ stages:
         docker buildx imagetools inspect $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):latest
         docker buildx imagetools inspect $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
       displayName: 'Verify Manifest'
+
+- stage: Scan_And_SBOM
+  displayName: 'Scan & Generate SBOM'
+  dependsOn: Build_Image
+  jobs:
+  - job: Security_Analysis
+    displayName: 'Security Scan & SBOM Generation'
+    pool:
+      name: 'CI Agent Pool'
+    steps:
+    - task: Docker@2
+      displayName: 'Login Harbor'
+      inputs:
+        command: 'login'
+        containerRegistry: $(CONTAINER_REGISTRY_SERVICE_CONNECTION)
+
+    - task: Bash@3
+      displayName: 'Vulnerability Scan'
+      continueOnError: true
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euo pipefail
+          IMAGE_URL="$(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)"
+          SEVERITY_LEVEL="$(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL)"
+
+          echo "Scanning image: $IMAGE_URL"
+          echo "Severity levels: $SEVERITY_LEVEL"
+
+          trivy image --severity "$SEVERITY_LEVEL" --exit-code 1 "$IMAGE_URL"
+          if [ $? -ne 0 ]; then
+            echo "Vulnerabilities found at severity levels: $SEVERITY_LEVEL"
+            exit 1
+          fi
+          echo "No vulnerabilities found at specified severity levels"
+
+    - script: |
+        set -euo pipefail
+        mkdir -p $(Build.ArtifactStagingDirectory)/sbom
+
+        echo "Generating SBOM in SPDX format..."
+        trivy image --format spdx-json \
+          --output $(Build.ArtifactStagingDirectory)/sbom/sbom-spdx.json \
+          $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+        echo "Generating SBOM in CycloneDX format..."
+        trivy image --format cyclonedx \
+          --output $(Build.ArtifactStagingDirectory)/sbom/sbom-cyclonedx.json \
+          $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+        echo "Generating human-readable report..."
+        trivy image --format table \
+          --output $(Build.ArtifactStagingDirectory)/sbom/sbom-report.txt \
+          $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+        echo "SBOM generation completed"
+        ls -lh $(Build.ArtifactStagingDirectory)/sbom/
+      displayName: 'Generate SBOM'
+
+    - script: |
+        set -euo pipefail
+
+        # Create markdown summary for Azure DevOps
+        SUMMARY_FILE="$(Build.ArtifactStagingDirectory)/sbom/sbom-summary.md"
+
+        echo "# 📦 SBOM Report" > "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "**Build:** \`$(IMAGE_TAG)\`" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "**Image:** \`$(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)\`" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "**Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "---" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "## 📊 Package Summary" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+        head -n 100 $(Build.ArtifactStagingDirectory)/sbom/sbom-report.txt >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "---" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "## 📥 Available SBOM Formats" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "| Format | File | Description |" >> "$SUMMARY_FILE"
+        echo "|--------|------|-------------|" >> "$SUMMARY_FILE"
+        echo "| SPDX | \`sbom-spdx.json\` | SPDX 2.3 JSON format |" >> "$SUMMARY_FILE"
+        echo "| CycloneDX | \`sbom-cyclonedx.json\` | CycloneDX JSON format |" >> "$SUMMARY_FILE"
+        echo "| Text Report | \`sbom-report.txt\` | Human-readable full report |" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "> 💡 **Tip:** Download complete SBOM files from the pipeline artifacts tab above." >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+
+        # File size information
+        echo "## 📄 File Information" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+        ls -lh $(Build.ArtifactStagingDirectory)/sbom/ >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+
+        cat "$SUMMARY_FILE"
+        
+        # Upload to pipeline summary - this makes it visible in the Extensions tab
+        echo "##vso[task.uploadsummary]$SUMMARY_FILE"
+      displayName: 'Create SBOM Summary for Pipeline UI'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish SBOM to Pipeline Artifacts'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/sbom'
+        artifactName: 'SBOM'
+        artifactType: 'pipeline'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish SBOM to Build Artifacts (Legacy)'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/sbom'
+        ArtifactName: 'sbom-$(IMAGE_TAG)'
+        publishLocation: 'Container'
