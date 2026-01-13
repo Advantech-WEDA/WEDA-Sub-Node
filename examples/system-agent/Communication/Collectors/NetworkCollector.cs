@@ -66,7 +66,7 @@ public class NetworkCollector
                 networks.Add(networkMetric);
             }
 
-            _logger.LogInformation("Collected {Count} network metrics", networks.Count);
+            _logger.LogDebug("Collected {Count} network metrics", networks.Count);
         }
         catch (Exception ex)
         {
