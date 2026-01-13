@@ -57,7 +57,6 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
     ca-certificates && \
-    (apt-get install -y --no-install-recommends 'zlib1g=1:1.3.dfsg+really1.3.1-1') && \
     echo "Installed zlib1g version:" && \
     dpkg -l | grep zlib1g && \
     apt-get clean \
