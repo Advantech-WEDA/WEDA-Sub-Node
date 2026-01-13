@@ -119,6 +119,36 @@ stages:
         ls -lh $(Build.ArtifactStagingDirectory)/sbom/
       displayName: 'Generate SBOM'
 
+    - script: |
+        set -euo pipefail
+
+        # Create markdown summary for Azure DevOps
+        SUMMARY_FILE="$(Build.ArtifactStagingDirectory)/sbom/sbom-summary.md"
+
+        echo "# SBOM Report" > "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "**Build:** $(IMAGE_TAG)" >> "$SUMMARY_FILE"
+        echo "**Image:** $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)" >> "$SUMMARY_FILE"
+        echo "**Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "## Package Summary" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+        head -n 50 $(Build.ArtifactStagingDirectory)/sbom/sbom-report.txt >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "## Artifact Downloads" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "- SPDX JSON: \`sbom-spdx.json\`" >> "$SUMMARY_FILE"
+        echo "- CycloneDX JSON: \`sbom-cyclonedx.json\`" >> "$SUMMARY_FILE"
+        echo "- Full Report: \`sbom-report.txt\`" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "Download complete SBOM files from the pipeline artifacts." >> "$SUMMARY_FILE"
+
+        # Upload to pipeline summary
+        echo "##vso[task.uploadsummary]$SUMMARY_FILE"
+      displayName: 'Create SBOM Summary'
+
     - task: PublishBuildArtifacts@1
       displayName: 'Publish SBOM Artifacts'
       inputs:
