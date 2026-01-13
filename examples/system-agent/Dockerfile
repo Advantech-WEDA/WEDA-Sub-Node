@@ -54,12 +54,9 @@ ARG TARGETARCH
 # CVE-2023-45853 is fixed in zlib 1.3 and later, or 1.2.13.1-debian patched versions
 RUN apt-get update && \
     apt-get upgrade -y && \
-    echo "Checking available zlib1g versions:" && \
-    apt-cache policy zlib1g && \
     apt-get install -y --no-install-recommends \
     ca-certificates && \
-    (apt-get install -y --no-install-recommends 'zlib1g>=1:1.3.1' || \
-     apt-get install -y --no-install-recommends zlib1g) && \
+    (apt-get install -y --no-install-recommends 'zlib1g=1:1.3.dfsg+really1.3.1-1') && \
     echo "Installed zlib1g version:" && \
     dpkg -l | grep zlib1g && \
     apt-get clean \
