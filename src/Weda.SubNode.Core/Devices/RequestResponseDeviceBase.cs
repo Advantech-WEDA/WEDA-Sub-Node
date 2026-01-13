@@ -48,7 +48,7 @@ public class RequestResponseDeviceBase : DeviceBase
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         IRequestResponseProtocolParser parser)
-        : base(context, configuration, parser.Communication)
+        : base(context, configuration, parser)
     {
         _parser = parser ?? throw new ArgumentNullException(nameof(parser));
 

@@ -84,7 +84,7 @@ public class TelemetryClient : ITelemetryClient
         // Create message with audit fields
         var message = TelemetrySendMessage.Create(TelemetryMeasureDto.From(telemetryData.Measures));
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Sending telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}, Topic={Topic}, ReqSeqId={ReqSeqId}",
             deviceId,
             telemetryData.Measures.Count,
@@ -121,7 +121,7 @@ public class TelemetryClient : ITelemetryClient
             }
         };
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Telemetry sent successfully: MeasureCount={MeasureCount}, Topic={Topic}",
             telemetryData.Measures.Count,
             topicAssignments.TelemetryTopic);

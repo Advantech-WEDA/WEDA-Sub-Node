@@ -51,7 +51,7 @@ public class PubSubDeviceBase : DeviceBase
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         IPubSubProtocolParser parser)
-        : base(context, configuration, parser.Communication)
+        : base(context, configuration, parser)
     {
         _parser = parser ?? throw new ArgumentNullException(nameof(parser));
 

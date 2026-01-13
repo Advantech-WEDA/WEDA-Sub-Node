@@ -1,5 +1,6 @@
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
@@ -67,6 +68,11 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
     /// Background task execution periods
     /// </summary>
     public BackgroundTaskPeriods Periods { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets whether to automatically generate DTDL content from sensor definitions.
+    /// </summary>
+    public bool AutoGenEnabled { get; set; } = true;
 
     /// <summary>
     /// Path to the DTDL JSON file (optional)
@@ -186,7 +192,11 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
             Enabled = Enabled,
             DeviceId = deviceId,
             DeviceName = DeviceName,
-            Dtdl = new Weda.SubNode.Abstractions.DigitalTwin.DtdlConfig { DtdlPath = DtdlPath },
+            Dtdl = new DtdlConfig 
+            { 
+                AutoGenEnabled = AutoGenEnabled,
+                DtdlPath = DtdlPath
+            },
             Sensors = sensors,
             DeviceCommunication = new Dictionary<string, object>
             {

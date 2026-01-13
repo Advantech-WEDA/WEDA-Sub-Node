@@ -48,15 +48,13 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         Model = "CustomDevice-v1",
         Host = "127.0.0.1",
         Port = 5020,
-        SlaveId = 1,
-        DtdlPath = "assets/dtdl/dtmi/advantech/edgesync/sample-1.json"
+        SlaveId = 1
     };
 
     // Create temperature sensor with transform pipeline
     var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
-        Dtmi = "dtmi:advantech:EdgeSync:Temperature;1",
         RegisterAddress = 0,
         RegisterCount = 2,
         DataType = ModbusDataType.Float32,
