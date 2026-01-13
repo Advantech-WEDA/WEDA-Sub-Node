@@ -39,7 +39,7 @@ USER $USERNAME
 
 # Install .NET global tools for the user (install separately to avoid failure cascade)
 # Skip dotnet-ef for now as it may have package issues
-# RUN dotnet tool install --global dotnet-format || true
+RUN dotnet tool install --global dotnet-format || true
 # RUN dotnet tool install --global dotnet-outdated-tool || true
 
 # Add .NET tools to PATH
@@ -49,7 +49,7 @@ ENV PATH="$PATH:/home/${USERNAME}/.dotnet/tools"
 WORKDIR /workspace
 
 # Configure git
-# RUN git config --global --add safe.directory /workspace
+RUN git config --global --add safe.directory /workspace
 
 # Copy template installation script
 USER root
