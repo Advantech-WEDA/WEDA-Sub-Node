@@ -35,7 +35,7 @@ Learn how to create an IoT device application using the `subnode` template. `sub
 
 Before starting, ensure you have:
 
-- ✅ .NET 9.0 SDK installed
+- ✅ .NET 10.0 SDK installed
 - ✅ Weda SubNode templates installed (see [Install Templates](01_install_templates.md))
 - ✅ Basic understanding of C# object-oriented programming
 

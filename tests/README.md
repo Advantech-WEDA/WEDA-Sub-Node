@@ -163,7 +163,7 @@ Follow the pattern: `MethodName_Scenario_ExpectedBehavior`
 Tests are automatically run in Azure DevOps Pipeline:
 
 - **Trigger**: Every PR and commit to main/develop
-- **Environment**: Ubuntu Latest, .NET 9.0
+- **Environment**: Ubuntu Latest, .NET 10.0
 - **Coverage Check**: Pipeline fails if coverage < 60%
 - **Test Results**: Published as build artifacts
 

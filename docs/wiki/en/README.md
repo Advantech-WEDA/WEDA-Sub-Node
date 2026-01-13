@@ -11,7 +11,7 @@ translations:
 
 # Weda SubNode SDK - Documentation
 
-Welcome to the Weda SubNode SDK documentation! This guide will help you build industrial IoT edge applications with .NET 9.0.
+Welcome to the Weda SubNode SDK documentation! This guide will help you build industrial IoT edge applications with .NET 10.0.
 
 **[繁體中文文檔 →](../zh/README.md)**
 
@@ -109,7 +109,7 @@ Choose one of two templates based on your needs:
 
 Before you begin:
 
-- **.NET 9.0 SDK** or later
+- **.NET 10.0 SDK** or later
   ```bash
   dotnet --version  # Should be 9.0.x or higher
   ```

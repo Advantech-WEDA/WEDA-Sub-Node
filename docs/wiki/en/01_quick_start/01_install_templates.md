@@ -25,12 +25,12 @@ Learn how to install the two Weda SubNode SDK project templates.
 
 Before installing templates, ensure you have:
 
-- **.NET 9.0 SDK** or later installed
+- **.NET 10.0 SDK** or later installed
   ```bash
   dotnet --version  # Should output 9.0.x or higher
   ```
 
-If you don't have .NET 9.0 SDK:
+If you don't have .NET 10.0 SDK:
 - **macOS**: `brew install dotnet@9`
 - **Windows**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com/download)
 - **Linux**: Follow [Microsoft's instructions](https://learn.microsoft.com/dotnet/core/install/linux)
@@ -264,7 +264,7 @@ chmod +x scripts/install-templates.sh
 bash scripts/install-templates.sh
 ```
 
-### Issue 3: .NET 9.0 SDK Not Found
+### Issue 3: .NET 10.0 SDK Not Found
 
 **Symptom**:
 ```
@@ -272,7 +272,7 @@ dotnet: command not found
 ```
 
 **Solution**:
-Install .NET 9.0 SDK:
+Install .NET 10.0 SDK:
 - macOS: `brew install dotnet@9`
 - Windows/Linux: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com/download)
 

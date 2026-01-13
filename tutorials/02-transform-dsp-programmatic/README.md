@@ -57,7 +57,7 @@ private void ConfigureTransformsAndFilters()
 
 ## Prerequisites
 
-- .NET 9.0 SDK
+- .NET 10.0 SDK
 - Weda SubNode SDK templates installed
 
 ## Quick Start

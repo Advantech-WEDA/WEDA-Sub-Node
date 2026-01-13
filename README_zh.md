@@ -31,7 +31,7 @@
 在本機手動安裝相依套件：
 
 **需求:**
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - 程式碼編輯器（VS Code、Visual Studio 或 Rider）
 - Git（用於複製儲存庫）
 

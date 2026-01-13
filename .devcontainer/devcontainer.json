@@ -1,7 +1,8 @@
 {
   "name": "Weda SubNode SDK",
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "Dockerfile",
+    "context": "."
   },
   "containerEnv": {
     "DTDL_BASE_PATH": "/workspace"
@@ -19,6 +20,7 @@
         "ms-dotnettools.csharp",
         "ms-dotnettools.csdevkit",
         "ms-dotnettools.vscode-dotnet-runtime",
+				"ms-dotnettools.dotnet-interactive-vscode",
 
         // Docker
         "ms-azuretools.vscode-docker",

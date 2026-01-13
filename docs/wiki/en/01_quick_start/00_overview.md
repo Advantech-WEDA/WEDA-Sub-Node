@@ -234,7 +234,7 @@ Complete device lifecycle management:
 - **Configuration-driven** adjust without code changes
 
 ### ✅ Modern Technology
-- **.NET 9.0** latest framework
+- **.NET 10.0** latest framework
 - **Async programming** high-performance processing
 - **Dependency injection** easy to test and maintain
 

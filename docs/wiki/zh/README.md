@@ -11,7 +11,7 @@ translations:
 
 # Weda SubNode SDK - 文檔中心
 
-歡迎使用 Weda SubNode SDK 文檔！本指南將協助您使用 .NET 9.0 建立工業物聯網邊緣應用程式。
+歡迎使用 Weda SubNode SDK 文檔！本指南將協助您使用 .NET 10.0 建立工業物聯網邊緣應用程式。
 
 **[English Documentation →](../en/README.md)**
 
@@ -109,7 +109,7 @@ Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 
 
 開始之前，請確認：
 
-- **.NET 9.0 SDK** 或更新版本
+- **.NET 10.0 SDK** 或更新版本
   ```bash
   dotnet --version  # 應該是 9.0.x 或更高
   ```

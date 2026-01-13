@@ -31,7 +31,7 @@ This example shows how to integrate the WISE-4012 (4AI + 2AO) module using `Weda
 
 ## Prerequisites
 
-1. .NET 9.0 SDK installed
+1. .NET 10.0 SDK installed
 2. WISE-4012 hardware module
 3. Network connection to WISE-4012
 4. Weda EdgeSync Cloud access (or use Mock Cloud)
