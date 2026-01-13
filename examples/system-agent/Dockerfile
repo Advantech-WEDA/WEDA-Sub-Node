@@ -49,19 +49,6 @@ FROM mcr.microsoft.com/dotnet/runtime:9.0-alpine AS final
 # Declare TARGETARCH after FROM (buildx automatically provides this)
 ARG TARGETARCH
 
-# Update base image and install only required dependencies
-# Using --no-install-recommends to minimize image size
-# Explicitly install patched zlib1g version to fix CVE-2023-45853
-# CVE-2023-45853 is fixed in zlib 1.3 and later, or 1.2.13.1-debian patched versions
-# RUN apt-get update && \
-#     apt-get upgrade -y && \
-#     apt-get install -y --no-install-recommends \
-#     ca-certificates && \
-#     echo "Installed zlib1g version:" && \
-#     dpkg -l | grep zlib1g && \
-#     apt-get clean \
-#     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
 # Create app directory
 WORKDIR /app
 

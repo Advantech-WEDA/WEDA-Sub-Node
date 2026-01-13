@@ -125,32 +125,57 @@ stages:
         # Create markdown summary for Azure DevOps
         SUMMARY_FILE="$(Build.ArtifactStagingDirectory)/sbom/sbom-summary.md"
 
-        echo "# SBOM Report" > "$SUMMARY_FILE"
+        echo "# 📦 SBOM Report" > "$SUMMARY_FILE"
         echo "" >> "$SUMMARY_FILE"
-        echo "**Build:** $(IMAGE_TAG)" >> "$SUMMARY_FILE"
-        echo "**Image:** $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)" >> "$SUMMARY_FILE"
+        echo "**Build:** \`$(IMAGE_TAG)\`" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "**Image:** \`$(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)\`" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
         echo "**Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$SUMMARY_FILE"
         echo "" >> "$SUMMARY_FILE"
-        echo "## Package Summary" >> "$SUMMARY_FILE"
+        echo "---" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "## 📊 Package Summary" >> "$SUMMARY_FILE"
         echo "" >> "$SUMMARY_FILE"
         echo '```' >> "$SUMMARY_FILE"
-        head -n 50 $(Build.ArtifactStagingDirectory)/sbom/sbom-report.txt >> "$SUMMARY_FILE"
+        head -n 100 $(Build.ArtifactStagingDirectory)/sbom/sbom-report.txt >> "$SUMMARY_FILE"
         echo '```' >> "$SUMMARY_FILE"
         echo "" >> "$SUMMARY_FILE"
-        echo "## Artifact Downloads" >> "$SUMMARY_FILE"
+        echo "---" >> "$SUMMARY_FILE"
         echo "" >> "$SUMMARY_FILE"
-        echo "- SPDX JSON: \`sbom-spdx.json\`" >> "$SUMMARY_FILE"
-        echo "- CycloneDX JSON: \`sbom-cyclonedx.json\`" >> "$SUMMARY_FILE"
-        echo "- Full Report: \`sbom-report.txt\`" >> "$SUMMARY_FILE"
+        echo "## 📥 Available SBOM Formats" >> "$SUMMARY_FILE"
         echo "" >> "$SUMMARY_FILE"
-        echo "Download complete SBOM files from the pipeline artifacts." >> "$SUMMARY_FILE"
+        echo "| Format | File | Description |" >> "$SUMMARY_FILE"
+        echo "|--------|------|-------------|" >> "$SUMMARY_FILE"
+        echo "| SPDX | \`sbom-spdx.json\` | SPDX 2.3 JSON format |" >> "$SUMMARY_FILE"
+        echo "| CycloneDX | \`sbom-cyclonedx.json\` | CycloneDX JSON format |" >> "$SUMMARY_FILE"
+        echo "| Text Report | \`sbom-report.txt\` | Human-readable full report |" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo "> 💡 **Tip:** Download complete SBOM files from the pipeline artifacts tab above." >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
 
-        # Upload to pipeline summary
+        # File size information
+        echo "## 📄 File Information" >> "$SUMMARY_FILE"
+        echo "" >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+        ls -lh $(Build.ArtifactStagingDirectory)/sbom/ >> "$SUMMARY_FILE"
+        echo '```' >> "$SUMMARY_FILE"
+
+        cat "$SUMMARY_FILE"
+        
+        # Upload to pipeline summary - this makes it visible in the Extensions tab
         echo "##vso[task.uploadsummary]$SUMMARY_FILE"
-      displayName: 'Create SBOM Summary'
+      displayName: 'Create SBOM Summary for Pipeline UI'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish SBOM to Pipeline Artifacts'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/sbom'
+        artifactName: 'SBOM'
+        artifactType: 'pipeline'
 
     - task: PublishBuildArtifacts@1
-      displayName: 'Publish SBOM Artifacts'
+      displayName: 'Publish SBOM to Build Artifacts (Legacy)'
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)/sbom'
         ArtifactName: 'sbom-$(IMAGE_TAG)'
