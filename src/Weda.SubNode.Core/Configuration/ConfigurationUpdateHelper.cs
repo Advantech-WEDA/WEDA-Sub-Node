@@ -1286,6 +1286,82 @@ public static partial class ConfigurationUpdateHelper
     }
 
     /// <summary>
+    /// Creates a periodic aggregated configuration report for all devices.
+    /// Used by SubNodeManager to periodically sync all device configurations to cloud.
+    /// Preserves the last config update status to avoid overwriting error messages.
+    /// </summary>
+    /// <param name="subNodeId">SubNode ID for the report</param>
+    /// <param name="groupId">Group ID for multi-tenant scenarios</param>
+    /// <param name="deviceRegistry">Device registry containing all devices</param>
+    /// <param name="lastStatus">Last config update status to preserve</param>
+    /// <param name="lastErrorMessage">Last error message to preserve (null if success)</param>
+    public static SubNodeConfigUpdateMessage CreatePeriodicAggregatedReport(
+        string subNodeId,
+        string groupId,
+        IDeviceRegistry deviceRegistry,
+        string lastStatus,
+        string? lastErrorMessage)
+    {
+        var message = new ConfigUpdateMessageDto
+        {
+            Status = lastStatus,
+            ErrorMessage = lastErrorMessage,
+            LastUpdateTime = DateTimeOffset.UtcNow
+        };
+
+        var reported = new SubNodeReportedConfig();
+
+        // Try to get raw JSON from first device that has it
+        JsonElement? baseRawJson = null;
+        foreach (var device in deviceRegistry.GetAllDevices())
+        {
+            if (device.Configuration.RawDeviceCfgJson.HasValue)
+            {
+                baseRawJson = device.Configuration.RawDeviceCfgJson;
+                break;
+            }
+        }
+
+        if (baseRawJson.HasValue)
+        {
+            reported.SetRawDeviceCfgWithMessage(baseRawJson.Value, message);
+        }
+        else
+        {
+            var deviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>(StringComparer.OrdinalIgnoreCase);
+            foreach (var device in deviceRegistry.GetAllDevices())
+            {
+                var dto = ToSubNodeDeviceConfigDto(device.Configuration);
+                deviceConfigs[device.Configuration.DeviceName] = dto;
+            }
+
+            reported.DeviceCfg = new SubNodeDeviceCfgDto
+            {
+                Message = message,
+                DeviceConfigs = deviceConfigs
+            };
+        }
+
+        return new SubNodeConfigUpdateMessage
+        {
+            DeviceId = subNodeId,
+            GroupId = groupId,
+            Cmd = "configReport",
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = string.Empty,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    Desired = null,
+                    Reported = reported
+                }
+            }
+        };
+    }
+
+    /// <summary>
     /// Builds raw devicecfg JSON from all devices' RawDeviceCfgJson.
     /// Merges SubNode info and DeviceConfigs from each device.
     /// </summary>

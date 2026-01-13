@@ -34,7 +34,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     private CancellationTokenSource? _runningCts;
     private CancellationTokenSource? _samplingCts;
-    private Task? _configSyncTask;
     private Task? _batchSendTask;
     private Task? _healthTask;
     private readonly SemaphoreSlim _configUpdateLock = new(1, 1);
@@ -280,18 +279,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     async Task<ErrorOr<Success>> ILifecycleHooks.OnStartAsync(CancellationToken ct)
     {
-        // _runningCts is for lifecycle tasks (config sync) that don't need restart on config update
+        // _runningCts is for lifecycle-level cancellation
         _runningCts = new CancellationTokenSource();
-        var lifecycleCts = _runningCts.Token;
 
         // _samplingCts is for tasks that may need restart on config update (polling, sampling, batch send, health)
         _samplingCts = new CancellationTokenSource();
 
         // Start background tasks (polling/sampling + batch send + health)
         StartAllBackgroundTasks(_samplingCts.Token);
-
-        // Start config sync task (not restarted on config update)
-        StartConfigSyncTask(lifecycleCts);
 
         return await Task.FromResult(Result.Success);
     }
@@ -306,7 +301,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             _samplingCts = null;
         }
 
-        // Cancel lifecycle tasks (config sync)
+        // Cancel lifecycle-level tasks
         if (_runningCts != null)
         {
             await _runningCts.CancelAsync();
@@ -430,31 +425,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
-
-    /// <summary>
-    /// Reports current device configuration to cloud.
-    /// Used for periodic sync to ensure reported state is synchronized
-    /// even if update response fails due to disconnection.
-    /// </summary>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>True if report was successfully published</returns>
-    public async Task<bool> ReportConfigurationAsync(CancellationToken ct = default)
-    {
-        var deviceId = SubNodeId ?? "unknown";
-        var deviceTypeName = Configuration.SubNodeType.ToString();
-
-        // Use default groupId for periodic reports (groupId is mainly for multi-tenant scenarios)
-        var groupId = "default";
-
-        var report = ConfigurationUpdateHelper.CreatePeriodicReport(
-            deviceId,
-            groupId,
-            Configuration,
-            deviceTypeName);
-
-        _logger.LogDebug("Reporting configuration for device {SubNodeId}", deviceId);
-        return await _cloudService.PublishConfigurationReportAsync(SubscriptionTypes.DeviceConfig, report, ct);
-    }
 
     public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
@@ -1529,46 +1499,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 _logger.LogDebug("Health reporting task cancelled for device {SubNodeId}", SubNodeId);
             }
         }, ct);
-    }
-
-    /// <summary>
-    /// Starts the configuration sync task.
-    /// This task is NOT restarted on config update since ReportConfiguration period changes are rare.
-    /// </summary>
-    private void StartConfigSyncTask(CancellationToken ct)
-    {
-        var configSyncPeriod = Configuration.Periods.ReportConfiguration;
-        if (configSyncPeriod > 0)
-        {
-            _configSyncTask = Task.Run(async () =>
-            {
-                _logger.LogDebug("Starting configuration sync task with period {Period}ms", configSyncPeriod);
-
-                while (!ct.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await ReportConfigurationAsync(ct);
-                        _logger.LogDebug("Configuration sync completed for device {SubNodeId}", SubNodeId);
-                    }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                    {
-                        _logger.LogInformation("Configuration sync task cancelled for device {SubNodeId}", SubNodeId);
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error in configuration sync task for device {SubNodeId}", SubNodeId);
-                    }
-
-                    await Task.Delay(configSyncPeriod, ct);
-                }
-            }, ct);
-        }
-        else
-        {
-            _logger.LogDebug("Configuration sync task disabled (ReportConfiguration period = 0)");
-        }
     }
 
     /// <summary>
