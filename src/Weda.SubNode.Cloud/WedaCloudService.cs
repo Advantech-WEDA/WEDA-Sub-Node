@@ -298,9 +298,6 @@ public sealed class WedaCloudService : IWedaCloudService
         TelemetryData telemetryData,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Sending telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}",
-            deviceId, telemetryData.Measures.Count);
-
         var response = await _telemetryClient.SendTelemetryAsync(
             deviceId,
             telemetryData,
