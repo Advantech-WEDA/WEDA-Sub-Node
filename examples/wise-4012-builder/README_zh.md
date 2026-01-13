@@ -31,7 +31,7 @@ lang: "zh"
 
 ## 先決條件
 
-1. 已安裝 .NET 9.0 SDK
+1. 已安裝 .NET 10.0 SDK
 2. WISE-4012 硬體模組
 3. 與 WISE-4012 的網路連線
 4. Weda EdgeSync Cloud 存取權限 (或使用 Mock Cloud)

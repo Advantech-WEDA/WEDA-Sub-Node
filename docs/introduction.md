@@ -2,7 +2,7 @@
 
 ## 什麼是 SubNode？
 
-**Weda SubNode SDK** 是一個 .NET 9.0 框架，用於建立 IoT 邊緣節點，將邊緣設備連接到雲端管理平台 (Weda.Core)。
+**Weda SubNode SDK** 是一個 .NET 10.0 框架，用於建立 IoT 邊緣節點，將邊緣設備連接到雲端管理平台 (Weda.Core)。
 
 SubNode 扮演 **Edge 與 Cloud 之間的橋樑**，負責：
 

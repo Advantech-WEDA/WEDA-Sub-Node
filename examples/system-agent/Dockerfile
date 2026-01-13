@@ -2,7 +2,7 @@
 
 # Build stage: FORCE AMD64 for build to avoid QEMU issues
 # The SDK will cross-compile to target architecture
-FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 # Declare TARGETARCH (buildx provides this based on --platform flag)
 ARG TARGETARCH
@@ -43,7 +43,8 @@ RUN RID=$(cat /rid.txt) && \
 
 # Runtime stage: Use slim runtime-deps for self-contained apps
 # runtime-deps is minimal, designed for self-contained .NET apps
-FROM mcr.microsoft.com/dotnet/runtime:9.0-noble AS final
+# FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-bookworm-slim
+FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
 
 # Declare TARGETARCH after FROM (buildx automatically provides this)
 ARG TARGETARCH

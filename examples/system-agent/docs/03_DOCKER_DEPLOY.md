@@ -316,7 +316,7 @@ qemu-x86_64: Could not open '/lib64/ld-linux-x86-64.so.2': No such file or direc
 
 ## 已知限制
 
-### QEMU + .NET 9.0 ARM64 Build 問題
+### QEMU + .NET 10.0 ARM64 Build 問題
 
 在 Windows/macOS 開發環境使用 Docker Desktop + QEMU 進行 ARM64 cross-compilation build 時可能會遇到以下問題：
 
@@ -327,7 +327,7 @@ System.InvalidCastException: Unable to cast object of type 'System.Reflection.Em
 ```
 
 **原因**：
-- 這是 .NET 9.0 runtime 在 QEMU 模擬環境下的已知問題
+- 這是 .NET 10.0 runtime 在 QEMU 模擬環境下的已知問題
 - 特別在 `dotnet publish` 階段的 IL Compilation 時觸發
 - 即使使用 `PublishReadyToRun` 仍可能發生
 
