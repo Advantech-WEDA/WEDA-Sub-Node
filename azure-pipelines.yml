@@ -29,7 +29,7 @@ pool:
 
 variables:
   buildConfiguration: 'Release'
-  dotnetVersion: '10.0.x'  
+  dotnetVersion: '10.0.x'
   testResultsDirectory: '$(Build.ArtifactStagingDirectory)/TestResults'
   coverageThreshold: 60
 
@@ -74,7 +74,6 @@ stages:
                 --configuration $(buildConfiguration)
                 --no-build
                 --collect:"XPlat Code Coverage"
-                --results-directory $(testResultsDirectory)
                 --logger trx
                 --settings tests/coverlet.runsettings
               publishTestResults: true
