@@ -15,6 +15,7 @@ variables:
   REGISTRY_HOST: 'harbor.arfa.wise-paas.com'
   IMAGE_REPOSITORY: 'edge-coa/system-agent'
   IMAGE_TAG: '$(Build.BuildNumber)'
+  IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL: 'CRITICAL,HIGH'
 
 stages:
 - stage: Build_Image
@@ -81,11 +82,19 @@ stages:
       inputs:
         targetType: 'inline'
         script: |
-          echo "trivy --severity $(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL) --exit-code 1 image $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)"
-          trivy --severity $(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL) --exit-code 1 image $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+          set -euo pipefail
+          IMAGE_URL="$(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)"
+          SEVERITY_LEVEL="$(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL)"
+
+          echo "Scanning image: $IMAGE_URL"
+          echo "Severity levels: $SEVERITY_LEVEL"
+
+          trivy image --severity "$SEVERITY_LEVEL" --exit-code 1 "$IMAGE_URL"
           if [ $? -ne 0 ]; then
+            echo "Vulnerabilities found at severity levels: $SEVERITY_LEVEL"
             exit 1
           fi
+          echo "No vulnerabilities found at specified severity levels"
 
     - script: |
         set -euo pipefail
