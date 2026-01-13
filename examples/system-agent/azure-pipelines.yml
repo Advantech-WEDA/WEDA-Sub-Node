@@ -59,3 +59,60 @@ stages:
         docker buildx imagetools inspect $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):latest
         docker buildx imagetools inspect $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
       displayName: 'Verify Manifest'
+
+- stage: Scan_And_SBOM
+  displayName: 'Scan & Generate SBOM'
+  dependsOn: Build_Image
+  jobs:
+  - job: Security_Analysis
+    displayName: 'Security Scan & SBOM Generation'
+    pool:
+      name: 'CI Agent Pool'
+    steps:
+    - task: Docker@2
+      displayName: 'Login Harbor'
+      inputs:
+        command: 'login'
+        containerRegistry: $(CONTAINER_REGISTRY_SERVICE_CONNECTION)
+
+    - task: Bash@3
+      displayName: 'Vulnerability Scan'
+      continueOnError: true
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "trivy --severity $(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL) --exit-code 1 image $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)"
+          trivy --severity $(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL) --exit-code 1 image $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+          if [ $? -ne 0 ]; then
+            exit 1
+          fi
+
+    - script: |
+        set -euo pipefail
+        mkdir -p $(Build.ArtifactStagingDirectory)/sbom
+
+        echo "Generating SBOM in SPDX format..."
+        trivy image --format spdx-json \
+          --output $(Build.ArtifactStagingDirectory)/sbom/sbom-spdx.json \
+          $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+        echo "Generating SBOM in CycloneDX format..."
+        trivy image --format cyclonedx \
+          --output $(Build.ArtifactStagingDirectory)/sbom/sbom-cyclonedx.json \
+          $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+        echo "Generating human-readable report..."
+        trivy image --format table \
+          --output $(Build.ArtifactStagingDirectory)/sbom/sbom-report.txt \
+          $(REGISTRY_HOST)/$(IMAGE_REPOSITORY):$(IMAGE_TAG)
+
+        echo "SBOM generation completed"
+        ls -lh $(Build.ArtifactStagingDirectory)/sbom/
+      displayName: 'Generate SBOM'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish SBOM Artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/sbom'
+        ArtifactName: 'sbom-$(IMAGE_TAG)'
+        publishLocation: 'Container'
