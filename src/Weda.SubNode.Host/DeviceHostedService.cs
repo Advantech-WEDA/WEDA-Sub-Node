@@ -93,10 +93,6 @@ internal class DeviceHostedService : IHostedService
         {
             _logger.LogError("Failed to upload device configurations. Devices will start but may not be visible to cloud.");
         }
-        else
-        {
-            _logger.LogInformation("Device configurations uploaded successfully");
-        }
 
         // Phase 4: Start all initialized devices
         foreach (var device in initializedDevices)
