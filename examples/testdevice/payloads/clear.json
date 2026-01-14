@@ -1,0 +1,35 @@
+{
+  "groupId": "weda",
+  "cmd": "updateCmd",
+  "data": {
+    "cfg": {
+      "desired": {
+        "devicecfg": {
+          "SubNode": {
+            "Name": "TestDevice",
+            "SubNodeType": "AdamEthernet",
+            "Manufacturer": "Advantech",
+            "Model": "Demo",
+            "SwVersion": "1.0.0"
+          },
+          "DeviceConfigs": {
+            "MyFirstDeviceConfig": {
+              "Enabled": true,
+              "DeviceCommunication": {
+                "Host": "127.0.0.1",
+                "Port": 5020
+              },
+              "Dtdl": {
+                "AutoGenEnabled": true
+              },
+              "Properties": {
+                "SlaveId": 1
+              },
+              "Sensors": []
+            }
+          }
+        }
+      }
+    }
+  }
+}
