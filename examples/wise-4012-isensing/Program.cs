@@ -5,7 +5,7 @@ using Wise4012ISensingExample;
 
 try
 {
-    await using var subNode = new SubNode(WedaApplicationContext.Default);
+    await using var subNode = new SubNode(new WedaApplicationContext(args));
     subNode.AddDevice(new MyFirstISensingDevice(subNode.Context, "MyFirstDevice"));
 
     await subNode.InitializeAsync();

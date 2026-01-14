@@ -8,7 +8,7 @@ namespace Weda.SubNode.Host;
 
 public class SubNode : IAsyncDisposable
 {
-    private static readonly Lazy<SubNode> _default = new(() => new SubNode(WedaApplicationContext.Default));
+    private static readonly Lazy<SubNode> _default = new(() => new SubNode(new WedaApplicationContext(args)));
     private readonly IWedaApplicationContext _context;
     private readonly List<IDevice> _devices = [];
     private readonly ILogger<SubNode> _logger;

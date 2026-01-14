@@ -55,7 +55,7 @@ For simple single-device scenarios, use the default singleton instance:
 
 ```csharp
 // Simplest usage - no context management needed
-var device = new TcpModbusDevice(WedaApplicationContext.Default, config);
+var device = new TcpModbusDevice(new WedaApplicationContext(args), config);
 await device.StartAsync();
 ```
 
@@ -67,10 +67,10 @@ The `Default` singleton:
 
 ### SubNode Mode (Manual Device Creation)
 
-In SubNode mode, you create devices manually. **We recommend using the `WedaApplicationContext.Default` singleton** to ensure all devices share the same context:
+In SubNode mode, you create devices manually. **We recommend using the `new WedaApplicationContext(args)` singleton** to ensure all devices share the same context:
 
 ```csharp
-var context = WedaApplicationContext.Default;
+var context = new WedaApplicationContext(args);
 
 var config = new DeviceConfiguration
 {
@@ -98,7 +98,7 @@ var found = context1.FindDevice("Device2"); // returns null
 
 ```csharp
 // Correct approach - use the Default singleton
-var context = WedaApplicationContext.Default;
+var context = new WedaApplicationContext(args);
 
 var device1 = new MyDevice(context, config1);
 var device2 = new MyDevice(context, config2);

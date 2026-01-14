@@ -5,7 +5,7 @@ using Wise4012Example;
 
 try
 {
-    await using var subNode = new SubNode(WedaApplicationContext.Default);
+    await using var subNode = new SubNode(new WedaApplicationContext(args));
     subNode.AddDevice(new MyFirstDevice(subNode.Context, "MyFirstDevice"));
 
     await subNode.InitializeAsync();
