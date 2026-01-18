@@ -92,7 +92,7 @@ These two operations are independent: Recording ensures data is not lost, Report
 ```json
 {
   "Record": {
-    "MinFreeDiskSpaceMb": 100,
+    "MinFreeDiskSpaceMb": 128,
     "RetentionDays": 7
   }
 }
@@ -101,7 +101,7 @@ These two operations are independent: Recording ensures data is not lost, Report
 | Property | Type | Default | Range | Configurable | Description |
 |----------|------|---------|-------|--------------|-------------|
 | `StorageDirectory` | string | `"./data/recording"` | Fixed | No | Storage directory path (fixed value) |
-| `MinFreeDiskSpaceMb` | int | `100` | 10-10000 | Yes | Minimum free disk space (MB) |
+| `MinFreeDiskSpaceMb` | int | `128` | 10-10000 | Yes | Minimum free disk space (MB) |
 | `RetentionDays` | int | `7` | 0-180 | Yes | Data retention days (0=unlimited) |
 
 ### Level 2: Sensor (devicecfg.json)
@@ -155,7 +155,7 @@ These two operations are independent: Recording ensures data is not lost, Report
 ┌───────────────────────────────────────────────────────────┐
 │ Offset │ Size │ Type    │ Field                           │
 ├────────┼──────┼─────────┼─────────────────────────────────┤
-│ 0      │ 4    │ uint32  │ Magic Number (0x57454441 "WEDA")│
+│ 0      │ 4    │ uint32  │ Prefix (0x57454441 "WEDA")      │
 │ 4      │ 2    │ uint16  │ Version (1)                     │
 │ 6      │ 2    │ uint16  │ Interval (ms)                   │
 │ 8      │ 8    │ int64   │ StartTimestamp (Unix ms)        │

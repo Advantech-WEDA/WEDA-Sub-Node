@@ -92,7 +92,7 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 ```json
 {
   "Record": {
-    "MinFreeDiskSpaceMb": 100,
+    "MinFreeDiskSpaceMb": 128,
     "RetentionDays": 7
   }
 }
@@ -101,7 +101,7 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 | 屬性 | 型別 | 預設值 | 範圍 | 可設定 | 說明 |
 |------|------|--------|------|--------|------|
 | `StorageDirectory` | string | `"./data/recording"` | 固定值 | No | 儲存目錄路徑 (固定值) |
-| `MinFreeDiskSpaceMb` | int | `100` | 10-10000 | Yes | 最小可用磁碟空間 (MB) |
+| `MinFreeDiskSpaceMb` | int | `128` | 10-10000 | Yes | 最小可用磁碟空間 (MB) |
 | `RetentionDays` | int | `7` | 0-180 | Yes | 資料保留天數 (0=無限) |
 
 ### Level 2: Sensor (devicecfg.json)
@@ -155,7 +155,7 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 ┌───────────────────────────────────────────────────────────┐
 │ Offset │ Size │ Type    │ Field                           │
 ├────────┼──────┼─────────┼─────────────────────────────────┤
-│ 0      │ 4    │ uint32  │ Magic Number (0x57454441 "WEDA")│
+│ 0      │ 4    │ uint32  │ Prefix (0x57454441 "WEDA")      │
 │ 4      │ 2    │ uint16  │ Version (1)                     │
 │ 6      │ 2    │ uint16  │ Interval (ms)                   │
 │ 8      │ 8    │ int64   │ StartTimestamp (Unix ms)        │
