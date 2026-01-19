@@ -853,6 +853,19 @@ public class WedaApplicationContext : IWedaApplicationContext
             // Dispose cleanup timer
             _cleanupTimer?.Dispose();
 
+            // Flush recording buffers before shutdown
+            if (_recordingService != null)
+            {
+                try
+                {
+                    _recordingService.FlushAsync().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Ignore flush errors during disposal
+                }
+            }
+
             // Dispose SubNodeManager first (handles cloud disconnect)
             if (_subNodeManager is IAsyncDisposable asyncDisposable)
             {
