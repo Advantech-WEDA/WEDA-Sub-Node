@@ -25,7 +25,8 @@ try
         .AddTelemetry()        // Uplink: Send telemetry to cloud
         .AddHealthReporting()  // Uplink: Send health reports to cloud
         .AddConfigUpdates()    // Downlink: Receive and validate config updates from cloud via NATS
-        .AddCommands();        // Downlink: Receive and execute commands
+        .AddCommands()
+        .AddRecording();        // Downlink: Receive and execute commands
 
     // Step 3: Register LocalSystemAgentDevice
     // Note: Device configuration validation happens in ValidateConfigurationUpdate override

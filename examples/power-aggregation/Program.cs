@@ -9,12 +9,9 @@ using Weda.SubNode.Simulators.Modbus;
 try
 {
     // Build the application with logging from appsettings.json
-    var builder = WedaApplication.CreateBuilder(args)
-        .AddLogging()
-        .AddTelemetry()
-        .AddHealthReporting()
+    var builder = WedaApplication.CreateDefaultBuilder(args)
+
         .UseMockCloud();
-        ;
 
     builder.AddDevice<CurrentSensorDevice>("CurrentSensor");
     builder.AddDevice<VoltageSensorDevice>("VoltageSensor");
