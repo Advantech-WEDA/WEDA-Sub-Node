@@ -3,9 +3,11 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Host;
 using Weda.SubNode.Simulators.Modbus;
 using testdevice;
+using Weda.SubNode.WebApi;
 
 var builder = WedaApplication.CreateDefaultBuilder(args);
 
+builder.AddWebApi();
 builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");
 
 // Register Modbus simulator as hosted service (starts automatically with the app)

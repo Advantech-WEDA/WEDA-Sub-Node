@@ -8,6 +8,7 @@ using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Policies;
@@ -23,6 +24,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private readonly IWedaCloudService _cloudService;
     private readonly SubNodeInfo _subNodeInfo;
     private readonly IDeviceRegistry _deviceRegistry;
+    private readonly IRecordingService? _recordingService;
     private readonly ILogger<SubNodeManager> _logger;
 
     private readonly ResiliencePipeline<bool> _pipeline;
@@ -42,17 +44,18 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private string _lastConfigUpdateStatus = ConfigUpdateStatus.Success;
     private string? _lastConfigUpdateError;
 
-
     public SubNodeManager(
         IWedaCloudService cloudService,
         SubNodeInfo subNodeInfo,
         ConnectionOptions connectionOptions,
         IDeviceRegistry deviceRegistry,
-        ILogger<SubNodeManager> logger)
+        ILogger<SubNodeManager> logger,
+        IRecordingService? recordingService = null)
     {
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
         _subNodeInfo = subNodeInfo ?? throw new ArgumentNullException(nameof(subNodeInfo));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _recordingService = recordingService;
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
         _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
         _deviceRegistry = deviceRegistry;
@@ -355,17 +358,36 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Handles SystemConfig updates (Serilog, WedaNode settings).
+    /// Handles SystemConfig updates (Serilog, WedaNode, Record settings).
     /// SubNodeManager handles this directly - no dispatch to devices.
     /// </summary>
     private Task HandleSystemConfigUpdateAsync(UpdateConfigurationEvent e)
     {
         _logger.LogInformation("Handling SystemConfig update: SeqId={SeqId}", e.Message?.SeqId);
 
-        // TODO: Apply system configuration changes
-        // - Serilog settings
-        // - WedaNode settings
-        // - Other SubNode-level settings
+        var systemCfg = e.Message?.Data?.Cfg?.Desired?.SystemCfg;
+        if (systemCfg == null)
+        {
+            _logger.LogDebug("No SystemCfg in desired state");
+            return Task.CompletedTask;
+        }
+
+        // Apply Record settings if present
+        if (systemCfg.Record != null && _recordingService != null)
+        {
+            _recordingService.UpdateBatchSettings(
+                systemCfg.Record.BatchEnabled,
+                systemCfg.Record.BatchMaxSamples);
+
+            _logger.LogInformation(
+                "Updated recording batch settings: BatchEnabled={BatchEnabled}, BatchMaxSamples={BatchMaxSamples}",
+                systemCfg.Record.BatchEnabled,
+                systemCfg.Record.BatchMaxSamples);
+        }
+
+        // TODO: Apply other system configuration changes
+        // - Serilog settings (requires restart)
+        // - WedaNode settings (requires restart)
 
         _logger.LogDebug("SystemConfig update processed");
         return Task.CompletedTask;

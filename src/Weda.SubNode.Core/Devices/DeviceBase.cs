@@ -770,6 +770,19 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
                     updatedSensors.Count,
                     string.Join(", ", updatedSensors));
+
+                // Flush recording buffers for updated sensors to avoid mixing data from different intervals
+                if (_context.RecordingService != null)
+                {
+                    foreach (var sensorName in updatedSensors)
+                    {
+                        var sensor = Configuration.Sensors.FirstOrDefault(s => s.Name == sensorName);
+                        if (sensor != null)
+                        {
+                            await _context.RecordingService.FlushSensorAsync(sensor.ShortId, ct);
+                        }
+                    }
+                }
             }
 
             // Apply pipeline updates (Transform and DSP filters)
@@ -1013,8 +1026,23 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         sensorResult.RemovedSensors.Count, string.Join(", ", sensorResult.RemovedSensors));
 
                 if (sensorResult.UpdatedSensors.Count > 0)
+                {
                     _logger.LogInformation("Updated {Count} sensors: {Names}",
                         sensorResult.UpdatedSensors.Count, string.Join(", ", sensorResult.UpdatedSensors));
+
+                    // Flush recording buffers for updated sensors to avoid mixing data from different intervals
+                    if (_context.RecordingService != null)
+                    {
+                        foreach (var sensorName in sensorResult.UpdatedSensors)
+                        {
+                            var sensor = Configuration.Sensors.FirstOrDefault(s => s.Name == sensorName);
+                            if (sensor != null)
+                            {
+                                await _context.RecordingService.FlushSensorAsync(sensor.ShortId, ct);
+                            }
+                        }
+                    }
+                }
             }
 
             // Apply pipeline updates for existing sensors

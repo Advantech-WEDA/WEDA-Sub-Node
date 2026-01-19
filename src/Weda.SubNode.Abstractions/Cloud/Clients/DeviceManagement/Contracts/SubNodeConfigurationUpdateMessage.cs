@@ -434,6 +434,50 @@ public class SubNodeSystemCfgDto
     /// </summary>
     [JsonPropertyName("Serilog")]
     public Dictionary<string, JsonElement>? Serilog { get; set; }
+
+    /// <summary>
+    /// Recording configuration for local historical data storage
+    /// </summary>
+    [JsonPropertyName("Record")]
+    public SubNodeRecordConfigDto? Record { get; set; }
+}
+
+/// <summary>
+/// Recording configuration DTO for systemcfg.json
+/// </summary>
+public class SubNodeRecordConfigDto
+{
+    /// <summary>
+    /// Directory path for storing recording data files
+    /// </summary>
+    [JsonPropertyName("StorageDirectory")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StorageDirectory { get; set; }
+
+    /// <summary>
+    /// Minimum free disk space in megabytes for Ring Buffer FIFO cleanup
+    /// </summary>
+    [JsonPropertyName("MinFreeDiskSpaceMb")]
+    public int MinFreeDiskSpaceMb { get; set; } = 128;
+
+    /// <summary>
+    /// Number of days to retain recording data
+    /// </summary>
+    [JsonPropertyName("RetentionDays")]
+    public int RetentionDays { get; set; } = 7;
+
+    /// <summary>
+    /// Whether batch buffering is enabled for recording
+    /// </summary>
+    [JsonPropertyName("BatchEnabled")]
+    public bool BatchEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of samples to buffer before writing to storage
+    /// Default is 0 samples per batch (no batching)
+    /// </summary>
+    [JsonPropertyName("BatchMaxSamples")]
+    public int BatchMaxSamples { get; set; } = 0;
 }
 
 /// <summary>

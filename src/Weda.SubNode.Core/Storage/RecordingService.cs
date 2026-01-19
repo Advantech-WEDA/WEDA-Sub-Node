@@ -1,14 +1,21 @@
 using System.Collections.Concurrent;
 using ErrorOr;
+using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Core.Storage;
 
-public class RecordingService(IRecordStorage storage) : IRecordingService
+public class RecordingService(IRecordStorage storage, IOptions<RecordingOptions> options) : IRecordingService
 {
     private readonly IRecordStorage _storage = storage;
+    private readonly RecordingOptions _options = options.Value;
     private readonly ConcurrentDictionary<string, int> _lastRecordedslot = new();
+    private readonly ConcurrentDictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
+    private readonly object _batchLock = new();
+
+    private bool _batchEnabled = options.Value.BatchEnabled;
+    private int _batchMaxSamples = Math.Max(1, options.Value.BatchMaxSamples);
 
     public bool ShouldRecord(string sensorId, int interval, long timestamp)
     {
@@ -27,9 +34,86 @@ public class RecordingService(IRecordStorage storage) : IRecordingService
 
     public async Task RecordAsync(string sensorId, int interval, long timestamp, double value, CancellationToken cancellationToken = default)
     {
-        if (ShouldRecord(sensorId, interval, timestamp))
+        if (!ShouldRecord(sensorId, interval, timestamp))
+            return;
+
+        var dataPoint = new RecordingDataPoint(timestamp, value);
+
+        if (!_batchEnabled)
         {
-            await _storage.WriteAsync(sensorId, interval, new RecordingDataPoint(timestamp, value), cancellationToken);
+            await _storage.WriteAsync(sensorId, interval, dataPoint, cancellationToken);
+            return;
+        }
+
+        var bufferKey = $"{sensorId}:{interval}";
+        List<RecordingDataPoint>? batchToWrite = null;
+
+        lock (_batchLock)
+        {
+            var buffer = _batchBuffers.GetOrAdd(bufferKey, _ => new List<RecordingDataPoint>());
+            buffer.Add(dataPoint);
+
+            if (buffer.Count >= _batchMaxSamples)
+            {
+                batchToWrite = [.. buffer];
+                buffer.Clear();
+            }
+        }
+
+        if (batchToWrite != null)
+        {
+            await _storage.WriteBatchAsync(sensorId, interval, batchToWrite, cancellationToken);
+        }
+    }
+
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        List<(string sensorId, int interval, List<RecordingDataPoint> dataPoints)> buffersToFlush;
+
+        lock (_batchLock)
+        {
+            buffersToFlush = _batchBuffers
+                .Where(kvp => kvp.Value.Count > 0)
+                .Select(kvp =>
+                {
+                    var parts = kvp.Key.Split(':');
+                    var sensorId = parts[0];
+                    var interval = int.Parse(parts[1]);
+                    var dataPoints = new List<RecordingDataPoint>(kvp.Value);
+                    kvp.Value.Clear();
+                    return (sensorId, interval, dataPoints);
+                })
+                .ToList();
+        }
+
+        foreach (var (sensorId, interval, dataPoints) in buffersToFlush)
+        {
+            await _storage.WriteBatchAsync(sensorId, interval, dataPoints, cancellationToken);
+        }
+    }
+
+    public async Task FlushSensorAsync(string sensorId, CancellationToken cancellationToken = default)
+    {
+        List<(int interval, List<RecordingDataPoint> dataPoints)> buffersToFlush;
+
+        lock (_batchLock)
+        {
+            buffersToFlush = _batchBuffers
+                .Where(kvp => kvp.Key.StartsWith($"{sensorId}:") && kvp.Value.Count > 0)
+                .Select(kvp =>
+                {
+                    var parts = kvp.Key.Split(':');
+                    var interval = int.Parse(parts[1]);
+                    var dataPoints = new List<RecordingDataPoint>(kvp.Value);
+                    kvp.Value.Clear();
+                    return (interval, dataPoints);
+                })
+                .ToList();
+        }
+
+        foreach (var (interval, dataPoints) in buffersToFlush)
+        {
+            await _storage.WriteBatchAsync(sensorId, interval, dataPoints, cancellationToken);
         }
     }
 
@@ -127,6 +211,12 @@ public class RecordingService(IRecordStorage storage) : IRecordingService
         {
             return Errors.Recording.StorageError(ex);
         }
+    }
+
+    public void UpdateBatchSettings(bool batchEnabled, int batchMaxSamples)
+    {
+        _batchEnabled = batchEnabled;
+        _batchMaxSamples = batchMaxSamples;
     }
 
     private static long GetStartOfDay(long timestamp)
