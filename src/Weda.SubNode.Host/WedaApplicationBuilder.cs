@@ -291,7 +291,10 @@ public class WedaApplicationBuilder
             Services.Configure(configure);
         }
         Services.AddSingleton<IRecordStorage, BinaryRecordStorage>();
-        Services.AddSingleton<RecordingService>();
+        Services.AddSingleton<IRecordingService, RecordingService>();
+
+        
+
         return this;
     }
 
@@ -532,6 +535,9 @@ public class WedaApplicationBuilder
             var registrationStorage = sp.GetService<IDeviceRegistrationStorage>();
             var configurationCache = sp.GetService<IConfigurationCache>();
 
+            // Get recording service from DI (registered by AddRecording)
+            var recordingService = sp.GetService<IRecordingService>();
+
             return new Context.WedaApplicationContext(options =>
             {
                 options.CloudService = cloudService;
@@ -542,6 +548,8 @@ public class WedaApplicationBuilder
                 // Pass DI-registered storage instances to share resources
                 options.RegistrationStorage = registrationStorage;
                 options.ConfigurationCache = configurationCache;
+                // Pass DI-registered recording service
+                options.RecordingService = recordingService;
             });
         });
 

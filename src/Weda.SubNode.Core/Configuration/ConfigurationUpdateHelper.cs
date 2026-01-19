@@ -285,6 +285,13 @@ public static partial class ConfigurationUpdateHelper
             deviceConfig.Sensors.Add(newSensor);
             addedSensors.Add(newSensor.Name);
         }
+
+        // Invalidate sensor lookup cache after adding sensors
+        if (addedSensors.Count > 0)
+        {
+            deviceConfig.InvalidateSensorLookup();
+        }
+
         return addedSensors;
     }
 
@@ -353,6 +360,14 @@ public static partial class ConfigurationUpdateHelper
                     result.UpdatedSensors.Add(existingSensor.Name);
                 }
             }
+        }
+
+        // Invalidate sensor lookup cache only when new sensors are added
+        // - Removed sensors won't be queried (no new data from removed sensors)
+        // - Updated sensors don't need invalidation (ResourceId unchanged, same object reference)
+        if (result.AddedSensors.Count > 0)
+        {
+            deviceConfig.InvalidateSensorLookup();
         }
 
         return result;

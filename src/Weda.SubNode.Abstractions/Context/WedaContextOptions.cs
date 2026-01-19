@@ -124,6 +124,13 @@ public class WedaContextOptions
     /// </summary>
     public RecordingOptions? RecordingOptions { get; set; }
 
+    /// <summary>
+    /// Gets or sets the recording service for local data storage.
+    /// If not set, a default RecordingService instance will be created when EnableRecording is true.
+    /// This allows sharing recording service between WedaApplication (DI) and direct device instantiation.
+    /// </summary>
+    public IRecordingService? RecordingService { get; set; }
+
     // ===== Fluent Configuration Methods =====
 
     /// <summary>

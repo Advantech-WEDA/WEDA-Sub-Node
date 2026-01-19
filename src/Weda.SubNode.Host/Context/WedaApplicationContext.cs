@@ -244,7 +244,21 @@ public class WedaApplicationContext : IWedaApplicationContext
         _registrationStorage = _options.RegistrationStorage ?? new JsonDeviceRegistrationStorage(
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
-        if (_options.DeviceOptions.EnableRecording)
+        // Use provided recording service from options (DI scenario), or create new instance if EnableRecording is true
+        if (_options.RecordingService != null)
+        {
+            _recordingService = _options.RecordingService;
+            _recordingOptions = _options.RecordingOptions
+                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+
+            // Start daily cleanup timer
+            _cleanupTimer = new Timer(
+                callback: _ => ExecuteCleanup(),
+                state: null,
+                dueTime: TimeSpan.Zero,
+                period: TimeSpan.FromDays(1));
+        }
+        else if (_options.DeviceOptions.EnableRecording)
         {
             _recordingOptions = _options.RecordingOptions
                 ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);

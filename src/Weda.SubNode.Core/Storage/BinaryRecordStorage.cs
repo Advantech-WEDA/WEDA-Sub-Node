@@ -1,12 +1,13 @@
 using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Utilities;
 
 namespace Weda.SubNode.Core.Storage;
 
 public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordStorage
 {
-    private readonly RecordingOptions _options = options.Value;
+    private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(options.Value.StorageDirectory);
     private const int MillisecondsPerDay = 86400000;
     private const ushort Version = 1;
 
@@ -33,12 +34,12 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
 
     public Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
     {
-        if (!Directory.Exists(_options.StorageDirectory))
+        if (!Directory.Exists(_resolvedStorageDirectory))
             return Task.CompletedTask;
 
         var cutoffDate = before.UtcDateTime.Date;
 
-        foreach (var sensorDir in Directory.GetDirectories(_options.StorageDirectory))
+        foreach (var sensorDir in Directory.GetDirectories(_resolvedStorageDirectory))
         {
             foreach (var file in Directory.GetFiles(sensorDir, "*.bin"))
             {
@@ -61,7 +62,7 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
     {
         var date = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.Date;
         var fileName = $"{date:yyyy-MM-dd}_{interval}";
-        return Path.Combine(_options.StorageDirectory, sensorId, $"{fileName}.bin");
+        return Path.Combine(_resolvedStorageDirectory, sensorId, $"{fileName}.bin");
     }
 
     private static long GetStartOfDay(long timestamp)

@@ -100,7 +100,7 @@ public class DeviceConfiguration
     };
 
     [JsonIgnore]
-    private Dictionary<string, Sensor> _sensorLookup = [];
+    private Dictionary<string, Sensor>? _sensorLookup;
 
     #endregion
 
@@ -253,5 +253,14 @@ public class DeviceConfiguration
     {
         _sensorLookup ??= Sensors.ToDictionary(s => s.ResourceId);
         return _sensorLookup.TryGetValue(sensorResourceId, out var sensor) ? sensor : null;
+    }
+
+    /// <summary>
+    /// Invalidates the sensor lookup cache.
+    /// Call this after modifying the Sensors collection to ensure GetSensorById returns fresh results.
+    /// </summary>
+    public void InvalidateSensorLookup()
+    {
+        _sensorLookup = null;
     }
 }
