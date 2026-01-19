@@ -13,7 +13,7 @@ public class RecordingService(IRecordStorage storage) : IRecordingService
     {
         var startOfDay = GetStartOfDay(timestamp);
         var slotIndex = (int)((timestamp - startOfDay) / interval);
-        var key = $"{sensorId}:{startOfDay}";
+        var key = $"{sensorId}:{interval}:{startOfDay}";
 
         var lastSlot = _lastRecordedslot.GetOrAdd(key, -1);
         if (slotIndex > lastSlot)

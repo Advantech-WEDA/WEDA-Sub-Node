@@ -125,6 +125,23 @@ public class RecordingServiceTests : IDisposable
         result.ShouldBeTrue();
     }
 
+    [Fact]
+    public void ShouldRecord_DifferentIntervals_Independent()
+    {
+        // Arrange - Use start of day for predictable slot calculation
+        var today = DateTimeOffset.UtcNow.Date;
+        var startOfDayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+        // Record with interval 1000ms at slot 0
+        _service.ShouldRecord("sensor-1", 1000, startOfDayTimestamp);
+
+        // Act - Same sensor, same timestamp, but different interval (simulates dynamic change)
+        var result = _service.ShouldRecord("sensor-1", 5000, startOfDayTimestamp);
+
+        // Assert - Different interval should have independent slot tracking
+        result.ShouldBeTrue();
+    }
+
     #endregion
 
     #region RecordAsync Tests
