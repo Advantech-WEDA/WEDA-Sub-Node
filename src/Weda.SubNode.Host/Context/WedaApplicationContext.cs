@@ -20,6 +20,8 @@ using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
 using Weda.SubNode.Host.Configuration;
+using Weda.SubNode.Abstractions.Storage.Recordings;
+using Microsoft.Extensions.Options;
 
 namespace Weda.SubNode.Host.Context;
 
@@ -57,7 +59,8 @@ public class WedaApplicationContext : IWedaApplicationContext
                 EnableCommands = true,
                 EnableConfigUpdates = true,
                 EnableTelemetry = true,
-                EnableHealthReporting = true
+                EnableHealthReporting = true,
+                EnableRecording = true
             };
         }),
         LazyThreadSafetyMode.ExecutionAndPublication);
@@ -87,6 +90,7 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     private readonly WedaContextOptions _options;
     private readonly IWedaCloudService _cloudService;
+    private readonly IRecordingService? _recordingService;
     private readonly ILoggerFactory _loggerFactory;
     private readonly NatsClient? _natsClient;
     private readonly IConfiguration? _configuration;
@@ -99,6 +103,8 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly SystemCfg _systemCfg;
     private readonly DeviceCfg _deviceCfg;
     private readonly CustomCfg _customCfg;
+    private readonly Timer? _cleanupTimer;
+    private readonly RecordingOptions? _recordingOptions;
     private bool _disposed;
 
     /// <summary>
@@ -238,6 +244,22 @@ public class WedaApplicationContext : IWedaApplicationContext
         _registrationStorage = _options.RegistrationStorage ?? new JsonDeviceRegistrationStorage(
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
+        if (_options.DeviceOptions.EnableRecording)
+        {
+            _recordingOptions = _options.RecordingOptions
+                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+
+            var recordStorage = new BinaryRecordStorage(Options.Create(_recordingOptions));
+            _recordingService = new RecordingService(recordStorage);
+
+            // Start daily cleanup timer
+            _cleanupTimer = new Timer(
+                callback: _ => ExecuteCleanup(),
+                state: null,
+                dueTime: TimeSpan.Zero,
+                period: TimeSpan.FromDays(1));
+        }
+
         // Bind configuration objects using Options Pattern
         _systemCfg = BindConfiguration<SystemCfg>(SystemCfg.SectionName);
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
@@ -361,6 +383,9 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <inheritdoc />
     public IWedaCloudService CloudService => _cloudService;
+
+    /// <inheritdoc />
+    public IRecordingService? RecordingService => _recordingService;
 
     /// <inheritdoc />
     public ILoggerFactory LoggerFactory => _loggerFactory;
@@ -770,6 +795,27 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #endregion
 
+    #region Recording Cleanup
+
+    private void ExecuteCleanup()
+    {
+        if (_recordingService == null || _recordingOptions == null)
+            return;
+
+        try
+        {
+            var cutoff = DateTimeOffset.UtcNow.AddDays(-_recordingOptions.RetentionDays);
+            _recordingService.CleanupAsync(cutoff, CancellationToken.None).Wait();
+        }
+        catch (Exception ex)
+        {
+            _loggerFactory.CreateLogger<WedaApplicationContext>()
+                .LogError(ex, "Recording cleanup failed");
+        }
+    }
+
+    #endregion
+
     #region IDisposable
 
     /// <inheritdoc />
@@ -789,6 +835,9 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         if (disposing && _options.DisposeServices)
         {
+            // Dispose cleanup timer
+            _cleanupTimer?.Dispose();
+
             // Dispose SubNodeManager first (handles cloud disconnect)
             if (_subNodeManager is IAsyncDisposable asyncDisposable)
             {

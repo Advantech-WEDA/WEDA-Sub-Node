@@ -8,20 +8,15 @@ using NATS.Net;
 using Serilog;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
-using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-
-// NOTE: ScanDevicesFromConfiguration() and ISubNodeTypeNameResolver have been removed.
-// Use explicit device registration with AddDevice<TDevice>() instead.
-using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
-using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host;
@@ -282,6 +277,21 @@ public class WedaApplicationBuilder
         {
             options.EnableConfigUpdates = true;
         });
+        return this;
+    }
+
+    public WedaApplicationBuilder AddRecording(Action<RecordingOptions>? configure = null)
+    {
+        if (configure == null)
+        {
+            Services.Configure<RecordingOptions>(Configuration.GetSection($"SystemConfig:{RecordingOptions.SectionName}"));
+        }
+        else
+        {
+            Services.Configure(configure);
+        }
+        Services.AddSingleton<IRecordStorage, BinaryRecordStorage>();
+        Services.AddSingleton<RecordingService>();
         return this;
     }
 

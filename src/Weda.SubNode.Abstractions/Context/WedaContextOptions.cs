@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Abstractions.Context;
 
@@ -116,6 +117,12 @@ public class WedaContextOptions
     /// When false (--no-cache), cached configuration is ignored and only devicecfg.json is used.
     /// </summary>
     public bool UseCache { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the recording options for local storage.
+    /// If not set, options will be loaded from SystemConfig:Record section.
+    /// </summary>
+    public RecordingOptions? RecordingOptions { get; set; }
 
     // ===== Fluent Configuration Methods =====
 

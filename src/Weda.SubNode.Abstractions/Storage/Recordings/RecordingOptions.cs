@@ -4,7 +4,7 @@ public class RecordingOptions
 {
     public const string SectionName = "Record";
 
-    public const string StorageDirectory = "./data/recording";
+    public string StorageDirectory = "./data/recording";
 
     public int MinFreeDiskSpaceMb { get; set; } = 128;    
     

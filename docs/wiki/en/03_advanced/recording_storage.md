@@ -131,6 +131,58 @@ These two operations are independent: Recording ensures data is not lost, Report
 | `Enabled` | bool | `true` | - | Whether to enable Recording for this Sensor |
 | `Interval` | int | `0` | 0, or ≥ Report.Interval | Recording interval (milliseconds). 0 = same as Report.Interval |
 
+### Downsampling Design
+
+Recording interval must be **greater than or equal to** Report interval. Recording downsamples from Report data:
+
+```
+Constraint: Report.Interval ≤ Recording.Interval
+
+Example:
+  Report.Interval = 2000ms (2s)
+  Recording.Interval = 5000ms (5s)
+```
+
+**Downsampling Behavior**:
+
+```
+Report (2s interval):
+Timestamp:  0     2     4     6     8     10    12    14    16    18    20
+Value:      v0    v1    v2    v3    v4    v5    v6    v7    v8    v9    v10
+            ↓              ↓         ↓              ↓         ↓
+Recording (5s interval, aligned to slot boundary):
+Slot Index: 0              1         2              3         4
+Slot Time:  0              5         10             15        20
+Value:      v0             v3        v5             v8        v10
+```
+
+**Logic Explanation**:
+- Slot 0 (0~5ms): ts=0 enters slot 0 → record v0
+- Slot 1 (5~10ms): ts=6 first enters slot 1 → record v3
+- Slot 2 (10~15ms): ts=10 first enters slot 2 → record v5
+- Slot 3 (15~20ms): ts=16 first enters slot 3 → record v8
+- Slot 4 (20~25ms): ts=20 first enters slot 4 → record v10
+
+**Key Points**:
+- Recording timestamps are **aligned to Recording.Interval boundaries** (0, 5, 10, 15, ...)
+- NOT aligned to actual Report timestamps
+- When Report timestamp crosses a new slot boundary, that value is recorded
+- Enables O(1) random access: `slotIndex = timestamp / recordingInterval`
+
+**Slot Recording Logic**:
+
+```csharp
+// When Report data arrives
+var slotIndex = (timestamp - startOfDay) / recordingInterval;
+
+// Only record if this is a new slot (not already recorded)
+if (slotIndex > lastRecordedSlot)
+{
+    RecordToSlot(slotIndex, value);
+    lastRecordedSlot = slotIndex;
+}
+```
+
 ---
 
 ## Storage Design
@@ -140,12 +192,63 @@ These two operations are independent: Recording ensures data is not lost, Report
 ```
 {StorageDirectory}/
 └── {SensorId}/
-    ├── 2026-01-15.bin    ← One file per day
-    ├── 2026-01-16.bin
-    └── 2026-01-17.bin
+    ├── 2026-01-15_1000.bin    ← {date}_{interval}.bin format
+    ├── 2026-01-15_5000.bin    ← Different interval on same day
+    ├── 2026-01-16_1000.bin
+    └── 2026-01-17_1000.bin
 ```
 
 > **Note**: `SensorId` is composed of `SubNodeId + Device.Name + Sensor.Name`, ensuring uniqueness.
+
+### Dynamic Interval Support
+
+When `Recording.Interval` changes during operation, a new file with different interval is created:
+
+```
+Before: Recording.Interval = 1000ms
+File: 2026-01-19_1000.bin
+
+↓ Cloud updates Recording.Interval to 5000ms
+
+After: Recording.Interval = 5000ms
+File: 2026-01-19_5000.bin (new file created)
+```
+
+**Design Decisions**:
+
+| Decision | Choice | Reason |
+|----------|--------|--------|
+| Index File | **No** | File count per sensor is limited (2-3 interval files per day), directory scan is efficient enough. Avoids index-file sync issues. |
+| File Discovery | Directory Scan | Use glob pattern `{date}_*.bin` to find all interval files for a date |
+| Read Strategy | Segment Reporting | Return data grouped by interval when querying across multiple interval files |
+
+**Query Flow** (ReadAsync):
+```
+1. Scan directory for files matching date range
+2. For each file, read header to get interval
+3. Read data from each file
+4. Return combined results ordered by timestamp
+```
+
+**Multiple Interval Changes on Same Day Example**:
+
+```
+Timeline (2026-01-19):
+00:00 ─────────── 08:00 ─────────── 14:00 ─────────── 24:00
+│                  │                  │                  │
+│  interval=1000ms │  interval=5000ms │  interval=1000ms │
+│                  │                  │                  │
+└──────────────────┴──────────────────┴──────────────────┘
+
+Generated files:
+2026-01-19_1000.bin  ← 00:00~08:00 data + 14:00~24:00 data (appended to same file)
+2026-01-19_5000.bin  ← 08:00~14:00 data
+```
+
+**Key Points**:
+- When switching back to the same interval, data is written to the same file (appended to corresponding slots)
+- No duplicate files are created
+- Slot-based design ensures data from different time periods doesn't overwrite each other
 
 ### Binary File Format
 

@@ -1,0 +1,238 @@
+using Microsoft.Extensions.Options;
+using Shouldly;
+using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Core.Storage;
+using Xunit;
+
+namespace Weda.SubNode.Core.Tests.Storage;
+
+public class RecordingServiceTests : IDisposable
+{
+    private readonly string _testDirectory;
+    private readonly RecordingOptions _options;
+    private readonly BinaryRecordStorage _storage;
+    private readonly RecordingService _service;
+
+    public RecordingServiceTests()
+    {
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"recording-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_testDirectory);
+
+        _options = new RecordingOptions { StorageDirectory = _testDirectory };
+        _storage = new BinaryRecordStorage(Options.Create(_options));
+        _service = new RecordingService(_storage);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_testDirectory))
+        {
+            Directory.Delete(_testDirectory, recursive: true);
+        }
+    }
+
+    #region ShouldRecord Tests
+
+    [Fact]
+    public void ShouldRecord_FirstCallInSlot_ReturnsTrue()
+    {
+        // Arrange
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // Act
+        var result = _service.ShouldRecord("sensor-1", 1000, timestamp);
+
+        // Assert
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ShouldRecord_SameSlot_ReturnsFalse()
+    {
+        // Arrange - Use start of day for predictable slot calculation
+        var today = DateTimeOffset.UtcNow.Date;
+        var startOfDayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+        // First call at slot 0 (startOfDay + 0ms)
+        _service.ShouldRecord("sensor-1", 1000, startOfDayTimestamp);
+
+        // Act - Same slot 0 (startOfDay + 500ms, still in slot 0 range 0-999ms)
+        var result = _service.ShouldRecord("sensor-1", 1000, startOfDayTimestamp + 500);
+
+        // Assert
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ShouldRecord_NextSlot_ReturnsTrue()
+    {
+        // Arrange
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _service.ShouldRecord("sensor-1", 1000, timestamp);
+
+        // Act - Next slot (after 1000ms)
+        var result = _service.ShouldRecord("sensor-1", 1000, timestamp + 1500);
+
+        // Assert
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ShouldRecord_DifferentSensors_Independent()
+    {
+        // Arrange
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _service.ShouldRecord("sensor-1", 1000, timestamp);
+
+        // Act - Different sensor, same timestamp
+        var result = _service.ShouldRecord("sensor-2", 1000, timestamp);
+
+        // Assert
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ShouldRecord_DifferentDays_ResetsSlot()
+    {
+        // Arrange
+        var today = DateTimeOffset.UtcNow.Date;
+        var todayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        var tomorrowTimestamp = todayTimestamp + 86400000; // +1 day in ms
+
+        _service.ShouldRecord("sensor-1", 1000, todayTimestamp);
+
+        // Act - Same slot index but different day
+        var result = _service.ShouldRecord("sensor-1", 1000, tomorrowTimestamp);
+
+        // Assert
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ShouldRecord_LargerSlotIndex_ReturnsTrue()
+    {
+        // Arrange - Use start of day for predictable slot calculation
+        var today = DateTimeOffset.UtcNow.Date;
+        var startOfDayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+        // First call at slot 0
+        _service.ShouldRecord("sensor-1", 1000, startOfDayTimestamp);
+
+        // Act - Move to slot 10 (10 seconds later)
+        var result = _service.ShouldRecord("sensor-1", 1000, startOfDayTimestamp + 10000);
+
+        // Assert - Larger slot index should be allowed
+        result.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region RecordAsync Tests
+
+    [Fact]
+    public async Task RecordAsync_FirstCall_WritesToStorage()
+    {
+        // Arrange
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // Act
+        await _service.RecordAsync("sensor-1", 1000, timestamp, 42.5);
+
+        // Assert - File should be created
+        var files = Directory.GetFiles(_testDirectory, "*.bin", SearchOption.AllDirectories);
+        files.Length.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RecordAsync_SameSlot_DoesNotWriteAgain()
+    {
+        // Arrange
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        await _service.RecordAsync("sensor-1", 1000, timestamp, 42.5);
+
+        var files = Directory.GetFiles(_testDirectory, "*.bin", SearchOption.AllDirectories);
+        var initialSize = new FileInfo(files[0]).Length;
+
+        // Act - Same slot
+        await _service.RecordAsync("sensor-1", 1000, timestamp + 500, 43.0);
+
+        // Assert - File size should not change
+        var finalSize = new FileInfo(files[0]).Length;
+        finalSize.ShouldBe(initialSize);
+    }
+
+    [Fact]
+    public async Task RecordAsync_NextSlot_WritesToDifferentPosition()
+    {
+        // Arrange - Use start of day for predictable slot calculation
+        var today = DateTimeOffset.UtcNow.Date;
+        var startOfDayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+        // Write to slot 0
+        await _service.RecordAsync("sensor-1", 1000, startOfDayTimestamp, 42.5);
+
+        // Act - Write to slot 1 (1 second later)
+        await _service.RecordAsync("sensor-1", 1000, startOfDayTimestamp + 1000, 43.0);
+
+        // Assert - Both values should be recorded (slot-based storage writes to fixed positions)
+        // File exists and has data
+        var files = Directory.GetFiles(_testDirectory, "*.bin", SearchOption.AllDirectories);
+        files.Length.ShouldBe(1);
+        new FileInfo(files[0]).Length.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RecordAsync_MultipleSensors_CreatesSeparateDirectories()
+    {
+        // Arrange
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // Act
+        await _service.RecordAsync("sensor-1", 1000, timestamp, 42.5);
+        await _service.RecordAsync("sensor-2", 1000, timestamp, 43.5);
+
+        // Assert - Two separate sensor directories
+        var sensorDirs = Directory.GetDirectories(_testDirectory);
+        sensorDirs.Length.ShouldBe(2);
+    }
+
+    #endregion
+
+    #region CleanupAsync Tests
+
+    [Fact]
+    public async Task CleanupAsync_RemovesOldFiles()
+    {
+        // Arrange - Create a file with old date
+        var sensorDir = Path.Combine(_testDirectory, "sensor-1");
+        Directory.CreateDirectory(sensorDir);
+        var oldFileName = $"{DateTime.UtcNow.AddDays(-10):yyyy-MM-dd}_1000.bin";
+        var oldFilePath = Path.Combine(sensorDir, oldFileName);
+        await File.WriteAllBytesAsync(oldFilePath, new byte[] { 1, 2, 3 });
+
+        // Act - Cleanup files older than 7 days
+        await _service.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+        // Assert
+        File.Exists(oldFilePath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CleanupAsync_KeepsRecentFiles()
+    {
+        // Arrange - Create a file with recent date
+        var sensorDir = Path.Combine(_testDirectory, "sensor-1");
+        Directory.CreateDirectory(sensorDir);
+        var recentFileName = $"{DateTime.UtcNow:yyyy-MM-dd}_1000.bin";
+        var recentFilePath = Path.Combine(sensorDir, recentFileName);
+        await File.WriteAllBytesAsync(recentFilePath, new byte[] { 1, 2, 3 });
+
+        // Act - Cleanup files older than 7 days
+        await _service.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+        // Assert
+        File.Exists(recentFilePath).ShouldBeTrue();
+    }
+
+    #endregion
+}

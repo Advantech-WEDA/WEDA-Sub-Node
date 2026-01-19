@@ -131,6 +131,58 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 | `Enabled` | bool | `true` | - | 是否啟用該 Sensor 的 Recording |
 | `Interval` | int | `0` | 0, 或 ≥ Report.Interval | 記錄間隔 (毫秒)。0 代表等同於 Report.Interval |
 
+### Downsampling 設計
+
+Recording interval 必須 **大於或等於** Report interval。Recording 從 Report 資料中降採樣：
+
+```
+限制條件: Report.Interval ≤ Recording.Interval
+
+範例:
+  Report.Interval = 2000ms (2s)
+  Recording.Interval = 5000ms (5s)
+```
+
+**Downsampling 行為**：
+
+```
+Report (2s 間隔):
+Timestamp:  0     2     4     6     8     10    12    14    16    18    20
+Value:      v0    v1    v2    v3    v4    v5    v6    v7    v8    v9    v10
+            ↓              ↓         ↓              ↓         ↓
+Recording (5s 間隔，對齊 slot 邊界):
+Slot Index: 0              1         2              3         4
+Slot Time:  0              5         10             15        20
+Value:      v0             v3        v5             v8        v10
+```
+
+**邏輯說明**：
+- Slot 0 (0~5ms)：ts=0 進入 slot 0 → 記錄 v0
+- Slot 1 (5~10ms)：ts=6 首先進入 slot 1 → 記錄 v3
+- Slot 2 (10~15ms)：ts=10 首先進入 slot 2 → 記錄 v5
+- Slot 3 (15~20ms)：ts=16 首先進入 slot 3 → 記錄 v8
+- Slot 4 (20~25ms)：ts=20 首先進入 slot 4 → 記錄 v10
+
+**重點**：
+- Recording timestamp **對齊到 Recording.Interval 的邊界** (0, 5, 10, 15, ...)
+- 不是對齊到實際的 Report timestamp
+- 當 Report timestamp 跨越新的 slot 邊界時，該值被記錄
+- 支援 O(1) random access: `slotIndex = timestamp / recordingInterval`
+
+**Slot 記錄邏輯**：
+
+```csharp
+// 當 Report 資料到達時
+var slotIndex = (timestamp - startOfDay) / recordingInterval;
+
+// 只有當這是新的 slot 時才記錄 (尚未記錄過)
+if (slotIndex > lastRecordedSlot)
+{
+    RecordToSlot(slotIndex, value);
+    lastRecordedSlot = slotIndex;
+}
+```
+
 ---
 
 ## 儲存設計
@@ -140,12 +192,63 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 ```
 {StorageDirectory}/
 └── {SensorId}/
-    ├── 2026-01-15.bin    ← 每日一個檔案
-    ├── 2026-01-16.bin
-    └── 2026-01-17.bin
+    ├── 2026-01-15_1000.bin    ← {date}_{interval}.bin 格式
+    ├── 2026-01-15_5000.bin    ← 同一天不同 interval
+    ├── 2026-01-16_1000.bin
+    └── 2026-01-17_1000.bin
 ```
 
 > **Note**: `SensorId` 由 `SubNodeId + Device.Name + Sensor.Name` 組成，已具唯一性。
+
+### 動態 Interval 支援
+
+當 `Recording.Interval` 在運行中變更時，會建立新的 interval 檔案：
+
+```
+變更前: Recording.Interval = 1000ms
+檔案: 2026-01-19_1000.bin
+
+↓ Cloud 更新 Recording.Interval 為 5000ms
+
+變更後: Recording.Interval = 5000ms
+檔案: 2026-01-19_5000.bin (新檔案)
+```
+
+**設計決策**：
+
+| 決策 | 選擇 | 原因 |
+|------|------|------|
+| Index File | **不使用** | 每個 sensor 每天檔案數量有限 (2-3 個 interval 檔案)，directory scan 效能足夠。避免 index 檔案同步問題。 |
+| 檔案發現 | Directory Scan | 使用 glob pattern `{date}_*.bin` 找出該日期所有 interval 檔案 |
+| 讀取策略 | Segment Reporting | 查詢跨多個 interval 檔案時，依 interval 分組回傳 |
+
+**查詢流程** (ReadAsync):
+```
+1. 掃描目錄，找出符合日期範圍的檔案
+2. 對每個檔案，讀取 header 取得 interval
+3. 從每個檔案讀取資料
+4. 合併結果，依 timestamp 排序回傳
+```
+
+**同一天多次變更 Interval 範例**：
+
+```
+時間軸 (2026-01-19):
+00:00 ─────────── 08:00 ─────────── 14:00 ─────────── 24:00
+│                  │                  │                  │
+│  interval=1000ms │  interval=5000ms │  interval=1000ms │
+│                  │                  │                  │
+└──────────────────┴──────────────────┴──────────────────┘
+
+產生檔案:
+2026-01-19_1000.bin  ← 00:00~08:00 的資料 + 14:00~24:00 的資料 (同檔案追加)
+2026-01-19_5000.bin  ← 08:00~14:00 的資料
+```
+
+**重點**：
+- 改回相同 interval 時，會寫入同一個檔案（追加到對應 slot）
+- 不會產生重複檔案
+- Slot-based 設計確保不同時段的資料不會互相覆蓋
 
 ### 二進位檔案格式
 

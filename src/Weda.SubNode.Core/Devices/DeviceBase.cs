@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
@@ -11,9 +12,12 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
+using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
+using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Core.Devices;
 
@@ -71,6 +75,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
+        // Auto-subscribe to TelemetryRecording event for local storage
+        if (_context.RecordingService != null)
+        {
+            TelemetryRecording += OnTelemetryRecording;
+        }
+
         // Auto-enrich: Attach SubNodeInfo from context if not already set
         // This enables AutoGenEnabled and provides Manufacturer/Model/SwVersion
         Configuration.SubNodeInfo ??= context.SubNodeInfo;
@@ -103,6 +113,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     // ===== IDevice Lifecycle =====
+
 
     public async Task<bool> InitializeAsync(CancellationToken ct = default)
         => !(await _orchestrator.LifecycleManager.InitializeAsync(ct)).IsError;
@@ -403,6 +414,20 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         foreach (var processedMeasure in processedMeasures)
         {
             _telemetryBatch.Enqueue(processedMeasure);
+            
+            var sensor = Configuration.GetSensorById(processedMeasure.ResourceId);
+            if (sensor?.Record.Enabled == true && processedMeasure.Value is IConvertible)
+            {
+                var interval = sensor.Record.Interval > 0
+                    ? sensor.Record.Interval
+                    : (int)sensor.Report.Interval;
+
+                RaiseTelemetryRecording(new TelemetryRecordingEvent(
+                    Sensor: sensor,
+                    Interval: interval,
+                    Timestamp: processedMeasure.Timestamp,
+                    Value: Convert.ToDouble(processedMeasure.Value)));
+            }
         }
 
         // Raise DataProcessed event AFTER transform/filter processing
@@ -1178,10 +1203,29 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             Timestamp: DateTimeOffset.UtcNow));
     }
 
+    /// <summary>
+    /// Triggers TelemetryRecording event for local storage.
+    /// Only fires if EnableTelemetryRecordingTracking is true.
+    /// </summary>
+    private void RaiseTelemetryRecording(TelemetryRecordingEvent @event)
+    {
+        TelemetryRecording?.Invoke(this, @event);
+    }
+
+    private void OnTelemetryRecording(object? sender, TelemetryRecordingEvent @event)
+    {
+        _ = _context.RecordingService!.RecordAsync(
+            @event.Sensor.ResourceId,
+            @event.Interval,
+            @event.Timestamp,
+            @event.Value);
+    }
+
     // ===== Events & Tracking Flags =====
 
     public event EventHandler<DataReceivedEvent>? DataReceived;
     public event EventHandler<DataProcessedEvent>? DataProcessed;
+    public event EventHandler<TelemetryRecordingEvent>? TelemetryRecording;
     public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
     public event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged;
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;

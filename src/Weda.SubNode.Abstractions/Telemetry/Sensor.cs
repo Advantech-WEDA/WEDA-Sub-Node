@@ -50,6 +50,11 @@ public class Sensor
     public SensorReport Report { get; set; } = new();
 
     /// <summary>
+    /// Sensor recording configuration for local storage.
+    /// </summary>
+    public SensorRecordingConfig Record { get; set; } = new();
+
+    /// <summary>
     /// Additional metadata for the sensor.
     /// </summary>
     public Dictionary<string, object>? Metadata { get; set; }

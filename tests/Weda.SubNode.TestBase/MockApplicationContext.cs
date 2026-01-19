@@ -8,6 +8,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Core.Context;
 
 namespace Weda.SubNode.TestBase;
@@ -162,6 +163,9 @@ public class MockApplicationContext : IWedaApplicationContext
 
     /// <inheritdoc />
     public IConfigurationCache ConfigurationCache => MockConfigurationCache;
+
+    /// <inheritdoc />
+    public IRecordingService? RecordingService { get; set; }
 
     /// <inheritdoc />
     public ILogger<T> GetLogger<T>() => MockLoggerFactory.CreateLogger<T>();

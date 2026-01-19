@@ -37,6 +37,11 @@ public interface IWedaApplicationContext : IDisposable
     IWedaCloudService CloudService { get; }
 
     /// <summary>
+    /// Gets the recording service for local data storage.
+    /// </summary>
+    IRecordingService? RecordingService { get; }
+
+    /// <summary>
     /// Gets the logger factory instance.
     /// </summary>
     ILoggerFactory LoggerFactory { get; }
@@ -94,7 +99,7 @@ public interface IWedaApplicationContext : IDisposable
 
     /// <summary>
     /// Gets the configuration cache for persisting cloud-updated configurations.
-    /// When configuration is updated from cloud (UC9868), changes are cached locally
+    /// When configuration is updated from cloud, changes are cached locally
     /// so device restart uses the latest cloud-provided config instead of the local config files.
     /// </summary>
     IConfigurationCache ConfigurationCache { get; }

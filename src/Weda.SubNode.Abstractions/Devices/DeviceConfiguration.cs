@@ -99,6 +99,9 @@ public class DeviceConfiguration
         Model = Model
     };
 
+    [JsonIgnore]
+    private Dictionary<string, Sensor> _sensorLookup = [];
+
     #endregion
 
     /// <summary>
@@ -244,5 +247,11 @@ public class DeviceConfiguration
         }
 
         return null;
+    }
+
+    public Sensor? GetSensorById(string sensorResourceId)
+    {
+        _sensorLookup ??= Sensors.ToDictionary(s => s.ResourceId);
+        return _sensorLookup.TryGetValue(sensorResourceId, out var sensor) ? sensor : null;
     }
 }
