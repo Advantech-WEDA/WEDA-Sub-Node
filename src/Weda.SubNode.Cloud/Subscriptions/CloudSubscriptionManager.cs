@@ -142,6 +142,107 @@ public sealed class CloudSubscriptionManager : ISubscriptionManager
         return info;
     }
 
+    /// <summary>
+    /// Subscribe to a topic with a handler that receives both message and subject.
+    /// Use this overload when you need to parse routing information from the subject.
+    /// </summary>
+    public async Task<SubscriptionInfo> SubscribeAsync<TMessage>(
+        string topic,
+        Func<TMessage, string, Task> handler,
+        SubscriptionType subscriptionType,
+        string? responseTopic = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(subscriptionType);
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Remove existing subscription if present
+        if (_subscriptions.TryGetValue(topic, out var existing))
+        {
+            _logger.LogInformation("Replacing existing subscription for topic: {Topic}", topic);
+            await RemoveSubscriptionAsync(existing);
+        }
+
+        var info = new SubscriptionInfo
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Topic = topic,
+            ResponseTopic = responseTopic,
+            Type = subscriptionType,
+            CreatedAt = DateTimeOffset.UtcNow,
+            IsActive = true
+        };
+
+        var cts = new CancellationTokenSource();
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cancellationToken);
+
+        // Start subscription via messaging client
+        var subscription = _client.SubscribeAsync<TMessage>(
+            subject: topic,
+            cancellationToken: linkedCts.Token);
+
+        // Start background processing task
+        var processingTask = Task.Run(async () =>
+        {
+            _logger.LogInformation(
+                "Subscription started: Topic={Topic}, Type={Type}, ResponseTopic={ResponseTopic}",
+                topic, subscriptionType, responseTopic);
+
+            try
+            {
+                await foreach (var msg in subscription.WithCancellation(linkedCts.Token))
+                {
+                    try
+                    {
+                        if (msg.Data is null)
+                        {
+                            _logger.LogWarning("Received null data from topic: {Topic}", topic);
+                            continue;
+                        }
+
+                        info.MessageCount++;
+                        info.LastMessageAt = DateTimeOffset.UtcNow;
+                        _logger.LogDebug(
+                            "Message received: Topic={Topic}, Subject={Subject}, Count={Count}",
+                            topic, msg.Subject, info.MessageCount);
+
+                        // Pass both message data and subject to handler
+                        await handler(msg.Data, msg.Subject);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error processing message from topic: {Topic}", topic);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Subscription cancelled: Topic={Topic}", topic);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Subscription error: Topic={Topic}", topic);
+            }
+            finally
+            {
+                info.IsActive = false;
+                _logger.LogInformation("Subscription ended: Topic={Topic}", topic);
+            }
+        }, linkedCts.Token);
+
+        var managedSub = new ManagedSubscription(info, cts, linkedCts, processingTask);
+        _subscriptions[topic] = managedSub;
+
+        _logger.LogInformation(
+            "Subscription created: Id={Id}, Topic={Topic}, Type={Type}",
+            info.Id, topic, subscriptionType);
+
+        return info;
+    }
+
     public async Task<bool> UnsubscribeAsync(string topic)
     {
         if (!_subscriptions.TryRemove(topic, out var subscription))

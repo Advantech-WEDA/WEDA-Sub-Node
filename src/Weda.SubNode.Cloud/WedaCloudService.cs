@@ -372,12 +372,26 @@ public sealed class WedaCloudService : IWedaCloudService
         {
             var subscriptionInfo = await _subscriptionManager.SubscribeAsync<SubNodeConfigUpdateMessage>(
                 topic: configSub.DesiredTopic,
-                handler: async msg =>
+                handler: async (msg, subject) =>
                 {
                     _logger.LogInformation(
-                        "Received configuration update: Type={Type}, SeqId={SeqId}",
+                        "Received configuration update: Type={Type}, SeqId={SeqId}, Subject={Subject}",
                         configSub.Type.Value,
-                        msg.SeqId);
+                        msg.SeqId,
+                        subject);
+
+                    // Parse protoVer, groupId, deviceId from subject
+                    // Subject format: {protoVer}.{groupId}.{deviceId}.subnode.shadow.{configType}.{action}
+                    var subjectInfo = SubjectParser.Parse(subject);
+                    if (subjectInfo != null)
+                    {
+                        msg.ProtoVer = subjectInfo.ProtoVer;
+                        msg.GroupId = subjectInfo.GroupId;
+                        msg.DeviceId = subjectInfo.DeviceId;
+                        _logger.LogDebug(
+                            "Parsed subject: ProtoVer={ProtoVer}, GroupId={GroupId}, DeviceId={DeviceId}",
+                            subjectInfo.ProtoVer, subjectInfo.GroupId, subjectInfo.DeviceId);
+                    }
 
                     // Skip messages with no actual configuration data (e.g., JetStream replays or acks)
                     if (msg.Data?.Cfg?.Desired == null)
