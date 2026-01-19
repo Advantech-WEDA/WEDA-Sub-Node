@@ -413,6 +413,14 @@ public static partial class ConfigurationUpdateHelper
             wasUpdated = true;
         }
 
+        // Update Record config if provided
+        if (desired.Record != null)
+        {
+            sensor.Record.Enabled = desired.Record.Enabled;
+            sensor.Record.Interval = desired.Record.Interval;
+            wasUpdated = true;
+        }
+
         return wasUpdated;
     }
 
@@ -1001,6 +1009,13 @@ public static partial class ConfigurationUpdateHelper
                     })
                     .ToList();
             }
+        }
+
+        // Map Record config
+        if (dto.Record != null)
+        {
+            sensor.Record.Enabled = dto.Record.Enabled;
+            sensor.Record.Interval = dto.Record.Interval;
         }
 
         return sensor;

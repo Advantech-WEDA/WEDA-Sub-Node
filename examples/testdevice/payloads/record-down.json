@@ -24,11 +24,7 @@
             },
             "Sensors": [
               {
-<<<<<<< HEAD
-                "Name": "temperature.sensor.in.c",
-=======
                 "Name": "temperature.sensor",
->>>>>>> 9b0c4ab (feat: add WebAPI infrastructure and enhance recording service with read/delete operations)
                 "SensorGroup": "TEMP",
                 "Parameters": {
                   "RegisterType": "HoldingRegister",
@@ -47,7 +43,7 @@
                 },
                 "Record": {
                   "Enabled": true,
-                  "Interval": 5000  
+                  "Interval": 10000  
                 }
               }
             ]

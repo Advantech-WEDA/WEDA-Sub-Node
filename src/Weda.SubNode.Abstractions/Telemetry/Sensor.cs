@@ -13,6 +13,12 @@ public class Sensor
     public string ResourceId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Short ID derived from the last 5 characters of ResourceId (e.g., "f782c").
+    /// Used for telemetry and recording storage to provide stable, human-readable identifiers.
+    /// </summary>
+    public string ShortId => ResourceId.Length >= 5 ? ResourceId[^5..] : ResourceId;
+
+    /// <summary>
     /// Sensor name or channel identifier (e.g., "ai.channel[0]", "temperature.sensor")
     /// Required field.
     /// </summary>

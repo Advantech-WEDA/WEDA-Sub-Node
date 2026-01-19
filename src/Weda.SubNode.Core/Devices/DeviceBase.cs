@@ -1215,7 +1215,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     private void OnTelemetryRecording(object? sender, TelemetryRecordingEvent @event)
     {
         _ = _context.RecordingService!.RecordAsync(
-            @event.Sensor.ResourceId,
+            @event.Sensor.ShortId,
             @event.Interval,
             @event.Timestamp,
             @event.Value);

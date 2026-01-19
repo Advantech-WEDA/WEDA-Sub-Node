@@ -813,6 +813,31 @@ public class SubNodeSensorReportDto
     [JsonPropertyName("SensorInfo")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeSensorInfoDto? SensorInfo { get; set; }
+
+    /// <summary>
+    /// Recording configuration for local storage
+    /// </summary>
+    [JsonPropertyName("Record")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubNodeSensorRecordDto? Record { get; set; }
+}
+
+/// <summary>
+/// Sensor recording configuration DTO
+/// </summary>
+public class SubNodeSensorRecordDto
+{
+    /// <summary>
+    /// Whether recording is enabled
+    /// </summary>
+    [JsonPropertyName("Enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Recording interval in milliseconds. 0 means use report interval.
+    /// </summary>
+    [JsonPropertyName("Interval")]
+    public int Interval { get; set; } = 0;
 }
 
 /// <summary>
