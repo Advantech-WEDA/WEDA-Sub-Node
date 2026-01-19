@@ -6,16 +6,49 @@ using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Core.Storage;
 
-public class RecordingService(IRecordStorage storage, IOptions<RecordingOptions> options) : IRecordingService
+public class RecordingService : IRecordingService, IDisposable
 {
-    private readonly IRecordStorage _storage = storage;
-    private readonly RecordingOptions _options = options.Value;
+    private readonly IRecordStorage _storage;
+    private readonly RecordingOptions _options;
     private readonly ConcurrentDictionary<string, int> _lastRecordedslot = new();
     private readonly ConcurrentDictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
+    private readonly Timer? _flushTimer;
     private readonly object _batchLock = new();
+    private bool _enabled;
+    private bool _batchEnabled;
+    private int _batchMaxSamples;
+    private bool _disposed;
 
-    private bool _batchEnabled = options.Value.BatchEnabled;
-    private int _batchMaxSamples = Math.Max(1, options.Value.BatchMaxSamples);
+    public RecordingService(IRecordStorage storage, IOptions<RecordingOptions> options)
+    {
+        _storage = storage;
+        _options = options.Value;
+        _enabled = options.Value.Enabled;
+        _batchMaxSamples = Math.Max(1, options.Value.BatchMaxSamples);
+        _batchEnabled = options.Value.BatchEnabled;
+
+        if (_batchEnabled && _options.FlushIntervalSeconds > 0)
+        {
+            _flushTimer = new Timer(
+                callback: async _ => await ExecutePeriodicFlush(),
+                state: null,
+                dueTime: TimeSpan.FromSeconds(_options.FlushIntervalSeconds),
+                period: TimeSpan.FromSeconds(_options.FlushIntervalSeconds)
+            );
+        }
+    }
+
+    private async Task ExecutePeriodicFlush()
+    {
+        try
+        {
+            await FlushAsync();
+        }
+        catch
+        {
+            // Ignore flush errors in timer callback
+        }
+    }
 
     public bool ShouldRecord(string sensorId, int interval, long timestamp)
     {
@@ -34,7 +67,7 @@ public class RecordingService(IRecordStorage storage, IOptions<RecordingOptions>
 
     public async Task RecordAsync(string sensorId, int interval, long timestamp, double value, CancellationToken cancellationToken = default)
     {
-        if (!ShouldRecord(sensorId, interval, timestamp))
+        if (!_enabled || !ShouldRecord(sensorId, interval, timestamp))
             return;
 
         var dataPoint = new RecordingDataPoint(timestamp, value);
@@ -219,9 +252,21 @@ public class RecordingService(IRecordStorage storage, IOptions<RecordingOptions>
         _batchMaxSamples = batchMaxSamples;
     }
 
+    public void SetEnabled(bool enabled)
+    {
+        _enabled = enabled;
+    }
+
     private static long GetStartOfDay(long timestamp)
     {
         var date = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.Date;
         return new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _flushTimer?.Dispose();
+        _disposed = true;
     }
 }

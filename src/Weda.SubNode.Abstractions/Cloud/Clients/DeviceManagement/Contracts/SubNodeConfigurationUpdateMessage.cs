@@ -443,19 +443,21 @@ public class SubNodeSystemCfgDto
 }
 
 /// <summary>
-/// Recording configuration DTO for systemcfg.json
+/// Recording configuration DTO for systemcfg.json.
+/// Note: StorageDirectory is not included as it cannot be changed at runtime.
 /// </summary>
 public class SubNodeRecordConfigDto
 {
     /// <summary>
-    /// Directory path for storing recording data files
+    /// Whether recording is enabled at runtime.
+    /// When disabled, recording calls will be ignored.
     /// </summary>
-    [JsonPropertyName("StorageDirectory")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? StorageDirectory { get; set; }
+    [JsonPropertyName("Enabled")]
+    public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Minimum free disk space in megabytes for Ring Buffer FIFO cleanup
+    /// Minimum free disk space in megabytes for Ring Buffer FIFO cleanup.
+    /// Valid range: 0-102400 (0-100GB).
     /// </summary>
     [JsonPropertyName("MinFreeDiskSpaceMb")]
     public int MinFreeDiskSpaceMb { get; set; } = 128;
@@ -463,28 +465,64 @@ public class SubNodeRecordConfigDto
     /// <summary>
     /// Maximum total storage size in megabytes for recording files.
     /// Set to 0 to disable size-based cleanup.
+    /// Valid range: 0-102400 (0-100GB).
     /// </summary>
     [JsonPropertyName("MaxStorageSizeMb")]
     public int MaxStorageSizeMb { get; set; } = 1024;
 
     /// <summary>
-    /// Number of days to retain recording data
+    /// Number of days to retain recording data.
+    /// Valid range: 1-365.
     /// </summary>
     [JsonPropertyName("RetentionDays")]
     public int RetentionDays { get; set; } = 7;
 
     /// <summary>
-    /// Whether batch buffering is enabled for recording
+    /// Whether batch buffering is enabled for recording.
     /// </summary>
     [JsonPropertyName("BatchEnabled")]
     public bool BatchEnabled { get; set; } = true;
 
     /// <summary>
-    /// Maximum number of samples to buffer before writing to storage
-    /// Default is 0 samples per batch (no batching)
+    /// Maximum number of samples to buffer before writing to storage.
+    /// Valid range: 0-10000.
     /// </summary>
     [JsonPropertyName("BatchMaxSamples")]
     public int BatchMaxSamples { get; set; } = 0;
+
+    /// <summary>
+    /// Validates the configuration values.
+    /// Returns true if valid, false otherwise.
+    /// </summary>
+    public bool TryValidate(out string? errorMessage)
+    {
+        if (MinFreeDiskSpaceMb < 0 || MinFreeDiskSpaceMb > 102400)
+        {
+            errorMessage = $"MinFreeDiskSpaceMb must be between 0 and 102400, got {MinFreeDiskSpaceMb}";
+            return false;
+        }
+
+        if (MaxStorageSizeMb < 0 || MaxStorageSizeMb > 102400)
+        {
+            errorMessage = $"MaxStorageSizeMb must be between 0 and 102400, got {MaxStorageSizeMb}";
+            return false;
+        }
+
+        if (RetentionDays < 1 || RetentionDays > 365)
+        {
+            errorMessage = $"RetentionDays must be between 1 and 365, got {RetentionDays}";
+            return false;
+        }
+
+        if (BatchMaxSamples < 0 || BatchMaxSamples > 10000)
+        {
+            errorMessage = $"BatchMaxSamples must be between 0 and 10000, got {BatchMaxSamples}";
+            return false;
+        }
+
+        errorMessage = null;
+        return true;
+    }
 }
 
 /// <summary>

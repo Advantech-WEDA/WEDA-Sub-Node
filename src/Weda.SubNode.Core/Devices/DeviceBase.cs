@@ -754,6 +754,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
             _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
 
+            // Apply device-level Enabled flag
+            if (Configuration.Enabled != desiredConfig.Enabled)
+            {
+                _logger.LogInformation("Updating device Enabled: {Old} -> {New}",
+                    Configuration.Enabled, desiredConfig.Enabled);
+                Configuration.Enabled = desiredConfig.Enabled;
+            }
+
             // Record pre-update state for detecting interval/period changes
             var previousIntervalGroups = Configuration.Sensors
                 .Where(s => s.Report.Enabled)

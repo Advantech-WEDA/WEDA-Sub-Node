@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration.Results;
 using Weda.SubNode.Core.Configuration.Validators;
+using Weda.SubNode.Core.Configuration.Validators.Device;
 using Weda.SubNode.Core.Utilities;
 
 namespace Weda.SubNode.Core.Configuration;

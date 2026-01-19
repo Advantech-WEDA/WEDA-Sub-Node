@@ -9,7 +9,9 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Configuration.Validators;
 using Weda.SubNode.Core.Configuration;
+using Weda.SubNode.Core.Configuration.Validators;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Policies;
 
@@ -372,22 +374,35 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return Task.CompletedTask;
         }
 
-        // Apply Record settings if present
+        // Validate system configuration using registry
+        var validatorRegistry = SystemConfigValidatorRegistry.CreateDefault();
+        var validationContext = new SystemConfigValidationContext { DesiredConfig = systemCfg };
+        var validationResult = validatorRegistry.ValidateAll(validationContext);
+
+        if (!validationResult.IsValid)
+        {
+            _logger.LogWarning(
+                "Invalid SystemConfig, skipping update: {ErrorMessage}",
+                validationResult.ErrorMessage);
+            return Task.CompletedTask;
+        }
+
+        // Apply Record settings if present and recording service is available
         if (systemCfg.Record != null && _recordingService != null)
         {
+            _recordingService.SetEnabled(systemCfg.Record.Enabled);
             _recordingService.UpdateBatchSettings(
                 systemCfg.Record.BatchEnabled,
                 systemCfg.Record.BatchMaxSamples);
 
             _logger.LogInformation(
-                "Updated recording batch settings: BatchEnabled={BatchEnabled}, BatchMaxSamples={BatchMaxSamples}",
+                "Updated recording settings: Enabled={Enabled}, BatchEnabled={BatchEnabled}, BatchMaxSamples={BatchMaxSamples}",
+                systemCfg.Record.Enabled,
                 systemCfg.Record.BatchEnabled,
                 systemCfg.Record.BatchMaxSamples);
         }
 
-        // TODO: Apply other system configuration changes
-        // - Serilog settings (requires restart)
-        // - WedaNode settings (requires restart)
+        // Note: Serilog settings require restart - not applied at runtime
 
         _logger.LogDebug("SystemConfig update processed");
         return Task.CompletedTask;

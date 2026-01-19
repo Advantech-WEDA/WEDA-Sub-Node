@@ -43,6 +43,13 @@ public interface IRecordingService
     /// <param name="batchEnabled">Whether batch buffering is enabled</param>
     /// <param name="batchMaxSamples">Maximum samples per batch</param>
     void UpdateBatchSettings(bool batchEnabled, int batchMaxSamples);
+
+    /// <summary>
+    /// Enables or disables recording at runtime.
+    /// When disabled, RecordAsync calls will be ignored.
+    /// </summary>
+    /// <param name="enabled">Whether recording is enabled</param>
+    void SetEnabled(bool enabled);
 }
 
 public record RecordingResult(
