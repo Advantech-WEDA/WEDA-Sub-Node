@@ -20,6 +20,14 @@ public class RecordingOptions
     public int MinFreeDiskSpaceMb { get; set; } = 128;
 
     /// <summary>
+    /// Maximum total storage size in megabytes for recording files.
+    /// When exceeded, oldest recording files are deleted (Ring Buffer FIFO)
+    /// until the total size is within the limit.
+    /// Set to 0 to disable size-based cleanup.
+    /// </summary>
+    public int MaxStorageSizeMb { get; set; } = 1025;
+
+    /// <summary>
     /// Number of days to retain recording data.
     /// Files older than this are eligible for cleanup.
     /// </summary>

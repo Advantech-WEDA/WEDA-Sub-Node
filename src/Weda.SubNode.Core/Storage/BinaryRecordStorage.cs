@@ -261,23 +261,44 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
 
     /// <summary>
     /// Ensures sufficient disk space is available by deleting oldest files (Ring Buffer FIFO).
+    /// Supports both free-disk threshold and max storage size policies.
     /// </summary>
     private void EnsureDiskSpace()
     {
-        if (_options.MinFreeDiskSpaceMb <= 0)
+        if (_options.MinFreeDiskSpaceMb <= 0 && _options.MaxStorageSizeMb <= 0)
             return;
 
         if (!Directory.Exists(_resolvedStorageDirectory))
             return;
 
         var minFreeBytes = (long)_options.MinFreeDiskSpaceMb * 1024 * 1024;
-        var driveInfo = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(_resolvedStorageDirectory))!);
+        var maxStorageBytes = (long)_options.MaxStorageSizeMb * 1024 * 1024;
+        var drivePath = Path.GetPathRoot(Path.GetFullPath(_resolvedStorageDirectory))!;
+        var currentStorageBytes = GetStorageSizeBytes();
 
-        while (driveInfo.AvailableFreeSpace < minFreeBytes)
+        bool ShouldCleanup()
+        {
+            var belowFreeSpace = _options.MinFreeDiskSpaceMb > 0 &&
+                new DriveInfo(drivePath).AvailableFreeSpace < minFreeBytes;
+            var exceedStorageSize = _options.MaxStorageSizeMb > 0 && currentStorageBytes > maxStorageBytes;
+            return belowFreeSpace || exceedStorageSize;
+        }
+
+        while (ShouldCleanup())
         {
             var oldestFile = GetOldestFile();
             if (oldestFile == null)
                 break;
+
+            long deletedFileSize = 0;
+            try
+            {
+                deletedFileSize = new FileInfo(oldestFile).Length;
+            }
+            catch
+            {
+                // Ignore file size read errors; cleanup still proceeds.
+            }
 
             File.Delete(oldestFile);
 
@@ -287,7 +308,34 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
             {
                 Directory.Delete(sensorDir);
             }
+
+            if (deletedFileSize > 0)
+            {
+                currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize);
+            }
         }
+    }
+
+    private long GetStorageSizeBytes()
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return 0;
+
+        long totalBytes = 0;
+        foreach (var file in Directory.GetDirectories(_resolvedStorageDirectory)
+                     .SelectMany(sensorDir => Directory.GetFiles(sensorDir, "*.bin")))
+        {
+            try
+            {
+                totalBytes += new FileInfo(file).Length;
+            }
+            catch
+            {
+                // Skip files that can't be read.
+            }
+        }
+
+        return totalBytes;
     }
 
     /// <summary>

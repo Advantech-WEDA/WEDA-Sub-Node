@@ -93,6 +93,7 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 {
   "Record": {
     "MinFreeDiskSpaceMb": 128,
+    "MaxStorageSizeMb": 1024,
     "RetentionDays": 7
   }
 }
@@ -102,6 +103,7 @@ Recording Storage 是 SubNode 的本地離線資料記錄功能，將 telemetry 
 |------|------|--------|------|--------|------|
 | `StorageDirectory` | string | `"./data/recording"` | 固定值 | No | 儲存目錄路徑 (固定值) |
 | `MinFreeDiskSpaceMb` | int | `128` | 10-10000 | Yes | 最小可用磁碟空間 (MB) |
+| `MaxStorageSizeMb` | int | `0` | 0-500000 | Yes | 錄影檔案最大總大小 (MB, 0=停用) |
 | `RetentionDays` | int | `7` | 0-180 | Yes | 資料保留天數 (0=無限) |
 
 ### Level 2: Sensor (devicecfg.json)

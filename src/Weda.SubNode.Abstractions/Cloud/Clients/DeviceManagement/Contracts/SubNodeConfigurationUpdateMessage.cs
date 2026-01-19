@@ -461,6 +461,13 @@ public class SubNodeRecordConfigDto
     public int MinFreeDiskSpaceMb { get; set; } = 128;
 
     /// <summary>
+    /// Maximum total storage size in megabytes for recording files.
+    /// Set to 0 to disable size-based cleanup.
+    /// </summary>
+    [JsonPropertyName("MaxStorageSizeMb")]
+    public int MaxStorageSizeMb { get; set; } = 1024;
+
+    /// <summary>
     /// Number of days to retain recording data
     /// </summary>
     [JsonPropertyName("RetentionDays")]
