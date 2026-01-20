@@ -475,6 +475,10 @@ public class WedaApplicationContext : IWedaApplicationContext
     public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
         => _deviceRegistry.FindDevice<TDevice>(deviceName);
 
+    /// <inheritdoc />
+    public IReadOnlyCollection<TDevice> GetAllDevices<TDevice>() where TDevice : IDevice
+        => _deviceRegistry.GetAllDevices<TDevice>();
+
     #region Private Methods
 
     /// <summary>
