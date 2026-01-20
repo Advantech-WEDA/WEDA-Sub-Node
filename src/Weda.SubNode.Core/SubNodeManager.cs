@@ -1,8 +1,11 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.Command.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
@@ -10,6 +13,7 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Configuration.Validators;
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Configuration.Validators;
 using Weda.SubNode.Core.Context;
@@ -691,6 +695,14 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     {
         _logger.LogDebug("Routing command: {Command}", e.Command?.DeviceCmd);
 
+        // Handle SubNode-level commands first
+        if (e.Command?.DeviceCmd != null &&
+            e.Command.DeviceCmd.Equals("REPORT", StringComparison.OrdinalIgnoreCase))
+        {
+            await HandleReportCommandAsync(e);
+            return;
+        }
+
         // Commands are typically broadcast to all devices that can handle them
         // The device determines if it should handle based on command type
         foreach (var (deviceName, handlers) in _deviceHandlers)
@@ -719,6 +731,174 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             {
                 _logger.LogError(ex, "Error in general CommandReceived handler");
             }
+        }
+    }
+
+    /// <summary>
+    /// Handles the REPORT command for historical data query.
+    /// Reads recorded data from storage and sends it to cloud via batch telemetry topic.
+    /// </summary>
+    private async Task HandleReportCommandAsync(ExecuteCommandEvent e)
+    {
+        var command = e.Command;
+        var responseTopic = command.RespTopic;
+        var commandName = command.DeviceCmd;
+
+        _logger.LogInformation("Handling REPORT command: DeviceId={DeviceId}", e.DeviceId);
+
+        // Validate recording service is available
+        if (_recordingService == null)
+        {
+            _logger.LogWarning("Recording service not available, rejecting REPORT command");
+            await SendCommandResponseAsync(responseTopic, CommandResponse.Rejected(
+                e.DeviceId, commandName, "REPORT.NotSupported", "Recording service is not enabled"));
+            return;
+        }
+
+        // Parse command parameters
+        ReportCommandParameters? parameters = null;
+        try
+        {
+            if (command.Parameters.Count > 0)
+            {
+                var json = JsonSerializer.Serialize(command.Parameters);
+                parameters = JsonSerializer.Deserialize<ReportCommandParameters>(json);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse REPORT command parameters");
+            await SendCommandResponseAsync(responseTopic, CommandResponse.Rejected(
+                e.DeviceId, commandName, "REPORT.InvalidParameters", $"Failed to parse parameters: {ex.Message}"));
+            return;
+        }
+
+        // Validate required parameters
+        if (parameters == null || parameters.StartTimestamp <= 0 || parameters.EndTimestamp <= 0)
+        {
+            await SendCommandResponseAsync(responseTopic, CommandResponse.Rejected(
+                e.DeviceId, commandName, "REPORT.MissingParameters", "startTimestamp and endTimestamp are required"));
+            return;
+        }
+
+        if (parameters.StartTimestamp >= parameters.EndTimestamp)
+        {
+            await SendCommandResponseAsync(responseTopic, CommandResponse.Rejected(
+                e.DeviceId, commandName, "REPORT.InvalidTimeRange", "startTimestamp must be less than endTimestamp"));
+            return;
+        }
+
+        // Send "Received" acknowledgment
+        await SendCommandResponseAsync(responseTopic, CommandResponse.Received(e.DeviceId, commandName));
+
+        // Execute the query
+        try
+        {
+            await ExecuteReportQueryAsync(e.DeviceId, commandName, responseTopic, parameters);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to execute REPORT query");
+            await SendCommandResponseAsync(responseTopic, CommandResponse.Failed(
+                e.DeviceId, commandName, "REPORT.ExecutionFailed", ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Executes the historical data query and sends batch telemetry messages.
+    /// </summary>
+    private async Task ExecuteReportQueryAsync(
+        string deviceId,
+        string commandName,
+        string responseTopic,
+        ReportCommandParameters parameters)
+    {
+        var start = DateTimeOffset.FromUnixTimeMilliseconds(parameters.StartTimestamp);
+        var end = DateTimeOffset.FromUnixTimeMilliseconds(parameters.EndTimestamp);
+        var maxBatchSize = parameters.MaxBatchSize > 0 ? parameters.MaxBatchSize : 1000;
+
+        _logger.LogInformation(
+            "Executing REPORT query: DeviceId={DeviceId}, Start={Start}, End={End}, MaxBatchSize={MaxBatchSize}",
+            deviceId, start, end, maxBatchSize);
+
+        // Get sensor IDs to query
+        var sensorIds = parameters.SensorIds;
+        if (sensorIds == null || sensorIds.Count == 0)
+        {
+            var result = await _recordingService!.GetSensorIdsAsync();
+            if (result.IsError)
+            {
+                await SendCommandResponseAsync(responseTopic, CommandResponse.Failed(
+                    deviceId, commandName, "REPORT.NoSensors", "Failed to get sensor IDs"));
+                return;
+            }
+            sensorIds = result.Value.ToList();
+        }
+
+        if (sensorIds.Count == 0)
+        {
+            _logger.LogInformation("No sensors found for REPORT query");
+            await SendCommandResponseAsync(responseTopic, CommandResponse.Success(deviceId, commandName, new { totalBatches = 0 }));
+            return;
+        }
+
+        // Query and send data for each sensor
+        var totalBatches = 0;
+        var allMeasures = new List<BatchTelemetryMeasureDto>();
+
+        foreach (var sensorId in sensorIds)
+        {
+            var recordingResult = await _recordingService!.GetRecordingsAsync(sensorId, start, end);
+            if (recordingResult.IsError)
+            {
+                _logger.LogWarning("Failed to get recordings for sensor {SensorId}: {Error}",
+                    sensorId, recordingResult.FirstError.Description);
+                continue;
+            }
+
+            var recordings = recordingResult.Value;
+            foreach (var measure in recordings.Measures)
+            {
+                allMeasures.Add(new BatchTelemetryMeasureDto
+                {
+                    Id = sensorId,
+                    Interval = measure.Interval / 1000, // Convert ms to seconds
+                    StartTimeStamp = measure.StartTimeStamp / 1000, // Convert ms to seconds
+                    Values = measure.Values.Select(v => double.IsNaN(v) ? (double?)null : v).ToList()
+                });
+
+                // Send batch when reaching max size
+                if (allMeasures.Count >= maxBatchSize)
+                {
+                    await SendBatchAndClearAsync(deviceId, allMeasures);
+                    totalBatches++;
+                }
+            }
+        }
+
+        // Send remaining measures
+        if (allMeasures.Count > 0)
+        {
+            await SendBatchAndClearAsync(deviceId, allMeasures);
+            totalBatches++;
+        }
+
+        _logger.LogInformation("REPORT query completed: DeviceId={DeviceId}, TotalBatches={TotalBatches}", deviceId, totalBatches);
+        await SendCommandResponseAsync(responseTopic, CommandResponse.Success(deviceId, commandName, new { totalBatches }));
+    }
+
+    private async Task SendBatchAndClearAsync(string deviceId, List<BatchTelemetryMeasureDto> measures)
+    {
+        var message = BatchTelemetrySendMessage.Create(deviceId, [.. measures]);
+        await _cloudService.SendBatchTelemetryAsync(deviceId, message);
+        measures.Clear();
+    }
+
+    private async Task SendCommandResponseAsync(string responseTopic, CommandResponse response)
+    {
+        if (!string.IsNullOrEmpty(responseTopic))
+        {
+            await _cloudService.SendCommandResponseAsync(responseTopic, response);
         }
     }
 

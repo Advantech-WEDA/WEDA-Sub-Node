@@ -7,9 +7,12 @@ namespace Weda.SubNode.WebApi.Controllers;
 public class RecordingsController(IRecordingService recordingService) : ApiController
 {
     [HttpGet("sensors")]
-    public async Task<IActionResult> GetSensors(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetSensors(
+        [FromQuery] int pageIndex = 0,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        var result = await recordingService.GetSensorIdsAsync(cancellationToken);
+        var result = await recordingService.GetSensorsAsync(pageIndex, pageSize, cancellationToken);
 
         return result.Match(Ok, errors => Problem(errors));
     }

@@ -290,10 +290,9 @@ public class WedaApplicationBuilder
         {
             Services.Configure(configure);
         }
-        Services.AddSingleton<IRecordStorage, BinaryRecordStorage>();
-        Services.AddSingleton<IRecordingService, RecordingService>();
 
-        
+        // Enable recording flag for WedaApplicationContext to create RecordingService
+        Services.Configure<DeviceOptions>(options => options.EnableRecording = true);
 
         return this;
     }
@@ -535,8 +534,8 @@ public class WedaApplicationBuilder
             var registrationStorage = sp.GetService<IDeviceRegistrationStorage>();
             var configurationCache = sp.GetService<IConfigurationCache>();
 
-            // Get recording service from DI (registered by AddRecording)
-            var recordingService = sp.GetService<IRecordingService>();
+            // Get recording options from DI (registered by AddRecording)
+            var recordingOptions = sp.GetService<IOptions<RecordingOptions>>()?.Value;
 
             return new Context.WedaApplicationContext(options =>
             {
@@ -548,14 +547,22 @@ public class WedaApplicationBuilder
                 // Pass DI-registered storage instances to share resources
                 options.RegistrationStorage = registrationStorage;
                 options.ConfigurationCache = configurationCache;
-                // Pass DI-registered recording service
-                options.RecordingService = recordingService;
+                // Pass recording options (WedaApplicationContext creates RecordingService internally)
+                options.RecordingOptions = recordingOptions;
             });
         });
 
         // Register ISubNodeManager from the context (it's created by WedaApplicationContext)
         Services.AddSingleton<ISubNodeManager>(sp =>
             sp.GetRequiredService<IWedaApplicationContext>().SubNodeManager);
+
+        // Register IDeviceRegistry from the context
+        Services.AddSingleton<IDeviceRegistry>(sp =>
+            sp.GetRequiredService<IWedaApplicationContext>().DeviceRegistry);
+
+        // Register IRecordingService from the context (may be null if recording not enabled)
+        Services.AddSingleton<IRecordingService>(sp =>
+            sp.GetRequiredService<IWedaApplicationContext>().RecordingService!);
 
         // Register device factory
         Services.AddSingleton<IDeviceFactory, DeviceFactory>();

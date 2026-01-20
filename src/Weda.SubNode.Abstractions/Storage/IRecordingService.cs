@@ -1,5 +1,7 @@
 using ErrorOr;
+using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Abstractions.Storage;
 
@@ -25,7 +27,21 @@ public interface IRecordingService
 
     Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets all sensor short IDs that have recording data.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of sensor short IDs.</returns>
     Task<ErrorOr<IReadOnlyList<string>>> GetSensorIdsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets sensors with pagination support.
+    /// </summary>
+    /// <param name="pageIndex">The page index (0-based).</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A paged result containing sensor DTOs.</returns>
+    Task<ErrorOr<PagedResult<RecordingSensorDto>>> GetSensorsAsync(int pageIndex, int pageSize, CancellationToken cancellationToken = default);
 
     Task<ErrorOr<RecordingResult>> GetRecordingsAsync(
         string sensorId,

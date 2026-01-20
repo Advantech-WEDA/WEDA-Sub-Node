@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
+using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
@@ -571,6 +572,48 @@ public sealed class WedaCloudService : IWedaCloudService
             _logger.LogError(ex,
                 "Failed to send command response: DeviceId={DeviceId}, Command={Command}",
                 response.DeviceId, response.Command);
+            return false;
+        }
+    }
+
+    public async Task<bool> SendBatchTelemetryAsync(
+        string deviceId,
+        BatchTelemetrySendMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments == null)
+        {
+            _logger.LogWarning(
+                "Cannot send batch telemetry: topics not configured for device {DeviceId}",
+                deviceId);
+            return false;
+        }
+
+        var batchTelemetryTopic = topicAssignments.BatchTelemetryTopic;
+        _logger.LogInformation(
+            "Sending batch telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}, Topic={Topic}",
+            deviceId, message.Data.Measures.Count, batchTelemetryTopic);
+
+        try
+        {
+            await _client.PublishAsync(
+                subject: batchTelemetryTopic,
+                data: message,
+                cancellationToken: cancellationToken);
+
+            _logger.LogDebug(
+                "Batch telemetry sent successfully: DeviceId={DeviceId}, MeasureCount={MeasureCount}",
+                deviceId, message.Data.Measures.Count);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send batch telemetry: DeviceId={DeviceId}",
+                deviceId);
             return false;
         }
     }

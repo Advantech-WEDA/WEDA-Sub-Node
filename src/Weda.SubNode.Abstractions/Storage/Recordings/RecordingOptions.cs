@@ -14,10 +14,9 @@ public class RecordingOptions
 
     /// <summary>
     /// Directory path for storing recording data files.
-    /// Supports relative paths (resolved from working directory) or absolute paths.
     /// Default is "./.weda/data/recording".
     /// </summary>
-    public string StorageDirectory { get; set; } = "./.weda/data/recording";
+    public const string StorageDirectory = "./.weda/data/recording";
 
     /// <summary>
     /// Minimum free disk space in megabytes.

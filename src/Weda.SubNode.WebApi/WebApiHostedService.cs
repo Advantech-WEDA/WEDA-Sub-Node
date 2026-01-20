@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Web;
 
@@ -25,6 +27,7 @@ public class WebApiHostedService(IServiceProvider serviceProvider, IOptions<WebA
             .AddApplicationPart(typeof(WebApiHostedService).Assembly);
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
+        builder.Services.AddSingleton(_serviceProvider.GetRequiredService<IDeviceRegistry>());
         builder.Services.AddSingleton(_serviceProvider.GetRequiredService<IRecordingService>());
 
         _webApp = builder.Build();

@@ -1,6 +1,7 @@
 using ErrorOr;
 
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
@@ -122,6 +123,19 @@ public interface IWedaCloudService : IDisposable
     Task<bool> SendCommandResponseAsync(
         string responseTopic,
         CommandResponse response,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Send batch telemetry data to cloud.
+    /// Used to report historical recording data during data backfill operations.
+    /// </summary>
+    /// <param name="deviceId">The device ID (SubNode ID)</param>
+    /// <param name="message">The batch telemetry message</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if sent successfully, false otherwise</returns>
+    Task<bool> SendBatchTelemetryAsync(
+        string deviceId,
+        BatchTelemetrySendMessage message,
         CancellationToken cancellationToken = default);
 
     /// <summary>

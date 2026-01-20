@@ -257,16 +257,17 @@ Generated files:
 #### Header (24 bytes)
 
 ```
-┌───────────────────────────────────────────────────────────┐
+┌────────┬──────┬─────────┬─────────────────────────────────┐
 │ Offset │ Size │ Type    │ Field                           │
 ├────────┼──────┼─────────┼─────────────────────────────────┤
 │ 0      │ 4    │ uint32  │ Prefix (0x57454441 "WEDA")      │
 │ 4      │ 2    │ uint16  │ Version (1)                     │
-│ 6      │ 2    │ uint16  │ Interval (ms)                   │
-│ 8      │ 8    │ int64   │ StartTimestamp (Unix ms)        │
-│ 16     │ 4    │ int32   │ SlotCount                       │
-│ 20     │ 4    │ int32   │ CurrentSlot                     │
-└───────────────────────────────────────────────────────────┘
+│ 6      │ 1    │ byte    │ Flags (Preserved)               │
+│ 7      │ 1    │ byte    │ ChecksumType                    │
+│ 8      │ 4    │ uint32  │ Interval (ms)                   │
+│ 12     │ 8    │ ulong   │ StartTimestamp (Unix ms)        │
+│ 20     │ 4    │ uint32  │ SlotCount                       │
+└────────┴──────┴─────────┴─────────────────────────────────┘
 Total: 24 bytes
 ```
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Utilities;
@@ -8,7 +9,7 @@ namespace Weda.SubNode.Core.Storage;
 public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordStorage
 {
     private readonly RecordingOptions _options = options.Value;
-    private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(options.Value.StorageDirectory);
+    private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
     private const int MillisecondsPerDay = 86400000;
     private const ushort Version = 1;
 
@@ -81,41 +82,8 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
 
     private static async Task<List<RecordingDataPoint>> ReadFromFileAsync(string filePath, int interval, long startMs, long endMs, CancellationToken cancellationToken)
     {
-        var result = new List<RecordingDataPoint>();
-
-        await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-        // Read header
-        var headerBytes = new byte[RecordingFileHeader.HeaderSize];
-        await fs.ReadExactlyAsync(headerBytes, cancellationToken);
-
-        var startOfDay = BitConverter.ToInt64(headerBytes, 8);
-        var slotCount = BitConverter.ToInt32(headerBytes, 16);
-
-        // Calculate slot range to read
-        var startSlot = Math.Max(0, (int)((startMs - startOfDay) / interval));
-        var endSlot = Math.Min(slotCount - 1, (int)((endMs - startOfDay) / interval));
-
-        if (startSlot > endSlot || startSlot >= slotCount)
-            return result;
-
-        // Seek to start slot
-        var startPosition = RecordingFileHeader.HeaderSize + startSlot * sizeof(double);
-        fs.Seek(startPosition, SeekOrigin.Begin);
-
-        // Read slots (including NaN values to preserve gaps)
-        var buffer = new byte[sizeof(double)];
-        for (var slot = startSlot; slot <= endSlot; slot++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            await fs.ReadExactlyAsync(buffer, cancellationToken);
-            var value = BitConverter.ToDouble(buffer);
-            var timestamp = startOfDay + (long)slot * interval;
-            result.Add(new RecordingDataPoint(timestamp, value));
-        }
-
-        return result;
+        var dataPoints = await RecordingBinFileReader.ReadDataPointsAsync(filePath, interval, startMs, endMs, cancellationToken);
+        return dataPoints.ToList();
     }
 
     public Task<IReadOnlyList<string>> GetSensorIdsAsync(CancellationToken cancellationToken = default)
@@ -131,6 +99,27 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
             .ToList();
 
         return Task.FromResult<IReadOnlyList<string>>(sensorIds);
+    }
+
+    public Task<PagedResult<string>> GetSensorsAsync(int pageIndex, int pageSize, CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return Task.FromResult(PagedResult<string>.Empty(pageIndex, pageSize));
+
+        var allSensorIds = Directory.GetDirectories(_resolvedStorageDirectory)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Cast<string>()
+            .OrderBy(name => name)
+            .ToList();
+
+        var totalCount = allSensorIds.Count;
+        var items = allSensorIds
+            .Skip(pageIndex * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return Task.FromResult(new PagedResult<string>(items, totalCount, pageIndex, pageSize));
     }
 
     public Task<IReadOnlyList<int>> GetIntervalsAsync(string sensorId, CancellationToken cancellationToken = default)
@@ -160,6 +149,10 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
 
         foreach (var sensorDir in Directory.GetDirectories(_resolvedStorageDirectory))
         {
+            // Skip if directory was deleted between enumeration and access
+            if (!Directory.Exists(sensorDir))
+                continue;
+
             foreach (var file in Directory.GetFiles(sensorDir, "*.bin"))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -235,12 +228,21 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
         using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
         fs.SetLength(fileSize);
 
+        // Header layout (24 bytes):
+        // [0-3]   uint32  Prefix
+        // [4-5]   uint16  Version
+        // [6]     byte    Flags (0 = Little Endian)
+        // [7]     byte    CheckSumType (0 = None)
+        // [8-11]  uint32  Interval
+        // [12-19] ulong   StartTimestamp
+        // [20-23] uint32  SlotCount
         fs.Write(BitConverter.GetBytes(RecordingFileHeader.Prefix));
         fs.Write(BitConverter.GetBytes(Version));
-        fs.Write(BitConverter.GetBytes((ushort)interval));
-        fs.Write(BitConverter.GetBytes(startOfDay));
-        fs.Write(BitConverter.GetBytes(slotCount));
-        fs.Write(BitConverter.GetBytes(0));
+        fs.WriteByte(0); // Flags: Little Endian
+        fs.WriteByte(0); // CheckSumType: None
+        fs.Write(BitConverter.GetBytes((uint)interval));
+        fs.Write(BitConverter.GetBytes((ulong)startOfDay));
+        fs.Write(BitConverter.GetBytes((uint)slotCount));
 
         var nanBytes = BitConverter.GetBytes(double.NaN);
         for (int i = 0; i < slotCount; i++)

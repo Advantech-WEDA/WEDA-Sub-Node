@@ -1,14 +1,18 @@
 using System.Collections.Concurrent;
 using ErrorOr;
 using Microsoft.Extensions.Options;
+using Weda.SubNode.Abstractions.Common;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Storage;
 
 public class RecordingService : IRecordingService, IDisposable
 {
     private readonly IRecordStorage _storage;
+    private readonly IDeviceRegistry _deviceRegistry;
     private readonly RecordingOptions _options;
     private readonly ConcurrentDictionary<string, int> _lastRecordedslot = new();
     private readonly ConcurrentDictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
@@ -19,9 +23,10 @@ public class RecordingService : IRecordingService, IDisposable
     private int _batchMaxSamples;
     private bool _disposed;
 
-    public RecordingService(IRecordStorage storage, IOptions<RecordingOptions> options)
+    public RecordingService(IRecordStorage storage, IDeviceRegistry deviceRegistry, IOptions<RecordingOptions> options)
     {
         _storage = storage;
+        _deviceRegistry = deviceRegistry;
         _options = options.Value;
         _enabled = options.Value.Enabled;
         _batchMaxSamples = Math.Max(1, options.Value.BatchMaxSamples);
@@ -168,6 +173,38 @@ public class RecordingService : IRecordingService, IDisposable
         }
     }
 
+    public async Task<ErrorOr<PagedResult<RecordingSensorDto>>> GetSensorsAsync(int pageIndex, int pageSize, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var pagedSensorIds = await _storage.GetSensorsAsync(pageIndex, pageSize, cancellationToken);
+
+            // Build a lookup of all sensors from registered devices (by ShortId)
+            var sensorLookup = _deviceRegistry.GetAllDevices()
+                .SelectMany(d => d.Configuration.Sensors)
+                .ToDictionary(s => s.ShortId, s => s);
+
+            // Map sensor IDs to RecordingSensorDto
+            var sensorDtos = pagedSensorIds.Items
+                .Select(shortId => sensorLookup.TryGetValue(shortId, out var sensor)
+                    ? RecordingSensorDto.FromSensor(sensor)
+                    : null)
+                .Where(dto => dto != null)
+                .Cast<RecordingSensorDto>()
+                .ToList();
+
+            return new PagedResult<RecordingSensorDto>(
+                sensorDtos,
+                pagedSensorIds.TotalCount,
+                pagedSensorIds.PageIndex,
+                pagedSensorIds.PageSize);
+        }
+        catch (Exception ex)
+        {
+            return Errors.Recording.StorageError(ex);
+        }
+    }
+
     public async Task<ErrorOr<RecordingResult>> GetRecordingsAsync(
         string sensorId,
         DateTimeOffset start,
@@ -176,13 +213,12 @@ public class RecordingService : IRecordingService, IDisposable
     {
         try
         {
-            var sensorIds = await _storage.GetSensorIdsAsync(cancellationToken);
-            if (!sensorIds.Contains(sensorId))
+            var intervals = await _storage.GetIntervalsAsync(sensorId, cancellationToken);
+            if (intervals.Count == 0)
             {
                 return Errors.Recording.SensorNotFound(sensorId);
             }
 
-            var intervals = await _storage.GetIntervalsAsync(sensorId, cancellationToken);
             var measures = new List<RecordingMeasureResult>();
 
             foreach (var interval in intervals)
@@ -209,8 +245,8 @@ public class RecordingService : IRecordingService, IDisposable
     {
         try
         {
-            var sensorIds = await _storage.GetSensorIdsAsync(cancellationToken);
-            if (!sensorIds.Contains(sensorId))
+            var intervals = await _storage.GetIntervalsAsync(sensorId, cancellationToken);
+            if (intervals.Count == 0)
             {
                 return Errors.Recording.SensorNotFound(sensorId);
             }
