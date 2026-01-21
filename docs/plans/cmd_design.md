@@ -237,7 +237,7 @@ builder.ConfigureCommands(cmd => {
 ┌──────────────────┐
 │  SubNode         │
 │  ┌────────────┐  │
-│  │ Dispatcher │──┼──► 只做 routing，轉發給 Device
+│  │ Dispatcher │──┼──► DeviceControlCommandHandler 轉發給 Device
 │  └────────────┘  │
 └──────────────────┘
       │
@@ -245,8 +245,8 @@ builder.ConfigureCommands(cmd => {
 ┌──────────────────┐
 │  Device (plc-1)  │
 │  ┌────────────┐  │
-│  │ Protocol   │  │     ← Device 負責解析 & 執行
-│  │ Parser     │  │       (Modbus FC05 Write Coil)
+│  │ Execute    │  │     ← Device 負責執行
+│  │ CommandAsync│  │       (Modbus FC05 Write Coil)
 │  └────────────┘  │
 └──────────────────┘
       │
@@ -257,24 +257,23 @@ builder.ConfigureCommands(cmd => {
 └──────────────────┘
 ```
 
-**SDK User 實作**:
+**內建 Handler** (SDK 提供，不需自己實作):
 
 ```csharp
-// 使用內建的 deviceControl command
-// SubNode 自動轉發，User 只需要在 ProtocolParser 中處理
-
-public class MyProtocolParser : IProtocolParser
+// DeviceControlCommandHandler 是 SDK 內建的
+// 它會根據 deviceName 找到對應的 Device，並呼叫 ExecuteCommandAsync
+public class DeviceControlCommandHandler : ICommandHandler<DeviceControlCommand>
 {
-    public async Task<ErrorOr<object>> ExecuteCommandAsync(
-        DeviceCommand command,
+    public async Task<CommandResult> HandleAsync(
+        DeviceControlCommand command,
+        IWedaApplicationContext context,
         CancellationToken ct)
     {
-        return command.DeviceCmd switch
-        {
-            "SetDO" => await ExecuteSetDOAsync(command, ct),
-            "MyCustomCmd" => await HandleMyCustomCmdAsync(command, ct),
-            _ => Error.Validation("Command.NotSupported", "...")
-        };
+        var device = context.GetDevice(command.DeviceName);
+        var result = await device.ExecuteCommandAsync(command.ToDeviceCommand(), ct);
+        return result.IsError
+            ? CommandResult.Failure(result.FirstError)
+            : CommandResult.Success(result.Value);
     }
 }
 ```
@@ -284,9 +283,9 @@ public class MyProtocolParser : IProtocolParser
 ```json
 {
   "deviceCmd": "deviceControl",
-  "deviceName": "my-device",
-  "command": "MyCustomCmd",
-  "parameters": { "param1": "value1" }
+  "deviceName": "plc-1",
+  "command": "SetDO",
+  "parameters": { "do": "do0", "state": true }
 }
 ```
 
@@ -485,9 +484,8 @@ src/Weda.SubNode.Abstractions/Commands/
 │   ├── ICommandValidator.cs
 │   └── ValidationResult.cs
 └── Definitions/
-    ├── ReportCommand.cs           # SubNode-level
-    ├── GetStatusCommand.cs        # SubNode-level
-    └── DeviceControlCommand.cs    # Generic wrapper for device commands
+    ├── ReportCommand.cs           # SubNode-level (Mode A)
+    └── DeviceControlCommand.cs    # Device-level (Mode B)
 
 src/Weda.SubNode.Core/Commands/
 ├── CommandRegistry.cs
@@ -498,11 +496,9 @@ src/Weda.SubNode.Core/Commands/
 │   └── ValidatorBehavior.cs
 ├── Handlers/
 │   ├── ReportCommandHandler.cs
-│   ├── GetStatusCommandHandler.cs
 │   └── DeviceControlCommandHandler.cs
 └── Validators/
-    ├── ReportCommandValidator.cs
-    └── DeviceControlCommandValidator.cs
+    └── ReportCommandValidator.cs
 ```
 
 > **Note**: Handler 使用 `IWedaApplicationContext` 作為 context 參數，不需要額外的 CommandContext 類別。
@@ -636,9 +632,9 @@ public delegate Task<CommandResult> CommandHandlerDelegate(
                           │    Mode B       │       │    Mode C       │
                           │  Device Only    │       │    Hybrid       │
                           │                 │       │                 │
-                          │ 實作:           │       │ 實作:           │
-                          │ ProtocolParser  │       │ ICommandHandler │
-                          │ 中加 case       │       │ + 呼叫 devices  │
+                          │ 使用內建        │       │ 實作:           │
+                          │ DeviceControl   │       │ ICommandHandler │
+                          │ Command         │       │ + 呼叫 devices  │
                           └─────────────────┘       └─────────────────┘
 ```
 
@@ -648,8 +644,8 @@ public delegate Task<CommandResult> CommandHandlerDelegate(
 |-----------|-------------|-----------|
 | 查詢 SubNode 的歷史資料 | Mode A | `ICommandHandler<T>` |
 | 讀取 SubNode 的設定 | Mode A | `ICommandHandler<T>` |
-| 控制單一 Device 的 DO | Mode B | `ProtocolParser` 中加 case |
-| 讀取單一 Device 的 Register | Mode B | `ProtocolParser` 中加 case |
+| 控制單一 Device 的 DO | Mode B | 使用內建 `DeviceControlCommand`（不需實作） |
+| 讀取單一 Device 的 Register | Mode B | 使用內建 `DeviceControlCommand`（不需實作） |
 | 校正所有 Devices 並記錄 | Mode C | `ICommandHandler<T>` + 呼叫 `device.ExecuteCommandAsync` |
 | 批次更新多個 Devices 設定 | Mode C | `ICommandHandler<T>` + 遍歷 devices |
 | 複雜工作流程 (有先後順序) | Mode C | `ICommandHandler<T>` + orchestration logic |
