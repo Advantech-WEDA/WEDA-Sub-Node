@@ -821,6 +821,10 @@ public class WedaApplicationContext : IWedaApplicationContext
         if (_recordingService == null || _recordingOptions == null)
             return;
 
+        // RetentionDays = 0 means retention-based cleanup is disabled
+        if (_recordingOptions.RetentionDays <= 0)
+            return;
+
         try
         {
             var cutoff = DateTimeOffset.UtcNow.AddDays(-_recordingOptions.RetentionDays);

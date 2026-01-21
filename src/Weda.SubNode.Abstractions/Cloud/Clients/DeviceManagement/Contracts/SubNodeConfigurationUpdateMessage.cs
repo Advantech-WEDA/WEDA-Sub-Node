@@ -472,7 +472,8 @@ public class SubNodeRecordConfigDto
 
     /// <summary>
     /// Number of days to retain recording data.
-    /// Valid range: 1-365.
+    /// Set to 0 to disable retention-based cleanup (files retained indefinitely).
+    /// Valid range: 0-365.
     /// </summary>
     [JsonPropertyName("RetentionDays")]
     public int RetentionDays { get; set; } = 7;
@@ -508,9 +509,9 @@ public class SubNodeRecordConfigDto
             return false;
         }
 
-        if (RetentionDays < 1 || RetentionDays > 365)
+        if (RetentionDays < 0 || RetentionDays > 365)
         {
-            errorMessage = $"RetentionDays must be between 1 and 365, got {RetentionDays}";
+            errorMessage = $"RetentionDays must be between 0 and 365 (0=disabled), got {RetentionDays}";
             return false;
         }
 

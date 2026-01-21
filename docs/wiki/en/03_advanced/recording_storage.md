@@ -104,7 +104,7 @@ These two operations are independent: Recording ensures data is not lost, Report
 | `StorageDirectory` | string | `"./data/recording"` | Fixed | No | Storage directory path (fixed value) |
 | `MinFreeDiskSpaceMb` | int | `128` | 10-10000 | Yes | Minimum free disk space (MB) |
 | `MaxStorageSizeMb` | int | `0` | 0-500000 | Yes | Max total size for recording files (MB, 0=disabled) |
-| `RetentionDays` | int | `7` | 0-180 | Yes | Data retention days (0=unlimited) |
+| `RetentionDays` | int | `7` | 0-365 | Yes | Data retention days (0=disabled, files retained indefinitely) |
 
 ### Level 2: Sensor (devicecfg.json)
 

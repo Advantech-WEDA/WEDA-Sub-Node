@@ -39,7 +39,8 @@ public class RecordingOptions
     /// <summary>
     /// Number of days to retain recording data.
     /// Files older than this are eligible for cleanup.
-    /// Valid range: 1-365.
+    /// Set to 0 to disable retention-based cleanup (files retained indefinitely).
+    /// Valid range: 0-365.
     /// </summary>
     public int RetentionDays { get; set; } = 7;
 
@@ -80,8 +81,8 @@ public class RecordingOptions
         if (MaxStorageSizeMb < 0 || MaxStorageSizeMb > 102400)
             throw new ArgumentOutOfRangeException(nameof(MaxStorageSizeMb), "Must be between 0 and 102400");
 
-        if (RetentionDays < 1 || RetentionDays > 365)
-            throw new ArgumentOutOfRangeException(nameof(RetentionDays), "Must be between 1 and 365");
+        if (RetentionDays < 0 || RetentionDays > 365)
+            throw new ArgumentOutOfRangeException(nameof(RetentionDays), "Must be between 0 and 365 (0=disabled)");
 
         if (BatchMaxSamples < 0 || BatchMaxSamples > 10000)
             throw new ArgumentOutOfRangeException(nameof(BatchMaxSamples), "Must be between 0 and 10000");
