@@ -9,6 +9,7 @@ using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
@@ -96,8 +97,8 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                     TotalSamples = 0,
                     TimeRange = new BatchReportTimeRange
                     {
-                        StartTime = startTime.ToString("O"),
-                        EndTime = endTime.ToString("O")
+                        StartTime = effectiveTimeRange.StartTime,
+                        EndTime = effectiveTimeRange.EndTime
                     },
                     Sensors = []
                 },
@@ -106,83 +107,129 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         logger.LogDebug("Processing {Count} sensors", sensorIds.Count);
 
-        // Step 2. Query and batch send
+        // Step 2. Query and batch send with timeout support
         var batchBuffer = new List<BatchTelemetryMeasureDto>();
         var messageCount = 0;
         var failedSensors = new List<string>();
+        var failedBatches = 0;
         var totalSamples = 0;
         var processedSensors = new List<string>();
+        var estimatedTotalBatches = sensorIds.Count; // Rough estimate, will be refined
 
-        foreach (var sensorId in sensorIds)
+        // Create timeout-linked cancellation token
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(command.Timeout));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        var linkedToken = linkedCts.Token;
+
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
+            foreach (var sensorId in sensorIds)
             {
-                return BatchReportResult.Error(
-                    BatchReportStatusCode.Timeout,
-                    command.DeviceCmd,
-                    command.ReportType,
-                    "CANCELLED",
-                    "Operation was cancelled",
-                    executedAt);
-            }
+                linkedToken.ThrowIfCancellationRequested();
 
-            var recordingResult = await recordingService.GetRecordingsAsync(sensorId, startTime, endTime, cancellationToken);
+                var recordingResult = await recordingService.GetRecordingsAsync(sensorId, startTime, endTime, linkedToken);
 
-            if (recordingResult.IsError)
-            {
-                logger.LogWarning("Failed to get recordings for sensor {SensorId}: {Error}", sensorId, recordingResult.Errors.First().Description);
-                failedSensors.Add(sensorId);
-                continue;
-            }
-
-            processedSensors.Add(sensorId);
-
-            // Convert recording to batch measures
-            foreach (var measure in recordingResult.Value.Measures)
-            {
-                batchBuffer.Add(new BatchTelemetryMeasureDto
+                if (recordingResult.IsError)
                 {
-                    Id = sensorId,
-                    Interval = measure.Interval,
-                    StartTimeStamp = measure.StartTimeStamp,
-                    Values = measure.Values
-                        .Select(v => double.IsFinite(v) ? (double?)v : null)   // NaN and infinite value is not allow for JSON
-                        .ToList()
-                });
+                    logger.LogWarning("Failed to get recordings for sensor {SensorId}: {Error}", sensorId, recordingResult.Errors.First().Description);
+                    failedSensors.Add(sensorId);
+                    continue;
+                }
 
-                totalSamples += measure.Values.Count;
+                processedSensors.Add(sensorId);
 
-                // Check if we should send a batch
-                if (batchBuffer.Count >= command.MaxBatchesPerMessage)
+                // Convert recording to batch measures
+                foreach (var measure in recordingResult.Value.Measures)
                 {
-                    await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, cancellationToken);
-                    batchBuffer.Clear();
-                    messageCount++;
-
-                    if (command.TransmissionRateLimit > 0)
+                    batchBuffer.Add(new BatchTelemetryMeasureDto
                     {
-                        var delayMs = 1000 / command.TransmissionRateLimit;
-                        await Task.Delay(delayMs, cancellationToken);
+                        Id = sensorId,
+                        Interval = measure.Interval,
+                        StartTimeStamp = measure.StartTimeStamp,
+                        Values = measure.Values
+                            .Select(v => double.IsFinite(v) ? (double?)v : null)   // NaN and infinite value is not allow for JSON
+                            .ToList()
+                    });
+
+                    totalSamples += measure.Values.Count;
+
+                    // Check if we should send a batch
+                    if (batchBuffer.Count >= command.MaxBatchesPerMessage)
+                    {
+                        var success = await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, linkedToken);
+                        if (!success)
+                        {
+                            failedBatches++;
+                        }
+                        batchBuffer.Clear();
+                        messageCount++;
+
+                        // progress if multi-batch
+                        await SendProgressAsync(cloudService, subNodeId, command.RespTopic,
+                            new BatchReportProgress
+                            {
+                                DeviceCmd = command.DeviceCmd,
+                                ReportType = command.ReportType,
+                                Progress = new BatchReportProgressData
+                                {
+                                    BatchesSent = messageCount,
+                                    TotalBatches = estimatedTotalBatches,
+                                    SamplesSent = totalSamples,
+                                    PercentComplete = Math.Round((double)processedSensors.Count / sensorIds.Count * 100, 1)
+                                }
+                            }, logger, linkedToken);
+
+                        if (command.TransmissionRateLimit > 0)
+                        {
+                            var delayMs = 1000 / command.TransmissionRateLimit;
+                            await Task.Delay(delayMs, linkedToken);
+                        }
                     }
                 }
             }
-        }
 
-        // Send remaining batch
-        if (batchBuffer.Count > 0)
+            // Send remaining batch
+            if (batchBuffer.Count > 0)
+            {
+                var success = await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, linkedToken);
+                if (!success)
+                {
+                    failedBatches++;
+                }
+                messageCount++;
+            }
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
-            await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, cancellationToken);
-            messageCount++;
+            logger.LogWarning("BatchReport timed out after {Timeout} seconds", command.Timeout);
+            return BatchReportResult.Error(
+                BatchReportStatusCode.Timeout,
+                command.DeviceCmd,
+                command.ReportType,
+                "TIMEOUT",
+                $"Command execution exceeded {command.Timeout} seconds timeout",
+                executedAt);
+        }
+        catch (OperationCanceledException)
+        {
+            // Original cancellation token was triggered (not timeout)
+            return BatchReportResult.Error(
+                BatchReportStatusCode.Timeout,
+                command.DeviceCmd,
+                command.ReportType,
+                "CANCELLED",
+                "Operation was cancelled",
+                executedAt);
         }
 
         var completedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var durationSeconds = (completedAt - executedAt) / 1000;
 
-        logger.LogInformation("BatchReport completed: {MessageCount} messages sent, {TotalSamples} samples in {Duration}s",
-            messageCount, totalSamples, durationSeconds);
+        logger.LogInformation("BatchReport completed: {MessageCount} messages sent, {TotalSamples} samples, {FailedBatches} failed batches in {Duration}s",
+            messageCount, totalSamples, failedBatches, durationSeconds);
 
-        // Determine final status
-        var statusCode = failedSensors.Count > 0
+        // Determine final status - include failed batches in consideration
+        var statusCode = (failedBatches > 0 || failedSensors.Count > 0)
             ? BatchReportStatusCode.PartialSuccess
             : (messageCount == 0 ? BatchReportStatusCode.NoDataAvailable : BatchReportStatusCode.Success);
 
@@ -200,8 +247,8 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             TotalSamples = totalSamples,
             TimeRange = new BatchReportTimeRange
             {
-                StartTime = startTime.ToString("O"),
-                EndTime = endTime.ToString("O")
+                StartTime = effectiveTimeRange.StartTime,
+                EndTime = effectiveTimeRange.EndTime
             },
             Sensors = processedSensors.ToArray(),
             DataGaps = failedSensors.Count > 0
@@ -242,7 +289,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         return result.ToList();
     }
 
-    private static async Task SendBatchAsync(
+    private static async Task<bool> SendBatchAsync(
         IWedaCloudService cloudService,
         string subNodeId,
         List<BatchTelemetryMeasureDto> measures,
@@ -259,6 +306,39 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         else
         {
             logger.LogDebug("Sent batch with {Count} measures", measures.Count);
+        }
+
+        return success;
+    }
+
+    private static async Task SendProgressAsync(
+        IWedaCloudService cloudService,
+        string deviceId,
+        string respTopic,
+        BatchReportProgress progress,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(respTopic))
+            return;
+
+        try
+        {
+            var response = new CommandResponse
+            {
+                DeviceId = deviceId,
+                Status = CommandResponseStatusCode.Received, // Progress uses status=0
+                Message = "Progress update",
+                Data = progress
+            };
+
+            await cloudService.SendCommandResponseAsync(respTopic, response, cancellationToken);
+            logger.LogDebug("Progress update sent: {BatchesSent}/{TotalBatches} batches",
+                progress.Progress.BatchesSent, progress.Progress.TotalBatches);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send progress update");
         }
     }
 }
@@ -410,14 +490,15 @@ public class BatchReportResultData
 
 /// <summary>
 /// Time range for batch report results.
+/// Uses Unix timestamp in milliseconds.
 /// </summary>
 public class BatchReportTimeRange
 {
     [JsonPropertyName("startTime")]
-    public string StartTime { get; init; } = string.Empty;
+    public long StartTime { get; init; }
 
     [JsonPropertyName("endTime")]
-    public string EndTime { get; init; } = string.Empty;
+    public long EndTime { get; init; }
 }
 
 /// <summary>
@@ -456,4 +537,45 @@ public class BatchReportErrorDetails
     [JsonPropertyName("recommendation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Recommendation { get; init; }
+}
+
+/// <summary>
+/// Progress update data for BatchReport command.
+/// Sent periodically during long-running batch report operations.
+/// </summary>
+public class BatchReportProgress
+{
+    [JsonPropertyName("deviceCmd")]
+    public string DeviceCmd { get; init; } = "report";
+
+    [JsonPropertyName("reportType")]
+    public string ReportType { get; init; } = string.Empty;
+
+    [JsonPropertyName("progress")]
+    public required BatchReportProgressData Progress { get; init; }
+}
+
+/// <summary>
+/// Progress data containing batch statistics during execution.
+/// </summary>
+public class BatchReportProgressData
+{
+    [JsonPropertyName("batchesSent")]
+    public int BatchesSent { get; init; }
+
+    [JsonPropertyName("totalBatches")]
+    public int TotalBatches { get; init; }
+
+    [JsonPropertyName("samplesSent")]
+    public int SamplesSent { get; init; }
+
+    [JsonPropertyName("totalSamples")]
+    public int TotalSamples { get; init; }
+
+    [JsonPropertyName("percentComplete")]
+    public double PercentComplete { get; init; }
+
+    [JsonPropertyName("currentTimeRange")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BatchReportTimeRange? CurrentTimeRange { get; init; }
 }
