@@ -187,6 +187,10 @@ public class MockApplicationContext : IWedaApplicationContext
         => DeviceRegistry.FindDevice<TDevice>(deviceName);
 
     /// <inheritdoc />
+    public IReadOnlyCollection<TDevice> GetAllDevices<TDevice>() where TDevice : IDevice
+        => DeviceRegistry.GetAllDevices<TDevice>();
+
+    /// <inheritdoc />
     public ISubNodeManager SubNodeManager => MockSubNodeManager;
 
     /// <summary>

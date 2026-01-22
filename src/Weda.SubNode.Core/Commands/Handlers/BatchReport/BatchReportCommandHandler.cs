@@ -4,16 +4,22 @@ using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
-
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 
-public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Success>
+/// <summary>
+/// Handler for the "report" command that queries historical telemetry and sends batch records.
+/// </summary>
+/// <remarks>
+/// Response handling (Received/Success/Failed) is managed by CommandDispatcher.
+/// This handler only focuses on business logic and returns the result.
+/// </remarks>
+public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, BatchReportResult>
 {
-    public async Task<ErrorOr<Success>> HandleAsync(
+    public async Task<ErrorOr<BatchReportResult>> HandleAsync(
         BatchReportCommand command,
         IWedaApplicationContext context,
         CancellationToken cancellationToken = default)
@@ -23,14 +29,16 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Suc
         var cloudService = context.CloudService;
         var subNodeId = context.SubNodeInfo.Id;
 
+        // Validate recording service is available
         if (recordingService is null)
         {
-            return Errors.Command.ExecutionFailed("RecordingService is not configured");
+            return Errors.Command.ValidationFailed("RecordingService is not configured");
         }
 
+        // Validate SubNode is registered
         if (string.IsNullOrEmpty(subNodeId))
         {
-            return Errors.Command.ExecutionFailed("SubNode is not registered");
+            return Errors.Command.ValidationFailed("SubNode is not registered");
         }
 
         var startTime = DateTimeOffset.FromUnixTimeMilliseconds(command.TimeRange.StartTime);
@@ -51,7 +59,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Suc
         if (sensorIds.Count == 0)
         {
             logger.LogInformation("No sensors match the filter criteria");
-            return Result.Success;
+            return new BatchReportResult(0);
         }
 
         logger.LogDebug("Processing {Count} sensors", sensorIds.Count);
@@ -107,11 +115,12 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Suc
         }
 
         logger.LogInformation("BatchReport completed: {MessageCount} messages sent", messageCount);
-        return Result.Success;
+
+        return new BatchReportResult(messageCount);
     }
 
     private static IReadOnlyList<string> FilterSensors(
-        IReadOnlyList<string> sensorIds, 
+        IReadOnlyList<string> sensorIds,
         SensorFilter? filter)
     {
         if (filter is null)
@@ -138,7 +147,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Suc
 
     private static async Task SendBatchAsync(
         IWedaCloudService cloudService,
-        string subNodeId, 
+        string subNodeId,
         List<BatchTelemetryMeasureDto> measures,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -148,7 +157,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Suc
 
         if (!success)
         {
-            logger.LogWarning("Failed o send batch telemetry with {Count} measures", measures.Count);
+            logger.LogWarning("Failed to send batch telemetry with {Count} measures", measures.Count);
         }
         else
         {
@@ -156,3 +165,8 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Suc
         }
     }
 }
+
+/// <summary>
+/// Result of the BatchReport command execution.
+/// </summary>
+public record BatchReportResult(int TotalBatches);

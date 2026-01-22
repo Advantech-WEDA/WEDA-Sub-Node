@@ -6,6 +6,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 /// Command to query historical telemetry and emit batch records.
 /// Maps to payload: data.deviceCmd = "report"
 /// </summary>
+[DeviceCmd("report")]
 public record BatchReportCommand(
     string ReportType,
     TimeRange TimeRange,

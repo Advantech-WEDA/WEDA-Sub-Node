@@ -17,5 +17,9 @@ public static partial class Errors
         public static Error ExecutionFailed(string message) => Error.Failure(
             code: "Command.ExecutionFailed",
             description: message);
+
+        public static Error DeserializationFailed(string message) => Error.Failure(
+            code: "Command.DeserializationFailed",
+            description: message);
     }
 }

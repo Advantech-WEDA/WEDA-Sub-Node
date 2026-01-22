@@ -1,27 +1,29 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Net;
 using Serilog;
 using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
-using Weda.SubNode.Core.Cloud;
 using Weda.SubNode.Core;
+using Weda.SubNode.Core.Cloud;
+using Weda.SubNode.Core.Commands;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
 using Weda.SubNode.Host.Configuration;
-using Weda.SubNode.Abstractions.Storage.Recordings;
-using Microsoft.Extensions.Options;
 
 namespace Weda.SubNode.Host.Context;
 
@@ -305,6 +307,22 @@ public class WedaApplicationContext : IWedaApplicationContext
             (_cloudService, _natsClient) = CreateDefaultCloudService();
         }
 
+        // Create Command Registry and auto-scan handlers
+        var commandRegistry = new CommandRegistry(_loggerFactory.CreateLogger<CommandRegistry>());
+
+        // 1. Scan SDK assembly (Weda.SubNode.Core) for built-in handlers
+        commandRegistry.ScanAssembly(typeof(CommandRegistry).Assembly);
+
+        // 2. Scan User's Entry assembly for custom handlers
+        var entryAssembly = Assembly.GetEntryAssembly();
+        if (entryAssembly != null && entryAssembly != typeof(CommandRegistry).Assembly)
+        {
+            commandRegistry.ScanAssembly(entryAssembly);
+        }
+
+        // Create Command Dispatcher
+        var commandDispatcher = new CommandDispatcher(commandRegistry, this);
+
         // Create SubNodeManager (handles cloud connection, registration, and event subscription)
         _subNodeManager = new SubNodeManager(
             _cloudService,
@@ -312,6 +330,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             _options.ConnectionOptions,
             _deviceRegistry,
             _loggerFactory.CreateLogger<SubNodeManager>(),
+            commandDispatcher,
             _recordingService);
     }
 
