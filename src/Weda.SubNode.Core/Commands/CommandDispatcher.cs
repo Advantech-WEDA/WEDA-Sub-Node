@@ -21,9 +21,15 @@ namespace Weda.SubNode.Core.Commands;
 /// - On success: send "Success" response with result
 /// - On error: send "Failed" or "Rejected" response with error details
 ///
-/// Validation pipeline (hybrid mode):
-/// 1. DataAnnotation validation (always runs)
-/// 2. Custom validator (if registered for the command type)
+/// Execution pipeline:
+/// 1. Deserialization
+/// 2. Send "Received" response
+/// 3. DataAnnotation validation (always runs, outside pipeline)
+/// 4. Pipeline Behaviors (based on handler attributes, sorted by DefaultPipeline order)
+///    - [Validation] → ValidatorBehavior
+///    - [Logging] → LoggingBehavior
+/// 5. Handler execution
+/// 6. Send Success/Failed response
 /// </remarks>
 public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext context)
 {
@@ -64,8 +70,8 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
 
         try
         {
-            // Run validation pipeline (DataAnnotation + Custom validator)
-            var validationResult = RunValidationPipeline(registration, command);
+            // Run DataAnnotation validation (always runs, outside pipeline)
+            var validationResult = RunDataAnnotationValidation(registration.CommandType, command);
             if (validationResult.IsError)
             {
                 // Send "Rejected" response for validation errors
@@ -79,7 +85,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                 return validationResult.Errors;
             }
 
-            // Create and execute handler
+            // Create handler delegate
             var handler = registry.CreateHandler(registration);
             if (handler is null)
             {
@@ -87,7 +93,12 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                 return Errors.Command.HandlerNotFound($"Failed to create handler for command '{envelope.CommandName}'");
             }
 
-            var result = await handler(command, context, cancellationToken);
+            // Create behavior instances and build the pipeline
+            var behaviors = registry.CreateBehaviors(registration);
+
+            // Execute pipeline with behaviors
+            var result = await ExecutePipelineAsync(
+                command, registration, behaviors, handler, cancellationToken);
 
             // Send response based on result
             if (!string.IsNullOrEmpty(metadata.RespTopic))
@@ -131,33 +142,148 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
     }
 
     /// <summary>
-    /// Runs the validation pipeline:
-    /// 1. DataAnnotation validation (always)
-    /// 2. Custom validator (if registered)
+    /// Executes the pipeline with behaviors wrapping the handler.
     /// </summary>
-    private ErrorOr<Success> RunValidationPipeline(CommandRegistration registration, object command)
+    private async Task<ErrorOr<object?>> ExecutePipelineAsync(
+        object command,
+        CommandRegistration registration,
+        IReadOnlyList<object> behaviors,
+        Func<object, IWedaApplicationContext, CancellationToken, Task<ErrorOr<object?>>> handler,
+        CancellationToken cancellationToken)
     {
-        var allErrors = new List<Error>();
-
-        // Step 1: DataAnnotation validation (always runs)
-        var dataAnnotationResult = RunDataAnnotationValidation(registration.CommandType, command);
-        if (dataAnnotationResult.IsError)
+        if (behaviors.Count == 0)
         {
-            allErrors.AddRange(dataAnnotationResult.Errors);
+            // No behaviors, execute handler directly
+            return await handler(command, context, cancellationToken);
         }
 
-        // Step 2: Custom validator (if registered)
-        var customValidatorResult = RunCustomValidation(registration, command);
-        if (customValidatorResult.IsError)
+        // Build the pipeline from inside out
+        // The innermost function is the handler
+        Func<Task<ErrorOr<object?>>> next = () => handler(command, context, cancellationToken);
+
+        // Wrap with behaviors in reverse order (so first registered executes first)
+        for (int i = behaviors.Count - 1; i >= 0; i--)
         {
-            allErrors.AddRange(customValidatorResult.Errors);
+            var behavior = behaviors[i];
+            var currentNext = next;
+
+            next = () => InvokeBehaviorAsync(
+                behavior, command, registration, currentNext, cancellationToken);
         }
 
-        return allErrors.Count > 0 ? allErrors : Result.Success;
+        return await next();
+    }
+
+    /// <summary>
+    /// Invokes a single behavior's HandleAsync method using reflection.
+    /// </summary>
+    private async Task<ErrorOr<object?>> InvokeBehaviorAsync(
+        object behavior,
+        object command,
+        CommandRegistration registration,
+        Func<Task<ErrorOr<object?>>> next,
+        CancellationToken cancellationToken)
+    {
+        // Find the HandleAsync method
+        var handleMethod = behavior.GetType().GetMethod("HandleAsync");
+        if (handleMethod is null)
+        {
+            _logger.LogWarning("Behavior {BehaviorType} does not have HandleAsync method",
+                behavior.GetType().Name);
+            return await next();
+        }
+
+        // Create a typed 'next' delegate for the behavior
+        // IPipelineBehavior<TCommand, TResult>.HandleAsync expects Func<Task<ErrorOr<TResult>>>
+        var nextDelegate = CreateTypedNextDelegate(next, registration.ResultType);
+
+        try
+        {
+            // Invoke: HandleAsync(command, context, next, cancellationToken)
+            var task = handleMethod.Invoke(behavior, [command, context, nextDelegate, cancellationToken]);
+            if (task is null)
+            {
+                return await next();
+            }
+
+            await ((Task)task).ConfigureAwait(false);
+
+            // Get the result
+            var resultProperty = task.GetType().GetProperty("Result");
+            var result = resultProperty?.GetValue(task);
+
+            if (result is null)
+            {
+                return Errors.Command.ExecutionFailed("Behavior returned null result");
+            }
+
+            return CommandRegistry.ConvertToObjectResult(result);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            throw ex.InnerException;
+        }
+    }
+
+    /// <summary>
+    /// Creates a typed Func&lt;Task&lt;ErrorOr&lt;TResult&gt;&gt;&gt; delegate from Func&lt;Task&lt;ErrorOr&lt;object?&gt;&gt;&gt;.
+    /// </summary>
+    private static object CreateTypedNextDelegate(Func<Task<ErrorOr<object?>>> next, Type resultType)
+    {
+        // We need to create a Func<Task<ErrorOr<TResult>>> that wraps our Func<Task<ErrorOr<object?>>>
+        // This is done by creating an async lambda that calls next() and converts the result
+
+        var funcType = typeof(Func<>).MakeGenericType(
+            typeof(Task<>).MakeGenericType(
+                typeof(ErrorOr<>).MakeGenericType(resultType)));
+
+        // Create a wrapper method dynamically
+        var wrapperMethod = typeof(CommandDispatcher)
+            .GetMethod(nameof(CreateNextWrapper), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(resultType);
+
+        return wrapperMethod.Invoke(null, [next])!;
+    }
+
+    /// <summary>
+    /// Helper method to create a typed next wrapper.
+    /// </summary>
+    private static Func<Task<ErrorOr<TResult>>> CreateNextWrapper<TResult>(Func<Task<ErrorOr<object?>>> next)
+    {
+        return async () =>
+        {
+            var result = await next();
+            if (result.IsError)
+            {
+                return result.Errors;
+            }
+
+            // Convert object? to TResult
+            if (result.Value is TResult typedValue)
+            {
+                return typedValue;
+            }
+
+            if (result.Value is null && !typeof(TResult).IsValueType)
+            {
+                return default!;
+            }
+
+            // Try to cast
+            try
+            {
+                return (TResult)result.Value!;
+            }
+            catch
+            {
+                return Errors.Command.ExecutionFailed($"Cannot convert result to {typeof(TResult).Name}");
+            }
+        };
     }
 
     /// <summary>
     /// Runs DataAnnotation validation on the command.
+    /// This always runs before the pipeline behaviors.
     /// </summary>
     private ErrorOr<Success> RunDataAnnotationValidation(Type commandType, object command)
     {
@@ -173,37 +299,6 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
         var validateMethod = validatorType.GetMethod("Validate");
         if (validateMethod is null)
         {
-            return Result.Success;
-        }
-
-        var result = validateMethod.Invoke(validator, [command]);
-        if (result is null)
-        {
-            return Result.Success;
-        }
-
-        return CommandRegistry.ConvertToObjectResult(result).Match<ErrorOr<Success>>(
-            value => Result.Success,
-            errors => errors);
-    }
-
-    /// <summary>
-    /// Runs custom validator if registered for the command type.
-    /// </summary>
-    private ErrorOr<Success> RunCustomValidation(CommandRegistration registration, object command)
-    {
-        var validator = registry.CreateValidator(registration);
-        if (validator is null)
-        {
-            return Result.Success;
-        }
-
-        // Use reflection to call Validate method
-        var validateMethod = validator.GetType().GetMethod("Validate");
-        if (validateMethod is null)
-        {
-            _logger.LogWarning("Validator {ValidatorType} does not have Validate method",
-                registration.ValidatorType?.Name);
             return Result.Success;
         }
 

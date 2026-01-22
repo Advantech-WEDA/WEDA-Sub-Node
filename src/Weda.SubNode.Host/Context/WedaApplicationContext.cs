@@ -308,6 +308,9 @@ public class WedaApplicationContext : IWedaApplicationContext
         }
 
         // Create Command Registry and auto-scan handlers
+        // Pipeline behaviors are now configured via attributes on handler classes:
+        // - [Validation(typeof(...))] adds ValidatorBehavior
+        // - [Logging] adds LoggingBehavior
         var commandRegistry = new CommandRegistry(_loggerFactory.CreateLogger<CommandRegistry>());
 
         // 1. Scan SDK assembly (Weda.SubNode.Core) for built-in handlers

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
@@ -19,6 +20,8 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 /// Response handling (Received/Success/Failed) is managed by CommandDispatcher.
 /// This handler only focuses on business logic and returns the result.
 /// </remarks>
+[Validation(typeof(BatchReportCommandValidator))]
+[Logging(LogLevel.Information)]
 public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, BatchReportResult>
 {
     public async Task<ErrorOr<BatchReportResult>> HandleAsync(

@@ -710,6 +710,19 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             _logger.LogWarning("Command '{Command}' dispatch failed: {Error}",
                 e.Command.DeviceCmd, result.FirstError.Description);
         }
+
+                // Fire general event for external subscribers (all config types)
+        if (CommandReceived != null)
+        {
+            try
+            {
+                await CommandReceived(e);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in general CommandUpdateReceived handler");
+            }
+        }
     }
 
     /// <summary>

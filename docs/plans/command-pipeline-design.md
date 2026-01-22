@@ -636,16 +636,152 @@ public class CommandRegistry
 }
 ```
 
+## Current Implementation Status
+
+### Implemented Features
+
+#### 1. Global Pipeline Behaviors
+
+Pipeline Behaviors 透過 `CommandRegistry.AddGlobalBehavior()` 註冊，會對所有命令執行：
+
+```csharp
+// 在 WedaApplicationContext 初始化時自動註冊
+var commandRegistry = new CommandRegistry(logger);
+
+// 註冊 Global Behaviors（所有命令都會執行）
+commandRegistry.AddGlobalBehavior(typeof(LoggingBehavior<,>));
+
+// 掃描 Handlers
+commandRegistry.ScanAssembly(typeof(CommandRegistry).Assembly);
+```
+
+#### 2. Hybrid Validation Pipeline
+
+驗證採用混合模式：
+
+1. **DataAnnotation Validation** - 永遠執行，使用 `[Required]`, `[Range]` 等標準 Annotations
+2. **Custom Validator** - 可選，在 Assembly Scan 時自動發現並關聯
+
+```csharp
+// Command 使用 DataAnnotations
+[DeviceCmd("report")]
+public record BatchReportCommand : ICommand
+{
+    [Required(ErrorMessage = "ReportType is required")]
+    public string ReportType { get; init; } = string.Empty;
+
+    [Range(1, 1000, ErrorMessage = "MaxBatchesPerMessage must be between 1 and 1000")]
+    public int MaxBatchesPerMessage { get; init; } = 10;
+}
+
+// Custom Validator（自動關聯到同名 Command）
+public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
+{
+    public ErrorOr<Success> Validate(BatchReportCommand command)
+    {
+        var errors = new List<Error>();
+
+        // 複雜驗證邏輯
+        if (command.TimeRange?.EndTime <= command.TimeRange?.StartTime)
+        {
+            errors.Add(Errors.Command.ValidationFailed(
+                "EndTime must be greater than StartTime"));
+        }
+
+        return errors.Count > 0 ? errors : Result.Success;
+    }
+}
+```
+
+#### 3. Execution Pipeline Order
+
+```
+NATS Message
+     │
+     ▼
+┌─────────────────────────────────────┐
+│ CommandDispatcher                   │
+│ 1. Deserialize to TCommand          │
+│ 2. Extract RespTopic                │
+│ 3. Send "Received" response         │
+│ 4. Run DataAnnotation validation    │◀─ Always runs
+│ 5. Run Custom validator (if any)    │◀─ If registered
+│ 6. Execute Pipeline Behaviors       │◀─ Global behaviors in order
+│    └─ LoggingBehavior               │
+│       └─ [more behaviors...]        │
+│          └─ Handler.HandleAsync()   │
+│ 7. Send Success/Failed response     │
+└─────────────────────────────────────┘
+```
+
+#### 4. Response Format
+
+CommandResponse 格式符合雲端規格：
+
+```json
+{
+  "cmd": "deviceCmd",
+  "seqId": 100,
+  "reqSeqId": "a1b2c3d4-...",
+  "rspSeqId": "b2c3d4e5-...",
+  "timestamp": 1737004691500,
+  "deviceId": "74fe488d5d54",
+  "status": 1,
+  "message": "Command 'report' executed successfully",
+  "data": { ... }
+}
+```
+
+Status codes:
+- `0` = Received (命令已接收，開始執行)
+- `1` = Success (執行成功)
+- `-1` = Rejected (驗證失敗)
+- `-2` = Failed (執行失敗)
+
+### How to Add a Custom Pipeline Behavior
+
+1. **建立 Behavior Class**
+
+```csharp
+public class MetricsBehavior<TCommand, TResult> : IPipelineBehavior<TCommand, TResult>
+    where TCommand : ICommand
+{
+    public async Task<ErrorOr<TResult>> HandleAsync(
+        TCommand command,
+        IWedaApplicationContext context,
+        Func<Task<ErrorOr<TResult>>> next,
+        CancellationToken cancellationToken = default)
+    {
+        var sw = Stopwatch.StartNew();
+
+        var result = await next();
+
+        sw.Stop();
+
+        // 記錄 metrics
+        RecordMetric(typeof(TCommand).Name, sw.ElapsedMilliseconds, result.IsError);
+
+        return result;
+    }
+}
+```
+
+2. **註冊 Global Behavior**
+
+```csharp
+// 在 WedaApplicationContext 或自訂初始化中
+commandRegistry.AddGlobalBehavior(typeof(MetricsBehavior<,>));
+```
+
+Behaviors 會依註冊順序執行（第一個註冊的最先執行）。
+
 ## Summary
 
 | Feature | How |
 |---------|-----|
 | 標記命令名稱 | `[DeviceCmd("name")]` on Command class |
-| 啟用 Logging | `[Logging]` on Handler class |
-| 調整 Log Level | `[Logging(BeforeLevel = LogLevel.Information)]` |
-| 啟用 Validation | `[Validation]` on Handler class |
-| 使用 DataAnnotations | `[Required]`, `[Range]` on Command properties |
-| 自訂 Validator | `[Validation(CustomValidatorType = typeof(...))]` |
-| 自訂 Pipeline | `[Pipeline(typeof(...))]` + 繼承 `DefaultCommandPipeline` |
-| 調整 Behavior 順序 | `InsertBefore<,>()`, `InsertAfter<,>()`, `Remove<>()` |
-| 完全覆寫 Pipeline | Override `Behaviors` property |
+| 啟用 Logging | 自動（已註冊為 Global Behavior） |
+| DataAnnotations 驗證 | `[Required]`, `[Range]` on Command properties（永遠執行） |
+| 自訂 Validator | 實作 `ICommandValidator<TCommand>`（自動關聯） |
+| 新增 Global Behavior | `commandRegistry.AddGlobalBehavior(typeof(MyBehavior<,>))` |
+| Response 處理 | Framework 自動處理（根據 RespTopic） |

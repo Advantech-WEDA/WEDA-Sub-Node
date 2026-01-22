@@ -6,17 +6,29 @@ using ErrorOr;
 using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Attributes;
+using Weda.SubNode.Abstractions.Commands.Behaviors;
 using Weda.SubNode.Abstractions.Context;
 
 namespace Weda.SubNode.Core.Commands;
 
 /// <summary>
 /// Registry for command handlers. Supports both manual registration and automatic assembly scanning.
+/// Pipeline behaviors are configured via attributes on handler classes.
 /// </summary>
+/// <remarks>
+/// Pipeline configuration:
+/// - DataAnnotation validation always runs (outside pipeline)
+/// - [Validation(typeof(...))] adds ValidatorBehavior to pipeline
+/// - [Logging] adds LoggingBehavior to pipeline
+/// - DefaultCommandPipeline defines behavior type ordering
+/// - Same-type behaviors execute in attribute declaration order
+/// </remarks>
 public class CommandRegistry
 {
     private readonly Dictionary<string, CommandRegistration> _registrations = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger? _logger;
+    private ICommandPipeline _defaultPipeline = new DefaultCommandPipeline();
 
     /// <summary>
     /// Initializes a new instance of <see cref="CommandRegistry"/>.
@@ -27,6 +39,15 @@ public class CommandRegistry
     }
 
     /// <summary>
+    /// Gets or sets the default pipeline configuration.
+    /// </summary>
+    public ICommandPipeline DefaultPipeline
+    {
+        get => _defaultPipeline;
+        set => _defaultPipeline = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
     /// Gets the registered command names (for diagnostics/debugging).
     /// </summary>
     public IReadOnlyCollection<string> RegisteredCommands => _registrations.Keys;
@@ -34,32 +55,13 @@ public class CommandRegistry
     /// <summary>
     /// Scans an assembly for all types that implement <see cref="ICommandHandler{TCommand, TResult}"/>
     /// and automatically registers them based on the <see cref="DeviceCmdAttribute"/> on the command type.
+    /// Also scans handler attributes to configure pipeline behaviors.
     /// </summary>
     /// <param name="assembly">The assembly to scan.</param>
     public void ScanAssembly(Assembly assembly)
     {
         var handlerInterfaceType = typeof(ICommandHandler<,>);
-        var validatorInterfaceType = typeof(ICommandValidator<>);
 
-        // First pass: collect all validators
-        var validators = new Dictionary<Type, Type>();
-        foreach (var type in assembly.GetTypes())
-        {
-            if (type.IsAbstract || type.IsInterface)
-                continue;
-
-            var validatorInterface = type.GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType &&
-                    i.GetGenericTypeDefinition() == validatorInterfaceType);
-
-            if (validatorInterface is not null)
-            {
-                var commandType = validatorInterface.GetGenericArguments()[0];
-                validators[commandType] = type;
-            }
-        }
-
-        // Second pass: register handlers
         foreach (var type in assembly.GetTypes())
         {
             if (type.IsAbstract || type.IsInterface)
@@ -95,20 +97,56 @@ public class CommandRegistry
                 continue;
             }
 
-            // Find validator for this command type
-            validators.TryGetValue(commandType, out var validatorType);
+            // Scan handler attributes to build behavior configurations
+            var behaviorConfigs = ScanHandlerAttributes(type);
 
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
                 ResultType: resultType,
                 HandlerType: type,
-                ValidatorType: validatorType);
+                BehaviorConfigurations: behaviorConfigs);
 
             _logger?.LogDebug(
-                "Registered command handler: {CommandName} -> {HandlerType} (Validator: {ValidatorType})",
-                commandName, type.Name, validatorType?.Name ?? "None");
+                "Registered command handler: {CommandName} -> {HandlerType} (Behaviors: {BehaviorCount})",
+                commandName, type.Name, behaviorConfigs.Count);
         }
+    }
+
+    /// <summary>
+    /// Scans handler attributes to build behavior configurations.
+    /// </summary>
+    private List<BehaviorConfiguration> ScanHandlerAttributes(Type handlerType)
+    {
+        var configs = new List<BehaviorConfiguration>();
+        var attributes = handlerType.GetCustomAttributes(inherit: false);
+        var order = 0;
+
+        foreach (var attr in attributes)
+        {
+            switch (attr)
+            {
+                case ValidationAttribute validationAttr:
+                    configs.Add(new ValidationBehaviorConfiguration
+                    {
+                        ValidatorType = validationAttr.ValidatorType,
+                        Order = order++
+                    });
+                    break;
+
+                case LoggingAttribute loggingAttr:
+                    configs.Add(new LoggingBehaviorConfiguration
+                    {
+                        BeforeLevel = loggingAttr.BeforeLevel,
+                        AfterLevel = loggingAttr.AfterLevel,
+                        ErrorLevel = loggingAttr.ErrorLevel,
+                        Order = order++
+                    });
+                    break;
+            }
+        }
+
+        return configs;
     }
 
     /// <summary>
@@ -117,7 +155,7 @@ public class CommandRegistry
     public void Register<TCommand, TResult>(
         string commandName,
         ICommandHandler<TCommand, TResult> handler,
-        ICommandValidator<TCommand>? validator = null)
+        List<BehaviorConfiguration>? behaviorConfigs = null)
         where TCommand : ICommand
     {
         if (_registrations.ContainsKey(commandName))
@@ -131,8 +169,7 @@ public class CommandRegistry
             ResultType: typeof(TResult),
             HandlerType: handler.GetType(),
             HandlerInstance: handler,
-            ValidatorType: validator?.GetType(),
-            ValidatorInstance: validator);
+            BehaviorConfigurations: behaviorConfigs ?? []);
 
         _logger?.LogDebug(
             "Registered command handler: {CommandName} -> {HandlerType}",
@@ -210,33 +247,144 @@ public class CommandRegistry
     }
 
     /// <summary>
-    /// Creates a validator instance for the given registration.
+    /// Creates behavior instances for the given registration based on attribute configurations.
+    /// Behaviors are sorted by DefaultPipeline order, then by attribute declaration order.
     /// </summary>
     /// <param name="registration">The command registration.</param>
-    /// <returns>A validator instance, or null if no validator is registered.</returns>
-    public object? CreateValidator(CommandRegistration registration)
+    /// <returns>List of behavior instances in execution order.</returns>
+    public IReadOnlyList<object> CreateBehaviors(CommandRegistration registration)
     {
-        if (registration.ValidatorInstance is not null)
+        var behaviors = new List<object>();
+        var pipelineOrder = _defaultPipeline.BehaviorOrder;
+
+        // Sort configurations by pipeline order, then by declaration order
+        var sortedConfigs = registration.BehaviorConfigurations
+            .OrderBy(c => GetBehaviorTypeIndex(c.BehaviorType, pipelineOrder))
+            .ThenBy(c => c.Order)
+            .ToList();
+
+        foreach (var config in sortedConfigs)
         {
-            return registration.ValidatorInstance;
+            try
+            {
+                var instance = CreateBehaviorInstance(config, registration);
+                if (instance is not null)
+                {
+                    behaviors.Add(instance);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex,
+                    "Failed to create behavior instance for {BehaviorType}",
+                    config.BehaviorType.Name);
+            }
         }
 
-        if (registration.ValidatorType is null)
+        return behaviors;
+    }
+
+    /// <summary>
+    /// Gets the index of a behavior type in the pipeline order.
+    /// </summary>
+    private static int GetBehaviorTypeIndex(Type behaviorType, IReadOnlyList<Type> pipelineOrder)
+    {
+        for (int i = 0; i < pipelineOrder.Count; i++)
         {
+            var orderType = pipelineOrder[i];
+
+            // Handle open generic types like ValidatorBehavior<,>
+            if (orderType.IsGenericTypeDefinition && behaviorType.IsGenericTypeDefinition)
+            {
+                if (orderType == behaviorType)
+                    return i;
+            }
+            else if (orderType.IsGenericTypeDefinition)
+            {
+                // Check if behaviorType is a closed version of orderType
+                if (behaviorType.IsGenericType &&
+                    behaviorType.GetGenericTypeDefinition() == orderType)
+                    return i;
+            }
+            else if (orderType == behaviorType)
+            {
+                return i;
+            }
+        }
+
+        // Not found in pipeline order, put at end
+        return int.MaxValue;
+    }
+
+    /// <summary>
+    /// Creates a behavior instance from its configuration.
+    /// </summary>
+    private object? CreateBehaviorInstance(BehaviorConfiguration config, CommandRegistration registration)
+    {
+        switch (config)
+        {
+            case ValidationBehaviorConfiguration validationConfig:
+                return CreateValidatorBehavior(validationConfig, registration);
+
+            case LoggingBehaviorConfiguration loggingConfig:
+                return CreateLoggingBehavior(loggingConfig, registration);
+
+            default:
+                _logger?.LogWarning("Unknown behavior configuration type: {ConfigType}", config.GetType().Name);
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Creates a ValidatorBehavior instance with the specified validator.
+    /// </summary>
+    private object? CreateValidatorBehavior(ValidationBehaviorConfiguration config, CommandRegistration registration)
+    {
+        // Create the validator instance
+        var validatorInstance = Activator.CreateInstance(config.ValidatorType);
+        if (validatorInstance is null)
+        {
+            _logger?.LogWarning("Failed to create validator instance for {ValidatorType}", config.ValidatorType.Name);
             return null;
         }
 
-        try
+        // Create ValidatorBehavior<TCommand, TResult> with the validator
+        var behaviorType = typeof(ValidatorBehavior<,>).MakeGenericType(
+            registration.CommandType,
+            registration.ResultType);
+
+        // Find constructor that takes ICommandValidator<TCommand>
+        var validatorInterfaceType = typeof(ICommandValidator<>).MakeGenericType(registration.CommandType);
+        var constructor = behaviorType.GetConstructor([validatorInterfaceType]);
+
+        if (constructor is not null)
         {
-            return Activator.CreateInstance(registration.ValidatorType);
+            return constructor.Invoke([validatorInstance]);
         }
-        catch (Exception ex)
+
+        // Fallback: try parameterless constructor
+        return Activator.CreateInstance(behaviorType);
+    }
+
+    /// <summary>
+    /// Creates a LoggingBehavior instance with the specified log levels.
+    /// </summary>
+    private object? CreateLoggingBehavior(LoggingBehaviorConfiguration config, CommandRegistration registration)
+    {
+        var behaviorType = typeof(LoggingBehavior<,>).MakeGenericType(
+            registration.CommandType,
+            registration.ResultType);
+
+        // Find constructor that takes log levels
+        var constructor = behaviorType.GetConstructor([typeof(LogLevel), typeof(LogLevel), typeof(LogLevel)]);
+
+        if (constructor is not null)
         {
-            _logger?.LogWarning(ex,
-                "Failed to create validator instance for {ValidatorType}",
-                registration.ValidatorType.Name);
-            return null;
+            return constructor.Invoke([config.BeforeLevel, config.AfterLevel, config.ErrorLevel]);
         }
+
+        // Fallback: parameterless constructor with default levels
+        return Activator.CreateInstance(behaviorType);
     }
 
     /// <summary>
@@ -321,5 +469,11 @@ public record CommandRegistration(
     Type ResultType,
     Type HandlerType,
     object? HandlerInstance = null,
-    Type? ValidatorType = null,
-    object? ValidatorInstance = null);
+    IReadOnlyList<BehaviorConfiguration>? BehaviorConfigurations = null)
+{
+    /// <summary>
+    /// Gets the behavior configurations, never null.
+    /// </summary>
+    public IReadOnlyList<BehaviorConfiguration> BehaviorConfigurations { get; init; } =
+        BehaviorConfigurations ?? [];
+}
