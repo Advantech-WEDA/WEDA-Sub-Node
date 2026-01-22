@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Commands.Validation;
 
 namespace Weda.SubNode.Core.Commands;
 
@@ -19,6 +20,10 @@ namespace Weda.SubNode.Core.Commands;
 /// - On dispatch start: send "Received" response
 /// - On success: send "Success" response with result
 /// - On error: send "Failed" or "Rejected" response with error details
+///
+/// Validation pipeline (hybrid mode):
+/// 1. DataAnnotation validation (always runs)
+/// 2. Custom validator (if registered for the command type)
 /// </remarks>
 public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext context)
 {
@@ -59,6 +64,22 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
 
         try
         {
+            // Run validation pipeline (DataAnnotation + Custom validator)
+            var validationResult = RunValidationPipeline(registration, command);
+            if (validationResult.IsError)
+            {
+                // Send "Rejected" response for validation errors
+                if (!string.IsNullOrEmpty(metadata.RespTopic))
+                {
+                    var firstError = validationResult.FirstError;
+                    await SendResponseAsync(metadata.RespTopic,
+                        CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", envelope.CommandName,
+                            $"{envelope.CommandName}.{firstError.Code}", firstError.Description));
+                }
+                return validationResult.Errors;
+            }
+
+            // Create and execute handler
             var handler = registry.CreateHandler(registration);
             if (handler is null)
             {
@@ -107,6 +128,94 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
 
             return Errors.Command.ExecutionFailed(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Runs the validation pipeline:
+    /// 1. DataAnnotation validation (always)
+    /// 2. Custom validator (if registered)
+    /// </summary>
+    private ErrorOr<Success> RunValidationPipeline(CommandRegistration registration, object command)
+    {
+        var allErrors = new List<Error>();
+
+        // Step 1: DataAnnotation validation (always runs)
+        var dataAnnotationResult = RunDataAnnotationValidation(registration.CommandType, command);
+        if (dataAnnotationResult.IsError)
+        {
+            allErrors.AddRange(dataAnnotationResult.Errors);
+        }
+
+        // Step 2: Custom validator (if registered)
+        var customValidatorResult = RunCustomValidation(registration, command);
+        if (customValidatorResult.IsError)
+        {
+            allErrors.AddRange(customValidatorResult.Errors);
+        }
+
+        return allErrors.Count > 0 ? allErrors : Result.Success;
+    }
+
+    /// <summary>
+    /// Runs DataAnnotation validation on the command.
+    /// </summary>
+    private ErrorOr<Success> RunDataAnnotationValidation(Type commandType, object command)
+    {
+        // Create DataAnnotationValidator<TCommand> dynamically
+        var validatorType = typeof(DataAnnotationValidator<>).MakeGenericType(commandType);
+        var validator = Activator.CreateInstance(validatorType);
+
+        if (validator is null)
+        {
+            return Result.Success;
+        }
+
+        var validateMethod = validatorType.GetMethod("Validate");
+        if (validateMethod is null)
+        {
+            return Result.Success;
+        }
+
+        var result = validateMethod.Invoke(validator, [command]);
+        if (result is null)
+        {
+            return Result.Success;
+        }
+
+        return CommandRegistry.ConvertToObjectResult(result).Match<ErrorOr<Success>>(
+            value => Result.Success,
+            errors => errors);
+    }
+
+    /// <summary>
+    /// Runs custom validator if registered for the command type.
+    /// </summary>
+    private ErrorOr<Success> RunCustomValidation(CommandRegistration registration, object command)
+    {
+        var validator = registry.CreateValidator(registration);
+        if (validator is null)
+        {
+            return Result.Success;
+        }
+
+        // Use reflection to call Validate method
+        var validateMethod = validator.GetType().GetMethod("Validate");
+        if (validateMethod is null)
+        {
+            _logger.LogWarning("Validator {ValidatorType} does not have Validate method",
+                registration.ValidatorType?.Name);
+            return Result.Success;
+        }
+
+        var result = validateMethod.Invoke(validator, [command]);
+        if (result is null)
+        {
+            return Result.Success;
+        }
+
+        return CommandRegistry.ConvertToObjectResult(result).Match<ErrorOr<Success>>(
+            value => Result.Success,
+            errors => errors);
     }
 
     /// <summary>

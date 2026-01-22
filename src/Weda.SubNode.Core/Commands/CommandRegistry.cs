@@ -39,7 +39,27 @@ public class CommandRegistry
     public void ScanAssembly(Assembly assembly)
     {
         var handlerInterfaceType = typeof(ICommandHandler<,>);
+        var validatorInterfaceType = typeof(ICommandValidator<>);
 
+        // First pass: collect all validators
+        var validators = new Dictionary<Type, Type>();
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAbstract || type.IsInterface)
+                continue;
+
+            var validatorInterface = type.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType &&
+                    i.GetGenericTypeDefinition() == validatorInterfaceType);
+
+            if (validatorInterface is not null)
+            {
+                var commandType = validatorInterface.GetGenericArguments()[0];
+                validators[commandType] = type;
+            }
+        }
+
+        // Second pass: register handlers
         foreach (var type in assembly.GetTypes())
         {
             if (type.IsAbstract || type.IsInterface)
@@ -75,15 +95,19 @@ public class CommandRegistry
                 continue;
             }
 
+            // Find validator for this command type
+            validators.TryGetValue(commandType, out var validatorType);
+
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
                 ResultType: resultType,
-                HandlerType: type);
+                HandlerType: type,
+                ValidatorType: validatorType);
 
             _logger?.LogDebug(
-                "Registered command handler: {CommandName} -> {HandlerType}",
-                commandName, type.Name);
+                "Registered command handler: {CommandName} -> {HandlerType} (Validator: {ValidatorType})",
+                commandName, type.Name, validatorType?.Name ?? "None");
         }
     }
 
@@ -92,7 +116,8 @@ public class CommandRegistry
     /// </summary>
     public void Register<TCommand, TResult>(
         string commandName,
-        ICommandHandler<TCommand, TResult> handler)
+        ICommandHandler<TCommand, TResult> handler,
+        ICommandValidator<TCommand>? validator = null)
         where TCommand : ICommand
     {
         if (_registrations.ContainsKey(commandName))
@@ -105,7 +130,9 @@ public class CommandRegistry
             CommandType: typeof(TCommand),
             ResultType: typeof(TResult),
             HandlerType: handler.GetType(),
-            HandlerInstance: handler);
+            HandlerInstance: handler,
+            ValidatorType: validator?.GetType(),
+            ValidatorInstance: validator);
 
         _logger?.LogDebug(
             "Registered command handler: {CommandName} -> {HandlerType}",
@@ -183,6 +210,36 @@ public class CommandRegistry
     }
 
     /// <summary>
+    /// Creates a validator instance for the given registration.
+    /// </summary>
+    /// <param name="registration">The command registration.</param>
+    /// <returns>A validator instance, or null if no validator is registered.</returns>
+    public object? CreateValidator(CommandRegistration registration)
+    {
+        if (registration.ValidatorInstance is not null)
+        {
+            return registration.ValidatorInstance;
+        }
+
+        if (registration.ValidatorType is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Activator.CreateInstance(registration.ValidatorType);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex,
+                "Failed to create validator instance for {ValidatorType}",
+                registration.ValidatorType.Name);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Deserializes the command envelope data to the specified command type.
     /// </summary>
     /// <param name="envelope">The command envelope containing raw data.</param>
@@ -227,7 +284,7 @@ public class CommandRegistry
     /// <summary>
     /// Converts ErrorOr&lt;TResult&gt; to ErrorOr&lt;object?&gt;.
     /// </summary>
-    private static ErrorOr<object?> ConvertToObjectResult(object errorOrResult)
+    internal static ErrorOr<object?> ConvertToObjectResult(object errorOrResult)
     {
         var type = errorOrResult.GetType();
 
@@ -263,4 +320,6 @@ public record CommandRegistration(
     Type CommandType,
     Type ResultType,
     Type HandlerType,
-    object? HandlerInstance = null);
+    object? HandlerInstance = null,
+    Type? ValidatorType = null,
+    object? ValidatorInstance = null);
