@@ -49,7 +49,7 @@ public record BatchReportCommand : ICommand
     /// </summary>
     [JsonPropertyName("maxBatchesPerMessage")]
     [Range(1, 1000, ErrorMessage = "MaxBatchesPerMessage must be between 1 and 1000")]
-    public int MaxBatchesPerMessage { get; init; } = 10;
+    public int MaxBatchesPerMessage { get; init; } = 1;
 
     /// <summary>
     /// Maximum number of samples per batch.
