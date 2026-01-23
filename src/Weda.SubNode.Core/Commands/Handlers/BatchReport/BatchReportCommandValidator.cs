@@ -16,7 +16,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 /// </remarks>
 public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
 {
-    private static readonly string ValidReportType = "historicalTelemetry";
+    private static readonly string ValidReportType = "report.historical";
 
     public ErrorOr<Success> Validate(BatchReportCommand command)
     {

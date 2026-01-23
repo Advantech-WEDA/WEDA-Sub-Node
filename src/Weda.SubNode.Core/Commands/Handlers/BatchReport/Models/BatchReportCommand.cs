@@ -45,12 +45,6 @@ public record BatchReportCommand : ICommand
     public string RespTopic { get; init; } = string.Empty;
 
     /// <summary>
-    /// Topic for batch data transmission.
-    /// </summary>
-    [JsonPropertyName("dataTopic")]
-    public string DataTopic { get; init; } = string.Empty;
-
-    /// <summary>
     /// Maximum number of batches (measures) per message.
     /// </summary>
     [JsonPropertyName("maxBatchesPerMessage")]
