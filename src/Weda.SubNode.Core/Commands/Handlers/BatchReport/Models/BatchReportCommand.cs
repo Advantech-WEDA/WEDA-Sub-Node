@@ -51,11 +51,19 @@ public record BatchReportCommand : ICommand
     public string DataTopic { get; init; } = string.Empty;
 
     /// <summary>
-    /// Maximum number of batches per message.
+    /// Maximum number of batches (measures) per message.
     /// </summary>
     [JsonPropertyName("maxBatchesPerMessage")]
     [Range(1, 1000, ErrorMessage = "MaxBatchesPerMessage must be between 1 and 1000")]
     public int MaxBatchesPerMessage { get; init; } = 10;
+
+    /// <summary>
+    /// Maximum number of samples per batch.
+    /// When a sensor has more samples than this limit, it will be split into multiple batches.
+    /// </summary>
+    [JsonPropertyName("maxBatchSize")]
+    [Range(1, 100000, ErrorMessage = "MaxBatchSize must be between 1 and 100000")]
+    public int MaxBatchSize { get; init; } = 10000;
 
     /// <summary>
     /// Rate limit for transmission (messages per second).

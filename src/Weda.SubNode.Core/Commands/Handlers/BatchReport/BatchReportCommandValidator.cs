@@ -11,12 +11,11 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 /// <remarks>
 /// Validates:
 /// - TimeRange: EndTime must be greater than StartTime
-/// - TimeRange: Duration cannot exceed 7 days
+/// - TimeRange: StartTime cannot be in the future
 /// - ReportType: Must be a known type
 /// </remarks>
 public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
 {
-    private const long MaxTimeRangeDurationMs = 7 * 24 * 60 * 60 * 1000L; // 7 days
     private static readonly string ValidReportType = "historicalTelemetry";
 
     public ErrorOr<Success> Validate(BatchReportCommand command)
@@ -37,13 +36,6 @@ public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
             {
                 errors.Add(Errors.Command.ValidationFailed(
                     "TimeRange.EndTime must be greater than TimeRange.StartTime"));
-            }
-
-            var duration = command.TimeRange.EndTime - command.TimeRange.StartTime;
-            if (duration > MaxTimeRangeDurationMs)
-            {
-                errors.Add(Errors.Command.ValidationFailed(
-                    $"TimeRange duration cannot exceed 7 days. Current duration: {TimeSpan.FromMilliseconds(duration).TotalDays:F1} days"));
             }
 
             // Check for future time

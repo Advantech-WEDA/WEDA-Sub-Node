@@ -109,6 +109,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         // Step 2. Query and batch send with timeout support
         var batchBuffer = new List<BatchTelemetryMeasureDto>();
+        var batchBufferSampleCount = 0;
         var messageCount = 0;
         var failedSensors = new List<string>();
         var failedBatches = 0;
@@ -120,6 +121,45 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(command.Timeout));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
         var linkedToken = linkedCts.Token;
+
+        // Local function to flush the batch buffer
+        async Task<bool> FlushBatchBufferAsync()
+        {
+            if (batchBuffer.Count == 0)
+                return true;
+
+            var success = await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, linkedToken);
+            if (!success)
+            {
+                failedBatches++;
+            }
+            batchBuffer.Clear();
+            batchBufferSampleCount = 0;
+            messageCount++;
+
+            // Progress update
+            await SendProgressAsync(cloudService, subNodeId, command.RespTopic,
+                new BatchReportProgress
+                {
+                    DeviceCmd = command.DeviceCmd,
+                    ReportType = command.ReportType,
+                    Progress = new BatchReportProgressData
+                    {
+                        BatchesSent = messageCount,
+                        TotalBatches = estimatedTotalBatches,
+                        SamplesSent = totalSamples,
+                        PercentComplete = Math.Round((double)processedSensors.Count / sensorIds.Count * 100, 1)
+                    }
+                }, logger, linkedToken);
+
+            if (command.TransmissionRateLimit > 0)
+            {
+                var delayMs = 1000 / command.TransmissionRateLimit;
+                await Task.Delay(delayMs, linkedToken);
+            }
+
+            return success;
+        }
 
         try
         {
@@ -138,66 +178,62 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
                 processedSensors.Add(sensorId);
 
-                // Convert recording to batch measures
+                // Convert recording to batch measures with splitting support
                 foreach (var measure in recordingResult.Value.Measures)
                 {
-                    batchBuffer.Add(new BatchTelemetryMeasureDto
-                    {
-                        Id = sensorId,
-                        Interval = measure.Interval,
-                        StartTimeStamp = measure.StartTimeStamp,
-                        Values = measure.Values
-                            .Select(v => double.IsFinite(v) ? (double?)v : null)   // NaN and infinite value is not allow for JSON
-                            .ToList()
-                    });
+                    var values = measure.Values;
+                    var valuesProcessed = 0;
 
-                    totalSamples += measure.Values.Count;
-
-                    // Check if we should send a batch
-                    if (batchBuffer.Count >= command.MaxBatchesPerMessage)
+                    // Split measure if it exceeds maxBatchSize (vertical split)
+                    while (valuesProcessed < values.Count)
                     {
-                        var success = await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, linkedToken);
-                        if (!success)
+                        // Calculate how many samples we can add to current batch
+                        var remainingInBatch = command.MaxBatchSize - batchBufferSampleCount;
+                        var remainingInMeasure = values.Count - valuesProcessed;
+                        var samplesToTake = Math.Min(remainingInBatch, remainingInMeasure);
+
+                        // If current batch is full, flush it first
+                        if (samplesToTake == 0 || batchBuffer.Count >= command.MaxBatchesPerMessage)
                         {
-                            failedBatches++;
+                            await FlushBatchBufferAsync();
+                            remainingInBatch = command.MaxBatchSize;
+                            samplesToTake = Math.Min(remainingInBatch, remainingInMeasure);
                         }
-                        batchBuffer.Clear();
-                        messageCount++;
 
-                        // progress if multi-batch
-                        await SendProgressAsync(cloudService, subNodeId, command.RespTopic,
-                            new BatchReportProgress
-                            {
-                                DeviceCmd = command.DeviceCmd,
-                                ReportType = command.ReportType,
-                                Progress = new BatchReportProgressData
-                                {
-                                    BatchesSent = messageCount,
-                                    TotalBatches = estimatedTotalBatches,
-                                    SamplesSent = totalSamples,
-                                    PercentComplete = Math.Round((double)processedSensors.Count / sensorIds.Count * 100, 1)
-                                }
-                            }, logger, linkedToken);
+                        // Take a slice of values
+                        var sliceValues = values
+                            .Skip(valuesProcessed)
+                            .Take(samplesToTake)
+                            .Select(v => double.IsFinite(v) ? (double?)v : null)
+                            .ToList();
 
-                        if (command.TransmissionRateLimit > 0)
+                        // Calculate the start timestamp for this slice
+                        var sliceStartTimestamp = measure.StartTimeStamp + (valuesProcessed * measure.Interval);
+
+                        batchBuffer.Add(new BatchTelemetryMeasureDto
                         {
-                            var delayMs = 1000 / command.TransmissionRateLimit;
-                            await Task.Delay(delayMs, linkedToken);
+                            Id = sensorId,
+                            Interval = measure.Interval,
+                            StartTimeStamp = sliceStartTimestamp,
+                            Values = sliceValues
+                        });
+
+                        batchBufferSampleCount += samplesToTake;
+                        totalSamples += samplesToTake;
+                        valuesProcessed += samplesToTake;
+
+                        // Check if we should send a batch (horizontal split by measure count)
+                        if (batchBuffer.Count >= command.MaxBatchesPerMessage ||
+                            batchBufferSampleCount >= command.MaxBatchSize)
+                        {
+                            await FlushBatchBufferAsync();
                         }
                     }
                 }
             }
 
             // Send remaining batch
-            if (batchBuffer.Count > 0)
-            {
-                var success = await SendBatchAsync(cloudService, subNodeId, batchBuffer, logger, linkedToken);
-                if (!success)
-                {
-                    failedBatches++;
-                }
-                messageCount++;
-            }
+            await FlushBatchBufferAsync();
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
