@@ -28,6 +28,7 @@ public static class SupportedDataType
     public const string Gpio = "gpio";
     public const string Watchdog = "watchdog";
     public const string Thermalprotection = "thermalprotection";
+    public const string Health = "health";
 }
 
 
@@ -68,7 +69,8 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         SupportedDataType.Hwinfo,
         SupportedDataType.Gpio,
         SupportedDataType.Watchdog,
-        SupportedDataType.Thermalprotection
+        SupportedDataType.Thermalprotection,
+        SupportedDataType.Health
     ];
 
     public bool SupportsBidirectional => false;
@@ -128,6 +130,9 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
                 .Where(t => t != null)
                 .Distinct()
                 .ToHashSet();
+            
+            // Health is virtual, don't ask collector for it
+            metricTypes.Remove(SupportedDataType.Health);
 
             _logger.LogDebug("Collecting metrics for types: {Types}", string.Join(", ", metricTypes));
 
@@ -160,6 +165,14 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             if (metricType == null)
             {
                 _logger.LogWarning("Sensor {Name} missing MetricType parameter", sensor.Name);
+                continue;
+            }
+            
+            // SIL2 Check: If collection failed for this type, skip it to avoid reporting default/zero values
+            if (rawData.Health.ActiveErrors.ContainsKey(metricType.ToLowerInvariant()))
+            {
+                _logger.LogWarning("Skipping telemetry for sensor {SensorName} ({MetricType}) due to collection failure", 
+                    sensor.Name, metricType);
                 continue;
             }
 
@@ -197,7 +210,19 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName, sensor),
             SupportedDataType.Watchdog => GetWatchdogMetric(rawData.Watchdog, metricName),
             SupportedDataType.Thermalprotection => GetThermalProtectionMetric(rawData.ThermalProtection, metricName),
+            SupportedDataType.Health => GetHealthMetric(rawData.Health, metricName),
             _ => null
+        };
+    }
+
+    private object? GetHealthMetric(HealthStatusMetrics health, string? metricName)
+    {
+        return metricName?.ToLowerInvariant() switch
+        {
+            "is_healthy" => health.IsHealthy ? 1 : 0,
+            "error_count" => health.ActiveErrors.Count,
+            "errors" => string.Join("; ", health.ActiveErrors.Select(e => $"{e.Key}:{e.Value}")),
+            _ => health.IsHealthy ? 1 : 0 // Default to boolean health status
         };
     }
 

@@ -110,59 +110,59 @@ public class LocalSystemResourceCollector
 
         var tasks = new List<Task>();
 
-        Task<CpuMetrics>? cpuTask = null;
-        Task<RamMetrics>? ramTask = null;
-        Task<List<DiskMetrics>>? diskTask = null;
-        Task<List<NetworkMetrics>>? networkTask = null;
-        Task<SystemMetrics>? systemTask = null;
-        Task<GpuMetrics>? gpuTask = null;
+        Task<CpuMetrics?>? cpuTask = null;
+        Task<RamMetrics?>? ramTask = null;
+        Task<List<DiskMetrics>?>? diskTask = null;
+        Task<List<NetworkMetrics>?>? networkTask = null;
+        Task<SystemMetrics?>? systemTask = null;
+        Task<GpuMetrics?>? gpuTask = null;
 
-        Task<HardwareInfoMetrics>? hardwareInfoTask = null;
-        Task<TemperatureMetrics>? temperatureTask = null;
-        Task<VoltageMetrics>? voltageTask = null;
-        Task<FanSpeedMetrics>? fanSpeedTask = null;
-        Task<GpioMetrics>? gpioTask = null;
-        Task<WatchdogMetrics>? watchdogTask = null;
-        Task<ThermalProtectionMetrics>? thermalProtectionTask = null;
+        Task<HardwareInfoMetrics?>? hardwareInfoTask = null;
+        Task<TemperatureMetrics?>? temperatureTask = null;
+        Task<VoltageMetrics?>? voltageTask = null;
+        Task<FanSpeedMetrics?>? fanSpeedTask = null;
+        Task<GpioMetrics?>? gpioTask = null;
+        Task<WatchdogMetrics?>? watchdogTask = null;
+        Task<ThermalProtectionMetrics?>? thermalProtectionTask = null;
 
         foreach (var metricType in metricTypes)
         {
             switch (metricType.ToLowerInvariant())
             {
                 case SupportedDataType.Cpu:
-                    cpuTask = _cpuCollector.CollectCpuMetricsAsync(ct);
+                    cpuTask = ExecuteWithRetryAsync(t => _cpuCollector.CollectCpuMetricsAsync(t), "CPU", ct);
                     tasks.Add(cpuTask);
                     break;
 
                 case SupportedDataType.Memory:
-                    ramTask = _ramCollector.CollectRamMetricsAsync(ct);
+                    ramTask = ExecuteWithRetryAsync(t => _ramCollector.CollectRamMetricsAsync(t), "Memory", ct);
                     tasks.Add(ramTask);
                     break;
 
                 case SupportedDataType.Disk:
-                    diskTask = _diskCollector.CollectDiskMetricsAsync(ct);
+                    diskTask = ExecuteWithRetryAsync(t => _diskCollector.CollectDiskMetricsAsync(t), "Disk", ct);
                     tasks.Add(diskTask);
                     break;
 
                 case SupportedDataType.Network:
-                    networkTask = Task.Run(() => _networkCollector.CollectNetworkMetrics(), ct);
+                    networkTask = ExecuteWithRetryAsync(t => Task.Run(() => _networkCollector.CollectNetworkMetrics(), t), "Network", ct);
                     tasks.Add(networkTask);
                     break;
 
                 case SupportedDataType.System:
-                    systemTask = _systemCollector.CollectSystemMetricsAsync(ct);
+                    systemTask = ExecuteWithRetryAsync(t => _systemCollector.CollectSystemMetricsAsync(t), "System", ct);
                     tasks.Add(systemTask);
                     break;
 
                 case SupportedDataType.Gpu:
-                    gpuTask = Task.Run(() => _gpuCollector.CollectGpuMetrics(), ct);
+                    gpuTask = ExecuteWithRetryAsync(t => Task.Run(() => _gpuCollector.CollectGpuMetrics(), t), "GPU", ct);
                     tasks.Add(gpuTask);
                     break;
 
                 case SupportedDataType.Hwinfo:
                     if (_hardwarePlatformCollector != null)
                     {
-                        hardwareInfoTask = Task.Run(() => _hardwarePlatformCollector.CollectHardwareInfoMetrics(), ct);
+                        hardwareInfoTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectHardwareInfoMetrics(), t), "HardwareInfo", ct);
                         tasks.Add(hardwareInfoTask);
                     }
                     break;
@@ -170,7 +170,7 @@ public class LocalSystemResourceCollector
                 case SupportedDataType.Temperature:
                     if (_hardwarePlatformCollector != null)
                     {
-                        temperatureTask = Task.Run(() => _hardwarePlatformCollector.CollectTemperatureMetrics(), ct);
+                        temperatureTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectTemperatureMetrics(), t), "Temperature", ct);
                         tasks.Add(temperatureTask);
                     }
                     break;
@@ -178,7 +178,7 @@ public class LocalSystemResourceCollector
                 case SupportedDataType.Voltage:
                     if (_hardwarePlatformCollector != null)
                     {
-                        voltageTask = Task.Run(() => _hardwarePlatformCollector.CollectVoltageMetrics(), ct);
+                        voltageTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectVoltageMetrics(), t), "Voltage", ct);
                         tasks.Add(voltageTask);
                     }
                     break;
@@ -186,7 +186,7 @@ public class LocalSystemResourceCollector
                 case SupportedDataType.Fanspeed:
                     if (_hardwarePlatformCollector != null)
                     {
-                        fanSpeedTask = Task.Run(() => _hardwarePlatformCollector.CollectFanSpeedMetrics(), ct);
+                        fanSpeedTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectFanSpeedMetrics(), t), "FanSpeed", ct);
                         tasks.Add(fanSpeedTask);
                     }
                     break;
@@ -194,7 +194,7 @@ public class LocalSystemResourceCollector
                 case SupportedDataType.Gpio:
                     if (_hardwarePlatformCollector != null)
                     {
-                        gpioTask = Task.Run(() => _hardwarePlatformCollector.CollectGpioMetrics(), ct);
+                        gpioTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectGpioMetrics(), t), "GPIO", ct);
                         tasks.Add(gpioTask);
                     }
                     break;
@@ -202,7 +202,7 @@ public class LocalSystemResourceCollector
                 case SupportedDataType.Watchdog:
                     if (_hardwarePlatformCollector != null)
                     {
-                        watchdogTask = Task.Run(() => _hardwarePlatformCollector.CollectWatchdogMetrics(), ct);
+                        watchdogTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectWatchdogMetrics(), t), "Watchdog", ct);
                         tasks.Add(watchdogTask);
                     }
                     break;
@@ -210,7 +210,7 @@ public class LocalSystemResourceCollector
                 case SupportedDataType.Thermalprotection:
                     if (_hardwarePlatformCollector != null)
                     {
-                        thermalProtectionTask = Task.Run(() => _hardwarePlatformCollector.CollectThermalProtectionMetrics(), ct);
+                        thermalProtectionTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectThermalProtectionMetrics(), t), "ThermalProtection", ct);
                         tasks.Add(thermalProtectionTask);
                     }
                     break;
@@ -219,24 +219,165 @@ public class LocalSystemResourceCollector
 
         if (tasks.Count > 0)
         {
-            await Task.WhenAll(tasks);
+            // Wait for all tasks to complete. 
+            // Since ExecuteWithRetryAsync suppresses exceptions, WhenAll should not throw unless a task was cancelled or catastrophic error.
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error waiting for metric collection tasks");
+                rawData.Health.IsHealthy = false;
+                rawData.Health.ActiveErrors["CollectionLoop"] = ex.Message;
+            }
         }
 
-        if (cpuTask != null) rawData.Cpu = await cpuTask;
-        if (ramTask != null) rawData.Ram = await ramTask;
-        if (diskTask != null) rawData.Disks = await diskTask;
-        if (networkTask != null) rawData.Networks = await networkTask;
-        if (systemTask != null) rawData.System = await systemTask;
-        if (gpuTask != null) rawData.Gpu = await gpuTask;
+        // Safely assign results if tasks completed successfully and returned non-null
+        // Also populate Health status based on failures
+        
+        if (cpuTask != null)
+        {
+            if (cpuTask.IsCompletedSuccessfully && cpuTask.Result != null) rawData.Cpu = cpuTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Cpu);
+        }
 
-        if (hardwareInfoTask != null) rawData.HardwareInfo = await hardwareInfoTask;
-        if (temperatureTask != null) rawData.Temperature = await temperatureTask;
-        if (voltageTask != null) rawData.Voltage = await voltageTask;
-        if (fanSpeedTask != null) rawData.FanSpeed = await fanSpeedTask;
-        if (gpioTask != null) rawData.Gpio = await gpioTask;
-        if (watchdogTask != null) rawData.Watchdog = await watchdogTask;
-        if (thermalProtectionTask != null) rawData.ThermalProtection = await thermalProtectionTask;
+        if (ramTask != null)
+        {
+            if (ramTask.IsCompletedSuccessfully && ramTask.Result != null) rawData.Ram = ramTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Memory);
+        }
+
+        if (diskTask != null)
+        {
+            if (diskTask.IsCompletedSuccessfully && diskTask.Result != null) rawData.Disks = diskTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Disk);
+        }
+
+        if (networkTask != null)
+        {
+            if (networkTask.IsCompletedSuccessfully && networkTask.Result != null) rawData.Networks = networkTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Network);
+        }
+
+        if (systemTask != null)
+        {
+            if (systemTask.IsCompletedSuccessfully && systemTask.Result != null) rawData.System = systemTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.System);
+        }
+
+        if (gpuTask != null)
+        {
+            if (gpuTask.IsCompletedSuccessfully && gpuTask.Result != null) rawData.Gpu = gpuTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Gpu);
+        }
+
+        if (hardwareInfoTask != null)
+        {
+            if (hardwareInfoTask.IsCompletedSuccessfully && hardwareInfoTask.Result != null) rawData.HardwareInfo = hardwareInfoTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Hwinfo);
+        }
+
+        if (temperatureTask != null)
+        {
+            if (temperatureTask.IsCompletedSuccessfully && temperatureTask.Result != null) rawData.Temperature = temperatureTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Temperature);
+        }
+
+        if (voltageTask != null)
+        {
+            if (voltageTask.IsCompletedSuccessfully && voltageTask.Result != null) rawData.Voltage = voltageTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Voltage);
+        }
+
+        if (fanSpeedTask != null)
+        {
+            if (fanSpeedTask.IsCompletedSuccessfully && fanSpeedTask.Result != null) rawData.FanSpeed = fanSpeedTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Fanspeed);
+        }
+
+        if (gpioTask != null)
+        {
+            if (gpioTask.IsCompletedSuccessfully && gpioTask.Result != null) rawData.Gpio = gpioTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Gpio);
+        }
+
+        if (watchdogTask != null)
+        {
+            if (watchdogTask.IsCompletedSuccessfully && watchdogTask.Result != null) rawData.Watchdog = watchdogTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Watchdog);
+        }
+
+        if (thermalProtectionTask != null)
+        {
+            if (thermalProtectionTask.IsCompletedSuccessfully && thermalProtectionTask.Result != null) rawData.ThermalProtection = thermalProtectionTask.Result;
+            else AddCollectionError(rawData, SupportedDataType.Thermalprotection);
+        }
 
         return rawData;
+    }
+
+    private static void AddCollectionError(SystemMetricsRawData rawData, string metricType)
+    {
+        rawData.Health.IsHealthy = false;
+        rawData.Health.ActiveErrors[metricType] = "Collection failed or timed out";
+    }
+
+    /// <summary>
+    /// Executes a task with retry logic and error logging.
+    /// Returns default(T) (null) if all retries fail.
+    /// </summary>
+    private async Task<T?> ExecuteWithRetryAsync<T>(Func<CancellationToken, Task<T>> action, string metricName, CancellationToken parentToken)
+    {
+        const int maxRetries = 2; // Total 3 attempts
+        var attemptTimeout = TimeSpan.FromSeconds(5); // 5 seconds timeout per attempt
+        int retryCount = 0;
+
+        while (true)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
+            cts.CancelAfter(attemptTimeout);
+
+            try
+            {
+                // Use WaitAsync to enforce timeout even if the underlying task doesn't respect the token immediately
+                return await action(cts.Token).WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                if (parentToken.IsCancellationRequested) return default;
+                
+                // Timeout occurred
+                if (retryCount >= maxRetries)
+                {
+                    _logger.LogError("Timeout waiting for {MetricName} after {RetryCount} retries.", metricName, retryCount);
+                    return default;
+                }
+                 _logger.LogWarning("Timeout waiting for {MetricName} (Attempt {Retry}/{Max}). Retrying...", 
+                    metricName, retryCount + 1, maxRetries);
+            }
+            catch (Exception ex)
+            {
+                if (retryCount >= maxRetries || parentToken.IsCancellationRequested)
+                {
+                    _logger.LogError(ex, "Failed to collect {MetricName} after {RetryCount} retries. Continuing without this metric.", metricName, retryCount);
+                    return default;
+                }
+
+                _logger.LogWarning("Retry {RetryCount}/{MaxRetries} for {MetricName} due to error: {Message}", 
+                    retryCount + 1, maxRetries, metricName, ex.Message);
+            }
+            
+            retryCount++;
+            try
+            {
+                // Simple backoff
+                await Task.Delay(100 * retryCount, parentToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return default;
+            }
+        }
     }
 }

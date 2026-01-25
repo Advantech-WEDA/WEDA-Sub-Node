@@ -24,6 +24,28 @@ public class SystemMetricsRawData
     public GpioMetrics Gpio { get; set; } = new();
     public WatchdogMetrics Watchdog { get; set; } = new();
     public ThermalProtectionMetrics ThermalProtection { get; set; } = new();
+    
+    // Safety & Health Status for SIL2 compliance
+    public HealthStatusMetrics Health { get; set; } = new();
+}
+
+/// <summary>
+/// Safety and Health status of the system agent.
+/// Tracks collection failures and critical metric availability.
+/// </summary>
+public class HealthStatusMetrics
+{
+    /// <summary>
+    /// Indicates if the system agent is healthy and all critical metrics are being collected.
+    /// </summary>
+    public bool IsHealthy { get; set; } = true;
+
+    /// <summary>
+    /// Dictionary of active errors or collection failures.
+    /// Key: Metric Type / Component Name.
+    /// Value: Error message.
+    /// </summary>
+    public Dictionary<string, string> ActiveErrors { get; set; } = new Dictionary<string, string>();
 }
 
 /// <summary>
