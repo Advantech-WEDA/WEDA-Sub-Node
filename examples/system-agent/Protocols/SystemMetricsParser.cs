@@ -194,7 +194,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             SupportedDataType.Temperature => GetTemperatureMetric(rawData.Temperature, metricName, sensor),
             SupportedDataType.Voltage => GetVoltageMetric(rawData.Voltage, metricName, sensor),
             SupportedDataType.Fanspeed => GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor),
-            SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName),
+            SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName, sensor),
             SupportedDataType.Watchdog => GetWatchdogMetric(rawData.Watchdog, metricName),
             SupportedDataType.Thermalprotection => GetThermalProtectionMetric(rawData.ThermalProtection, metricName),
             _ => null
@@ -372,11 +372,32 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         };
     }
 
-    private object? GetTemperatureMetric(TemperatureMetrics? metrics, string metricName, Sensor sensor)
+    private object? GetTemperatureMetric(TemperatureMetrics? metrics, string? metricName, Sensor sensor)
     {
         if (metrics == null || metrics.Temperatures == null) return null;
 
-        // Return all temperatures as dictionary
+        // If metricName is specified, return specific temperature sensor value
+        if (!string.IsNullOrEmpty(metricName))
+        {
+            // Try exact match first
+            if (metrics.Temperatures.TryGetValue(metricName, out var temp))
+            {
+                return temp;
+            }
+
+            // Try case-insensitive match
+            var key = metrics.Temperatures.Keys
+                .FirstOrDefault(k => k.Equals(metricName, StringComparison.OrdinalIgnoreCase));
+            if (key != null && metrics.Temperatures.TryGetValue(key, out var tempValue))
+            {
+                return tempValue;
+            }
+
+            _logger.LogDebug("Temperature sensor '{MetricName}' not found in collected metrics", metricName);
+            return null;
+        }
+
+        // Default: return all temperatures as dictionary for backward compatibility
         return metrics.Temperatures;
     }
 
@@ -396,10 +417,37 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         return metrics.FanSpeeds;
     }
 
-    private object? GetGpioMetric(GpioMetrics? metrics, string metricName)
+    private object? GetGpioMetric(GpioMetrics? metrics, string? metricName, Sensor sensor)
     {
-        // Return full GPIO metrics object
-        // Collector already fetched IsSupported + PinNames together
+        if (metrics == null) return null;
+
+        // Handle specific metric names
+        if (metricName != null)
+        {
+            switch (metricName.ToLowerInvariant())
+            {
+                case "issupported":
+                    return metrics.IsSupported;
+
+                case "pinstate":
+                    var pinId = GetParameterValue(sensor, "PinId");
+                    if (string.IsNullOrEmpty(pinId))
+                    {
+                        _logger.LogWarning("Sensor {Name} missing PinId parameter for pinState metric", sensor.Name);
+                        return null;
+                    }
+
+                    if (metrics.PinStateDetails.TryGetValue(pinId, out var pinState))
+                    {
+                        return pinState;
+                    }
+
+                    _logger.LogDebug("GPIO pin '{PinId}' not found in collected metrics", pinId);
+                    return null;
+            }
+        }
+
+        // Default: return full GPIO metrics object for backward compatibility
         return metrics;
     }
 

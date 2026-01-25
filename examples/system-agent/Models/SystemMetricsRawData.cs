@@ -406,11 +406,10 @@ public class GpioMetrics
     public string[] PinNames { get; set; } = Array.Empty<string>();
 
     /// <summary>
-    /// A dictionary to hold the current direction and level for a specific pin, using the pin name as the key.
-    /// Since the exact types (GpioDirectionTypes, GpioLevelTypes) are unknown, the values are stored as object.
-    /// Key: Pin Name/ID (string). Value: An object representing the pin's current state (Direction, Level).
+    /// A dictionary to hold the current level for a specific pin, using the pin name as the key.
+    /// Key: Pin Name/ID (string). Value: Pin level as integer (0 = Low, 1 = High).
     /// </summary>
-    public Dictionary<string, object> PinStateDetails { get; set; } = new Dictionary<string, object>();
+    public Dictionary<string, int> PinStateDetails { get; set; } = new Dictionary<string, int>();
 }
 
 /// <summary>
