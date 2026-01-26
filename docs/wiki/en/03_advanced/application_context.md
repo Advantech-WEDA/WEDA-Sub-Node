@@ -276,14 +276,10 @@ public class MyDevice : TcpModbusDevice
         UpdateConfigurationEvent e, CancellationToken ct)
     {
         // Base configuration is already applied and cached by framework
+        // Configuration reports are now handled by SubNodeManager automatically
 
-        // 1. Report status to cloud
-        var message = ExtractMessage(e);
-        var report = ConfigurationUpdateHelper.CreateSuccessReport(
-            message, Configuration, "myDevice");
-        await _context.CloudService.PublishConfigurationReportAsync(report, ct);
-
-        // 2. Handle custom properties (if any)
+        // Handle custom properties (if any)
+        // var message = ExtractMessage(e);
         // var customConfig = message.Data?.Cfg?.Desired?.CustomProperties;
         // ApplyCustomConfiguration(customConfig);
     }
