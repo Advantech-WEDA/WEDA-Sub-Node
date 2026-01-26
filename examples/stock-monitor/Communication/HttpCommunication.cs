@@ -30,7 +30,7 @@ public class HttpCommunication : RequestResponseCommunicationBase<StockQuoteRequ
         TwseStockClient stockClient,
         ConnectionSettings? settings = null,
         ILogger<CommunicationBase>? logger = null)
-        : base(settings, logger)
+        : base(settings ?? new ConnectionSettings { RequestLock = false }, logger)
     {
         _stockClient = stockClient ?? throw new ArgumentNullException(nameof(stockClient));
     }
@@ -61,7 +61,7 @@ public class HttpCommunication : RequestResponseCommunicationBase<StockQuoteRequ
     /// <param name="request">Stock quote request containing stock codes</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>TWSE stock response or null if failed</returns>
-    public override async Task<TwseStockResponse?> RequestAsync(
+    protected override async Task<TwseStockResponse?> RequestAsyncCore(
         StockQuoteRequest request,
         CancellationToken cancellationToken = default)
     {
