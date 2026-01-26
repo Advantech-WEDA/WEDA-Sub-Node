@@ -730,6 +730,10 @@ public sealed class WedaCloudService : IWedaCloudService
             // Store the raw JSON data for CommandRegistry to deserialize to specific command types
             deviceCommand.RawData = envelope.Data;
 
+            // Copy SeqId and ReqSeqId from envelope for response correlation
+            deviceCommand.SeqId = envelope.SeqId;
+            deviceCommand.ReqSeqId = envelope.ReqSeqId;
+
             // Also populate Parameters dictionary for backward compatibility with device protocol parsers
             // This extracts all properties as Dictionary<string, object> for easy access
             var allProperties = envelope.Data.Value.Deserialize<Dictionary<string, object>>(CommandJsonOptions);

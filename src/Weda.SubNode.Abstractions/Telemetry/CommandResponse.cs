@@ -5,27 +5,89 @@ namespace Weda.SubNode.Abstractions.Telemetry;
 /// <summary>
 /// Command response status codes.
 /// </summary>
+/// <remarks>
+/// Status codes follow the specification:
+/// 0 = SUCCESS: Command executed successfully, all data retrieved
+/// 1 = PARTIAL_SUCCESS: Command completed with data gaps or quality issues
+/// 2 = INVALID_TIME_RANGE: Time range is invalid or exceeds retention period
+/// 3 = NO_DATA_AVAILABLE: No data found for specified time range
+/// 4 = STORAGE_ERROR: Local storage unavailable or corrupted
+/// 5 = TIMEOUT: Command execution exceeded timeout
+/// 6 = PERMISSION_DENIED: Insufficient permissions for data access
+/// 7 = RESOURCE_EXHAUSTED: Device resources insufficient for query
+/// </remarks>
 public static class CommandResponseStatusCode
 {
     /// <summary>
-    /// Command received and execution started (status = 0)
+    /// Command executed successfully, all data retrieved (status = 0)
     /// </summary>
-    public const int Received = 0;
+    public const int Success = 0;
 
     /// <summary>
-    /// Command executed successfully (status = 1)
+    /// Command completed with data gaps or quality issues (status = 1)
     /// </summary>
-    public const int Success = 1;
+    public const int PartialSuccess = 1;
 
     /// <summary>
-    /// Command rejected due to validation failure (status = -1)
+    /// Time range is invalid or exceeds retention period (status = 2)
+    /// </summary>
+    public const int InvalidTimeRange = 2;
+
+    /// <summary>
+    /// No data found for specified time range (status = 3)
+    /// </summary>
+    public const int NoDataAvailable = 3;
+
+    /// <summary>
+    /// Local storage unavailable or corrupted (status = 4)
+    /// </summary>
+    public const int StorageError = 4;
+
+    /// <summary>
+    /// Command execution exceeded timeout (status = 5)
+    /// </summary>
+    public const int Timeout = 5;
+
+    /// <summary>
+    /// Insufficient permissions for data access (status = 6)
+    /// </summary>
+    public const int PermissionDenied = 6;
+
+    /// <summary>
+    /// Device resources insufficient for query (status = 7)
+    /// </summary>
+    public const int ResourceExhausted = 7;
+
+    // Legacy status codes for backward compatibility (initial ack / progress)
+    // These are used for the initial "received" acknowledgment before command execution completes
+
+    /// <summary>
+    /// Command rejected due to validation failure.
     /// </summary>
     public const int Rejected = -1;
 
     /// <summary>
-    /// Command execution failed (status = -2)
+    /// Command execution failed.
     /// </summary>
     public const int Failed = -2;
+
+    /// <summary>
+    /// Gets a human-readable description for a status code.
+    /// </summary>
+    public static string GetDescription(int code) => code switch
+    {
+        Success => "Command executed successfully, all data retrieved",
+        PartialSuccess => "Command completed with data gaps or quality issues",
+        InvalidTimeRange => "Time range is invalid or exceeds retention period",
+        NoDataAvailable => "No data found for specified time range",
+        StorageError => "Local storage unavailable or corrupted",
+        Timeout => "Command execution exceeded timeout",
+        PermissionDenied => "Insufficient permissions for data access",
+        ResourceExhausted => "Device resources insufficient for query",
+        Rejected => "Command rejected due to validation failure",
+        Failed => "Command execution failed",
+        _ => "Unknown status"
+    };
 }
 
 /// <summary>
@@ -49,8 +111,6 @@ public static class CommandResponseStatusCode
 /// </remarks>
 public class CommandResponse
 {
-    private static int _rspSeqCounter = 0;
-
     /// <summary>
     /// Command type identifier (always "deviceCmd" for device command responses).
     /// </summary>
@@ -58,10 +118,11 @@ public class CommandResponse
     public string Cmd { get; set; } = "deviceCmd";
 
     /// <summary>
-    /// Response sequence ID for tracking.
+    /// Sequence ID from the original request.
+    /// All responses (initial ack, progress, final) for the same command should use the same SeqId.
     /// </summary>
     [JsonPropertyName("seqId")]
-    public int SeqId { get; set; }
+    public ulong SeqId { get; set; }
 
     /// <summary>
     /// Request sequence ID for correlation (from original command).
@@ -90,7 +151,7 @@ public class CommandResponse
 
     /// <summary>
     /// Response status code.
-    /// 0 = Received, 1 = Success, -1 = Rejected, -2 = Failed
+    /// See <see cref="CommandResponseStatusCode"/> for available codes.
     /// </summary>
     [JsonPropertyName("status")]
     public int Status { get; set; }
@@ -112,11 +173,18 @@ public class CommandResponse
     /// <summary>
     /// Create a "received" response (command accepted, execution starting).
     /// </summary>
-    public static CommandResponse Received(string deviceId, string command, string? message = null, object? data = null) => new()
+    /// <param name="deviceId">The device ID (SubNode ID).</param>
+    /// <param name="command">The command name.</param>
+    /// <param name="seqId">The sequence ID from the original request.</param>
+    /// <param name="reqSeqId">The request sequence ID for correlation.</param>
+    /// <param name="message">Optional custom message.</param>
+    /// <param name="data">Optional response data.</param>
+    public static CommandResponse Received(string deviceId, string command, ulong seqId, string? reqSeqId = null, string? message = null, object? data = null) => new()
     {
         DeviceId = deviceId,
-        SeqId = Interlocked.Increment(ref _rspSeqCounter),
-        Status = CommandResponseStatusCode.Received,
+        SeqId = seqId,
+        ReqSeqId = reqSeqId,
+        Status = CommandResponseStatusCode.Success,
         Message = message ?? $"Command '{command}' received and execution started",
         Data = data ?? new CommandResponseData { DeviceCmd = command }
     };
@@ -124,10 +192,17 @@ public class CommandResponse
     /// <summary>
     /// Create a "success" response (execution completed successfully).
     /// </summary>
-    public static CommandResponse Success(string deviceId, string command, object? data = null, string? message = null) => new()
+    /// <param name="deviceId">The device ID (SubNode ID).</param>
+    /// <param name="command">The command name.</param>
+    /// <param name="seqId">The sequence ID from the original request.</param>
+    /// <param name="data">Optional response data.</param>
+    /// <param name="reqSeqId">The request sequence ID for correlation.</param>
+    /// <param name="message">Optional custom message.</param>
+    public static CommandResponse Success(string deviceId, string command, ulong seqId, object? data = null, string? reqSeqId = null, string? message = null) => new()
     {
         DeviceId = deviceId,
-        SeqId = Interlocked.Increment(ref _rspSeqCounter),
+        SeqId = seqId,
+        ReqSeqId = reqSeqId,
         Status = CommandResponseStatusCode.Success,
         Message = message ?? $"Command '{command}' executed successfully",
         Data = data
@@ -136,10 +211,17 @@ public class CommandResponse
     /// <summary>
     /// Create a "rejected" response (validation failed).
     /// </summary>
-    public static CommandResponse Rejected(string deviceId, string command, string errorCode, string errorMessage) => new()
+    /// <param name="deviceId">The device ID (SubNode ID).</param>
+    /// <param name="command">The command name.</param>
+    /// <param name="seqId">The sequence ID from the original request.</param>
+    /// <param name="errorCode">The error code.</param>
+    /// <param name="errorMessage">The error message.</param>
+    /// <param name="reqSeqId">The request sequence ID for correlation.</param>
+    public static CommandResponse Rejected(string deviceId, string command, ulong seqId, string errorCode, string errorMessage, string? reqSeqId = null) => new()
     {
         DeviceId = deviceId,
-        SeqId = Interlocked.Increment(ref _rspSeqCounter),
+        SeqId = seqId,
+        ReqSeqId = reqSeqId,
         Status = CommandResponseStatusCode.Rejected,
         Message = errorMessage,
         Data = new CommandResponseData
@@ -153,10 +235,17 @@ public class CommandResponse
     /// <summary>
     /// Create a "failed" response (execution failed).
     /// </summary>
-    public static CommandResponse Failed(string deviceId, string command, string errorCode, string errorMessage) => new()
+    /// <param name="deviceId">The device ID (SubNode ID).</param>
+    /// <param name="command">The command name.</param>
+    /// <param name="seqId">The sequence ID from the original request.</param>
+    /// <param name="errorCode">The error code.</param>
+    /// <param name="errorMessage">The error message.</param>
+    /// <param name="reqSeqId">The request sequence ID for correlation.</param>
+    public static CommandResponse Failed(string deviceId, string command, ulong seqId, string errorCode, string errorMessage, string? reqSeqId = null) => new()
     {
         DeviceId = deviceId,
-        SeqId = Interlocked.Increment(ref _rspSeqCounter),
+        SeqId = seqId,
+        ReqSeqId = reqSeqId,
         Status = CommandResponseStatusCode.Failed,
         Message = errorMessage,
         Data = new CommandResponseData

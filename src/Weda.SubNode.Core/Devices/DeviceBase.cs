@@ -230,7 +230,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             // Send "received" response immediately after validation passes
             await SendCommandResponseAsync(
                 e.Command.RespTopic,
-                CommandResponse.Received(SubNodeId!, e.Command.DeviceCmd));
+                CommandResponse.Received(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId, e.Command.ReqSeqId));
 
             // Execute command on device
             _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
@@ -260,15 +260,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 {
                     await SendCommandResponseAsync(
                         e.Command.RespTopic,
-                        CommandResponse.Success(SubNodeId!, e.Command.DeviceCmd));
+                        CommandResponse.Success(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId, reqSeqId: e.Command.ReqSeqId));
                 }
                 else
                 {
                     await SendCommandResponseAsync(
                         e.Command.RespTopic,
-                        CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd,
+                        CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId,
                             errorCode ?? "Command.Unknown",
-                            errorMessage ?? "Unknown error"));
+                            errorMessage ?? "Unknown error",
+                            e.Command.ReqSeqId));
                 }
             }
             catch (Exception ex)

@@ -19,10 +19,11 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 /// </summary>
 /// <remarks>
 /// Response handling (Received/Success/Failed) is managed by CommandDispatcher.
-/// This handler only focuses on business logic and returns the result.
+/// This handler sends its own initial ack with estimated metrics, so auto ack is disabled.
 /// </remarks>
 [Validation(typeof(BatchReportCommandValidator))]
 [Logging(LogLevel.Information)]
+[AutoAck(false)]
 public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, BatchReportResult>
 {
     public async Task<ErrorOr<BatchReportResult>> HandleAsync(
@@ -42,7 +43,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 BatchReportStatusCode.StorageError,
                 command.DeviceCmd,
-                command.ReportType,
                 "STORAGE_UNAVAILABLE",
                 "RecordingService is not configured",
                 executedAt);
@@ -54,7 +54,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 BatchReportStatusCode.PermissionDenied,
                 command.DeviceCmd,
-                command.ReportType,
                 "NOT_REGISTERED",
                 "SubNode is not registered",
                 executedAt);
@@ -62,6 +61,18 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         // Get effective time range (applies defaults if TimeRange is null)
         var effectiveTimeRange = command.GetEffectiveTimeRange();
+
+        // Validate time range: startTime must be before endTime
+        if (effectiveTimeRange.StartTime >= effectiveTimeRange.EndTime)
+        {
+            return BatchReportResult.Error(
+                BatchReportStatusCode.InvalidTimeRange,
+                command.DeviceCmd,
+                "INVALID_TIME_RANGE",
+                "Start time must be before end time",
+                executedAt);
+        }
+
         var startTime = DateTimeOffset.FromUnixTimeMilliseconds(effectiveTimeRange.StartTime);
         var endTime = DateTimeOffset.FromUnixTimeMilliseconds(effectiveTimeRange.EndTime);
 
@@ -76,7 +87,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 BatchReportStatusCode.StorageError,
                 command.DeviceCmd,
-                command.ReportType,
                 "STORAGE_ERROR",
                 sensorIdsResult.FirstError.Description,
                 executedAt);
@@ -89,23 +99,46 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Success(
                 BatchReportStatusCode.NoDataAvailable,
                 command.DeviceCmd,
-                command.ReportType,
                 "No sensors match the filter criteria",
                 new BatchReportResultData
                 {
                     BatchesSent = 0,
                     TotalSamples = 0,
-                    TimeRange = new BatchReportTimeRange
-                    {
-                        StartTime = effectiveTimeRange.StartTime,
-                        EndTime = effectiveTimeRange.EndTime
-                    },
+                    TimeRange = BatchReportTimeRange.FromUnixTimeMs(effectiveTimeRange.StartTime, effectiveTimeRange.EndTime),
                     Sensors = []
                 },
                 executedAt);
         }
 
         logger.LogDebug("Processing {Count} sensors", sensorIds.Count);
+
+        // Calculate estimated metrics for initial ack based on sensor intervals and command parameters
+        var estimate = CalculateEstimatedMetrics(
+            sensorIds, effectiveTimeRange, command.MaxBatchesPerMessage, command.MaxBatchSize,
+            command.TransmissionRateLimit, context, logger);
+
+        // Check for resource exhaustion: reject if estimated workload is too large
+        // Limit: 10 million samples or 100,000 batches to prevent memory exhaustion
+        const int MaxEstimatedSamples = 10_000_000;
+        const int MaxEstimatedBatches = 100_000;
+        if (estimate.EstimatedSamples > MaxEstimatedSamples || estimate.EstimatedBatches > MaxEstimatedBatches)
+        {
+            logger.LogWarning(
+                "Resource exhaustion: estimated {Samples} samples, {Batches} batches exceeds limits",
+                estimate.EstimatedSamples, estimate.EstimatedBatches);
+
+            return BatchReportResult.Error(
+                BatchReportStatusCode.ResourceExhausted,
+                command.DeviceCmd,
+                "RESOURCE_EXHAUSTED",
+                $"Estimated workload too large: {estimate.EstimatedSamples} samples, {estimate.EstimatedBatches} batches. Reduce time range or increase batch size.",
+                executedAt);
+        }
+
+        // Send initial ack with estimates (include SeqId and ReqSeqId from command)
+        await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic, command.DeviceCmd,
+            command.SeqId, command.ReqSeqId, estimate.EstimatedBatches, estimate.EstimatedSamples,
+            estimate.EstimatedDurationSeconds, logger, cancellationToken);
 
         // Step 2. Query and batch send with timeout support
         var batchBuffer = new List<BatchTelemetryMeasureDto>();
@@ -115,7 +148,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         var failedBatches = 0;
         var totalSamples = 0;
         var processedSensors = new List<string>();
-        var estimatedTotalBatches = sensorIds.Count; // Rough estimate, will be refined
+        var estimatedTotalBatches = estimate.EstimatedBatches;
 
         // Create timeout-linked cancellation token
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(command.Timeout));
@@ -138,16 +171,16 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             messageCount++;
 
             // Progress update
-            await SendProgressAsync(cloudService, subNodeId, command.RespTopic,
+            await SendProgressAsync(cloudService, subNodeId, command.RespTopic, command.SeqId, command.ReqSeqId,
                 new BatchReportProgress
                 {
                     DeviceCmd = command.DeviceCmd,
-                    ReportType = command.ReportType,
                     Progress = new BatchReportProgressData
                     {
                         BatchesSent = messageCount,
                         TotalBatches = estimatedTotalBatches,
                         SamplesSent = totalSamples,
+                        TotalSamples = estimate.EstimatedSamples,
                         PercentComplete = Math.Round((double)processedSensors.Count / sensorIds.Count * 100, 1)
                     }
                 }, logger, linkedToken);
@@ -241,7 +274,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 BatchReportStatusCode.Timeout,
                 command.DeviceCmd,
-                command.ReportType,
                 "TIMEOUT",
                 $"Command execution exceeded {command.Timeout} seconds timeout",
                 executedAt);
@@ -252,7 +284,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 BatchReportStatusCode.Timeout,
                 command.DeviceCmd,
-                command.ReportType,
                 "CANCELLED",
                 "Operation was cancelled",
                 executedAt);
@@ -281,11 +312,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             BatchesSent = messageCount,
             TotalSamples = totalSamples,
-            TimeRange = new BatchReportTimeRange
-            {
-                StartTime = effectiveTimeRange.StartTime,
-                EndTime = effectiveTimeRange.EndTime
-            },
+            TimeRange = BatchReportTimeRange.FromUnixTimeMs(effectiveTimeRange.StartTime, effectiveTimeRange.EndTime),
             Sensors = processedSensors.ToArray(),
             DataGaps = failedSensors.Count > 0
                 ? failedSensors.Select(s => new BatchReportDataGap
@@ -296,7 +323,94 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 : null
         };
 
-        return BatchReportResult.Success(statusCode, command.DeviceCmd, command.ReportType, message, resultData, executedAt, completedAt);
+        return BatchReportResult.Success(statusCode, command.DeviceCmd, message, resultData, executedAt, completedAt);
+    }
+
+    /// <summary>
+    /// Calculates estimated metrics for initial ack based on sensor intervals and command parameters.
+    /// </summary>
+    /// <param name="sensorIds">List of sensor IDs to process.</param>
+    /// <param name="timeRange">The effective time range for the query.</param>
+    /// <param name="maxBatchesPerMessage">Maximum batches per message from command.</param>
+    /// <param name="maxBatchSize">Maximum samples per batch from command.</param>
+    /// <param name="transmissionRateLimit">Transmission rate limit from command.</param>
+    /// <param name="context">Application context for accessing device configurations.</param>
+    /// <param name="logger">Logger for diagnostic output.</param>
+    /// <returns>Estimated metrics for initial ack.</returns>
+    private static EstimatedMetrics CalculateEstimatedMetrics(
+        IReadOnlyList<string> sensorIds,
+        TimeRange timeRange,
+        int maxBatchesPerMessage,
+        int maxBatchSize,
+        int transmissionRateLimit,
+        IWedaApplicationContext context,
+        ILogger logger)
+    {
+        var timeRangeMs = timeRange.EndTime - timeRange.StartTime;
+        var totalEstimatedSamples = 0L;
+        var totalEstimatedBatches = 0;
+
+        // Build a lookup of sensor intervals from DeviceConfigs
+        var sensorIntervals = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var deviceConfig in context.DeviceConfigs.Values)
+        {
+            foreach (var sensor in deviceConfig.Sensors)
+            {
+                // Use ShortId as the key since recording service uses ShortId
+                if (!string.IsNullOrEmpty(sensor.ShortId))
+                {
+                    sensorIntervals[sensor.ShortId] = sensor.Report.Interval;
+                }
+                // Also add full ResourceId for compatibility
+                if (!string.IsNullOrEmpty(sensor.ResourceId))
+                {
+                    sensorIntervals[sensor.ResourceId] = sensor.Report.Interval;
+                }
+            }
+        }
+
+        // Calculate estimated samples per sensor
+        foreach (var sensorId in sensorIds)
+        {
+            // Get sensor interval, default to 1000ms if not found
+            var intervalMs = sensorIntervals.TryGetValue(sensorId, out var interval) ? interval : 1000.0;
+
+            // Avoid division by zero
+            if (intervalMs <= 0)
+            {
+                intervalMs = 1000.0;
+            }
+
+            // Estimate number of samples for this sensor
+            var estimatedSamplesForSensor = (long)Math.Ceiling(timeRangeMs / intervalMs) + 1;
+            totalEstimatedSamples += estimatedSamplesForSensor;
+
+            // Estimate number of batches for this sensor (based on maxBatchSize)
+            var batchesForSensor = (int)Math.Ceiling((double)estimatedSamplesForSensor / maxBatchSize);
+            totalEstimatedBatches += Math.Max(1, batchesForSensor);
+        }
+
+        // Adjust for maxBatchesPerMessage (how many sensor batches fit in one message)
+        var estimatedMessages = (int)Math.Ceiling((double)totalEstimatedBatches / maxBatchesPerMessage);
+
+        // Calculate estimated duration based on transmission rate limit
+        int estimatedDurationSeconds;
+        if (transmissionRateLimit > 0)
+        {
+            // Duration = messages / rate limit
+            estimatedDurationSeconds = Math.Max(1, (int)Math.Ceiling((double)estimatedMessages / transmissionRateLimit));
+        }
+        else
+        {
+            // Without rate limiting, estimate based on number of messages (assume ~10 msg/sec processing)
+            estimatedDurationSeconds = Math.Max(1, estimatedMessages / 10);
+        }
+
+        logger.LogDebug(
+            "Estimated metrics: {Samples} samples, {Batches} batches, {Messages} messages, {Duration}s",
+            totalEstimatedSamples, totalEstimatedBatches, estimatedMessages, estimatedDurationSeconds);
+
+        return new EstimatedMetrics(totalEstimatedBatches, (int)Math.Min(totalEstimatedSamples, int.MaxValue), estimatedDurationSeconds);
     }
 
     private static IReadOnlyList<string> FilterSensors(
@@ -351,6 +465,8 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         IWedaCloudService cloudService,
         string deviceId,
         string respTopic,
+        ulong seqId,
+        string? reqSeqId,
         BatchReportProgress progress,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -363,7 +479,9 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             var response = new CommandResponse
             {
                 DeviceId = deviceId,
-                Status = CommandResponseStatusCode.Received, // Progress uses status=0
+                SeqId = seqId,
+                ReqSeqId = reqSeqId,
+                Status = CommandResponseStatusCode.Success,
                 Message = "Progress update",
                 Data = progress
             };
@@ -377,241 +495,49 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             logger.LogWarning(ex, "Failed to send progress update");
         }
     }
-}
 
-/// <summary>
-/// Result of the BatchReport command execution.
-/// This object is serialized as the "data" field in the command response.
-/// </summary>
-/// <remarks>
-/// Follows the REPORT Command Specification response format.
-/// </remarks>
-public class BatchReportResult
-{
-    /// <summary>
-    /// The device command name.
-    /// </summary>
-    [JsonPropertyName("deviceCmd")]
-    public string DeviceCmd { get; init; } = "report";
-
-    /// <summary>
-    /// The report type requested.
-    /// </summary>
-    [JsonPropertyName("reportType")]
-    public string ReportType { get; init; } = string.Empty;
-
-    /// <summary>
-    /// Status code indicating the result of the operation.
-    /// </summary>
-    /// <seealso cref="BatchReportStatusCode"/>
-    [JsonPropertyName("status")]
-    public int Status { get; init; }
-
-    /// <summary>
-    /// Human-readable status message.
-    /// </summary>
-    [JsonPropertyName("message")]
-    public string Message { get; init; } = string.Empty;
-
-    /// <summary>
-    /// Result data containing batch statistics and metadata.
-    /// </summary>
-    [JsonPropertyName("resultData")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BatchReportResultData? ResultData { get; init; }
-
-    /// <summary>
-    /// Error details (only for error cases).
-    /// </summary>
-    [JsonPropertyName("errorDetails")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BatchReportErrorDetails? ErrorDetails { get; init; }
-
-    /// <summary>
-    /// Timestamp when execution started (Unix ms).
-    /// </summary>
-    [JsonPropertyName("executedAt")]
-    public long ExecutedAt { get; init; }
-
-    /// <summary>
-    /// Timestamp when execution completed (Unix ms).
-    /// </summary>
-    [JsonPropertyName("completedAt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public long CompletedAt { get; init; }
-
-    /// <summary>
-    /// Duration of execution in seconds.
-    /// </summary>
-    [JsonPropertyName("durationSeconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public long DurationSeconds => CompletedAt > 0 ? (CompletedAt - ExecutedAt) / 1000 : 0;
-
-    /// <summary>
-    /// Creates a successful result.
-    /// </summary>
-    public static BatchReportResult Success(
-        int status,
+    private static async Task SendInitialAckAsync(
+        IWedaCloudService cloudService,
+        string deviceId,
+        string respTopic,
         string deviceCmd,
-        string reportType,
-        string message,
-        BatchReportResultData resultData,
-        long executedAt,
-        long completedAt = 0) => new()
+        ulong seqId,
+        string? reqSeqId,
+        int estimatedBatches,
+        int estimatedSamples,
+        int estimatedDurationSeconds,
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
-        DeviceCmd = deviceCmd,
-        ReportType = reportType,
-        Status = status,
-        Message = message,
-        ResultData = resultData,
-        ExecutedAt = executedAt,
-        CompletedAt = completedAt > 0 ? completedAt : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-    };
+        if (string.IsNullOrEmpty(respTopic))
+            return;
 
-    /// <summary>
-    /// Creates an error result.
-    /// </summary>
-    public static BatchReportResult Error(
-        int status,
-        string deviceCmd,
-        string reportType,
-        string errorCode,
-        string errorMessage,
-        long executedAt) => new()
-    {
-        DeviceCmd = deviceCmd,
-        ReportType = reportType,
-        Status = status,
-        Message = errorMessage,
-        ErrorDetails = new BatchReportErrorDetails
+        try
         {
-            ErrorCode = errorCode,
-            Recommendation = GetRecommendation(status)
-        },
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-    };
+            var response = new CommandResponse
+            {
+                DeviceId = deviceId,
+                SeqId = seqId,
+                ReqSeqId = reqSeqId,
+                Status = CommandResponseStatusCode.Success,
+                Message = "Historical data query started",
+                Data = new BatchReportInitialAckData
+                {
+                    DeviceCmd = deviceCmd,
+                    EstimatedBatches = estimatedBatches,
+                    EstimatedSamples = estimatedSamples,
+                    EstimatedDurationSeconds = estimatedDurationSeconds,
+                    StorageAvailable = true
+                }
+            };
 
-    private static string? GetRecommendation(int status) => status switch
-    {
-        BatchReportStatusCode.InvalidTimeRange => "Adjust time range to available period",
-        BatchReportStatusCode.StorageError => "Check device storage health and retry",
-        BatchReportStatusCode.Timeout => "Reduce query scope or increase timeout",
-        BatchReportStatusCode.ResourceExhausted => "Reduce batch size or add rate limiting",
-        _ => null
-    };
-}
-
-/// <summary>
-/// Result data for successful batch report operations.
-/// </summary>
-public class BatchReportResultData
-{
-    [JsonPropertyName("batchesSent")]
-    public int BatchesSent { get; init; }
-
-    [JsonPropertyName("totalSamples")]
-    public int TotalSamples { get; init; }
-
-    [JsonPropertyName("timeRange")]
-    public BatchReportTimeRange? TimeRange { get; init; }
-
-    [JsonPropertyName("sensors")]
-    public string[]? Sensors { get; init; }
-
-    [JsonPropertyName("dataGaps")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BatchReportDataGap[]? DataGaps { get; init; }
-}
-
-/// <summary>
-/// Time range for batch report results.
-/// Uses Unix timestamp in milliseconds.
-/// </summary>
-public class BatchReportTimeRange
-{
-    [JsonPropertyName("startTime")]
-    public long StartTime { get; init; }
-
-    [JsonPropertyName("endTime")]
-    public long EndTime { get; init; }
-}
-
-/// <summary>
-/// Data gap information for partial success results.
-/// </summary>
-public class BatchReportDataGap
-{
-    [JsonPropertyName("sensorId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? SensorId { get; init; }
-
-    [JsonPropertyName("startTime")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? StartTime { get; init; }
-
-    [JsonPropertyName("endTime")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? EndTime { get; init; }
-
-    [JsonPropertyName("reason")]
-    public string Reason { get; init; } = string.Empty;
-
-    [JsonPropertyName("missingSamples")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public int MissingSamples { get; init; }
-}
-
-/// <summary>
-/// Error details for failed batch report operations.
-/// </summary>
-public class BatchReportErrorDetails
-{
-    [JsonPropertyName("errorCode")]
-    public string ErrorCode { get; init; } = string.Empty;
-
-    [JsonPropertyName("recommendation")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Recommendation { get; init; }
-}
-
-/// <summary>
-/// Progress update data for BatchReport command.
-/// Sent periodically during long-running batch report operations.
-/// </summary>
-public class BatchReportProgress
-{
-    [JsonPropertyName("deviceCmd")]
-    public string DeviceCmd { get; init; } = "report";
-
-    [JsonPropertyName("reportType")]
-    public string ReportType { get; init; } = string.Empty;
-
-    [JsonPropertyName("progress")]
-    public required BatchReportProgressData Progress { get; init; }
-}
-
-/// <summary>
-/// Progress data containing batch statistics during execution.
-/// </summary>
-public class BatchReportProgressData
-{
-    [JsonPropertyName("batchesSent")]
-    public int BatchesSent { get; init; }
-
-    [JsonPropertyName("totalBatches")]
-    public int TotalBatches { get; init; }
-
-    [JsonPropertyName("samplesSent")]
-    public int SamplesSent { get; init; }
-
-    [JsonPropertyName("totalSamples")]
-    public int TotalSamples { get; init; }
-
-    [JsonPropertyName("percentComplete")]
-    public double PercentComplete { get; init; }
-
-    [JsonPropertyName("currentTimeRange")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BatchReportTimeRange? CurrentTimeRange { get; init; }
+            await cloudService.SendCommandResponseAsync(respTopic, response, cancellationToken);
+            logger.LogDebug("Initial ack sent: estimated {Batches} batches, {Samples} samples, {Duration}s",
+                estimatedBatches, estimatedSamples, estimatedDurationSeconds);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send initial ack");
+        }
+    }
 }

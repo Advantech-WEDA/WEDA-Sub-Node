@@ -99,13 +99,15 @@ public class CommandRegistry
 
             // Scan handler attributes to build behavior configurations
             var behaviorConfigs = ScanHandlerAttributes(type);
+            var autoAckEnabled = IsAutoAckEnabled(type);
 
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
                 ResultType: resultType,
                 HandlerType: type,
-                BehaviorConfigurations: behaviorConfigs);
+                BehaviorConfigurations: behaviorConfigs,
+                AutoAckEnabled: autoAckEnabled);
 
             _logger?.LogDebug(
                 "Registered command handler: {CommandName} -> {HandlerType} (Behaviors: {BehaviorCount})",
@@ -147,6 +149,15 @@ public class CommandRegistry
         }
 
         return configs;
+    }
+
+    /// <summary>
+    /// Checks if auto ack is enabled for the handler type.
+    /// </summary>
+    private static bool IsAutoAckEnabled(Type handlerType)
+    {
+        var autoAckAttr = handlerType.GetCustomAttribute<AutoAckAttribute>();
+        return autoAckAttr?.Enabled ?? true; // Default is enabled
     }
 
     /// <summary>
@@ -469,7 +480,8 @@ public record CommandRegistration(
     Type ResultType,
     Type HandlerType,
     object? HandlerInstance = null,
-    IReadOnlyList<BehaviorConfiguration>? BehaviorConfigurations = null)
+    IReadOnlyList<BehaviorConfiguration>? BehaviorConfigurations = null,
+    bool AutoAckEnabled = true)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.

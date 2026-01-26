@@ -16,18 +16,9 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 /// </remarks>
 public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
 {
-    private static readonly string ValidReportType = "report.historical";
-
     public ErrorOr<Success> Validate(BatchReportCommand command)
     {
         var errors = new List<Error>();
-
-        // Validate ReportType
-        if (!string.IsNullOrEmpty(command.ReportType) && !string.Equals(ValidReportType, command.ReportType, StringComparison.OrdinalIgnoreCase))
-        {
-            errors.Add(Errors.Command.ValidationFailed(
-                $"ReportType '{command.ReportType}' is not valid."));
-        }
 
         // Validate TimeRange if provided
         if (command.TimeRange is not null)

@@ -7,22 +7,36 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
 /// <summary>
 /// Command to query historical telemetry and emit batch records.
-/// Maps to payload: data.deviceCmd = "report"
+/// Maps to payload: data.deviceCmd = "report.historical"
 /// </summary>
 /// <remarks>
 /// TimeRange defaults:
 /// - If TimeRange is null, defaults to last 10 minutes (now - 10min to now)
 /// - StartTime/EndTime are Unix milliseconds
 /// </remarks>
-[DeviceCmd("report")]
+[DeviceCmd("report.historical")]
 public record BatchReportCommand : ICommand
 {
     /// <summary>
-    /// Report type identifier.
+    /// The device command from cloud.
     /// </summary>
-    [JsonPropertyName("reportType")]
-    [Required(ErrorMessage = "ReportType is required")]
-    public string ReportType { get; init; } = string.Empty;
+    [JsonPropertyName("deviceCmd")]
+    public string DeviceCmd { get; init; } = "report.historical";
+
+    /// <summary>
+    /// Sequence ID from the original command envelope.
+    /// Set by CommandDispatcher for response correlation.
+    /// All responses (initial ack, progress, final) should use this same SeqId.
+    /// </summary>
+    [JsonIgnore]
+    public ulong SeqId { get; set; }
+
+    /// <summary>
+    /// Request sequence ID from the original command envelope.
+    /// Set by CommandDispatcher for response correlation.
+    /// </summary>
+    [JsonIgnore]
+    public string? ReqSeqId { get; set; }
 
     /// <summary>
     /// Time range for historical data query.
@@ -73,12 +87,6 @@ public record BatchReportCommand : ICommand
     [JsonPropertyName("timeout")]
     [Range(1, 3600, ErrorMessage = "Timeout must be between 1 and 3600 seconds")]
     public int Timeout { get; init; } = 300;
-
-    /// <summary>
-    /// Device command name for routing.
-    /// </summary>
-    [JsonIgnore]
-    public string DeviceCmd => "report";
 
     /// <summary>
     /// Gets the effective time range, applying defaults if needed.

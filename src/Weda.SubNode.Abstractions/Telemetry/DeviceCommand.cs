@@ -27,6 +27,20 @@ public class DeviceCommand
     public string DeviceCmd { get; set; } = string.Empty;
 
     /// <summary>
+    /// Sequence ID from the original command envelope.
+    /// All responses (initial ack, progress, final) should use this same SeqId.
+    /// </summary>
+    [JsonIgnore]
+    public ulong SeqId { get; set; }
+
+    /// <summary>
+    /// Request sequence ID from the original command envelope.
+    /// Used for response correlation.
+    /// </summary>
+    [JsonIgnore]
+    public string? ReqSeqId { get; set; }
+
+    /// <summary>
     /// Command timeout in seconds.
     /// </summary>
     [JsonPropertyName("timeout")]

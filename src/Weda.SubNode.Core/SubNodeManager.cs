@@ -733,8 +733,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         return new CommandEnvelope
         {
             CommandName = e.Command!.DeviceCmd!,
-            SeqId = 0,
-            ReqSeqId = null,
+            SeqId = e.Command.SeqId,
+            ReqSeqId = e.Command.ReqSeqId,
             Timestamp = (ulong)e.Timestamp.ToUnixTimeMilliseconds(),
             // Use RawData (JsonElement) if available, otherwise fall back to Parameters
             Data = e.Command.RawData.HasValue ? e.Command.RawData.Value : e.Command.Parameters
