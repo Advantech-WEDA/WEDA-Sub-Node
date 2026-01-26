@@ -1,24 +1,16 @@
 using Microsoft.Extensions.Logging;
-
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Host.Context;
 
 namespace Weda.SubNode.Host;
 
 public class SubNode : IAsyncDisposable
 {
-    private static readonly Lazy<SubNode> _default = new(() => new SubNode(WedaApplicationContext.Default));
     private readonly IWedaApplicationContext _context;
     private readonly List<IDevice> _devices = [];
     private readonly ILogger<SubNode> _logger;
     private bool _initialized;
     public string? Id => _context.SubNodeInfo.Id;
-    
-    /// <summary>
-    /// Gets the default SubNode instance using WedaApplication.Default
-    /// </summary>
-    public static SubNode Default => _default.Value;
 
     /// <summary>
     /// Gets the application context

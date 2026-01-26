@@ -110,6 +110,13 @@ public class WedaContextOptions
     /// </summary>
     public IConfigurationCache? ConfigurationCache { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether to use cached cloud configuration on startup.
+    /// When true (default), cached device configuration from previous cloud updates will be applied.
+    /// When false (--no-cache), cached configuration is ignored and only devicecfg.json is used.
+    /// </summary>
+    public bool UseCache { get; set; } = true;
+
     // ===== Fluent Configuration Methods =====
 
     /// <summary>

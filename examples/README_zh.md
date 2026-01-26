@@ -19,7 +19,7 @@
 
 #### [`wise-4012/`](wise-4012/)
 使用預設 Context 單例整合 Advantech WISE-4012 工業 I/O 模組。
-- **Pattern**: 預設單例 (`WedaApplicationContext.Default`)
+- **Pattern**: 預設單例 (`new WedaApplicationContext(args)`)
 - **硬體**: WISE-4012 (4AI + 2AO)
 - **協定**: Modbus TCP
 - **功能**: 多通道類比 I/O、DTDL 中繼資料

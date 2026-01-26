@@ -54,7 +54,7 @@ var sensor = device.FindSensorByResourceId("temp-001");
 
 ```csharp
 // 最簡單的用法 - 無需管理 context
-var device = new TcpModbusDevice(WedaApplicationContext.Default, config);
+var device = new TcpModbusDevice(new WedaApplicationContext(args), config);
 await device.StartAsync();
 ```
 
@@ -66,10 +66,10 @@ await device.StartAsync();
 
 ### SubNode 模式（手動創建設備）
 
-在 SubNode 模式中，您手動創建設備。**建議使用 `WedaApplicationContext.Default` 單例**，確保所有設備共享相同的 context：
+在 SubNode 模式中，您手動創建設備。**建議使用 `new WedaApplicationContext(args)` 單例**，確保所有設備共享相同的 context：
 
 ```csharp
-var context = WedaApplicationContext.Default;
+var context = new WedaApplicationContext(args);
 
 var config = new DeviceConfiguration
 {
@@ -97,7 +97,7 @@ var found = context1.FindDevice("Device2"); // 回傳 null
 
 ```csharp
 // 正確做法 - 使用 Default 單例
-var context = WedaApplicationContext.Default;
+var context = new WedaApplicationContext(args);
 
 var device1 = new MyDevice(context, config1);
 var device2 = new MyDevice(context, config2);

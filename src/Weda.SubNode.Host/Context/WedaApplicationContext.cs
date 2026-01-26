@@ -31,7 +31,7 @@ namespace Weda.SubNode.Host.Context;
 /// <example>
 /// <code>
 /// // Simplest usage with default singleton (recommended for single-device scenarios)
-/// var device = new TcpModbusDevice(WedaApplicationContext.Default, config);
+/// var device = new TcpModbusDevice(new WedaApplicationContext(args), config);
 /// await device.StartAsync();
 ///
 /// // Create new instance with defaults
@@ -49,7 +49,7 @@ namespace Weda.SubNode.Host.Context;
 public class WedaApplicationContext : IWedaApplicationContext
 {
     private static readonly Lazy<WedaApplicationContext> _default = new(
-        () => new WedaApplicationContext(args: null, configure: options =>
+        () => new WedaApplicationContext(args: Environment.GetCommandLineArgs(), configure: options =>
         {
             // Default singleton enables all features for convenience
             options.DeviceOptions = new DeviceOptions
@@ -79,7 +79,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// <example>
     /// <code>
     /// // Simple usage with default singleton
-    /// var device = new TcpModbusDevice(WedaApplicationContext.Default, config);
+    /// var device = new TcpModbusDevice(new WedaApplicationContext(args), config);
     /// await device.StartAsync();
     /// </code>
     /// </example>
@@ -110,6 +110,16 @@ public class WedaApplicationContext : IWedaApplicationContext
     }
 
     /// <summary>
+    /// Initializes a new instance of WedaApplicationContext with command-line arguments.
+    /// Supports --no-cache argument to disable configuration cache loading.
+    /// </summary>
+    /// <param name="args">Command-line arguments.</param>
+    public WedaApplicationContext(string[]? args)
+        : this(args: args, configure: null)
+    {
+    }
+
+    /// <summary>
     /// Initializes a new instance of WedaApplicationContext with custom configuration.
     /// </summary>
     /// <param name="configure">Configuration action for setting up options.</param>
@@ -132,6 +142,12 @@ public class WedaApplicationContext : IWedaApplicationContext
     {
         _options = new WedaContextOptions();
         configure?.Invoke(_options);
+
+        // Check for --no-cache argument
+        if (args != null && HasNoCacheArgument(args))
+        {
+            _options.UseCache = false;
+        }
 
         // Auto-load configuration from appsettings.json if not provided
         if (_options.Configuration == null)
@@ -187,6 +203,13 @@ public class WedaApplicationContext : IWedaApplicationContext
         // This must be done before any WedaFactory.Cloud.Mock calls
         Core.WedaFactory.UseLoggerFactory(_loggerFactory);
 
+        // Log if --no-cache argument was passed
+        if (!_options.UseCache)
+        {
+            var startupLogger = _loggerFactory.CreateLogger<WedaApplicationContext>();
+            startupLogger.LogInformation("--no-cache argument detected: Configuration cache will be ignored, using devicecfg.json only");
+        }
+
         // If CloudService was set via WedaFactory.Cloud.Mock before logger was configured,
         // log the warning now since the MockCloudService constructor couldn't log it
         if (_options.CloudService is MockCloudService)
@@ -220,8 +243,11 @@ public class WedaApplicationContext : IWedaApplicationContext
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
         _customCfg = BindConfiguration<CustomCfg>(CustomCfg.SectionName);
 
-        // Auto-load NATS settings from SystemCfg if not explicitly set
-        if (_options.NatsConnectionSettings == NatsConnectionSettings.Default && _systemCfg.WedaNode != null)
+        // Auto-load NATS settings from SystemCfg (includes command-line args override)
+        // SystemCfg.WedaNode is bound from configuration which includes --SystemConfig:WedaNode:Url=xxx
+        // Only override if user didn't explicitly set NatsConnectionSettings via configure callback
+        // Use value comparison (record equality) to check if it's still the default value
+        if (_systemCfg.WedaNode != null && _options.NatsConnectionSettings == new NatsConnectionSettings())
         {
             _options.NatsConnectionSettings = _systemCfg.WedaNode;
         }
@@ -611,6 +637,13 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// </summary>
     private void ApplyCachedConfigurationIfExists(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
     {
+        // Skip cache if --no-cache argument was passed
+        if (!_options.UseCache)
+        {
+            logger.LogDebug("Cache disabled (--no-cache), skipping cached configuration for '{DeviceName}'", deviceConfig.DeviceName);
+            return;
+        }
+
         try
         {
             if (!_configurationCache.ExistsAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult())
@@ -777,6 +810,20 @@ public class WedaApplicationContext : IWedaApplicationContext
         }
 
         _disposed = true;
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Checks if the --no-cache argument is present in the command-line arguments.
+    /// </summary>
+    private static bool HasNoCacheArgument(string[] args)
+    {
+        return args.Any(arg =>
+            arg.Equals("--no-cache", StringComparison.OrdinalIgnoreCase) ||
+            arg.Equals("-no-cache", StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion
