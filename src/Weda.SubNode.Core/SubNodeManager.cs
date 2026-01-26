@@ -723,7 +723,6 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 
                     var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
                         _subNodeId,
-                        "default",
                         _deviceRegistry,
                         _lastConfigUpdateStatus,
                         _lastConfigUpdateError);

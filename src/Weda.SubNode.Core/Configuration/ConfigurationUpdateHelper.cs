@@ -192,12 +192,14 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="groupId">Group ID for multi-tenant scenarios</param>
     /// <param name="currentConfig">Current device configuration</param>
     /// <param name="deviceTypeName">Device type name for the report</param>
+    /// <param name="protoVer">Protocol version (default: eco1j)</param>
     /// <returns>Configuration report message with current reported state</returns>
     public static SubNodeConfigUpdateMessage CreatePeriodicReport(
         string deviceId,
         string groupId,
         DeviceConfiguration currentConfig,
-        string deviceTypeName)
+        string deviceTypeName,
+        string protoVer = "eco1j")
     {
         var message = new ConfigUpdateMessageDto
         {
@@ -228,6 +230,7 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = protoVer,
             DeviceId = deviceId,
             GroupId = groupId,
             Cmd = "configReport",
@@ -887,11 +890,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = incomingMessage.ProtoVer,
             DeviceId = incomingMessage.DeviceId,
             GroupId = incomingMessage.GroupId,
             Cmd = "updateCmdResponse",
-            SeqId = incomingMessage.SeqId,
-            ReqSeqId = incomingMessage.ReqSeqId,
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = incomingMessage.SeqId.ToString(),
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {
@@ -940,11 +944,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = originalMessage.ProtoVer,
             DeviceId = originalMessage.DeviceId,
             GroupId = originalMessage.GroupId,
             Cmd = "configResponse",
             SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            ReqSeqId = originalMessage.SeqId.ToString(),
+            ReqSeqId = originalMessage.ReqSeqId,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {
@@ -987,11 +992,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = originalMessage.ProtoVer,
             DeviceId = originalMessage.DeviceId,
             GroupId = originalMessage.GroupId,
             Cmd = "configResponse",
             SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            ReqSeqId = originalMessage.SeqId.ToString(),
+            ReqSeqId = originalMessage.ReqSeqId,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {
@@ -1268,11 +1274,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = incomingMessage.ProtoVer,
             DeviceId = incomingMessage.DeviceId,
             GroupId = incomingMessage.GroupId,
             Cmd = "updateCmdResponse",
-            SeqId = incomingMessage.SeqId,
-            ReqSeqId = incomingMessage.ReqSeqId,
+            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ReqSeqId = incomingMessage.SeqId.ToString(),
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {
@@ -1295,12 +1302,14 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="deviceRegistry">Device registry containing all devices</param>
     /// <param name="lastStatus">Last config update status to preserve</param>
     /// <param name="lastErrorMessage">Last error message to preserve (null if success)</param>
+    /// <param name="protoVer">Protocol version (default: eco1j)</param>
     public static SubNodeConfigUpdateMessage CreatePeriodicAggregatedReport(
         string subNodeId,
-        string groupId,
         IDeviceRegistry deviceRegistry,
         string lastStatus,
-        string? lastErrorMessage)
+        string? lastErrorMessage,
+        string groupId = "weda",
+        string protoVer = "eco1j")
     {
         var message = new ConfigUpdateMessageDto
         {
@@ -1344,6 +1353,7 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = protoVer,
             DeviceId = subNodeId,
             GroupId = groupId,
             Cmd = "configReport",

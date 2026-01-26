@@ -47,6 +47,12 @@
                   "ToUnit": "fahrenheit"
                 }
               }
+            ],
+            "DspPipeline": [
+              {
+                "Type": "Kalman",
+                "Enabled": true
+              }
             ]
           }
         }
