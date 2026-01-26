@@ -52,8 +52,4 @@
       }
     }
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> a9795cf (feat: add historical data query API with batch telemetry and paged sensor listing)
