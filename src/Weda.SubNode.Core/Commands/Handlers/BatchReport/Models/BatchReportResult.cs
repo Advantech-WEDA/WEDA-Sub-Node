@@ -21,12 +21,6 @@ public class BatchReportResult : IResult
     public string DeviceCmd { get; init; } = "report";
 
     /// <summary>
-    /// The report type requested.
-    /// </summary>
-    [JsonPropertyName("reportType")]
-    public string ReportType { get; init; } = string.Empty;
-
-    /// <summary>
     /// Status code indicating the result of the operation.
     /// </summary>
     /// <seealso cref="BatchReportStatusCode"/>
