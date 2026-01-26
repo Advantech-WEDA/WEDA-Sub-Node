@@ -117,24 +117,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             sensorIds, effectiveTimeRange, command.MaxBatchesPerMessage, command.MaxBatchSize,
             command.TransmissionRateLimit, context, logger);
 
-        // Check for resource exhaustion: reject if estimated workload is too large
-        // Limit: 10 million samples or 100,000 batches to prevent memory exhaustion
-        const int MaxEstimatedSamples = 10_000_000;
-        const int MaxEstimatedBatches = 100_000;
-        if (estimate.EstimatedSamples > MaxEstimatedSamples || estimate.EstimatedBatches > MaxEstimatedBatches)
-        {
-            logger.LogWarning(
-                "Resource exhaustion: estimated {Samples} samples, {Batches} batches exceeds limits",
-                estimate.EstimatedSamples, estimate.EstimatedBatches);
-
-            return BatchReportResult.Error(
-                BatchReportStatusCode.ResourceExhausted,
-                command.DeviceCmd,
-                "RESOURCE_EXHAUSTED",
-                $"Estimated workload too large: {estimate.EstimatedSamples} samples, {estimate.EstimatedBatches} batches. Reduce time range or increase batch size.",
-                executedAt);
-        }
-
         // Send initial ack with estimates (include SeqId and ReqSeqId from command)
         await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic, command.DeviceCmd,
             command.SeqId, command.ReqSeqId, estimate.EstimatedBatches, estimate.EstimatedSamples,
@@ -286,6 +268,16 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 command.DeviceCmd,
                 "CANCELLED",
                 "Operation was cancelled",
+                executedAt);
+        }
+        catch (OutOfMemoryException ex)
+        {
+            logger.LogError(ex, "Out of memory while loading data from storage");
+            return BatchReportResult.Error(
+                BatchReportStatusCode.ResourceExhausted,
+                command.DeviceCmd,
+                "RESOURCE_EXHAUSTED",
+                "Insufficient memory to load data. Reduce time range or batch size.",
                 executedAt);
         }
 
