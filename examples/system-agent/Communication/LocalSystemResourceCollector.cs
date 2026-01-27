@@ -4,6 +4,8 @@ using SystemAgentExample.Communication.Collectors;
 using SystemAgentExample.Models;
 using SystemAgentExample.Protocols;
 
+using Weda.SubNode.Core.Policies;
+
 using Device = Advantech.Edge.Device;
 
 namespace SystemAgentExample.Communication;
@@ -235,7 +237,7 @@ public class LocalSystemResourceCollector
 
         // Safely assign results if tasks completed successfully and returned non-null
         // Also populate Health status based on failures
-        
+
         if (cpuTask != null)
         {
             if (cpuTask.IsCompletedSuccessfully && cpuTask.Result != null) rawData.Cpu = cpuTask.Result;
@@ -324,60 +326,39 @@ public class LocalSystemResourceCollector
     }
 
     /// <summary>
-    /// Executes a task with retry logic and error logging.
-    /// Returns default(T) (null) if all retries fail.
+    /// Executes a task with retry logic using RetryPolicyFactory.
+    /// Returns default(T) (null) if all retries fail or timeout occurs.
     /// </summary>
     private async Task<T?> ExecuteWithRetryAsync<T>(Func<CancellationToken, Task<T>> action, string metricName, CancellationToken parentToken)
     {
-        const int maxRetries = 2; // Total 3 attempts
-        var attemptTimeout = TimeSpan.FromSeconds(5); // 5 seconds timeout per attempt
-        int retryCount = 0;
+        var retryPipeline = RetryPolicyFactory.CreateNTimeRetry(
+            _logger,
+            maxRetries: 2, // Total 3 attempts
+            initialDelay: TimeSpan.FromMilliseconds(100),
+            maxDelay: TimeSpan.FromSeconds(1));
 
-        while (true)
+        var attemptTimeout = TimeSpan.FromSeconds(5);
+
+        try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
             cts.CancelAfter(attemptTimeout);
-
-            try
-            {
-                // Use WaitAsync to enforce timeout even if the underlying task doesn't respect the token immediately
-                return await action(cts.Token).WaitAsync(cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                if (parentToken.IsCancellationRequested) return default;
-                
-                // Timeout occurred
-                if (retryCount >= maxRetries)
-                {
-                    _logger.LogError("Timeout waiting for {MetricName} after {RetryCount} retries.", metricName, retryCount);
-                    return default;
-                }
-                 _logger.LogWarning("Timeout waiting for {MetricName} (Attempt {Retry}/{Max}). Retrying...", 
-                    metricName, retryCount + 1, maxRetries);
-            }
-            catch (Exception ex)
-            {
-                if (retryCount >= maxRetries || parentToken.IsCancellationRequested)
-                {
-                    _logger.LogError(ex, "Failed to collect {MetricName} after {RetryCount} retries. Continuing without this metric.", metricName, retryCount);
-                    return default;
-                }
-
-                _logger.LogWarning("Retry {RetryCount}/{MaxRetries} for {MetricName} due to error: {Message}", 
-                    retryCount + 1, maxRetries, metricName, ex.Message);
-            }
-            
-            retryCount++;
-            try
-            {
-                // Simple backoff
-                await Task.Delay(100 * retryCount, parentToken);
-            }
-            catch (OperationCanceledException)
+            return await retryPipeline.ExecuteAsync(async ct => await action(ct), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            if (parentToken.IsCancellationRequested)
             {
                 return default;
             }
+
+            _logger.LogError("Timeout waiting for {MetricName} after {Timeout} seconds.", metricName, attemptTimeout.TotalSeconds);
+            return default;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to collect {MetricName} after all retry attempts.", metricName);
+            return default;
         }
     }
 }
