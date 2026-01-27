@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Weda.SubNode.Abstractions.Storage.Recordings;
@@ -10,6 +12,7 @@ namespace Weda.SubNode.Core.Tests.Storage;
 [Collection("StorageTests")]
 public class BinaryRecordStorageTests : IDisposable
 {
+    private readonly ILoggerFactory _loggerFactory;
     private readonly string _testDirectory;
     private readonly RecordingOptions _options;
     private readonly BinaryRecordStorage _storage;
@@ -17,13 +20,14 @@ public class BinaryRecordStorageTests : IDisposable
 
     public BinaryRecordStorageTests()
     {
+        _loggerFactory = new NullLoggerFactory();
         // Use the constant storage directory resolved by PathHelper
         _testDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
         // Use a unique prefix for sensor IDs to avoid conflicts between test runs
         _testSensorPrefix = $"test-{Guid.NewGuid():N}-";
 
         _options = new RecordingOptions();
-        _storage = new BinaryRecordStorage(Options.Create(_options));
+        _storage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_options));
     }
 
     public void Dispose()

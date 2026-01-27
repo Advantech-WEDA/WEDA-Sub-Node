@@ -265,8 +265,8 @@ public class WedaApplicationContext : IWedaApplicationContext
             _recordingOptions = _options.RecordingOptions
                 ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
 
-            var recordStorage = new BinaryRecordStorage(Options.Create(_recordingOptions));
-            _recordingService = new RecordingService(recordStorage, _deviceRegistry, Options.Create(_recordingOptions));
+            var recordStorage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_recordingOptions));
+            _recordingService = new RecordingService(_loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, Options.Create(_recordingOptions));
 
             // Start daily cleanup timer
             _cleanupTimer = new Timer(

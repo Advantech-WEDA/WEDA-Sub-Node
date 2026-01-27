@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Storage;
@@ -6,8 +7,9 @@ using Weda.SubNode.Abstractions.Utilities;
 
 namespace Weda.SubNode.Core.Storage;
 
-public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordStorage
+public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<RecordingOptions> options) : IRecordStorage
 {
+    private readonly ILogger<BinaryRecordStorage> _logger = logger;
     private readonly RecordingOptions _options = options.Value;
     private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
     private const int MillisecondsPerDay = 86400000;
@@ -254,8 +256,18 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
     private static async Task WriteToSlotAsync(string filePath, int interval, long startOfDay, RecordingDataPoint dataPoint, CancellationToken cancellationToken)
     {
         var slotIndex = (int)((dataPoint.Timestamp - startOfDay) / interval);
-        var position = RecordingFileHeader.HeaderSize + slotIndex * sizeof(double);
+        var slotCount = (int)(MillisecondsPerDay / interval);
 
+        // prevent index out of range error
+        if (slotIndex < 0 || slotIndex >= slotCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dataPoint), 
+                $"Timestamp {dataPoint.Timestamp} produces invalid slot {slotIndex} (valid range-{slotCount - 1})");
+        }
+
+        var position = RecordingFileHeader.HeaderSize + slotIndex * sizeof(double);
+        
         await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Write);
         fs.Seek(position, SeekOrigin.Begin);
         await fs.WriteAsync(BitConverter.GetBytes(dataPoint.Value), cancellationToken);
@@ -297,9 +309,9 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
             {
                 deletedFileSize = new FileInfo(oldestFile).Length;
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore file size read errors; cleanup still proceeds.
+                _logger.LogWarning(ex, "Failed to read file size for {File} during cleanup", oldestFile);
             }
 
             File.Delete(oldestFile);
@@ -331,9 +343,9 @@ public class BinaryRecordStorage(IOptions<RecordingOptions> options) : IRecordSt
             {
                 totalBytes += new FileInfo(file).Length;
             }
-            catch
+            catch (Exception ex)
             {
-                // Skip files that can't be read.
+                _logger.LogWarning(ex, "Failed to read file size for {File} during storage calculation", file);
             }
         }
 

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using ErrorOr;
+
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Context;
@@ -9,8 +11,9 @@ using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Storage;
 
-public class RecordingService : IRecordingService, IDisposable
+public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
 {
+    private readonly ILogger<RecordingService> _logger;
     private readonly IRecordStorage _storage;
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly RecordingOptions _options;
@@ -18,13 +21,14 @@ public class RecordingService : IRecordingService, IDisposable
     private readonly ConcurrentDictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
     private readonly Timer? _flushTimer;
     private readonly object _batchLock = new();
-    private bool _enabled;
-    private bool _batchEnabled;
-    private int _batchMaxSamples;
-    private bool _disposed;
+    private volatile bool _enabled;
+    private volatile bool _batchEnabled;
+    private volatile int _batchMaxSamples;
+    private volatile bool _disposed;
 
-    public RecordingService(IRecordStorage storage, IDeviceRegistry deviceRegistry, IOptions<RecordingOptions> options)
+    public RecordingService(ILogger<RecordingService> logger, IRecordStorage storage, IDeviceRegistry deviceRegistry, IOptions<RecordingOptions> options)
     {
+        _logger = logger;
         _storage = storage;
         _deviceRegistry = deviceRegistry;
         _options = options.Value;
@@ -49,9 +53,9 @@ public class RecordingService : IRecordingService, IDisposable
         {
             await FlushAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore flush errors in timer callback
+            _logger.LogWarning($"[RecordingService] Periodic flush failed - data may be lost: {ex.Message}");
         }
     }
 
@@ -75,32 +79,39 @@ public class RecordingService : IRecordingService, IDisposable
         if (!_enabled || !ShouldRecord(sensorId, interval, timestamp))
             return;
 
-        var dataPoint = new RecordingDataPoint(timestamp, value);
-
-        if (!_batchEnabled)
+        try
         {
-            await _storage.WriteAsync(sensorId, interval, dataPoint, cancellationToken);
-            return;
-        }
+            var dataPoint = new RecordingDataPoint(timestamp, value);
 
-        var bufferKey = $"{sensorId}:{interval}";
-        List<RecordingDataPoint>? batchToWrite = null;
-
-        lock (_batchLock)
-        {
-            var buffer = _batchBuffers.GetOrAdd(bufferKey, _ => new List<RecordingDataPoint>());
-            buffer.Add(dataPoint);
-
-            if (buffer.Count >= _batchMaxSamples)
+            if (!_batchEnabled)
             {
-                batchToWrite = [.. buffer];
-                buffer.Clear();
+                await _storage.WriteAsync(sensorId, interval, dataPoint, cancellationToken);
+                return;
+            }
+
+            var bufferKey = $"{sensorId}:{interval}";
+            List<RecordingDataPoint>? batchToWrite = null;
+
+            lock (_batchLock)
+            {
+                var buffer = _batchBuffers.GetOrAdd(bufferKey, _ => new List<RecordingDataPoint>());
+                buffer.Add(dataPoint);
+
+                if (buffer.Count >= _batchMaxSamples)
+                {
+                    batchToWrite = [.. buffer];
+                    buffer.Clear();
+                }
+            }
+
+            if (batchToWrite != null)
+            {
+                await _storage.WriteBatchAsync(sensorId, interval, batchToWrite, cancellationToken);
             }
         }
-
-        if (batchToWrite != null)
+        catch (Exception ex)
         {
-            await _storage.WriteBatchAsync(sensorId, interval, batchToWrite, cancellationToken);
+            _logger.LogError(ex, "Failed to record data for sensor {SensorId} at timestamp {Timestamp", sensorId, timestamp);
         }
     }
 
@@ -303,6 +314,36 @@ public class RecordingService : IRecordingService, IDisposable
     {
         if (_disposed) return;
         _flushTimer?.Dispose();
+
+        // Flush remaining data before disposal
+        try
+
+        {
+            FlushAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Final flush failed during disposal - some data might be lost");
+        }
         _disposed = true;
+        GC.SuppressFinalize(this);
     }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _flushTimer?.Dispose();
+
+        try
+        {
+            await FlushAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Final flush failed during disposal - some data might be lost");
+        }
+        _disposed = true;
+        GC.SuppressFinalize(this);
+    }
+
 }
