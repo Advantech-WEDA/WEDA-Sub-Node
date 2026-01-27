@@ -267,7 +267,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         }
 
         var position = RecordingFileHeader.HeaderSize + slotIndex * sizeof(double);
-        
+
         await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Write);
         fs.Seek(position, SeekOrigin.Begin);
         await fs.WriteAsync(BitConverter.GetBytes(dataPoint.Value), cancellationToken);

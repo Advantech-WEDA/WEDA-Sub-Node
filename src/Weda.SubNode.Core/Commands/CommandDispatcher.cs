@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
@@ -31,6 +32,7 @@ namespace Weda.SubNode.Core.Commands;
 public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext context)
 {
     private readonly ILogger _logger = context.GetLogger<CommandDispatcher>();
+    private static readonly ConcurrentDictionary<Type, MethodInfo?> _behaviorMethodCache = [];
 
     public async Task<ErrorOr<object?>> DispatchAsync(
         CommandEnvelope envelope,
@@ -190,7 +192,11 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
         CancellationToken cancellationToken)
     {
         // Find the HandleAsync method
-        var handleMethod = behavior.GetType().GetMethod("HandleAsync");
+        // var handleMethod = behavior.GetType().GetMethod("HandleAsync");
+        var handleMethod = _behaviorMethodCache.GetOrAdd(
+            behavior.GetType(),
+            type => type.GetMethod("HandleAsync"));
+        
         if (handleMethod is null)
         {
             _logger.LogWarning("Behavior {BehaviorType} does not have HandleAsync method",

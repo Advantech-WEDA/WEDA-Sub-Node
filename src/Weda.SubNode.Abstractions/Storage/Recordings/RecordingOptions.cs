@@ -68,6 +68,15 @@ public class RecordingOptions
     public int FlushIntervalSeconds { get; set; } = 30;
 
     /// <summary>
+    /// Maximum time range in days allowed for batch report queries.
+    /// Queries exceeding this range will be rejected to prevent DoS.
+    /// Set to 0 to disable the limit (not recommended).
+    /// Valid range: 0-365.
+    /// Default: 30 days.
+    /// </summary>
+    public int MaxQueryTimeRangeDays { get; set; } = 30;
+
+    /// <summary>
     /// Validates the recording options and throws if invalid.
     /// </summary>
     public void Validate()
@@ -89,5 +98,9 @@ public class RecordingOptions
 
         if (FlushIntervalSeconds < 0 || FlushIntervalSeconds > 3600)
             throw new ArgumentOutOfRangeException(nameof(FlushIntervalSeconds), "Must be between 0 and 3600");
+
+        if (MaxQueryTimeRangeDays < 0 || MaxQueryTimeRangeDays > 365)
+            throw new ArgumentOutOfRangeException(nameof(MaxQueryTimeRangeDays), "Must be between 0 and 365 (0=disabled)");
+        
     }
 }

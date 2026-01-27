@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.WebApi.Contracts;
 
@@ -12,6 +14,15 @@ public class RecordingsController(IRecordingService recordingService) : ApiContr
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
+        if (pageIndex < 0) 
+        {
+            return BadRequest("pageIndex must be >= 0");
+        }
+        if (pageSize < 1 || pageSize > 1000) 
+        {
+            return BadRequest("pageSize must be between 1 and 1000");
+        }
+        
         var result = await recordingService.GetSensorsAsync(pageIndex, pageSize, cancellationToken);
 
         return result.Match(Ok, errors => Problem(errors));

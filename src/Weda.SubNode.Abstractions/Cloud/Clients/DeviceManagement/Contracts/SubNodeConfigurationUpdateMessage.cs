@@ -492,6 +492,14 @@ public class SubNodeRecordConfigDto
     public int BatchMaxSamples { get; set; } = 0;
 
     /// <summary>
+    /// Maximum time range in days allowed for batch report queries.
+    /// Set to 0 to disable the limit (not recommended).
+    /// Valid range: 0-365.
+    /// </summary>
+    [JsonPropertyName("MaxQueryTimeRangeDays")]
+    public int MaxQueryTimeRangeDays { get; set; } = 30;
+
+    /// <summary>
     /// Validates the configuration values.
     /// Returns true if valid, false otherwise.
     /// </summary>
@@ -518,6 +526,12 @@ public class SubNodeRecordConfigDto
         if (BatchMaxSamples < 0 || BatchMaxSamples > 10000)
         {
             errorMessage = $"BatchMaxSamples must be between 0 and 10000, got {BatchMaxSamples}";
+            return false;
+        }
+
+        if (MaxQueryTimeRangeDays < 0 || MaxQueryTimeRangeDays > 365)
+        {
+            errorMessage = $"MaxQueryTimeRangeDays must be between 0 and 365 (0=disabled), got {MaxQueryTimeRangeDays}";
             return false;
         }
 

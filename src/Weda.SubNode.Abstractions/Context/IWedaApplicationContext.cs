@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Abstractions.Context;
 
@@ -40,6 +41,11 @@ public interface IWedaApplicationContext : IDisposable
     /// Gets the recording service for local data storage.
     /// </summary>
     IRecordingService? RecordingService { get; }
+    
+    /// <summary>
+    /// Gets the recording service for local data storage.
+    /// </summary>
+    RecordingOptions? RecordingOptions { get; }
 
     /// <summary>
     /// Gets the logger factory instance.

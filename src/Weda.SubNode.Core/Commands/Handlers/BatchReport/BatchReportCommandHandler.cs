@@ -1,9 +1,5 @@
-using System.Text.Json.Serialization;
-
 using ErrorOr;
-
 using Microsoft.Extensions.Logging;
-
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Commands;
@@ -71,6 +67,21 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 "INVALID_TIME_RANGE",
                 "Start time must be before end time",
                 executedAt);
+        }
+
+        var maxQueryDays = context.RecordingOptions?.MaxQueryTimeRangeDays ?? 30;
+        if (maxQueryDays > 0)
+        {
+            var maxRangeMs = (long)TimeSpan.FromDays(maxQueryDays).TotalMilliseconds;
+            if (effectiveTimeRange.EndTime - effectiveTimeRange.StartTime > maxRangeMs)
+            {
+                return BatchReportResult.Error(
+                    BatchReportStatusCode.InvalidTimeRange,
+                    command.DeviceCmd,
+                    "TIME_RANGE_TOO_LARGE",
+                    $"Time range exceeds maximum of {maxQueryDays} days",
+                    executedAt);
+            }
         }
 
         var startTime = DateTimeOffset.FromUnixTimeMilliseconds(effectiveTimeRange.StartTime);

@@ -18,7 +18,7 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly RecordingOptions _options;
     private readonly ConcurrentDictionary<string, int> _lastRecordedslot = new();
-    private readonly ConcurrentDictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
+    private readonly Dictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
     private readonly Timer? _flushTimer;
     private readonly object _batchLock = new();
     private volatile bool _enabled;
@@ -55,7 +55,7 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning($"[RecordingService] Periodic flush failed - data may be lost: {ex.Message}");
+            _logger.LogWarning("[RecordingService] Periodic flush failed - data may be lost: {Message}", ex.Message);
         }
     }
 
@@ -94,7 +94,11 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
 
             lock (_batchLock)
             {
-                var buffer = _batchBuffers.GetOrAdd(bufferKey, _ => new List<RecordingDataPoint>());
+                if (!_batchBuffers.TryGetValue(bufferKey, out var buffer))
+                {
+                    buffer = new List<RecordingDataPoint>();
+                    _batchBuffers[bufferKey] = buffer;
+                }
                 buffer.Add(dataPoint);
 
                 if (buffer.Count >= _batchMaxSamples)

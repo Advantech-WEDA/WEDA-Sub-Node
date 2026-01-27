@@ -107,8 +107,10 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly CustomCfg _customCfg;
     private readonly Timer? _cleanupTimer;
     private readonly RecordingOptions? _recordingOptions;
-    private bool _disposed;
+    private volatile bool _disposed;
 
+    public RecordingOptions? RecordingOptions => _recordingOptions;
+    
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext with default options.
     /// </summary>
@@ -252,6 +254,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             _recordingService = _options.RecordingService;
             _recordingOptions = _options.RecordingOptions
                 ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+            _recordingOptions.Validate();
 
             // Start daily cleanup timer
             _cleanupTimer = new Timer(
@@ -264,6 +267,7 @@ public class WedaApplicationContext : IWedaApplicationContext
         {
             _recordingOptions = _options.RecordingOptions
                 ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+            _recordingOptions.Validate();
 
             var recordStorage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_recordingOptions));
             _recordingService = new RecordingService(_loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, Options.Create(_recordingOptions));
