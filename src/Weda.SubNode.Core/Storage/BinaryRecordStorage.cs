@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
 using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Utilities;
+using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core.Storage;
 
@@ -14,11 +16,12 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
     private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
     private const int MillisecondsPerDay = 86400000;
     private const ushort Version = 1;
+    private readonly ResiliencePipeline _storagePipeline = ConnectionPolicies.CreateGeneralOperationPipeline(logger, ConnectionPolicyOptions.NFSDefault);
 
     public async Task WriteAsync(string sensorId, int interval, RecordingDataPoint dataPoint, CancellationToken cancellationToken = default)
     {
         EnsureDiskSpace();
-
+        
         var filePath = GetFilePath(sensorId, interval, dataPoint.Timestamp);
         var startOfDay = GetStartOfDay(dataPoint.Timestamp);
         EnsureFileExists(filePath, interval, startOfDay);
@@ -208,18 +211,21 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
     }
 
-    private static void EnsureFileExists(string filePath, int interval, long startOfDay)
+    private void EnsureFileExists(string filePath, int interval, long startOfDay)
     {
-        var directory = Path.GetDirectoryName(filePath)!;
-        if (!Directory.Exists(directory))
+        _storagePipeline.Execute(() =>
         {
-            Directory.CreateDirectory(directory);
-        }
+            var directory = Path.GetDirectoryName(filePath)!;
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
 
-        if (!File.Exists(filePath))
-        {
-            CreateFileWithHeader(filePath, interval, startOfDay);
-        }
+            if (!File.Exists(filePath))
+            {
+                CreateFileWithHeader(filePath, interval, startOfDay);
+            }
+        });
     }
 
     private static void CreateFileWithHeader(string filePath, int interval, long startOfDay)
@@ -300,34 +306,40 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
 
         while (ShouldCleanup())
         {
-            var oldestFile = GetOldestFile();
-            if (oldestFile == null)
+            var deletedFileSize = _storagePipeline.Execute(DeleteOldestFileAndGetSize);
+            
+            if (deletedFileSize == 0) 
                 break;
+            
+            currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize); 
+        };
+    }
 
-            long deletedFileSize = 0;
-            try
-            {
-                deletedFileSize = new FileInfo(oldestFile).Length;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to read file size for {File} during cleanup", oldestFile);
-            }
-
-            File.Delete(oldestFile);
-
-            // Clean up empty sensor directories
-            var sensorDir = Path.GetDirectoryName(oldestFile);
-            if (sensorDir != null && Directory.Exists(sensorDir) && !Directory.EnumerateFileSystemEntries(sensorDir).Any())
-            {
-                Directory.Delete(sensorDir);
-            }
-
-            if (deletedFileSize > 0)
-            {
-                currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize);
-            }
+    private long DeleteOldestFileAndGetSize()
+    {
+        var oldestFile = GetOldestFile();
+        if (oldestFile == null)
+            return 0;
+        
+        long deletedFileSize = 0;
+        try
+        {
+            deletedFileSize = new FileInfo(oldestFile).Length;
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read file size for {File}", oldestFile);
+        }
+
+        File.Delete(oldestFile);
+
+        var sensorDir = Path.GetDirectoryName(oldestFile);
+        if (sensorDir != null && Directory.Exists(sensorDir) && !Directory.EnumerateFileSystemEntries(sensorDir).Any())
+        {
+            Directory.Delete(sensorDir);
+        }
+
+        return deletedFileSize;
     }
 
     private long GetStorageSizeBytes()

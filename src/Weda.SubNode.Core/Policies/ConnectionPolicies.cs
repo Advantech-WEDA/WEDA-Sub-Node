@@ -216,6 +216,22 @@ public sealed class ConnectionPolicyOptions
     /// Alias for Default. All connection types now use the same policy.
     /// </summary>
     public static ConnectionPolicyOptions CloudDefault => Default;
+    
+    /// Recommended policy for remote file system(NFS) and database connection:
+    /// - 3 times retries: 3 times retries with 1s initial delay.
+    /// - Timeout: 30 seconds per attempt
+    /// - No Circuit Breaker: Persistent connection attempts
+    public static ConnectionPolicyOptions NFSDefault = new()
+    {
+        MaxRetryAttempts = 2,
+        InitialDelay = TimeSpan.FromSeconds(1),
+        MaxDelay = TimeSpan.FromSeconds(60),
+        Timeout = TimeSpan.FromSeconds(5),
+        CircuitBreakerFailureRatio = 0.5,
+        CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
+        CircuitBreakerMinThroughput = 4,
+        CircuitBreakerBreakDuration = TimeSpan.FromSeconds(30) 
+    };
 
     /// <summary>
     /// Creates ConnectionPolicyOptions from the simplified ConnectionOptions.
