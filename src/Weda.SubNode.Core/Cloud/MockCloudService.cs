@@ -294,8 +294,8 @@ public class MockCloudService : IWedaCloudService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "[MockCloud] Command response: Topic={Topic}, Status={Status}, Message={Message}",
-            responseTopic, response.Status, response.Message);
+            "[MockCloud] Command response: Topic={Topic}",
+            responseTopic);
         return Task.FromResult(true);
     }
 

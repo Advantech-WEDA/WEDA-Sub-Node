@@ -422,7 +422,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             result = result.Where(id => includeSet.Contains(id));
         }
 
-        if (filter.Exclude is { Length: > 0})
+        if (filter.Exclude is { Length: > 0 })
         {
             var excludeSet = new HashSet<string>(filter.Exclude, StringComparer.OrdinalIgnoreCase);
             result = result.Where(id => !excludeSet.Contains(id));
@@ -473,9 +473,11 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 DeviceId = deviceId,
                 SeqId = seqId,
                 ReqSeqId = reqSeqId,
-                Status = CommandResponseStatusCode.Success,
-                Message = "Progress update",
-                Data = progress
+                Data = progress with
+                {
+                    Status = BatchReportStatusCode.Success,
+                    Message = "Progress update"
+                }
             };
 
             await cloudService.SendCommandResponseAsync(respTopic, response, cancellationToken);
@@ -511,11 +513,11 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 DeviceId = deviceId,
                 SeqId = seqId,
                 ReqSeqId = reqSeqId,
-                Status = CommandResponseStatusCode.Success,
-                Message = "Historical data query started",
                 Data = new BatchReportInitialAckData
                 {
                     DeviceCmd = deviceCmd,
+                    Status = BatchReportStatusCode.Success,
+                    Message = "Historical data query started",
                     EstimatedBatches = estimatedBatches,
                     EstimatedSamples = estimatedSamples,
                     EstimatedDurationSeconds = estimatedDurationSeconds,

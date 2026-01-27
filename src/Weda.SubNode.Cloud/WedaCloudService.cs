@@ -573,14 +573,14 @@ public sealed class WedaCloudService : IWedaCloudService
         if (string.IsNullOrEmpty(responseTopic))
         {
             _logger.LogWarning(
-                "Command response topic is empty, skipping response: DeviceId={DeviceId}, Status={Status}",
-                response.DeviceId, response.Status);
+                "Command response topic is empty, skipping response: DeviceId={DeviceId}",
+                response.DeviceId);
             return false;
         }
 
         _logger.LogInformation(
-            "Sending command response: DeviceId={DeviceId}, Status={Status}, Topic={Topic}",
-            response.DeviceId, response.Status, responseTopic);
+            "Sending command response: DeviceId={DeviceId}, Topic={Topic}",
+            response.DeviceId, responseTopic);
 
         try
         {
@@ -590,15 +590,15 @@ public sealed class WedaCloudService : IWedaCloudService
                 cancellationToken: cancellationToken);
 
             _logger.LogDebug(
-                "Command response sent successfully: DeviceId={DeviceId}, Status={Status}, Message={Message}",
-                response.DeviceId, response.Status, response.Message);
+                "Command response sent successfully: DeviceId={DeviceId}",
+                response.DeviceId);
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Failed to send command response: DeviceId={DeviceId}, Status={Status}",
-                response.DeviceId, response.Status);
+                "Failed to send command response: DeviceId={DeviceId}",
+                response.DeviceId);
             return false;
         }
     }

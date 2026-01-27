@@ -150,19 +150,6 @@ public class CommandResponse
     public required string DeviceId { get; set; }
 
     /// <summary>
-    /// Response status code.
-    /// See <see cref="CommandResponseStatusCode"/> for available codes.
-    /// </summary>
-    [JsonPropertyName("status")]
-    public int Status { get; set; }
-
-    /// <summary>
-    /// Human-readable status message.
-    /// </summary>
-    [JsonPropertyName("message")]
-    public string Message { get; set; } = string.Empty;
-
-    /// <summary>
     /// Response data payload.
     /// Contains command-specific result data.
     /// </summary>
@@ -177,15 +164,12 @@ public class CommandResponse
     /// <param name="command">The command name.</param>
     /// <param name="seqId">The sequence ID from the original request.</param>
     /// <param name="reqSeqId">The request sequence ID for correlation.</param>
-    /// <param name="message">Optional custom message.</param>
     /// <param name="data">Optional response data.</param>
-    public static CommandResponse Received(string deviceId, string command, ulong seqId, string? reqSeqId = null, string? message = null, object? data = null) => new()
+    public static CommandResponse Received(string deviceId, string command, ulong seqId, string? reqSeqId = null, object? data = null) => new()
     {
         DeviceId = deviceId,
         SeqId = seqId,
         ReqSeqId = reqSeqId,
-        Status = CommandResponseStatusCode.Success,
-        Message = message ?? $"Command '{command}' received and execution started",
         Data = data ?? new CommandResponseData { DeviceCmd = command }
     };
 
@@ -197,14 +181,11 @@ public class CommandResponse
     /// <param name="seqId">The sequence ID from the original request.</param>
     /// <param name="data">Optional response data.</param>
     /// <param name="reqSeqId">The request sequence ID for correlation.</param>
-    /// <param name="message">Optional custom message.</param>
-    public static CommandResponse Success(string deviceId, string command, ulong seqId, object? data = null, string? reqSeqId = null, string? message = null) => new()
+    public static CommandResponse Success(string deviceId, string command, ulong seqId, object? data = null, string? reqSeqId = null) => new()
     {
         DeviceId = deviceId,
         SeqId = seqId,
         ReqSeqId = reqSeqId,
-        Status = CommandResponseStatusCode.Success,
-        Message = message ?? $"Command '{command}' executed successfully",
         Data = data
     };
 
@@ -222,8 +203,6 @@ public class CommandResponse
         DeviceId = deviceId,
         SeqId = seqId,
         ReqSeqId = reqSeqId,
-        Status = CommandResponseStatusCode.Rejected,
-        Message = errorMessage,
         Data = new CommandResponseData
         {
             DeviceCmd = command,
@@ -246,11 +225,59 @@ public class CommandResponse
         DeviceId = deviceId,
         SeqId = seqId,
         ReqSeqId = reqSeqId,
-        Status = CommandResponseStatusCode.Failed,
-        Message = errorMessage,
         Data = new CommandResponseData
         {
             DeviceCmd = command,
+            ErrorCode = errorCode,
+            ErrorMessage = errorMessage
+        }
+    };
+
+    /// <summary>
+    /// Create a "failed" response for report.historical command with status/message inside data.
+    /// </summary>
+    /// <param name="deviceId">The device ID (SubNode ID).</param>
+    /// <param name="command">The command name.</param>
+    /// <param name="seqId">The sequence ID from the original request.</param>
+    /// <param name="status">The status code to include in data.</param>
+    /// <param name="errorCode">The error code.</param>
+    /// <param name="errorMessage">The error message.</param>
+    /// <param name="reqSeqId">The request sequence ID for correlation.</param>
+    public static CommandResponse FailedWithStatusInData(string deviceId, string command, ulong seqId, int status, string errorCode, string errorMessage, string? reqSeqId = null) => new()
+    {
+        DeviceId = deviceId,
+        SeqId = seqId,
+        ReqSeqId = reqSeqId,
+        Data = new HistoricalReportErrorData
+        {
+            DeviceCmd = command,
+            Status = status,
+            Message = errorMessage,
+            ErrorCode = errorCode,
+            ErrorMessage = errorMessage
+        }
+    };
+
+    /// <summary>
+    /// Create a "rejected" response for report.historical command with status/message inside data.
+    /// </summary>
+    /// <param name="deviceId">The device ID (SubNode ID).</param>
+    /// <param name="command">The command name.</param>
+    /// <param name="seqId">The sequence ID from the original request.</param>
+    /// <param name="status">The status code to include in data.</param>
+    /// <param name="errorCode">The error code.</param>
+    /// <param name="errorMessage">The error message.</param>
+    /// <param name="reqSeqId">The request sequence ID for correlation.</param>
+    public static CommandResponse RejectedWithStatusInData(string deviceId, string command, ulong seqId, int status, string errorCode, string errorMessage, string? reqSeqId = null) => new()
+    {
+        DeviceId = deviceId,
+        SeqId = seqId,
+        ReqSeqId = reqSeqId,
+        Data = new HistoricalReportErrorData
+        {
+            DeviceCmd = command,
+            Status = status,
+            Message = errorMessage,
             ErrorCode = errorCode,
             ErrorMessage = errorMessage
         }
@@ -281,6 +308,25 @@ public class CommandResponseData
     [JsonPropertyName("errorMessage")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+/// Error data payload for report.historical command responses.
+/// Includes status and message inside data per specification.
+/// </summary>
+public class HistoricalReportErrorData : CommandResponseData
+{
+    /// <summary>
+    /// Status code inside data.
+    /// </summary>
+    [JsonPropertyName("status")]
+    public int Status { get; set; }
+
+    /// <summary>
+    /// Human-readable message inside data.
+    /// </summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
 }
 
 // Keep the old enum for backward compatibility (can be removed later)

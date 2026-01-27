@@ -205,10 +205,16 @@ public class BatchReportErrorDetails
 /// Progress update data for BatchReport command.
 /// Sent periodically during long-running batch report operations.
 /// </summary>
-public class BatchReportProgress
+public record BatchReportProgress
 {
     [JsonPropertyName("deviceCmd")]
-    public string DeviceCmd { get; init; } = "report";
+    public string DeviceCmd { get; init; } = "report.historical";
+
+    [JsonPropertyName("status")]
+    public int Status { get; init; }
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
 
     [JsonPropertyName("progress")]
     public required BatchReportProgressData Progress { get; init; }
@@ -247,6 +253,12 @@ public class BatchReportInitialAckData
 {
     [JsonPropertyName("deviceCmd")]
     public string DeviceCmd { get; init; } = "report.historical";
+
+    [JsonPropertyName("status")]
+    public int Status { get; init; }
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
 
     [JsonPropertyName("estimatedBatches")]
     public int EstimatedBatches { get; init; }

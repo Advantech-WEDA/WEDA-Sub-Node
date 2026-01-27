@@ -1340,7 +1340,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send command response: {Status}", response.Status);
+            _logger.LogError(ex, "Failed to send command response");
         }
     }
 

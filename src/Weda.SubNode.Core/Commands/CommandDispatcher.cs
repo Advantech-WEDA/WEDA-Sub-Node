@@ -124,7 +124,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                 {
                     var message = result.Value is IResult messageResult ? messageResult.Message : null;
                     await SendResponseAsync(metadata.RespTopic,
-                        CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, result.Value, envelope.ReqSeqId, message));
+                        CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, result.Value, envelope.ReqSeqId));
                 }
             }
 
