@@ -1,6 +1,6 @@
 {
   "SubNode": {
-    "Name": "MySysAgent",
+    "Name": "Advantech-System-Agent",
     "SubNodeType": "SystemMonitor",
     "Manufacturer": "Advantech",
     "Model": "SystemAgent",
@@ -24,7 +24,7 @@
             "Enabled": true,
             "Interval": 5000
           },
-          "SensorInfo": { 
+          "SensorInfo": {
             "Schema": "double",
             "Description": "SensorInfo Description for cpu.usage",
             "DisplayName": "SensorInfo DisplayName for cpu.usage"
@@ -328,9 +328,10 @@
           }
         },
         {
-          "Name": "temperature",
+          "Name": "temperature.cpU-therm",
           "Parameters": {
-            "MetricType": "temperature"
+            "MetricType": "temperature",
+            "MetricName": "cpU-therm"
           },
           "Report": {
             "Enabled": true,
@@ -338,14 +339,15 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for temperature",
-            "DisplayName": "SensorInfo DisplayName for temperature"
+            "Description": "CPU thermal sensor temperature",
+            "DisplayName": "CPU Thermal"
           }
         },
         {
-          "Name": "voltage",
+          "Name": "temperature.gpU-therm",
           "Parameters": {
-            "MetricType": "voltage"
+            "MetricType": "temperature",
+            "MetricName": "gpU-therm"
           },
           "Report": {
             "Enabled": true,
@@ -353,29 +355,32 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for voltage",
-            "DisplayName": "SensorInfo DisplayName for voltage"
+            "Description": "GPU thermal sensor temperature",
+            "DisplayName": "GPU Thermal"
           }
         },
         {
-          "Name": "fanspeed",
+          "Name": "gpio.isSupported",
           "Parameters": {
-            "MetricType": "fanspeed"
+            "MetricType": "gpio",
+            "MetricName": "isSupported"
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 6000
           },
           "SensorInfo": {
-            "Schema": "double",
-            "Description": "SensorInfo Description for fanspeed",
-            "DisplayName": "SensorInfo DisplayName for fanspeed"
+            "Schema": "boolean",
+            "Description": "GPIO support status",
+            "DisplayName": "GPIO Supported"
           }
         },
         {
-          "Name": "gpio",
+          "Name": "gpio.pin.UIO_GPIO2",
           "Parameters": {
-            "MetricType": "gpio"
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO2"
           },
           "Report": {
             "Enabled": true,
@@ -383,14 +388,321 @@
           },
           "SensorInfo": {
             "Schema": "integer",
-            "Description": "SensorInfo Description for gpio",
-            "DisplayName": "SensorInfo DisplayName for gpio"
+            "Description": "GPIO pin state for UIO_GPIO2",
+            "DisplayName": "UIO_GPIO2 State"
           }
         },
         {
-          "Name": "watchdog",
+          "Name": "gpio.pin.UIO_GPIO4",
           "Parameters": {
-            "MetricType": "watchdog"
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO4"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO4",
+            "DisplayName": "UIO_GPIO4 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO5",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO5"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO5",
+            "DisplayName": "UIO_GPIO5 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO6",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO6"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO6",
+            "DisplayName": "UIO_GPIO6 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO7",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO7"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO7",
+            "DisplayName": "UIO_GPIO7 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO8",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO8"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO8",
+            "DisplayName": "UIO_GPIO8 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO9",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO9"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO9",
+            "DisplayName": "UIO_GPIO9 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO10",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO10"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO10",
+            "DisplayName": "UIO_GPIO10 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO11_CPU",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO11_CPU"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO11_CPU",
+            "DisplayName": "UIO_GPIO11_CPU State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO12_CPU",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO12_CPU"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO12_CPU",
+            "DisplayName": "UIO_GPIO12_CPU State"
+          }
+        },
+        {
+          "Name": "gpio.pin.CN13_GPIO1",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "CN13_GPIO1"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for CN13_GPIO1",
+            "DisplayName": "CN13_GPIO1 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.CN13_GPIO7",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "CN13_GPIO7"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for CN13_GPIO7",
+            "DisplayName": "CN13_GPIO7 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.CN13_GPIO9",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "CN13_GPIO9"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for CN13_GPIO9",
+            "DisplayName": "CN13_GPIO9 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.CN13_GPIO11",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "CN13_GPIO11"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for CN13_GPIO11",
+            "DisplayName": "CN13_GPIO11 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.CN13_GPIO12",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "CN13_GPIO12"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for CN13_GPIO12",
+            "DisplayName": "CN13_GPIO12 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.CN13_GPIO13",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "CN13_GPIO13"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for CN13_GPIO13",
+            "DisplayName": "CN13_GPIO13 State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO11_Expender",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO11_Expender"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO11_Expender",
+            "DisplayName": "UIO_GPIO11_Expender State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_GPIO12_Expender",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_GPIO12_Expender"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_GPIO12_Expender",
+            "DisplayName": "UIO_GPIO12_Expender State"
+          }
+        },
+        {
+          "Name": "gpio.pin.UIO_ID_SW",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinId": "UIO_ID_SW"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state for UIO_ID_SW",
+            "DisplayName": "UIO_ID_SW State"
+          }
+        },
+        {
+          "Name": "watchdog.isSupported",
+          "Parameters": {
+            "MetricType": "watchdog",
+            "MetricName": "isSupported"
           },
           "Report": {
             "Enabled": true,
@@ -398,14 +710,15 @@
           },
           "SensorInfo": {
             "Schema": "boolean",
-            "Description": "SensorInfo Description for watchdog",
-            "DisplayName": "SensorInfo DisplayName for watchdog"
+            "Description": "Watchdog support status",
+            "DisplayName": "Watchdog Supported"
           }
         },
         {
-          "Name": "thermalprotection",
+          "Name": "thermalprotection.isSupported",
           "Parameters": {
-            "MetricType": "thermalprotection"
+            "MetricType": "thermalprotection",
+            "MetricName": "isSupported"
           },
           "Report": {
             "Enabled": true,
@@ -413,8 +726,8 @@
           },
           "SensorInfo": {
             "Schema": "boolean",
-            "Description": "SensorInfo Description for thermalprotection",
-            "DisplayName": "SensorInfo DisplayName for thermalprotection"
+            "Description": "Thermal protection support status",
+            "DisplayName": "Thermal Protection Supported"
           }
         }
       ]

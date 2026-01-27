@@ -24,6 +24,28 @@ public class SystemMetricsRawData
     public GpioMetrics Gpio { get; set; } = new();
     public WatchdogMetrics Watchdog { get; set; } = new();
     public ThermalProtectionMetrics ThermalProtection { get; set; } = new();
+    
+    // Safety & Health Status for SIL2 compliance
+    public HealthStatusMetrics Health { get; set; } = new();
+}
+
+/// <summary>
+/// Safety and Health status of the system agent.
+/// Tracks collection failures and critical metric availability.
+/// </summary>
+public class HealthStatusMetrics
+{
+    /// <summary>
+    /// Indicates if the system agent is healthy and all critical metrics are being collected.
+    /// </summary>
+    public bool IsHealthy { get; set; } = true;
+
+    /// <summary>
+    /// Dictionary of active errors or collection failures.
+    /// Key: Metric Type / Component Name.
+    /// Value: Error message.
+    /// </summary>
+    public Dictionary<string, string> ActiveErrors { get; set; } = new Dictionary<string, string>();
 }
 
 /// <summary>
@@ -406,11 +428,10 @@ public class GpioMetrics
     public string[] PinNames { get; set; } = Array.Empty<string>();
 
     /// <summary>
-    /// A dictionary to hold the current direction and level for a specific pin, using the pin name as the key.
-    /// Since the exact types (GpioDirectionTypes, GpioLevelTypes) are unknown, the values are stored as object.
-    /// Key: Pin Name/ID (string). Value: An object representing the pin's current state (Direction, Level).
+    /// A dictionary to hold the current level for a specific pin, using the pin name as the key.
+    /// Key: Pin Name/ID (string). Value: Pin level as integer (0 = Low, 1 = High).
     /// </summary>
-    public Dictionary<string, object> PinStateDetails { get; set; } = new Dictionary<string, object>();
+    public Dictionary<string, int> PinStateDetails { get; set; } = new Dictionary<string, int>();
 }
 
 /// <summary>
