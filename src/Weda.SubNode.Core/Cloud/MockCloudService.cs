@@ -7,6 +7,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;

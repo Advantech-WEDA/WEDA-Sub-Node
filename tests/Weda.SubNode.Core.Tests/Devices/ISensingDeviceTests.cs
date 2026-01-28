@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -165,7 +166,7 @@ public class ISensingDeviceTests : IDisposable
         var result = await _device.ExecuteCommandAsync(command);
 
         // Assert
-        Assert.True(result); // Should succeed if sensor exists and validation passes
+        Assert.Equal(CommandResponseStatusCode.Success, result); // Should succeed if sensor exists and validation passes
     }
 
     [Fact]

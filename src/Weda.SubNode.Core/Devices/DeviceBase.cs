@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
@@ -12,12 +12,9 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
-using Weda.SubNode.Abstractions.Storage;
-using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
-using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Core.Devices;
 
@@ -214,9 +211,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     private async Task HandleCommandReceivedAsync(ExecuteCommandEvent e)
     {
-        var success = false;
-        string? errorCode = null;
-        string? errorMessage = null;
+        int statusCode = CommandResponseStatusCode.Success;
+        string? message = null;
+        bool success = false;
 
         try
         {
@@ -234,22 +231,21 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
             // Execute command on device
             _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
-            success = await ExecuteCommandAsync(e.Command);
-            _logger.LogInformation("Command execution {Result}: {CommandName}",
-                success ? "succeeded" : "failed",
-                e.Command.DeviceCmd);
+            statusCode = await ExecuteCommandAsync(e.Command);
+            success = statusCode == CommandResponseStatusCode.Success;
 
-            if (!success)
-            {
-                errorCode = "Command.ExecutionFailed";
-                errorMessage = $"Command '{e.Command.DeviceCmd}' execution returned false";
-            }
+            _logger.LogInformation("Command execution {Result}: {CommandName} {Reason}",
+                success ? "succeeded" : "failed",
+                e.Command.DeviceCmd,
+                CommandResponseStatusCode.GetDescription(statusCode));
+
+            message = CommandResponseStatusCode.GetDescription(statusCode);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
-            errorCode = "Command.Exception";
-            errorMessage = ex.Message;
+            statusCode = CommandResponseStatusCode.UnexptectedError;
+            message = CommandResponseStatusCode.GetDescription(statusCode);
         }
         finally
         {
@@ -267,8 +263,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     await SendCommandResponseAsync(
                         e.Command.RespTopic,
                         CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId,
-                            errorCode ?? "Command.Unknown",
-                            errorMessage ?? "Unknown error",
+                            statusCode,
+                            message,
                             e.Command.ReqSeqId));
                 }
             }
@@ -452,7 +448,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
 
-    public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
+    public abstract Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
     // ===== Lifecycle Hooks =====
 

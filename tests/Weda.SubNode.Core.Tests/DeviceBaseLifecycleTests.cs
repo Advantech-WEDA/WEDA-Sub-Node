@@ -3,6 +3,7 @@ using NSubstitute;
 using Shouldly;
 
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -733,9 +734,9 @@ internal class TestDevice : DeviceBase
         return Task.FromResult(new List<TelemetryMeasure>());
     }
 
-    public override Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
+    public override Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(true);
+        return Task.FromResult(CommandResponseStatusCode.Success);
     }
 
     protected override Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(

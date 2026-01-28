@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Weda.SubNode.Abstractions.Telemetry;
+namespace Weda.SubNode.Abstractions.Commands.Contracts;
 
 /// <summary>
 /// Device command received from cloud.

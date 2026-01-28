@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Protocols.ISensing;
 
 namespace Weda.SubNode.Core.Devices;
@@ -44,7 +44,7 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
 
     #region ISensorControl Implementation
 
-    public Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
+    public async Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Setting digital output {OutputName} to {State} on device {SubNodeId}",
             outputName, state, SubNodeId);
@@ -59,10 +59,11 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
             }
         };
 
-        return ExecuteCommandAsync(command, cancellationToken);
+        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
+        return statusCode == CommandResponseStatusCode.Success;
     }
 
-    public Task<bool> SetAnalogOutputAsync(string outputName, double value, CancellationToken cancellationToken = default)
+    public async Task<bool> SetAnalogOutputAsync(string outputName, double value, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Setting analog output {OutputName} to {Value} on device {SubNodeId}",
             outputName, value, SubNodeId);
@@ -77,7 +78,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
             }
         };
 
-        return ExecuteCommandAsync(command, cancellationToken);
+        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
+        return statusCode == CommandResponseStatusCode.Success;
     }
 
     public Task<Dictionary<string, object>> GetConfigurationAsync(ushort configIndex = 0, CancellationToken cancellationToken = default)
@@ -102,7 +104,7 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
         return Task.FromResult(new Dictionary<string, object>());
     }
 
-    public Task<bool> SetConfigurationAsync(ushort configIndex, Dictionary<string, object> configData, CancellationToken cancellationToken = default)
+    public async Task<bool> SetConfigurationAsync(ushort configIndex, Dictionary<string, object> configData, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Setting configuration index {ConfigIndex} on device {SubNodeId}",
             configIndex, SubNodeId);
@@ -117,10 +119,11 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
             }
         };
 
-        return ExecuteCommandAsync(command, cancellationToken);
+        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
+        return statusCode == CommandResponseStatusCode.Success;
     }
 
-    public Task<bool> SetSensorEnabledAsync(string sensorName, bool enabled, CancellationToken cancellationToken = default)
+    public async Task<bool> SetSensorEnabledAsync(string sensorName, bool enabled, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("{Action} sensor {SensorName} on device {SubNodeId}",
             enabled ? "Enabling" : "Disabling", sensorName, SubNodeId);
@@ -135,7 +138,8 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
             }
         };
 
-        return ExecuteCommandAsync(command, cancellationToken);
+        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
+        return statusCode == CommandResponseStatusCode.Success;
     }
 
     #endregion

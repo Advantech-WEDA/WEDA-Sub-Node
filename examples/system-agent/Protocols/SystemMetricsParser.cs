@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
 using SystemAgentExample.Models;
 
+using Weda.SubNode.Abstractions.Commands.Contracts;
+
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;

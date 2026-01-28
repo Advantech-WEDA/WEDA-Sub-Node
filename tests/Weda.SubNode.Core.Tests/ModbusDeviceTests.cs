@@ -1,6 +1,7 @@
 using NSubstitute;
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -318,7 +319,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeTrue();
+        result.ShouldBe(CommandResponseStatusCode.Success);
         await _mockCommunication.Received(1).RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
@@ -415,7 +416,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
         await _mockCommunication.DidNotReceive().RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
@@ -440,7 +441,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
         await _mockCommunication.DidNotReceive().RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
@@ -465,7 +466,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
         await _mockCommunication.DidNotReceive().RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
@@ -490,7 +491,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
         await _mockCommunication.DidNotReceive().RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 
@@ -519,7 +520,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeTrue();
+        result.ShouldBe(CommandResponseStatusCode.Success);
     }
 
     [Fact]
@@ -547,7 +548,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeTrue();
+        result.ShouldBe(CommandResponseStatusCode.Success);
     }
 
     [Fact]
@@ -585,7 +586,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
     }
 
     [Fact]
@@ -619,7 +620,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
     }
 
     [Fact]
@@ -639,7 +640,7 @@ public class ModbusDeviceTests : IDisposable
         var result = await device.ExecuteCommandAsync(command);
 
         // Assert
-        result.ShouldBeFalse();
+        result.ShouldNotBe(CommandResponseStatusCode.Success);
         await _mockCommunication.DidNotReceive().RequestAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
     }
 

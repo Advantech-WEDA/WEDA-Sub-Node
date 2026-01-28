@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
@@ -484,10 +485,13 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 DeviceId = deviceId,
                 SeqId = seqId,
                 ReqSeqId = reqSeqId,
-                Data = progress with
+                Data = new CommandResponseData
                 {
+                    DeviceCmd = progress.DeviceCmd,
+                    MessageType = "progress",
                     Status = BatchReportStatusCode.Success,
-                    Message = "Progress update"
+                    Message = "Progress update",
+                    ResultData = progress.Progress
                 }
             };
 
@@ -524,15 +528,19 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 DeviceId = deviceId,
                 SeqId = seqId,
                 ReqSeqId = reqSeqId,
-                Data = new BatchReportInitialAckData
+                Data = new CommandResponseData
                 {
                     DeviceCmd = deviceCmd,
-                    Status = BatchReportStatusCode.Success,
+                    MessageType = "ack",
+                    Status = CommandResponseStatusCode.Success,
                     Message = "Historical data query started",
-                    EstimatedBatches = estimatedBatches,
-                    EstimatedSamples = estimatedSamples,
-                    EstimatedDurationSeconds = estimatedDurationSeconds,
-                    StorageAvailable = true
+                    ResultData = new
+                    {
+                        estimatedBatches,
+                        estimatedSamples,
+                        estimatedDurationSeconds,
+                        storageAvailable = true
+                    }
                 }
             };
 
