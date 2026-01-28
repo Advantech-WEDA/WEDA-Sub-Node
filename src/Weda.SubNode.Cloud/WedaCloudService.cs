@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
+using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
@@ -108,9 +109,14 @@ public sealed class WedaCloudService : IWedaCloudService
             var rtt = await _client.PingAsync(cancellationToken);
             _logger.LogInformation("NATS connection verified - RTT: {RttMs}ms", rtt.TotalMilliseconds);
 
-            var response = await _client.RequestAsync<string, string>("$SRV.PING", "");
-            _logger.LogInformation("NATS response verified - RTT: {RttMs}ms", rtt.TotalMilliseconds);
-            _logger.LogDebug("Response: {Data}", response.Data);
+            var response = await _client.RequestAsync<string, NatsServicePingResponse>("$SRV.PING", "", cancellationToken: cancellationToken);
+            var pingResponse = response.Data;
+            _logger.LogInformation(
+                "NATS service discovered: Name={Name}, Version={Version}, WedaNodeId={DeviceId}, Endpoints={Endpoints}",
+                pingResponse?.Name,
+                pingResponse?.Version,
+                pingResponse?.Metadata?.DeviceId,
+                pingResponse?.Metadata?.Endpoints);
 
             _isConnected = true;
             _logger.LogInformation("Connected to WedaNode");
@@ -372,12 +378,26 @@ public sealed class WedaCloudService : IWedaCloudService
         {
             var subscriptionInfo = await _subscriptionManager.SubscribeAsync<SubNodeConfigUpdateMessage>(
                 topic: configSub.DesiredTopic,
-                handler: async msg =>
+                handler: async (msg, subject) =>
                 {
                     _logger.LogInformation(
-                        "Received configuration update: Type={Type}, SeqId={SeqId}",
+                        "Received configuration update: Type={Type}, SeqId={SeqId}, Subject={Subject}",
                         configSub.Type.Value,
-                        msg.SeqId);
+                        msg.SeqId,
+                        subject);
+
+                    // Parse protoVer, groupId, deviceId from subject
+                    // Subject format: {protoVer}.{groupId}.{deviceId}.subnode.shadow.{configType}.{action}
+                    var subjectInfo = SubjectParser.Parse(subject);
+                    if (subjectInfo != null)
+                    {
+                        msg.ProtoVer = subjectInfo.ProtoVer;
+                        msg.GroupId = subjectInfo.GroupId;
+                        msg.DeviceId = subjectInfo.DeviceId;
+                        _logger.LogDebug(
+                            "Parsed subject: ProtoVer={ProtoVer}, GroupId={GroupId}, DeviceId={DeviceId}",
+                            subjectInfo.ProtoVer, subjectInfo.GroupId, subjectInfo.DeviceId);
+                    }
 
                     // Skip messages with no actual configuration data (e.g., JetStream replays or acks)
                     if (msg.Data?.Cfg?.Desired == null)

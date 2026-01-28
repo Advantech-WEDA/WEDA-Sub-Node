@@ -19,7 +19,7 @@ Advantech WISE-4012 industrial I/O module integration using Builder pattern.
 
 #### [`wise-4012/`](wise-4012/)
 Advantech WISE-4012 industrial I/O module integration using default Context singleton.
-- **Pattern**: Default singleton (`WedaApplicationContext.Default`)
+- **Pattern**: Default singleton (`new WedaApplicationContext(args)`)
 - **Hardware**: WISE-4012 (4AI + 2AO)
 - **Protocol**: Modbus TCP
 - **Features**: Multi-channel analog I/O, DTDL metadata

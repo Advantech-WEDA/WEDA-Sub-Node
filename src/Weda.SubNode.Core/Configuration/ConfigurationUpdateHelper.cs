@@ -21,6 +21,26 @@ namespace Weda.SubNode.Core.Configuration;
 public static partial class ConfigurationUpdateHelper
 {
     /// <summary>
+    /// Thread-safe sequence counter for updateCmdResponse messages.
+    /// </summary>
+    private static long _updateCmdResponseSeqId;
+
+    /// <summary>
+    /// Thread-safe sequence counter for configReport messages.
+    /// </summary>
+    private static long _configReportSeqId;
+
+    /// <summary>
+    /// Gets the next sequence ID for updateCmdResponse messages.
+    /// </summary>
+    public static long GetNextUpdateCmdResponseSeqId() => Interlocked.Increment(ref _updateCmdResponseSeqId);
+
+    /// <summary>
+    /// Gets the next sequence ID for configReport messages.
+    /// </summary>
+    public static long GetNextConfigReportSeqId() => Interlocked.Increment(ref _configReportSeqId);
+
+    /// <summary>
     /// Validates the configuration update message structure.
     /// </summary>
     /// <param name="message">The configuration update message to validate</param>
@@ -113,136 +133,6 @@ public static partial class ConfigurationUpdateHelper
         // Validate all properties using the validator registry
         // (includes Pipeline validation via PipelineValidator)
         return ValidatorRegistry.ValidateAll(context);
-    }
-
-    /// <summary>
-    /// Creates a configuration report message for the "updating" status (first report).
-    /// Contains the new desired state and the current reported state.
-    /// </summary>
-    public static SubNodeConfigUpdateMessage CreateUpdatingReport(
-        SubNodeConfigUpdateMessage incomingMessage,
-        DeviceConfiguration currentConfig,
-        string deviceTypeName)
-    {
-        return CreateReport(
-            incomingMessage,
-            currentConfig,
-            deviceTypeName,
-            ConfigUpdateStatus.Updating,
-            null);
-    }
-
-    /// <summary>
-    /// Creates a configuration report message for the "success" status (second report).
-    /// Contains the desired state and the updated reported state.
-    /// </summary>
-    public static SubNodeConfigUpdateMessage CreateSuccessReport(
-        SubNodeConfigUpdateMessage incomingMessage,
-        DeviceConfiguration updatedConfig,
-        string deviceTypeName)
-    {
-        return CreateReport(
-            incomingMessage,
-            updatedConfig,
-            deviceTypeName,
-            ConfigUpdateStatus.Success,
-            null);
-    }
-
-    /// <summary>
-    /// Creates a configuration report message for the "failed" status.
-    /// </summary>
-    public static SubNodeConfigUpdateMessage CreateFailedReport(
-        SubNodeConfigUpdateMessage incomingMessage,
-        DeviceConfiguration currentConfig,
-        string deviceTypeName,
-        string errorMessage)
-    {
-        return CreateReport(
-            incomingMessage,
-            currentConfig,
-            deviceTypeName,
-            ConfigUpdateStatus.Failed,
-            errorMessage);
-    }
-
-    /// <summary>
-    /// Creates a configuration report message for the "invalid" status.
-    /// </summary>
-    public static SubNodeConfigUpdateMessage CreateInvalidReport(
-        SubNodeConfigUpdateMessage incomingMessage,
-        DeviceConfiguration currentConfig,
-        string deviceTypeName,
-        string errorMessage)
-    {
-        return CreateReport(
-            incomingMessage,
-            currentConfig,
-            deviceTypeName,
-            ConfigUpdateStatus.Invalid,
-            errorMessage);
-    }
-
-    /// <summary>
-    /// Creates a periodic configuration report message for routine sync.
-    /// Used when periodically reporting device configuration to cloud
-    /// to ensure reported state is synchronized even if update response fails.
-    /// </summary>
-    /// <param name="deviceId">Device ID for the report</param>
-    /// <param name="groupId">Group ID for multi-tenant scenarios</param>
-    /// <param name="currentConfig">Current device configuration</param>
-    /// <param name="deviceTypeName">Device type name for the report</param>
-    /// <returns>Configuration report message with current reported state</returns>
-    public static SubNodeConfigUpdateMessage CreatePeriodicReport(
-        string deviceId,
-        string groupId,
-        DeviceConfiguration currentConfig,
-        string deviceTypeName)
-    {
-        var message = new ConfigUpdateMessageDto
-        {
-            Status = ConfigUpdateStatus.Success,
-            ErrorMessage = null,
-            LastUpdateTime = DateTimeOffset.UtcNow
-        };
-
-        var reported = new SubNodeReportedConfig();
-
-        // Use raw JSON if available, otherwise fallback to typed DTO
-        if (currentConfig.RawDeviceCfgJson.HasValue)
-        {
-            reported.SetRawDeviceCfgWithMessage(currentConfig.RawDeviceCfgJson.Value, message);
-        }
-        else
-        {
-            var reportedDeviceConfig = ToSubNodeDeviceConfigDto(currentConfig);
-            reported.DeviceCfg = new SubNodeDeviceCfgDto
-            {
-                DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
-                {
-                    [deviceTypeName] = reportedDeviceConfig
-                },
-                Message = message
-            };
-        }
-
-        return new SubNodeConfigUpdateMessage
-        {
-            DeviceId = deviceId,
-            GroupId = groupId,
-            Cmd = "configReport",
-            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            ReqSeqId = string.Empty,
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Data = new SubNodeConfigUpdateData
-            {
-                Cfg = new SubNodeConfigState
-                {
-                    Desired = null,
-                    Reported = reported
-                }
-            }
-        };
     }
 
     /// <summary>
@@ -850,60 +740,6 @@ public static partial class ConfigurationUpdateHelper
             }).ToList()
         };
     }
-
-    private static SubNodeConfigUpdateMessage CreateReport(
-        SubNodeConfigUpdateMessage incomingMessage,
-        DeviceConfiguration currentConfig,
-        string deviceTypeName,
-        string status,
-        string? errorMessage)
-    {
-        var message = new ConfigUpdateMessageDto
-        {
-            Status = status,
-            ErrorMessage = errorMessage,
-            LastUpdateTime = DateTimeOffset.UtcNow
-        };
-
-        var reported = new SubNodeReportedConfig();
-
-        // Use raw JSON if available, otherwise fallback to typed DTO
-        if (currentConfig.RawDeviceCfgJson.HasValue)
-        {
-            reported.SetRawDeviceCfgWithMessage(currentConfig.RawDeviceCfgJson.Value, message);
-        }
-        else
-        {
-            var reportedDeviceConfig = ToSubNodeDeviceConfigDto(currentConfig);
-            reported.DeviceCfg = new SubNodeDeviceCfgDto
-            {
-                DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
-                {
-                    [deviceTypeName] = reportedDeviceConfig
-                },
-                Message = message
-            };
-        }
-
-        return new SubNodeConfigUpdateMessage
-        {
-            DeviceId = incomingMessage.DeviceId,
-            GroupId = incomingMessage.GroupId,
-            Cmd = "updateCmdResponse",
-            SeqId = incomingMessage.SeqId,
-            ReqSeqId = incomingMessage.ReqSeqId,
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Data = new SubNodeConfigUpdateData
-            {
-                Cfg = new SubNodeConfigState
-                {
-                    Desired = incomingMessage.Data?.Cfg?.Desired,
-                    Reported = reported
-                }
-            }
-        };
-    }
-
 }
 
 // ===== System Config and Custom Config Report Helpers =====
@@ -940,11 +776,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = originalMessage.ProtoVer,
             DeviceId = originalMessage.DeviceId,
             GroupId = originalMessage.GroupId,
             Cmd = "configResponse",
-            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            ReqSeqId = originalMessage.SeqId.ToString(),
+            SeqId = GetNextUpdateCmdResponseSeqId(),
+            ReqSeqId = originalMessage.ReqSeqId,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {
@@ -987,10 +824,11 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = originalMessage.ProtoVer,
             DeviceId = originalMessage.DeviceId,
             GroupId = originalMessage.GroupId,
             Cmd = "configResponse",
-            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            SeqId = GetNextUpdateCmdResponseSeqId(),
             ReqSeqId = originalMessage.SeqId.ToString(),
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
@@ -1268,11 +1106,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = incomingMessage.ProtoVer,
             DeviceId = incomingMessage.DeviceId,
             GroupId = incomingMessage.GroupId,
             Cmd = "updateCmdResponse",
-            SeqId = incomingMessage.SeqId,
-            ReqSeqId = incomingMessage.ReqSeqId,
+            SeqId = GetNextUpdateCmdResponseSeqId(),
+            ReqSeqId = incomingMessage.SeqId.ToString(),
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {
@@ -1295,12 +1134,14 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="deviceRegistry">Device registry containing all devices</param>
     /// <param name="lastStatus">Last config update status to preserve</param>
     /// <param name="lastErrorMessage">Last error message to preserve (null if success)</param>
+    /// <param name="protoVer">Protocol version (default: eco1j)</param>
     public static SubNodeConfigUpdateMessage CreatePeriodicAggregatedReport(
         string subNodeId,
-        string groupId,
         IDeviceRegistry deviceRegistry,
         string lastStatus,
-        string? lastErrorMessage)
+        string? lastErrorMessage,
+        string groupId = "weda",
+        string protoVer = "eco1j")
     {
         var message = new ConfigUpdateMessageDto
         {
@@ -1344,11 +1185,12 @@ public static partial class ConfigurationUpdateHelper
 
         return new SubNodeConfigUpdateMessage
         {
+            ProtoVer = protoVer,
             DeviceId = subNodeId,
             GroupId = groupId,
             Cmd = "configReport",
-            SeqId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            ReqSeqId = string.Empty,
+            SeqId = GetNextConfigReportSeqId(),
+            ReqSeqId = Guid.NewGuid().ToString(),
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Data = new SubNodeConfigUpdateData
             {

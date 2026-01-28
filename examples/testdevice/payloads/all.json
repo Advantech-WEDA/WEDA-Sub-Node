@@ -1,0 +1,219 @@
+{
+<<<<<<< HEAD
+  "cfg": {
+    "desired": {
+      "devicecfg": {
+        "SubNode": {
+          "Name": "TestDevice",
+          "SubNodeType": "AdamEthernet",
+          "Manufacturer": "Advantech",
+          "Model": "Demo",
+          "SwVersion": "1.0.0"
+        },
+        "DeviceConfigs": {
+          "MyFirstDeviceConfig": {
+            "Enabled": true,
+            "DeviceCommunication": {
+              "Host": "127.0.0.1",
+              "Port": 5020
+            },
+            "Dtdl": {
+              "AutoGenEnabled": true
+            },
+            "Properties": {
+              "SlaveId": 1
+            },
+            "Sensors": [
+              {
+                "Name": "temperature.sensor.in.c",
+                "SensorGroup": "TEMP",
+                "Parameters": {
+                  "RegisterType": "HoldingRegister",
+                  "RegisterAddress": 0,
+                  "RegisterCount": 2,
+                  "DataType": "Float32"
+                },
+                "SensorInfo": {
+                  "DisplayName": "Temperature Sensor",
+                  "Description": "Sensor for temperature sampling",
+                  "Schema": "double"
+                },
+                "Report": {
+                  "Enabled": true,
+                  "Interval": 5000
+                }
+              },
+              {
+                "Name": "temperature.sensor.in.f",
+                "SensorGroup": "TEMP",
+                "Parameters": {
+                  "RegisterType": "HoldingRegister",
+                  "RegisterAddress": 0,
+                  "RegisterCount": 2,
+                  "DataType": "Float32"
+                },
+                "SensorInfo": {
+                  "DisplayName": "Temperature Sensor",
+                  "Description": "Sensor for temperature sampling",
+                  "Schema": "double"
+                },
+                "Report": {
+                  "Enabled": true,
+                  "Interval": 5000,
+                  "TransformPipeline": [
+                    {
+                      "Type": "UnitConversion",
+                      "Enabled": true,
+                      "Parameters": {
+                        "FromUnit": "celsius",
+                        "ToUnit": "fahrenheit"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "Name": "temperature.sensor.in.k",
+                "SensorGroup": "TEMP",
+                "Parameters": {
+                  "RegisterType": "HoldingRegister",
+                  "RegisterAddress": 0,
+                  "RegisterCount": 2,
+                  "DataType": "Float32"
+                },
+                "SensorInfo": {
+                  "DisplayName": "Temperature Sensor",
+                  "Description": "Sensor for temperature sampling",
+                  "Schema": "double"
+                },
+                "Report": {
+                  "Enabled": true,
+                  "Interval": 5000,
+                  "TransformPipeline": [
+                    {
+                      "Type": "UnitConversion",
+                      "Enabled": true,
+                      "Parameters": {
+                        "FromUnit": "celsius",
+                        "ToUnit": "kelvin"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+=======
+  "groupId": "weda",
+  "cmd": "updateCmd",
+  "data": {
+    "cfg": {
+      "desired": {
+        "devicecfg": {
+          "SubNode": {
+            "Name": "TestDevice",
+            "SubNodeType": "AdamEthernet",
+            "Manufacturer": "Advantech",
+            "Model": "Demo",
+            "SwVersion": "1.0.0"
+          },
+          "DeviceConfigs": {
+            "MyFirstDeviceConfig": {
+              "Enabled": true,
+              "DeviceCommunication": {
+                "Host": "127.0.0.1",
+                "Port": 5020
+              },
+              "Dtdl": {
+                "AutoGenEnabled": true
+              },
+              "Properties": {
+                "SlaveId": 1
+              },
+              "Sensors": [
+                {
+                  "Name": "temperature.sensor",
+                  "SensorGroup": "TEMP",
+                  "Parameters": {
+                    "RegisterType": "HoldingRegister",
+                    "RegisterAddress": 0,
+                    "RegisterCount": 2,
+                    "DataType": "Float32"
+                  },
+                  "SensorInfo": {
+                    "DisplayName": "Temperature Sensor",
+                    "Description": "Sensor for temperature sampling",
+                    "Schema": "double"
+                  },
+                  "Report": {
+                    "Enabled": true,
+                    "Interval": 5000
+                  }
+                },
+                {
+                  "Name": "temperature.sensor.in.k",
+                  "SensorGroup": "TEMP",
+                  "Parameters": {
+                    "RegisterType": "HoldingRegister",
+                    "RegisterAddress": 0,
+                    "RegisterCount": 2,
+                    "DataType": "Float32"
+                  },
+                  "SensorInfo": {
+                    "DisplayName": "Temperature Sensor",
+                    "Description": "Sensor for temperature sampling",
+                    "Schema": "double"
+                  },
+                  "Report": {
+                    "Enabled": true,
+                    "Interval": 5000,
+                    "TransformPipeline": [
+                      {
+                        "Type": "UnitConversion",
+                        "Enabled": true,
+                        "Parameters": {
+                          "FromUnit": "celsius",
+                          "ToUnit": "kelvin"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "Name": "temperature.sensor.in.f",
+                  "SensorGroup": "TEMP",
+                  "Parameters": {
+                    "RegisterType": "HoldingRegister",
+                    "RegisterAddress": 0,
+                    "RegisterCount": 2,
+                    "DataType": "Float32"
+                  },
+                  "SensorInfo": {
+                    "DisplayName": "Temperature Sensor",
+                    "Description": "Sensor for temperature sampling",
+                    "Schema": "double"
+                  },
+                  "Report": {
+                    "Enabled": true,
+                    "Interval": 5000,
+                    "TransformPipeline": [
+                      {
+                        "Type": "UnitConversion",
+                        "Enabled": true,
+                        "Parameters": {
+                          "FromUnit": "celsius",
+                          "ToUnit": "fahrenheit"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+              
+            }
+>>>>>>> develop
+          }
+        }
+      }
+    }
+  }
+}

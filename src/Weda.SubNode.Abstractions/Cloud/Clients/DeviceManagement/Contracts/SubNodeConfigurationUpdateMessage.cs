@@ -194,13 +194,13 @@ public class SubNodeConfigUpdateMessage
     /// Request sequence ID for correlation
     /// </summary>
     [JsonPropertyName("reqSeqId")]
-    public string ReqSeqId { get; set; } = string.Empty;
+    public string ReqSeqId { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
     /// Timestamp (Unix milliseconds, 0 if not specified)
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    public long Timestamp { get; set; } = DateTime.UtcNow.Millisecond;
 
     /// <summary>
     /// Configuration update data

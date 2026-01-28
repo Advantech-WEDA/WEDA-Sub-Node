@@ -20,7 +20,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     public LocalSystemCommunication(
         ConnectionSettings? settings = null,
         ILogger<CommunicationBase>? logger = null)
-        : base(settings, logger)
+        : base(settings ?? new ConnectionSettings { RequestLock = false }, logger)
     {
         // LocalSystemResourceCollector initialization should never fail
         // because it gracefully handles hardware platform init failures
@@ -75,7 +75,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     /// <param name="request">System metrics request containing metric types to collect</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Raw system metrics data</returns>
-    public override async Task<SystemMetricsRawData> RequestAsync(
+    protected override async Task<SystemMetricsRawData> RequestAsyncCore(
         SystemMetricsRequest request,
         CancellationToken cancellationToken = default)
     {

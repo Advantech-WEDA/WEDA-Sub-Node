@@ -28,6 +28,10 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     private readonly List<IDspFilter> _filters = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    // Cache for sensor-level config-based DSP filters (to preserve state across invocations)
+    // DSP filters like MovingAverage, Kalman are stateful and need to persist buffer state
+    private readonly Dictionary<string, List<IDspFilter>> _sensorFilterCache = new();
+
     // Statistics tracking
     private long _totalProcessed;
     private long _successfullySent;
@@ -277,7 +281,29 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
         {
             _transforms.Clear();
             _filters.Clear();
+            _sensorFilterCache.Clear();
             _logger.LogInformation("Cleared all pipeline stages for device {DeviceId}", _deviceId);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Clears cached DSP filters for a specific sensor.
+    /// Call this when sensor configuration changes to force re-creation of filters.
+    /// </summary>
+    /// <param name="resourceId">The sensor resource ID</param>
+    public void ClearSensorFilterCache(string resourceId)
+    {
+        _lock.Wait();
+        try
+        {
+            if (_sensorFilterCache.Remove(resourceId))
+            {
+                _logger.LogDebug("Cleared DSP filter cache for sensor {ResourceId}", resourceId);
+            }
         }
         finally
         {
@@ -472,13 +498,21 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                     }
 
                     // Priority 2: Add sensor-level config DSP filters (from appsettings.json or cloud)
+                    // Use cache to preserve stateful filters (e.g., MovingAverage buffer, Kalman state)
                     if (sensor.Report.DspPipeline.Count > 0)
                     {
-                        var configBasedFilters = DspFilterFactory.CreateFromConfigs(sensor.Report.DspPipeline);
-                        filtersToApply.AddRange(configBasedFilters);
+                        if (!_sensorFilterCache.TryGetValue(resourceId, out var cachedFilters))
+                        {
+                            cachedFilters = DspFilterFactory.CreateFromConfigs(sensor.Report.DspPipeline);
+                            _sensorFilterCache[resourceId] = cachedFilters;
+                            _logger.LogDebug(
+                                "Created and cached {Count} sensor-level config DSP filters for ResourceId {ResourceId}",
+                                cachedFilters.Count, resourceId);
+                        }
+                        filtersToApply.AddRange(cachedFilters);
                         _logger.LogTrace(
-                            "Added {Count} sensor-level config DSP filters for ResourceId {ResourceId}",
-                            configBasedFilters.Count, resourceId);
+                            "Using {Count} cached sensor-level config DSP filters for ResourceId {ResourceId}",
+                            cachedFilters.Count, resourceId);
                     }
                 }
 

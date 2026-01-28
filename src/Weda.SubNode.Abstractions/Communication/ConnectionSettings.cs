@@ -39,6 +39,13 @@ public class ConnectionSettings
     /// Security settings for MQTT/TLS connections
     /// </summary>
     public SecuritySettings? Security { get; set; }
+
+    /// <summary>
+    /// Whether to lock requests (only one request at a time).
+    /// Should be true for single-channel protocols like Serial Port, Modbus RTU.
+    /// Default: true
+    /// </summary>
+    public bool RequestLock { get; set; } = true;
 }
 
 /// <summary>

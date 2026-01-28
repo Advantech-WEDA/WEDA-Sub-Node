@@ -132,7 +132,7 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
     /// Send a request and wait for response.
     /// For TCP, this writes the request data and then reads the response.
     /// </summary>
-    public override async Task<byte[]> RequestAsync(byte[] request, CancellationToken cancellationToken = default)
+    protected override async Task<byte[]> RequestAsyncCore(byte[] request, CancellationToken cancellationToken = default)
     {
         if (!IsConnected || _stream == null)
             throw new InvalidOperationException("Not connected");
