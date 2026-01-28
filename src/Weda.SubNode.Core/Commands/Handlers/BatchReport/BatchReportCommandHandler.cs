@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
@@ -38,7 +39,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             return BatchReportResult.Error(
                 BatchReportStatusCode.StorageError,
-                command.DeviceCmd,
                 "STORAGE_UNAVAILABLE",
                 "RecordingService is not configured",
                 executedAt);
@@ -49,7 +49,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             return BatchReportResult.Error(
                 BatchReportStatusCode.PermissionDenied,
-                command.DeviceCmd,
                 "NOT_REGISTERED",
                 "SubNode is not registered",
                 executedAt);
@@ -63,7 +62,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             return BatchReportResult.Error(
                 BatchReportStatusCode.InvalidTimeRange,
-                command.DeviceCmd,
                 "INVALID_TIME_RANGE",
                 "Start time must be before end time",
                 executedAt);
@@ -77,7 +75,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             {
                 return BatchReportResult.Error(
                     BatchReportStatusCode.InvalidTimeRange,
-                    command.DeviceCmd,
                     "TIME_RANGE_TOO_LARGE",
                     $"Time range exceeds maximum of {maxQueryDays} days",
                     executedAt);
@@ -97,7 +94,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             return BatchReportResult.Error(
                 BatchReportStatusCode.StorageError,
-                command.DeviceCmd,
                 "STORAGE_ERROR",
                 sensorIdsResult.FirstError.Description,
                 executedAt);
@@ -109,7 +105,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             logger.LogInformation("No sensors match the filter criteria");
             return BatchReportResult.Success(
                 BatchReportStatusCode.NoDataAvailable,
-                command.DeviceCmd,
                 "No sensors match the filter criteria",
                 new BatchReportResultData
                 {
@@ -266,7 +261,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             logger.LogWarning("BatchReport timed out after {Timeout} seconds", command.Timeout);
             return BatchReportResult.Error(
                 BatchReportStatusCode.Timeout,
-                command.DeviceCmd,
                 "TIMEOUT",
                 $"Command execution exceeded {command.Timeout} seconds timeout",
                 executedAt);
@@ -276,7 +270,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             // Original cancellation token was triggered (not timeout)
             return BatchReportResult.Error(
                 BatchReportStatusCode.Timeout,
-                command.DeviceCmd,
                 "CANCELLED",
                 "Operation was cancelled",
                 executedAt);
@@ -286,7 +279,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             logger.LogError(ex, "Out of memory while loading data from storage");
             return BatchReportResult.Error(
                 BatchReportStatusCode.ResourceExhausted,
-                command.DeviceCmd,
                 "RESOURCE_EXHAUSTED",
                 "Insufficient memory to load data. Reduce time range or batch size.",
                 executedAt);
@@ -326,7 +318,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 : null
         };
 
-        return BatchReportResult.Success(statusCode, command.DeviceCmd, message, resultData, executedAt, completedAt);
+        return BatchReportResult.Success(statusCode, message, resultData, executedAt, completedAt);
     }
 
     /// <summary>
@@ -484,10 +476,13 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 DeviceId = deviceId,
                 SeqId = seqId,
                 ReqSeqId = reqSeqId,
-                Data = progress with
+                Data = new CommandResponseData
                 {
+                    DeviceCmd = progress.DeviceCmd,
+                    MsgType = "progress",
                     Status = BatchReportStatusCode.Success,
-                    Message = "Progress update"
+                    Message = "Progress update",
+                    ResultData = progress.Progress
                 }
             };
 
@@ -524,15 +519,19 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 DeviceId = deviceId,
                 SeqId = seqId,
                 ReqSeqId = reqSeqId,
-                Data = new BatchReportInitialAckData
+                Data = new CommandResponseData
                 {
                     DeviceCmd = deviceCmd,
+                    MsgType = "ack",
                     Status = BatchReportStatusCode.Success,
                     Message = "Historical data query started",
-                    EstimatedBatches = estimatedBatches,
-                    EstimatedSamples = estimatedSamples,
-                    EstimatedDurationSeconds = estimatedDurationSeconds,
-                    StorageAvailable = true
+                    ResultData = new
+                    {
+                        estimatedBatches,
+                        estimatedSamples,
+                        estimatedDurationSeconds,
+                        storageAvailable = true
+                    }
                 }
             };
 

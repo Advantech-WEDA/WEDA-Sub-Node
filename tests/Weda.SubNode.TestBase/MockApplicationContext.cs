@@ -168,6 +168,9 @@ public class MockApplicationContext : IWedaApplicationContext
     public IRecordingService? RecordingService { get; set; }
 
     /// <inheritdoc />
+    public RecordingOptions? RecordingOptions { get; set; }
+
+    /// <inheritdoc />
     public ILogger<T> GetLogger<T>() => MockLoggerFactory.CreateLogger<T>();
 
     // ===== Device Registry Convenience Methods =====

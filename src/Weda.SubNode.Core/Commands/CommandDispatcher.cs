@@ -3,8 +3,8 @@ using System.Reflection;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Validation;
 
 namespace Weda.SubNode.Core.Commands;
@@ -86,7 +86,8 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                     var firstError = validationResult.FirstError;
                     await SendResponseAsync(metadata.RespTopic,
                         CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
-                            $"{envelope.CommandName}.{firstError.Code}", firstError.Description, envelope.ReqSeqId));
+                            CommandResponseStatusCode.InvalidInputArguments, 
+                            firstError.Description, envelope.ReqSeqId));
                 }
                 return validationResult.Errors;
             }
@@ -117,16 +118,41 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
 
                     // Use "Rejected" for validation errors, "Failed" for execution errors
                     var response = firstError.Type == ErrorType.Validation
-                        ? CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, errorCode, errorMessage, envelope.ReqSeqId)
-                        : CommandResponse.Failed(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, errorCode, errorMessage, envelope.ReqSeqId);
+                        ? CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, CommandResponseStatusCode.InvalidInputArguments, errorMessage, envelope.ReqSeqId)
+                        : CommandResponse.Failed(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, CommandResponseStatusCode.UnexptectedError, errorMessage, envelope.ReqSeqId);
 
                     await SendResponseAsync(metadata.RespTopic, response);
                 }
                 else
                 {
-                    var message = result.Value is IResult messageResult ? messageResult.Message : null;
-                    await SendResponseAsync(metadata.RespTopic,
-                        CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, result.Value, envelope.ReqSeqId));
+                    if (result.Value is IResult typedResult)
+                    {
+                        // Use IResult properties for structured response
+                        var response = new CommandResponse
+                        {
+                            DeviceId = context.SubNodeInfo.Id ?? "",
+                            SeqId = envelope.SeqId,
+                            ReqSeqId = envelope.ReqSeqId,
+                            Data = new CommandResponseData
+                            {
+                                DeviceCmd = envelope.CommandName,
+                                MsgType = "result",
+                                Status = typedResult.Status,
+                                Message = typedResult.Message,
+                                ResultData = typedResult.ResultData,
+                                ExecutedAt = typedResult.ExecutedAt,
+                                CompletedAt = typedResult.CompletedAt
+                            }
+                        };
+                        await SendResponseAsync(metadata.RespTopic, response);
+                    }
+                    else
+                    {
+                        // Fallback for non-IResult responses
+                        await SendResponseAsync(metadata.RespTopic,
+                            CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
+                                CommandResponseStatusCode.Success, null, result.Value, envelope.ReqSeqId));
+                    }
                 }
             }
 
@@ -141,7 +167,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
             {
                 await SendResponseAsync(metadata.RespTopic,
                     CommandResponse.Failed(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
-                        $"{envelope.CommandName}.ExecutionFailed", ex.Message, envelope.ReqSeqId));
+                        CommandResponseStatusCode.UnexptectedError, ex.Message, envelope.ReqSeqId));
             }
 
             return Errors.Command.ExecutionFailed(ex.Message);

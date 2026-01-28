@@ -2,6 +2,8 @@ using ErrorOr;
 using Microsoft.Extensions.Logging;
 using PowerAggregationExample.Aggregation;
 using PowerAggregationExample.Communication;
+
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
