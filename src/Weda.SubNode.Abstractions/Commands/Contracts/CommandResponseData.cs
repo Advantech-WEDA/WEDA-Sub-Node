@@ -17,8 +17,8 @@ public class CommandResponseData
     /// <summary>
     /// The type of response message. (ack, progress or result for example)
     /// </summary>
-    [JsonPropertyName("messageType")]
-    public required string MessageType { get; set; } = "result";
+    [JsonPropertyName("msgType")]
+    public required string MsgType { get; set; } = "result";
 
     /// <summary>
     /// Status code.
@@ -29,7 +29,7 @@ public class CommandResponseData
     /// <summary>
     /// Error message (only for rejected/failed responses).
     /// </summary>
-    [JsonPropertyName("errorMessage")]
+    [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Message { get; set; }
 

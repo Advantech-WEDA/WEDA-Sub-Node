@@ -77,7 +77,7 @@ stateDiagram-v2
     }
 
     note right of SendInitialAck
-        MessageType: "ack"
+        MsgType: "ack"
         Status: 0 (Success)
     end note
 
@@ -105,7 +105,7 @@ stateDiagram-v2
     }
 
     note right of SendProgress
-        MessageType: "progress"
+        MsgType: "progress"
         Status: 0 (Success)
     end note
 
@@ -120,7 +120,7 @@ stateDiagram-v2
     }
 
     note right of EarlyBreak
-        MessageType: "result"
+        MsgType: "result"
         Status: error code
     end note
 
@@ -143,7 +143,7 @@ stateDiagram-v2
     DetermineResult --> FinalResult
 
     note right of FinalResult
-        MessageType: "result"
+        MsgType: "result"
         Status: final status
     end note
 
@@ -280,7 +280,7 @@ sequenceDiagram
 
 ### Message Types
 
-| MessageType | When Used | Description |
+| MsgType | When Used | Description |
 |-------------|-----------|-------------|
 | `ack` | Validation failed | Command rejected before processing |
 | `ack` | Initial acknowledgment | Command accepted, processing starting |
@@ -318,7 +318,7 @@ Sent when command validation passes and processing begins.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "ack",
+    "msgType": "ack",
     "status": 0,
     "errorMessage": "Historical data query started",
     "resultData": {
@@ -345,7 +345,7 @@ Sent periodically during batch processing.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "progress",
+    "msgType": "progress",
     "status": 0,
     "errorMessage": "Progress update",
     "resultData": {
@@ -373,7 +373,7 @@ All data retrieved and sent successfully.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "result",
+    "msgType": "result",
     "status": 0,
     "errorMessage": "Historical data retrieval complete",
     "resultData": {
@@ -403,7 +403,7 @@ Completed with some data gaps.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "result",
+    "msgType": "result",
     "status": 1,
     "errorMessage": "Historical data retrieval complete with gaps",
     "resultData": {
@@ -439,7 +439,7 @@ No sensors match filter or no data in time range.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "result",
+    "msgType": "result",
     "status": 3,
     "errorMessage": "No sensors match the filter criteria",
     "resultData": {
@@ -469,7 +469,7 @@ Command rejected during validation phase.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "ack",
+    "msgType": "ack",
     "status": 2,
     "errorMessage": "Start time must be before end time"
   }
@@ -490,7 +490,7 @@ Command execution exceeded timeout.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "result",
+    "msgType": "result",
     "status": 5,
     "errorMessage": "Command execution exceeded 300 seconds timeout"
   }
@@ -511,7 +511,7 @@ RecordingService unavailable or read failure.
   "deviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "report.historical",
-    "messageType": "ack",
+    "msgType": "ack",
     "status": 4,
     "errorMessage": "RecordingService is not configured"
   }

@@ -15,70 +15,51 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 public class BatchReportResult : IResult
 {
     /// <summary>
-    /// The device command name.
-    /// </summary>
-    [JsonPropertyName("deviceCmd")]
-    public string DeviceCmd { get; init; } = "report";
-
-    /// <summary>
     /// Status code indicating the result of the operation.
     /// </summary>
     /// <seealso cref="BatchReportStatusCode"/>
-    [JsonPropertyName("status")]
     public int Status { get; init; }
 
     /// <summary>
     /// Human-readable status message.
     /// </summary>
-    [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
 
     /// <summary>
     /// Result data containing batch statistics and metadata.
     /// </summary>
-    [JsonPropertyName("resultData")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BatchReportResultData? ResultData { get; init; }
 
     /// <summary>
     /// Error details (only for error cases).
     /// </summary>
-    [JsonPropertyName("errorDetails")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BatchReportErrorDetails? ErrorDetails { get; init; }
 
     /// <summary>
     /// Timestamp when execution started (Unix ms).
     /// </summary>
-    [JsonPropertyName("executedAt")]
     public long ExecutedAt { get; init; }
 
     /// <summary>
     /// Timestamp when execution completed (Unix ms).
     /// </summary>
-    [JsonPropertyName("completedAt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public long CompletedAt { get; init; }
 
-    /// <summary>
-    /// Duration of execution in seconds.
-    /// </summary>
-    [JsonPropertyName("durationSeconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public long DurationSeconds => CompletedAt > 0 ? (CompletedAt - ExecutedAt) / 1000 : 0;
+    // IResult explicit implementation - return the appropriate data for serialization
+    object? IResult.ResultData => ResultData ?? (object?)ErrorDetails;
+    long? IResult.ExecutedAt => ExecutedAt;
+    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     /// <summary>
     /// Creates a successful result.
     /// </summary>
     public static BatchReportResult Success(
         int status,
-        string deviceCmd,
         string message,
         BatchReportResultData resultData,
         long executedAt,
         long completedAt = 0) => new()
         {
-            DeviceCmd = deviceCmd,
             Status = status,
             Message = message,
             ResultData = resultData,
@@ -91,12 +72,10 @@ public class BatchReportResult : IResult
     /// </summary>
     public static BatchReportResult Error(
         int status,
-        string deviceCmd,
         string errorCode,
         string errorMessage,
         long executedAt) => new()
         {
-            DeviceCmd = deviceCmd,
             Status = status,
             Message = errorMessage,
             ErrorDetails = new BatchReportErrorDetails

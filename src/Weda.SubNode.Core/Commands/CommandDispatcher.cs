@@ -125,10 +125,34 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                 }
                 else
                 {
-                    var message = result.Value is IResult typedResult ? typedResult.Message : null;
-                    var status = result.Value is IResult statusResult ? statusResult.Status : CommandResponseStatusCode.Success;
-                    await SendResponseAsync(metadata.RespTopic,
-                        CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, status, message, result.Value, envelope.ReqSeqId));
+                    if (result.Value is IResult typedResult)
+                    {
+                        // Use IResult properties for structured response
+                        var response = new CommandResponse
+                        {
+                            DeviceId = context.SubNodeInfo.Id ?? "",
+                            SeqId = envelope.SeqId,
+                            ReqSeqId = envelope.ReqSeqId,
+                            Data = new CommandResponseData
+                            {
+                                DeviceCmd = envelope.CommandName,
+                                MsgType = "result",
+                                Status = typedResult.Status,
+                                Message = typedResult.Message,
+                                ResultData = typedResult.ResultData,
+                                ExecutedAt = typedResult.ExecutedAt,
+                                CompletedAt = typedResult.CompletedAt
+                            }
+                        };
+                        await SendResponseAsync(metadata.RespTopic, response);
+                    }
+                    else
+                    {
+                        // Fallback for non-IResult responses
+                        await SendResponseAsync(metadata.RespTopic,
+                            CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
+                                CommandResponseStatusCode.Success, null, result.Value, envelope.ReqSeqId));
+                    }
                 }
             }
 

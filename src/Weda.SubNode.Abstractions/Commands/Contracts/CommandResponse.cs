@@ -85,7 +85,7 @@ public class CommandResponse
         Data = new CommandResponseData 
         { 
             DeviceCmd = command,
-            MessageType = "ack",
+            MsgType = "ack",
             Status = CommandResponseStatusCode.Success,
             Message = message ?? $"The command {command} for device {deviceId} received",
             ResultData = resultData
@@ -110,7 +110,7 @@ public class CommandResponse
         Data = new CommandResponseData
         {
             DeviceCmd = command,
-            MessageType = "result",
+            MsgType = "result",
             Status = status,
             Message = message ?? $"The command {command} for device {deviceId} executed successfully",
             ResultData = resultData
@@ -134,7 +134,7 @@ public class CommandResponse
         Data = new CommandResponseData
         {
             DeviceCmd = command,
-            MessageType = "ack",
+            MsgType = "ack",
             Status = status,
             Message = message ?? $"The command {command} for device {deviceId} was rejected",
         }
@@ -157,7 +157,7 @@ public class CommandResponse
         Data = new CommandResponseData
         {
             DeviceCmd = command,
-            MessageType = "result",
+            MsgType = "result",
             Status = status,
             Message = message ?? $"The command {command} for device {deviceId} failed",
         }
