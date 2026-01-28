@@ -24,7 +24,6 @@ public class CommandResponseData
     /// Status code.
     /// </summary>
     [JsonPropertyName("status")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int Status { get; set; }
 
     /// <summary>
