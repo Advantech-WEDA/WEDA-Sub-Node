@@ -214,8 +214,33 @@ public class HardwarePlatformCollector
             }
 
             var pinNames = _advantechEdgeDevice.Gpio.PinNames;
-            _logger.LogInformation($"GPIO pin list - Length: {pinNames.Length}, Names: {string.Join(", ", pinNames)}");
+            _logger.LogInformation("GPIO pin list - Length: {Length}, Names: {Names}",
+                pinNames.Length, string.Join(", ", pinNames));
             metrics.PinNames = pinNames;
+
+            // Collect individual pin states
+            foreach (var pinName in pinNames)
+            {
+                try
+                {
+                    var level = _advantechEdgeDevice.Gpio.GetLevel(pinName);
+                    if (level.HasValue)
+                    {
+                        // Store level as integer (0 = Low, 1 = High)
+                        metrics.PinStateDetails[pinName] = (int)level.Value;
+                        _logger.LogDebug("GPIO pin '{PinName}' level: {Level}", pinName, level.Value);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("GPIO pin '{PinName}' returned null level", pinName);
+                    }
+                }
+                catch (Exception exPin)
+                {
+                    _logger.LogWarning(exPin, "Exception while reading GPIO pin '{PinName}' state", pinName);
+                    metrics.PinStateDetails[pinName] = int.MinValue; // Indicate error with special value
+                }
+            }
         }
         catch (Exception ex)
         {
