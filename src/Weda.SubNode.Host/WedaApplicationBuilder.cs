@@ -8,20 +8,15 @@ using NATS.Net;
 using Serilog;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
-using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-
-// NOTE: ScanDevicesFromConfiguration() and ISubNodeTypeNameResolver have been removed.
-// Use explicit device registration with AddDevice<TDevice>() instead.
-using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
-using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host;
@@ -285,6 +280,23 @@ public class WedaApplicationBuilder
         return this;
     }
 
+    public WedaApplicationBuilder AddRecording(Action<RecordingOptions>? configure = null)
+    {
+        if (configure == null)
+        {
+            Services.Configure<RecordingOptions>(Configuration.GetSection($"SystemConfig:{RecordingOptions.SectionName}"));
+        }
+        else
+        {
+            Services.Configure(configure);
+        }
+
+        // Enable recording flag for WedaApplicationContext to create RecordingService
+        Services.Configure<DeviceOptions>(options => options.EnableRecording = true);
+
+        return this;
+    }
+
     /// <summary>
     /// Configure connection retry policy for device and cloud connections.
     /// Controls how the SDK handles connection failures and reconnection attempts.
@@ -522,6 +534,9 @@ public class WedaApplicationBuilder
             var registrationStorage = sp.GetService<IDeviceRegistrationStorage>();
             var configurationCache = sp.GetService<IConfigurationCache>();
 
+            // Get recording options from DI (registered by AddRecording)
+            var recordingOptions = sp.GetService<IOptions<RecordingOptions>>()?.Value;
+
             return new Context.WedaApplicationContext(options =>
             {
                 options.CloudService = cloudService;
@@ -532,12 +547,22 @@ public class WedaApplicationBuilder
                 // Pass DI-registered storage instances to share resources
                 options.RegistrationStorage = registrationStorage;
                 options.ConfigurationCache = configurationCache;
+                // Pass recording options (WedaApplicationContext creates RecordingService internally)
+                options.RecordingOptions = recordingOptions;
             });
         });
 
         // Register ISubNodeManager from the context (it's created by WedaApplicationContext)
         Services.AddSingleton<ISubNodeManager>(sp =>
             sp.GetRequiredService<IWedaApplicationContext>().SubNodeManager);
+
+        // Register IDeviceRegistry from the context
+        Services.AddSingleton<IDeviceRegistry>(sp =>
+            sp.GetRequiredService<IWedaApplicationContext>().DeviceRegistry);
+
+        // Register IRecordingService from the context (may be null if recording not enabled)
+        Services.AddSingleton<IRecordingService>(sp =>
+            sp.GetRequiredService<IWedaApplicationContext>().RecordingService!);
 
         // Register device factory
         Services.AddSingleton<IDeviceFactory, DeviceFactory>();

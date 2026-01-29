@@ -11,6 +11,7 @@ var builder = WedaApplication.CreateBuilder(args)
     .AddHealthReporting()  // uplink
     .AddCommands()         // downlink
     .AddConfigUpdates()    // downlink
+    .AddRecording()        // local persistence for historical data
     .UseMockCloud();       // use a mock server instead of Weda.Core
 
 builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");

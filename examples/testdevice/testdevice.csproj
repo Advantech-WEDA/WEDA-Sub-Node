@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Weda.SubNode.Host/Weda.SubNode.Host.csproj" />
     <ProjectReference Include="../../src/Weda.SubNode.Simulators/Weda.SubNode.Simulators.csproj" />
+    <ProjectReference Include="../../src/Weda.SubNode.WebApi/Weda.SubNode.WebApi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

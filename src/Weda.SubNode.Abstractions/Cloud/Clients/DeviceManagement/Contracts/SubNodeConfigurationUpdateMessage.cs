@@ -434,6 +434,110 @@ public class SubNodeSystemCfgDto
     /// </summary>
     [JsonPropertyName("Serilog")]
     public Dictionary<string, JsonElement>? Serilog { get; set; }
+
+    /// <summary>
+    /// Recording configuration for local historical data storage
+    /// </summary>
+    [JsonPropertyName("Record")]
+    public SubNodeRecordConfigDto? Record { get; set; }
+}
+
+/// <summary>
+/// Recording configuration DTO for systemcfg.json.
+/// Note: StorageDirectory is not included as it cannot be changed at runtime.
+/// </summary>
+public class SubNodeRecordConfigDto
+{
+    /// <summary>
+    /// Whether recording is enabled at runtime.
+    /// When disabled, recording calls will be ignored.
+    /// </summary>
+    [JsonPropertyName("Enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Minimum free disk space in megabytes for Ring Buffer FIFO cleanup.
+    /// Valid range: 0-102400 (0-100GB).
+    /// </summary>
+    [JsonPropertyName("MinFreeDiskSpaceMb")]
+    public int MinFreeDiskSpaceMb { get; set; } = 128;
+
+    /// <summary>
+    /// Maximum total storage size in megabytes for recording files.
+    /// Set to 0 to disable size-based cleanup.
+    /// Valid range: 0-102400 (0-100GB).
+    /// </summary>
+    [JsonPropertyName("MaxStorageSizeMb")]
+    public int MaxStorageSizeMb { get; set; } = 1024;
+
+    /// <summary>
+    /// Number of days to retain recording data.
+    /// Set to 0 to disable retention-based cleanup (files retained indefinitely).
+    /// Valid range: 0-365.
+    /// </summary>
+    [JsonPropertyName("RetentionDays")]
+    public int RetentionDays { get; set; } = 7;
+
+    /// <summary>
+    /// Whether batch buffering is enabled for recording.
+    /// </summary>
+    [JsonPropertyName("BatchEnabled")]
+    public bool BatchEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of samples to buffer before writing to storage.
+    /// Valid range: 0-10000.
+    /// </summary>
+    [JsonPropertyName("BatchMaxSamples")]
+    public int BatchMaxSamples { get; set; } = 0;
+
+    /// <summary>
+    /// Maximum time range in days allowed for batch report queries.
+    /// Set to 0 to disable the limit (not recommended).
+    /// Valid range: 0-365.
+    /// </summary>
+    [JsonPropertyName("MaxQueryTimeRangeDays")]
+    public int MaxQueryTimeRangeDays { get; set; } = 30;
+
+    /// <summary>
+    /// Validates the configuration values.
+    /// Returns true if valid, false otherwise.
+    /// </summary>
+    public bool TryValidate(out string? errorMessage)
+    {
+        if (MinFreeDiskSpaceMb < 0 || MinFreeDiskSpaceMb > 102400)
+        {
+            errorMessage = $"MinFreeDiskSpaceMb must be between 0 and 102400, got {MinFreeDiskSpaceMb}";
+            return false;
+        }
+
+        if (MaxStorageSizeMb < 0 || MaxStorageSizeMb > 102400)
+        {
+            errorMessage = $"MaxStorageSizeMb must be between 0 and 102400, got {MaxStorageSizeMb}";
+            return false;
+        }
+
+        if (RetentionDays < 0 || RetentionDays > 365)
+        {
+            errorMessage = $"RetentionDays must be between 0 and 365 (0=disabled), got {RetentionDays}";
+            return false;
+        }
+
+        if (BatchMaxSamples < 0 || BatchMaxSamples > 10000)
+        {
+            errorMessage = $"BatchMaxSamples must be between 0 and 10000, got {BatchMaxSamples}";
+            return false;
+        }
+
+        if (MaxQueryTimeRangeDays < 0 || MaxQueryTimeRangeDays > 365)
+        {
+            errorMessage = $"MaxQueryTimeRangeDays must be between 0 and 365 (0=disabled), got {MaxQueryTimeRangeDays}";
+            return false;
+        }
+
+        errorMessage = null;
+        return true;
+    }
 }
 
 /// <summary>
@@ -813,6 +917,31 @@ public class SubNodeSensorReportDto
     [JsonPropertyName("SensorInfo")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeSensorInfoDto? SensorInfo { get; set; }
+
+    /// <summary>
+    /// Recording configuration for local storage
+    /// </summary>
+    [JsonPropertyName("Record")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubNodeSensorRecordDto? Record { get; set; }
+}
+
+/// <summary>
+/// Sensor recording configuration DTO
+/// </summary>
+public class SubNodeSensorRecordDto
+{
+    /// <summary>
+    /// Whether recording is enabled
+    /// </summary>
+    [JsonPropertyName("Enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Recording interval in milliseconds. 0 means use report interval.
+    /// </summary>
+    [JsonPropertyName("Interval")]
+    public int Interval { get; set; } = 0;
 }
 
 /// <summary>

@@ -1,21 +1,25 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Net;
 using Serilog;
 using Serilog.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Nats;
+using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
-using Weda.SubNode.Core.Cloud;
 using Weda.SubNode.Core;
+using Weda.SubNode.Core.Cloud;
+using Weda.SubNode.Core.Commands;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
@@ -57,7 +61,8 @@ public class WedaApplicationContext : IWedaApplicationContext
                 EnableCommands = true,
                 EnableConfigUpdates = true,
                 EnableTelemetry = true,
-                EnableHealthReporting = true
+                EnableHealthReporting = true,
+                EnableRecording = true
             };
         }),
         LazyThreadSafetyMode.ExecutionAndPublication);
@@ -87,6 +92,7 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     private readonly WedaContextOptions _options;
     private readonly IWedaCloudService _cloudService;
+    private readonly IRecordingService? _recordingService;
     private readonly ILoggerFactory _loggerFactory;
     private readonly NatsClient? _natsClient;
     private readonly IConfiguration? _configuration;
@@ -99,8 +105,12 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly SystemCfg _systemCfg;
     private readonly DeviceCfg _deviceCfg;
     private readonly CustomCfg _customCfg;
-    private bool _disposed;
+    private readonly Timer? _cleanupTimer;
+    private readonly RecordingOptions? _recordingOptions;
+    private volatile bool _disposed;
 
+    public RecordingOptions? RecordingOptions => _recordingOptions;
+    
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext with default options.
     /// </summary>
@@ -238,6 +248,38 @@ public class WedaApplicationContext : IWedaApplicationContext
         _registrationStorage = _options.RegistrationStorage ?? new JsonDeviceRegistrationStorage(
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
+        // Use provided recording service from options (DI scenario), or create new instance if EnableRecording is true
+        if (_options.RecordingService != null)
+        {
+            _recordingService = _options.RecordingService;
+            _recordingOptions = _options.RecordingOptions
+                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+            _recordingOptions.Validate();
+
+            // Start daily cleanup timer
+            _cleanupTimer = new Timer(
+                callback: _ => ExecuteCleanup(),
+                state: null,
+                dueTime: TimeSpan.Zero,
+                period: TimeSpan.FromDays(1));
+        }
+        else if (_options.DeviceOptions.EnableRecording)
+        {
+            _recordingOptions = _options.RecordingOptions
+                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+            _recordingOptions.Validate();
+
+            var recordStorage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_recordingOptions));
+            _recordingService = new RecordingService(_loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, Options.Create(_recordingOptions));
+
+            // Start daily cleanup timer
+            _cleanupTimer = new Timer(
+                callback: _ => ExecuteCleanup(),
+                state: null,
+                dueTime: TimeSpan.Zero,
+                period: TimeSpan.FromDays(1));
+        }
+
         // Bind configuration objects using Options Pattern
         _systemCfg = BindConfiguration<SystemCfg>(SystemCfg.SectionName);
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
@@ -269,13 +311,34 @@ public class WedaApplicationContext : IWedaApplicationContext
             (_cloudService, _natsClient) = CreateDefaultCloudService();
         }
 
+        // Create Command Registry and auto-scan handlers
+        // Pipeline behaviors are now configured via attributes on handler classes:
+        // - [Validation(typeof(...))] adds ValidatorBehavior
+        // - [Logging] adds LoggingBehavior
+        var commandRegistry = new CommandRegistry(_loggerFactory.CreateLogger<CommandRegistry>());
+
+        // 1. Scan SDK assembly (Weda.SubNode.Core) for built-in handlers
+        commandRegistry.ScanAssembly(typeof(CommandRegistry).Assembly);
+
+        // 2. Scan User's Entry assembly for custom handlers
+        var entryAssembly = Assembly.GetEntryAssembly();
+        if (entryAssembly != null && entryAssembly != typeof(CommandRegistry).Assembly)
+        {
+            commandRegistry.ScanAssembly(entryAssembly);
+        }
+
+        // Create Command Dispatcher
+        var commandDispatcher = new CommandDispatcher(commandRegistry, this);
+
         // Create SubNodeManager (handles cloud connection, registration, and event subscription)
         _subNodeManager = new SubNodeManager(
             _cloudService,
             _subNodeInfo,
             _options.ConnectionOptions,
             _deviceRegistry,
-            _loggerFactory.CreateLogger<SubNodeManager>());
+            _loggerFactory.CreateLogger<SubNodeManager>(),
+            commandDispatcher,
+            _recordingService);
     }
 
     /// <summary>
@@ -363,6 +426,9 @@ public class WedaApplicationContext : IWedaApplicationContext
     public IWedaCloudService CloudService => _cloudService;
 
     /// <inheritdoc />
+    public IRecordingService? RecordingService => _recordingService;
+
+    /// <inheritdoc />
     public ILoggerFactory LoggerFactory => _loggerFactory;
 
     /// <inheritdoc />
@@ -434,6 +500,10 @@ public class WedaApplicationContext : IWedaApplicationContext
     /// <inheritdoc />
     public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
         => _deviceRegistry.FindDevice<TDevice>(deviceName);
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<TDevice> GetAllDevices<TDevice>() where TDevice : IDevice
+        => _deviceRegistry.GetAllDevices<TDevice>();
 
     #region Private Methods
 
@@ -770,6 +840,31 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #endregion
 
+    #region Recording Cleanup
+
+    private void ExecuteCleanup()
+    {
+        if (_recordingService == null || _recordingOptions == null)
+            return;
+
+        // RetentionDays = 0 means retention-based cleanup is disabled
+        if (_recordingOptions.RetentionDays <= 0)
+            return;
+
+        try
+        {
+            var cutoff = DateTimeOffset.UtcNow.AddDays(-_recordingOptions.RetentionDays);
+            _recordingService.CleanupAsync(cutoff, CancellationToken.None).Wait();
+        }
+        catch (Exception ex)
+        {
+            _loggerFactory.CreateLogger<WedaApplicationContext>()
+                .LogError(ex, "Recording cleanup failed");
+        }
+    }
+
+    #endregion
+
     #region IDisposable
 
     /// <inheritdoc />
@@ -789,6 +884,22 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         if (disposing && _options.DisposeServices)
         {
+            // Dispose cleanup timer
+            _cleanupTimer?.Dispose();
+
+            // Flush recording buffers before shutdown
+            if (_recordingService != null)
+            {
+                try
+                {
+                    _recordingService.FlushAsync().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Ignore flush errors during disposal
+                }
+            }
+
             // Dispose SubNodeManager first (handles cloud disconnect)
             if (_subNodeManager is IAsyncDisposable asyncDisposable)
             {

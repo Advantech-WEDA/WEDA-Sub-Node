@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
@@ -103,8 +104,8 @@ public class FakeDevice : IDevice
         => Task.FromResult(new List<TelemetryMeasure>());
     public Task<DeviceHealth> GetHealthAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(new DeviceHealth { DeviceId = SubNodeId, Status = HealthStatus.Healthy });
-    public Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
-        => Task.FromResult(true);
+    public Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
+        => Task.FromResult(CommandResponseStatusCode.Success);
     public Task<string?> RegisterAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(SubNodeId);
     public Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken cancellationToken = default, params IDspFilter[] runtimeFilters)

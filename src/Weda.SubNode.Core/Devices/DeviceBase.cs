@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
@@ -71,6 +72,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
+        // Auto-subscribe to TelemetryRecording event for local storage
+        if (_context.RecordingService != null)
+        {
+            TelemetryRecording += OnTelemetryRecording;
+        }
+
         // Auto-enrich: Attach SubNodeInfo from context if not already set
         // This enables AutoGenEnabled and provides Manufacturer/Model/SwVersion
         Configuration.SubNodeInfo ??= context.SubNodeInfo;
@@ -103,6 +110,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     // ===== IDevice Lifecycle =====
+
 
     public async Task<bool> InitializeAsync(CancellationToken ct = default)
         => !(await _orchestrator.LifecycleManager.InitializeAsync(ct)).IsError;
@@ -203,9 +211,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     private async Task HandleCommandReceivedAsync(ExecuteCommandEvent e)
     {
-        var success = false;
-        string? errorCode = null;
-        string? errorMessage = null;
+        int statusCode = CommandResponseStatusCode.Success;
+        string? message = null;
+        bool success = false;
 
         try
         {
@@ -219,26 +227,25 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             // Send "received" response immediately after validation passes
             await SendCommandResponseAsync(
                 e.Command.RespTopic,
-                CommandResponse.Received(SubNodeId!, e.Command.DeviceCmd));
+                CommandResponse.Received(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId, e.Command.ReqSeqId));
 
             // Execute command on device
             _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
-            success = await ExecuteCommandAsync(e.Command);
-            _logger.LogInformation("Command execution {Result}: {CommandName}",
-                success ? "succeeded" : "failed",
-                e.Command.DeviceCmd);
+            statusCode = await ExecuteCommandAsync(e.Command);
+            success = statusCode == CommandResponseStatusCode.Success;
 
-            if (!success)
-            {
-                errorCode = "Command.ExecutionFailed";
-                errorMessage = $"Command '{e.Command.DeviceCmd}' execution returned false";
-            }
+            _logger.LogInformation("Command execution {Result}: {CommandName} {Reason}",
+                success ? "succeeded" : "failed",
+                e.Command.DeviceCmd,
+                CommandResponseStatusCode.GetDescription(statusCode));
+
+            message = CommandResponseStatusCode.GetDescription(statusCode);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
-            errorCode = "Command.Exception";
-            errorMessage = ex.Message;
+            statusCode = CommandResponseStatusCode.UnexptectedError;
+            message = CommandResponseStatusCode.GetDescription(statusCode);
         }
         finally
         {
@@ -249,15 +256,16 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 {
                     await SendCommandResponseAsync(
                         e.Command.RespTopic,
-                        CommandResponse.Success(SubNodeId!, e.Command.DeviceCmd));
+                        CommandResponse.Success(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId, reqSeqId: e.Command.ReqSeqId));
                 }
                 else
                 {
                     await SendCommandResponseAsync(
                         e.Command.RespTopic,
-                        CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd,
-                            errorCode ?? "Command.Unknown",
-                            errorMessage ?? "Unknown error"));
+                        CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId,
+                            statusCode,
+                            message,
+                            e.Command.ReqSeqId));
                 }
             }
             catch (Exception ex)
@@ -403,6 +411,20 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         foreach (var processedMeasure in processedMeasures)
         {
             _telemetryBatch.Enqueue(processedMeasure);
+            
+            var sensor = Configuration.GetSensorById(processedMeasure.ResourceId);
+            if (sensor?.Record.Enabled == true && processedMeasure.Value is IConvertible)
+            {
+                var interval = sensor.Record.Interval > 0
+                    ? sensor.Record.Interval
+                    : (int)sensor.Report.Interval;
+
+                RaiseTelemetryRecording(new TelemetryRecordingEvent(
+                    Sensor: sensor,
+                    Interval: interval,
+                    Timestamp: processedMeasure.Timestamp,
+                    Value: Convert.ToDouble(processedMeasure.Value)));
+            }
         }
 
         // Raise DataProcessed event AFTER transform/filter processing
@@ -426,7 +448,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
 
-    public abstract Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
+    public abstract Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
     // ===== Lifecycle Hooks =====
 
@@ -729,6 +751,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
             _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
 
+            // Apply device-level Enabled flag
+            if (Configuration.Enabled != desiredConfig.Enabled)
+            {
+                _logger.LogInformation("Updating device Enabled: {Old} -> {New}",
+                    Configuration.Enabled, desiredConfig.Enabled);
+                Configuration.Enabled = desiredConfig.Enabled;
+            }
+
             // Record pre-update state for detecting interval/period changes
             var previousIntervalGroups = Configuration.Sensors
                 .Where(s => s.Report.Enabled)
@@ -745,6 +775,19 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 _logger.LogInformation("Updated {Count} sensors: {SensorNames}",
                     updatedSensors.Count,
                     string.Join(", ", updatedSensors));
+
+                // Flush recording buffers for updated sensors to avoid mixing data from different intervals
+                if (_context.RecordingService != null)
+                {
+                    foreach (var sensorName in updatedSensors)
+                    {
+                        var sensor = Configuration.Sensors.FirstOrDefault(s => s.Name == sensorName);
+                        if (sensor != null)
+                        {
+                            await _context.RecordingService.FlushSensorAsync(sensor.ShortId, ct);
+                        }
+                    }
+                }
             }
 
             // Apply pipeline updates (Transform and DSP filters)
@@ -988,8 +1031,23 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         sensorResult.RemovedSensors.Count, string.Join(", ", sensorResult.RemovedSensors));
 
                 if (sensorResult.UpdatedSensors.Count > 0)
+                {
                     _logger.LogInformation("Updated {Count} sensors: {Names}",
                         sensorResult.UpdatedSensors.Count, string.Join(", ", sensorResult.UpdatedSensors));
+
+                    // Flush recording buffers for updated sensors to avoid mixing data from different intervals
+                    if (_context.RecordingService != null)
+                    {
+                        foreach (var sensorName in sensorResult.UpdatedSensors)
+                        {
+                            var sensor = Configuration.Sensors.FirstOrDefault(s => s.Name == sensorName);
+                            if (sensor != null)
+                            {
+                                await _context.RecordingService.FlushSensorAsync(sensor.ShortId, ct);
+                            }
+                        }
+                    }
+                }
             }
 
             // Apply pipeline updates for existing sensors
@@ -1178,10 +1236,29 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             Timestamp: DateTimeOffset.UtcNow));
     }
 
+    /// <summary>
+    /// Triggers TelemetryRecording event for local storage.
+    /// Only fires if EnableTelemetryRecordingTracking is true.
+    /// </summary>
+    private void RaiseTelemetryRecording(TelemetryRecordingEvent @event)
+    {
+        TelemetryRecording?.Invoke(this, @event);
+    }
+
+    private void OnTelemetryRecording(object? sender, TelemetryRecordingEvent @event)
+    {
+        _ = _context.RecordingService!.RecordAsync(
+            @event.Sensor.ShortId,
+            @event.Interval,
+            @event.Timestamp,
+            @event.Value);
+    }
+
     // ===== Events & Tracking Flags =====
 
     public event EventHandler<DataReceivedEvent>? DataReceived;
     public event EventHandler<DataProcessedEvent>? DataProcessed;
+    public event EventHandler<TelemetryRecordingEvent>? TelemetryRecording;
     public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged;
     public event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged;
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;
@@ -1259,7 +1336,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send command response: {Status}", response.Status);
+            _logger.LogError(ex, "Failed to send command response");
         }
     }
 

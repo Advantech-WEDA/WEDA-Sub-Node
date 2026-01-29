@@ -67,7 +67,7 @@ public class HardwarePlatformCollector
             return metrics;
         }
 
-        if (!_advantechEdgeDevice.OnboardSensors.IsSupported)
+        if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
         {
             _logger.LogWarning("Onboard sensors not supported on this device");
             return metrics;
@@ -113,7 +113,7 @@ public class HardwarePlatformCollector
             return metrics;
         }
 
-        if (!_advantechEdgeDevice.OnboardSensors.IsSupported)
+        if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
         {
             _logger.LogWarning("Onboard sensors not supported on this device");
             return metrics;
@@ -159,7 +159,7 @@ public class HardwarePlatformCollector
             return metrics;
         }
 
-        if (!_advantechEdgeDevice.OnboardSensors.IsSupported)
+        if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
         {
             _logger.LogWarning("Onboard sensors not supported on this device");
             return metrics;
@@ -205,7 +205,7 @@ public class HardwarePlatformCollector
 
         try
         {
-            metrics.IsSupported = _advantechEdgeDevice.Gpio.IsSupported;
+            metrics.IsSupported = _advantechEdgeDevice.Gpio!.IsSupported;
 
             if (!metrics.IsSupported)
             {
@@ -263,7 +263,7 @@ public class HardwarePlatformCollector
 
         try
         {
-            metrics.IsSupported = _advantechEdgeDevice.Watchdog.IsSupported;
+            metrics.IsSupported = _advantechEdgeDevice.Watchdog!.IsSupported;
 
             if (!metrics.IsSupported)
             {
@@ -340,7 +340,7 @@ public class HardwarePlatformCollector
         try
         {
             _logger.LogDebug("Checking thermal protection availability");
-            metrics.IsSupported = _advantechEdgeDevice.ThermalProtection.IsSupported;
+            metrics.IsSupported = _advantechEdgeDevice.ThermalProtection!.IsSupported;
 
             if (!metrics.IsSupported)
             {

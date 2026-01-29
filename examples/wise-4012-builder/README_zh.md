@@ -78,12 +78,7 @@ dotnet run
 ### Program.cs - Builder Pattern
 
 ```csharp
-var builder = WedaApplication.CreateBuilder(args)
-    .AddLogging()           // 配置日誌
-    .AddTelemetry()         // 啟用遙測上傳
-    .AddHealthReporting()   // 啟用健康報告
-    .AddCommands()          // 啟用命令接收
-    .AddConfigUpdates();    // 啟用配置更新
+var builder = WedaApplication.CreateDefaultBuilder(args);
 
 // 從 appsettings.json 載入裝置配置
 builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");

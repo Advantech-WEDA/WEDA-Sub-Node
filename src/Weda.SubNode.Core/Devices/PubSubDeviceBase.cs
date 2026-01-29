@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
@@ -115,7 +117,7 @@ public class PubSubDeviceBase : DeviceBase
     /// <summary>
     /// Executes a command on the device using the parser.
     /// </summary>
-    public override async Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
+    public override async Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing command {CommandName} on device {SubNodeId}", command.DeviceCmd, SubNodeId);
 
@@ -125,10 +127,17 @@ public class PubSubDeviceBase : DeviceBase
         {
             _logger.LogWarning("Command execution failed: {Errors}",
                 string.Join(", ", result.Errors.Select(e => e.Description)));
-            return false;
+
+            var status = result.FirstError.Type switch
+            {
+                ErrorOr.ErrorType.Validation => CommandResponseStatusCode.InvalidInputArguments,
+                _ => CommandResponseStatusCode.UnexptectedError
+            };
+
+            return status;
         }
 
-        return true;
+        return CommandResponseStatusCode.Success;
     }
 
     /// <summary>

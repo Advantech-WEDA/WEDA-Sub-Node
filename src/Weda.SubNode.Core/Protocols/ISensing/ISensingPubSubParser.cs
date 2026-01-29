@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;

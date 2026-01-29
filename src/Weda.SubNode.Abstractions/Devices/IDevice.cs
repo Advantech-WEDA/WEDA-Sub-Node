@@ -1,4 +1,5 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Dsp;
@@ -81,7 +82,7 @@ public interface IDevice : IDisposable
     /// <summary>
     /// Execute command on physical device (called internally from CommandReceived event handler)
     /// </summary>
-    Task<bool> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default);
+    Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default);
 
     // ===== Cloud Interactions (SubNode → Cloud) =====
 

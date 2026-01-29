@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using ErrorOr;
 
 using Microsoft.Extensions.Logging;
@@ -7,11 +9,14 @@ using NATS.Client.Core;
 using NATS.Net;
 
 using Weda.SubNode.Abstractions.Cloud;
+using Weda.SubNode.Abstractions.Cloud.Clients.Command.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
+using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Storage;
@@ -45,6 +50,15 @@ public sealed class WedaCloudService : IWedaCloudService
 
     private bool _isConnected;
     private bool _disposed;
+
+    /// <summary>
+    /// Shared JSON serializer options for command deserialization.
+    /// </summary>
+    private static readonly JsonSerializerOptions CommandJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     public WedaCloudService(
         NatsClient client,
@@ -453,23 +467,38 @@ public sealed class WedaCloudService : IWedaCloudService
             commandTopic);
 
         // Use subscription manager for the actual subscription
-        var subscriptionInfo = await _subscriptionManager.SubscribeAsync<DeviceCommand>(
+        // Subscribe to NatsCommandMessage (envelope) and extract DeviceCommand from data
+        var subscriptionInfo = await _subscriptionManager.SubscribeAsync<NatsCommandMessage>(
             topic: commandTopic,
-            handler: async msg =>
+            handler: async envelope =>
             {
+                _logger.LogDebug(
+                    "Received command envelope: Cmd={Cmd}, SeqId={SeqId}, ReqSeqId={ReqSeqId}",
+                    envelope.Cmd,
+                    envelope.SeqId,
+                    envelope.ReqSeqId);
+
+                // Extract DeviceCommand from the envelope's data field
+                var deviceCommand = ExtractDeviceCommand(envelope);
+                if (deviceCommand is null)
+                {
+                    _logger.LogWarning("Failed to extract DeviceCommand from envelope");
+                    return;
+                }
+
                 _logger.LogInformation(
                     "Received command: DeviceCmd={DeviceCmd}, Timeout={Timeout}",
-                    msg.DeviceCmd,
-                    msg.Timeout);
+                    deviceCommand.DeviceCmd,
+                    deviceCommand.Timeout);
 
                 var commandEvent = new ExecuteCommandEvent(
                     DeviceId: deviceId,
-                    Command: msg,
-                    Timestamp: DateTimeOffset.UtcNow);
+                    Command: deviceCommand,
+                    Timestamp: DateTimeOffset.FromUnixTimeMilliseconds(envelope.Timestamp));
 
                 await handler(commandEvent);
 
-                _logger.LogDebug("Command handled successfully: {DeviceCmd}", msg.DeviceCmd);
+                _logger.LogDebug("Command handled successfully: {DeviceCmd}", deviceCommand.DeviceCmd);
             },
             subscriptionType: SubscriptionTypes.Command,
             responseTopic: topicAssignments.CommandResponseTopic,
@@ -545,14 +574,14 @@ public sealed class WedaCloudService : IWedaCloudService
         if (string.IsNullOrEmpty(responseTopic))
         {
             _logger.LogWarning(
-                "Command response topic is empty, skipping response: DeviceId={DeviceId}, Command={Command}, Status={Status}",
-                response.DeviceId, response.Command, response.Status);
+                "Command response topic is empty, skipping response: DeviceId={DeviceId}",
+                response.DeviceId);
             return false;
         }
 
         _logger.LogInformation(
-            "Sending command response: DeviceId={DeviceId}, Command={Command}, Status={Status}, Topic={Topic}",
-            response.DeviceId, response.Command, response.Status, responseTopic);
+            "Sending command response: DeviceId={DeviceId}, Topic={Topic}",
+            response.DeviceId, responseTopic);
 
         try
         {
@@ -562,15 +591,57 @@ public sealed class WedaCloudService : IWedaCloudService
                 cancellationToken: cancellationToken);
 
             _logger.LogDebug(
-                "Command response sent successfully: DeviceId={DeviceId}, Command={Command}, Status={Status}",
-                response.DeviceId, response.Command, response.Status);
+                "Command response sent successfully: DeviceId={DeviceId}",
+                response.DeviceId);
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Failed to send command response: DeviceId={DeviceId}, Command={Command}",
-                response.DeviceId, response.Command);
+                "Failed to send command response: DeviceId={DeviceId}",
+                response.DeviceId);
+            return false;
+        }
+    }
+
+    public async Task<bool> SendBatchTelemetryAsync(
+        string deviceId,
+        BatchTelemetrySendMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        var topicAssignments = FindTopicsByDeviceId(deviceId);
+        if (topicAssignments == null)
+        {
+            _logger.LogWarning(
+                "Cannot send batch telemetry: topics not configured for device {DeviceId}",
+                deviceId);
+            return false;
+        }
+
+        var batchTelemetryTopic = topicAssignments.BatchTelemetryTopic;
+        _logger.LogInformation(
+            "Sending batch telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}, Topic={Topic}",
+            deviceId, message.Data.Measures.Count, batchTelemetryTopic);
+
+        try
+        {
+            await _client.PublishAsync(
+                subject: batchTelemetryTopic,
+                data: message,
+                cancellationToken: cancellationToken);
+
+            _logger.LogDebug(
+                "Batch telemetry sent successfully: DeviceId={DeviceId}, MeasureCount={MeasureCount}",
+                deviceId, message.Data.Measures.Count);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send batch telemetry: DeviceId={DeviceId}",
+                deviceId);
             return false;
         }
     }
@@ -633,6 +704,56 @@ public sealed class WedaCloudService : IWedaCloudService
     public Task ResetRegistrationAsync(CancellationToken ct = default)
     {
         return _registrationStorage.DeleteRegistrationAsync(ct);
+    }
+
+    /// <summary>
+    /// Extracts a DeviceCommand from a NatsCommandMessage envelope.
+    /// The envelope contains the command data in its Data property as a JsonElement.
+    /// </summary>
+    private DeviceCommand? ExtractDeviceCommand(NatsCommandMessage envelope)
+    {
+        if (envelope.Data is null)
+        {
+            _logger.LogWarning("Command envelope has null data");
+            return null;
+        }
+
+        try
+        {
+            // Deserialize the data JsonElement to DeviceCommand (basic fields only)
+            var deviceCommand = envelope.Data.Value.Deserialize<DeviceCommand>(CommandJsonOptions);
+            if (deviceCommand is null)
+            {
+                _logger.LogWarning("Failed to deserialize command data to DeviceCommand");
+                return null;
+            }
+
+            // Store the raw JSON data for CommandRegistry to deserialize to specific command types
+            deviceCommand.RawData = envelope.Data;
+
+            // Copy SeqId and ReqSeqId from envelope for response correlation
+            deviceCommand.SeqId = envelope.SeqId;
+            deviceCommand.ReqSeqId = envelope.ReqSeqId;
+
+            // Also populate Parameters dictionary for backward compatibility with device protocol parsers
+            // This extracts all properties as Dictionary<string, object> for easy access
+            var allProperties = envelope.Data.Value.Deserialize<Dictionary<string, object>>(CommandJsonOptions);
+            if (allProperties != null)
+            {
+                // Remove known DeviceCommand properties, keep only the extra ones
+                allProperties.Remove("deviceCmd");
+                allProperties.Remove("timeout");
+                allProperties.Remove("respTopic");
+                deviceCommand.Parameters = allProperties;
+            }
+
+            return deviceCommand;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse command data JSON");
+            return null;
+        }
     }
 
     /// <summary>

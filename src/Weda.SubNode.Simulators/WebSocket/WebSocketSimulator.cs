@@ -323,9 +323,9 @@ public class WebSocketSimulator : IDisposable
 
             if (root.TryGetProperty("type", out var typeElement))
             {
-                var messageType = typeElement.GetString();
+                var MessageType = typeElement.GetString();
 
-                switch (messageType)
+                switch (MessageType)
                 {
                     case "heartbeat":
                         // Echo heartbeat
@@ -349,7 +349,7 @@ public class WebSocketSimulator : IDisposable
                         break;
 
                     default:
-                        _logger.LogDebug("Unknown message type: {Type}", messageType);
+                        _logger.LogDebug("Unknown message type: {Type}", MessageType);
                         break;
                 }
             }

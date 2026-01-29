@@ -1,4 +1,4 @@
-using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Abstractions.Events;
 

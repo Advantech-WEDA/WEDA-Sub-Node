@@ -4,12 +4,16 @@ using Polly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Configuration.Validators;
+using Weda.SubNode.Core.Commands;
 using Weda.SubNode.Core.Configuration;
-using Weda.SubNode.Core.Context;
+using Weda.SubNode.Core.Configuration.Validators;
 using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core;
@@ -23,6 +27,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private readonly IWedaCloudService _cloudService;
     private readonly SubNodeInfo _subNodeInfo;
     private readonly IDeviceRegistry _deviceRegistry;
+    private readonly IRecordingService? _recordingService;
+    private readonly CommandDispatcher? _commandDispatcher;
     private readonly ILogger<SubNodeManager> _logger;
 
     private readonly ResiliencePipeline<bool> _pipeline;
@@ -42,17 +48,20 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private string _lastConfigUpdateStatus = ConfigUpdateStatus.Success;
     private string? _lastConfigUpdateError;
 
-
     public SubNodeManager(
         IWedaCloudService cloudService,
         SubNodeInfo subNodeInfo,
         ConnectionOptions connectionOptions,
         IDeviceRegistry deviceRegistry,
-        ILogger<SubNodeManager> logger)
+        ILogger<SubNodeManager> logger,
+        CommandDispatcher? commandDispatcher = null,
+        IRecordingService? recordingService = null)
     {
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
         _subNodeInfo = subNodeInfo ?? throw new ArgumentNullException(nameof(subNodeInfo));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _recordingService = recordingService;
+        _commandDispatcher = commandDispatcher;
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
         _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
         _deviceRegistry = deviceRegistry;
@@ -355,17 +364,49 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Handles SystemConfig updates (Serilog, WedaNode settings).
+    /// Handles SystemConfig updates (Serilog, WedaNode, Record settings).
     /// SubNodeManager handles this directly - no dispatch to devices.
     /// </summary>
     private Task HandleSystemConfigUpdateAsync(UpdateConfigurationEvent e)
     {
         _logger.LogInformation("Handling SystemConfig update: SeqId={SeqId}", e.Message?.SeqId);
 
-        // TODO: Apply system configuration changes
-        // - Serilog settings
-        // - WedaNode settings
-        // - Other SubNode-level settings
+        var systemCfg = e.Message?.Data?.Cfg?.Desired?.SystemCfg;
+        if (systemCfg == null)
+        {
+            _logger.LogDebug("No SystemCfg in desired state");
+            return Task.CompletedTask;
+        }
+
+        // Validate system configuration using registry
+        var validatorRegistry = SystemConfigValidatorRegistry.CreateDefault();
+        var validationContext = new SystemConfigValidationContext { DesiredConfig = systemCfg };
+        var validationResult = validatorRegistry.ValidateAll(validationContext);
+
+        if (!validationResult.IsValid)
+        {
+            _logger.LogWarning(
+                "Invalid SystemConfig, skipping update: {ErrorMessage}",
+                validationResult.ErrorMessage);
+            return Task.CompletedTask;
+        }
+
+        // Apply Record settings if present and recording service is available
+        if (systemCfg.Record != null && _recordingService != null)
+        {
+            _recordingService.SetEnabled(systemCfg.Record.Enabled);
+            _recordingService.UpdateBatchSettings(
+                systemCfg.Record.BatchEnabled,
+                systemCfg.Record.BatchMaxSamples);
+
+            _logger.LogInformation(
+                "Updated recording settings: Enabled={Enabled}, BatchEnabled={BatchEnabled}, BatchMaxSamples={BatchMaxSamples}",
+                systemCfg.Record.Enabled,
+                systemCfg.Record.BatchEnabled,
+                systemCfg.Record.BatchMaxSamples);
+        }
+
+        // Note: Serilog settings require restart - not applied at runtime
 
         _logger.LogDebug("SystemConfig update processed");
         return Task.CompletedTask;
@@ -648,30 +689,29 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Routes command events to appropriate device handlers.
+    /// Routes command events to the appropriate CommandHandler via CommandDispatcher.
     /// </summary>
     private async Task RouteCommandAsync(ExecuteCommandEvent e)
     {
         _logger.LogDebug("Routing command: {Command}", e.Command?.DeviceCmd);
 
-        // Commands are typically broadcast to all devices that can handle them
-        // The device determines if it should handle based on command type
-        foreach (var (deviceName, handlers) in _deviceHandlers)
+        if (_commandDispatcher == null || e.Command?.DeviceCmd == null)
         {
-            if (handlers.CommandHandler != null)
-            {
-                try
-                {
-                    await handlers.CommandHandler(e);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in command handler for device: {DeviceName}", deviceName);
-                }
-            }
+            _logger.LogWarning("Command cannot be routed: CommandDispatcher={HasDispatcher}, DeviceCmd={DeviceCmd}",
+                _commandDispatcher != null, e.Command?.DeviceCmd);
+            return;
         }
 
-        // Fire general event
+        var envelope = CreateCommandEnvelope(e);
+        var result = await _commandDispatcher.DispatchAsync(envelope);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("Command '{Command}' dispatch failed: {Error}",
+                e.Command.DeviceCmd, result.FirstError.Description);
+        }
+
+                // Fire general event for external subscribers (all config types)
         if (CommandReceived != null)
         {
             try
@@ -680,9 +720,25 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in general CommandReceived handler");
+                _logger.LogError(ex, "Error in general CommandUpdateReceived handler");
             }
         }
+    }
+
+    /// <summary>
+    /// Creates a CommandEnvelope from an ExecuteCommandEvent.
+    /// </summary>
+    private static CommandEnvelope CreateCommandEnvelope(ExecuteCommandEvent e)
+    {
+        return new CommandEnvelope
+        {
+            CommandName = e.Command!.DeviceCmd!,
+            SeqId = e.Command.SeqId,
+            ReqSeqId = e.Command.ReqSeqId,
+            Timestamp = (ulong)e.Timestamp.ToUnixTimeMilliseconds(),
+            // Use RawData (JsonElement) if available, otherwise fall back to Parameters
+            Data = e.Command.RawData.HasValue ? e.Command.RawData.Value : e.Command.Parameters
+        };
     }
 
     /// <summary>
