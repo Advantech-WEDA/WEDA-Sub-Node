@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
 using SystemAgentExample.Models;
 
+using Weda.SubNode.Abstractions.Commands.Contracts;
+
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
@@ -204,13 +206,12 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             SupportedDataType.Gpu => metricName != null ? GetGpuMetric(rawData.Gpu, metricName) : null,
             SupportedDataType.System => metricName != null ? GetSystemMetric(rawData.System, metricName) : null,
             SupportedDataType.Hwinfo => metricName != null ? GetHardwareInfoMetric(rawData.HardwareInfo, metricName) : null,
-            SupportedDataType.Temperature => GetTemperatureMetric(rawData.Temperature, metricName, sensor),
-            SupportedDataType.Voltage => GetVoltageMetric(rawData.Voltage, metricName, sensor),
-            SupportedDataType.Fanspeed => GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor),
-            SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName, sensor),
-            SupportedDataType.Watchdog => GetWatchdogMetric(rawData.Watchdog, metricName),
-            SupportedDataType.Thermalprotection => GetThermalProtectionMetric(rawData.ThermalProtection, metricName),
-            SupportedDataType.Health => GetHealthMetric(rawData.Health, metricName),
+            SupportedDataType.Temperature => metricName != null ? GetTemperatureMetric(rawData.Temperature, metricName, sensor) : null,
+            SupportedDataType.Voltage => metricName != null ? GetVoltageMetric(rawData.Voltage, metricName, sensor) : null,
+            SupportedDataType.Fanspeed => metricName != null ? GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor) : null,
+            SupportedDataType.Gpio => metricName != null ? GetGpioMetric(rawData.Gpio, metricName, sensor) : null,
+            SupportedDataType.Watchdog => metricName != null ? GetWatchdogMetric(rawData.Watchdog, metricName) : null,
+            SupportedDataType.Thermalprotection => metricName != null ? GetThermalProtectionMetric(rawData.ThermalProtection, metricName) : null,
             _ => null
         };
     }

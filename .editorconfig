@@ -425,3 +425,6 @@ dotnet_diagnostic.SA1615.severity = none
 
 [**/Migrations/*]
 generated_code = true
+
+# IDE0306: Simplify collection initialization
+dotnet_diagnostic.IDE0306.severity = silent

@@ -276,8 +276,7 @@ public class ConfigurationUpdateHelperTests
 
         // Assert
         result.IsValid.ShouldBeFalse();
-        result.ErrorMessage?.ShouldContain("interval");
-        result.ErrorMessage?.ShouldContain("negative");
+        result.ErrorMessage?.ShouldContain("interval must be greater than 0");
     }
 
     [Fact]

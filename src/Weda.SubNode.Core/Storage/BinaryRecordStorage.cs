@@ -1,0 +1,399 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Polly;
+using Weda.SubNode.Abstractions.Common;
+using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Utilities;
+using Weda.SubNode.Core.Policies;
+
+namespace Weda.SubNode.Core.Storage;
+
+public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<RecordingOptions> options) : IRecordStorage
+{
+    private readonly ILogger<BinaryRecordStorage> _logger = logger;
+    private readonly RecordingOptions _options = options.Value;
+    private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
+    private const int MillisecondsPerDay = 86400000;
+    private const ushort Version = 1;
+    private readonly ResiliencePipeline _storagePipeline = ConnectionPolicies.CreateGeneralOperationPipeline(logger, ConnectionPolicyOptions.NFSDefault);
+
+    public async Task WriteAsync(string sensorId, int interval, RecordingDataPoint dataPoint, CancellationToken cancellationToken = default)
+    {
+        EnsureDiskSpace();
+        
+        var filePath = GetFilePath(sensorId, interval, dataPoint.Timestamp);
+        var startOfDay = GetStartOfDay(dataPoint.Timestamp);
+        EnsureFileExists(filePath, interval, startOfDay);
+        await WriteToSlotAsync(filePath, interval, startOfDay, dataPoint, cancellationToken);
+    }
+
+    public async Task WriteBatchAsync(string sensorId, int interval, IEnumerable<RecordingDataPoint> dataPoints, CancellationToken cancellationToken = default)
+    {
+        foreach (var dataPoint in dataPoints)
+        {
+            await WriteAsync(sensorId, interval, dataPoint, cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<RecordingDataPoint>> ReadAsync(string sensorId, int interval, DateTimeOffset start, DateTimeOffset end, CancellationToken cancellationToken = default)
+    {
+        var result = new List<RecordingDataPoint>();
+        var startMs = start.ToUnixTimeMilliseconds();
+        var endMs = end.ToUnixTimeMilliseconds();
+
+        // Iterate through each day in the range
+        var currentDate = start.UtcDateTime.Date;
+        var endDate = end.UtcDateTime.Date;
+
+        while (currentDate <= endDate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var filePath = GetFilePathForDate(sensorId, interval, currentDate);
+            if (File.Exists(filePath))
+            {
+                var dataPoints = await ReadFromFileAsync(filePath, interval, startMs, endMs, cancellationToken);
+                result.AddRange(dataPoints);
+            }
+
+            currentDate = currentDate.AddDays(1);
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<RecordingDataPoint>> ReadAllIntervalsAsync(string sensorId, DateTimeOffset start, DateTimeOffset end, CancellationToken cancellationToken = default)
+    {
+        var intervals = await GetIntervalsAsync(sensorId, cancellationToken);
+        if (intervals.Count == 0)
+            return [];
+
+        var allResults = new List<RecordingDataPoint>();
+        foreach (var interval in intervals)
+        {
+            var data = await ReadAsync(sensorId, interval, start, end, cancellationToken);
+            allResults.AddRange(data);
+        }
+
+        return allResults.OrderBy(p => p.Timestamp).ToList();
+    }
+
+    private string GetFilePathForDate(string sensorId, int interval, DateTime date)
+    {
+        var fileName = $"{date:yyyy-MM-dd}_{interval}";
+        return Path.Combine(_resolvedStorageDirectory, sensorId, $"{fileName}.bin");
+    }
+
+    private static async Task<List<RecordingDataPoint>> ReadFromFileAsync(string filePath, int interval, long startMs, long endMs, CancellationToken cancellationToken)
+    {
+        var dataPoints = await RecordingBinFileReader.ReadDataPointsAsync(filePath, interval, startMs, endMs, cancellationToken);
+        return dataPoints.ToList();
+    }
+
+    public Task<IReadOnlyList<string>> GetSensorIdsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return Task.FromResult<IReadOnlyList<string>>([]);
+
+        var sensorIds = Directory.GetDirectories(_resolvedStorageDirectory)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Cast<string>()
+            .OrderBy(name => name)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<string>>(sensorIds);
+    }
+
+    public Task<PagedResult<string>> GetSensorsAsync(int pageIndex, int pageSize, CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return Task.FromResult(PagedResult<string>.Empty(pageIndex, pageSize));
+
+        var allSensorIds = Directory.GetDirectories(_resolvedStorageDirectory)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Cast<string>()
+            .OrderBy(name => name)
+            .ToList();
+
+        var totalCount = allSensorIds.Count;
+        var items = allSensorIds
+            .Skip(pageIndex * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return Task.FromResult(new PagedResult<string>(items, totalCount, pageIndex, pageSize));
+    }
+
+    public Task<IReadOnlyList<int>> GetIntervalsAsync(string sensorId, CancellationToken cancellationToken = default)
+    {
+        var sensorDir = Path.Combine(_resolvedStorageDirectory, sensorId);
+        if (!Directory.Exists(sensorDir))
+            return Task.FromResult<IReadOnlyList<int>>([]);
+
+        var intervals = Directory.GetFiles(sensorDir, "*.bin")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Select(name => name?.Split('_').LastOrDefault())
+            .Where(intervalStr => int.TryParse(intervalStr, out _))
+            .Select(intervalStr => int.Parse(intervalStr!))
+            .Distinct()
+            .OrderBy(i => i)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<int>>(intervals);
+    }
+
+    public Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return Task.CompletedTask;
+
+        var cutoffDate = before.UtcDateTime.Date;
+
+        foreach (var sensorDir in Directory.GetDirectories(_resolvedStorageDirectory))
+        {
+            // Skip if directory was deleted between enumeration and access
+            if (!Directory.Exists(sensorDir))
+                continue;
+
+            foreach (var file in Directory.GetFiles(sensorDir, "*.bin"))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                var datePart = fileName.Split('_')[0];
+
+                if (DateTime.TryParse(datePart, out var fileDate) && fileDate < cutoffDate)
+                {
+                    File.Delete(file);
+                }
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteSensorAsync(string sensorId, CancellationToken cancellationToken = default)
+    {
+        var sensorDir = Path.Combine(_resolvedStorageDirectory, sensorId);
+        if (Directory.Exists(sensorDir))
+        {
+            Directory.Delete(sensorDir, recursive: true);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAllAsync(CancellationToken cancellationToken = default)
+    {
+        if (Directory.Exists(_resolvedStorageDirectory))
+        {
+            foreach (var sensorDir in Directory.GetDirectories(_resolvedStorageDirectory))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Directory.Delete(sensorDir, recursive: true);
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    private string GetFilePath(string sensorId, int interval, long timestamp)
+    {
+        var date = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.Date;
+        var fileName = $"{date:yyyy-MM-dd}_{interval}";
+        return Path.Combine(_resolvedStorageDirectory, sensorId, $"{fileName}.bin");
+    }
+
+    private static long GetStartOfDay(long timestamp)
+    {
+        var date = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.Date;
+        return new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
+    }
+
+    private void EnsureFileExists(string filePath, int interval, long startOfDay)
+    {
+        _storagePipeline.Execute(() =>
+        {
+            var directory = Path.GetDirectoryName(filePath)!;
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            if (!File.Exists(filePath))
+            {
+                CreateFileWithHeader(filePath, interval, startOfDay);
+            }
+        });
+    }
+
+    private static void CreateFileWithHeader(string filePath, int interval, long startOfDay)
+    {
+        var slotCount = MillisecondsPerDay / interval;
+        var fileSize = RecordingFileHeader.HeaderSize + slotCount * sizeof(double);
+
+        using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+        fs.SetLength(fileSize);
+
+        // Header layout (24 bytes):
+        // [0-3]   uint32  Prefix
+        // [4-5]   uint16  Version
+        // [6]     byte    Flags (0 = Little Endian)
+        // [7]     byte    CheckSumType (0 = None)
+        // [8-11]  uint32  Interval
+        // [12-19] ulong   StartTimestamp
+        // [20-23] uint32  SlotCount
+        fs.Write(BitConverter.GetBytes(RecordingFileHeader.Prefix));
+        fs.Write(BitConverter.GetBytes(Version));
+        fs.WriteByte(0); // Flags: Little Endian
+        fs.WriteByte(0); // CheckSumType: None
+        fs.Write(BitConverter.GetBytes((uint)interval));
+        fs.Write(BitConverter.GetBytes((ulong)startOfDay));
+        fs.Write(BitConverter.GetBytes((uint)slotCount));
+
+        var nanBytes = BitConverter.GetBytes(double.NaN);
+        for (int i = 0; i < slotCount; i++)
+        {
+            fs.Write(nanBytes);
+        }
+    }
+
+    private static async Task WriteToSlotAsync(string filePath, int interval, long startOfDay, RecordingDataPoint dataPoint, CancellationToken cancellationToken)
+    {
+        var slotIndex = (int)((dataPoint.Timestamp - startOfDay) / interval);
+        var slotCount = (int)(MillisecondsPerDay / interval);
+
+        // prevent index out of range error
+        if (slotIndex < 0 || slotIndex >= slotCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dataPoint), 
+                $"Timestamp {dataPoint.Timestamp} produces invalid slot {slotIndex} (valid range-{slotCount - 1})");
+        }
+
+        var position = RecordingFileHeader.HeaderSize + slotIndex * sizeof(double);
+
+        await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Write);
+        fs.Seek(position, SeekOrigin.Begin);
+        await fs.WriteAsync(BitConverter.GetBytes(dataPoint.Value), cancellationToken);
+    }
+
+    /// <summary>
+    /// Ensures sufficient disk space is available by deleting oldest files (Ring Buffer FIFO).
+    /// Supports both free-disk threshold and max storage size policies.
+    /// </summary>
+    private void EnsureDiskSpace()
+    {
+        if (_options.MinFreeDiskSpaceMb <= 0 && _options.MaxStorageSizeMb <= 0)
+            return;
+
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return;
+
+        var minFreeBytes = (long)_options.MinFreeDiskSpaceMb * 1024 * 1024;
+        var maxStorageBytes = (long)_options.MaxStorageSizeMb * 1024 * 1024;
+        var drivePath = Path.GetPathRoot(Path.GetFullPath(_resolvedStorageDirectory))!;
+        var currentStorageBytes = GetStorageSizeBytes();
+
+        bool ShouldCleanup()
+        {
+            var belowFreeSpace = _options.MinFreeDiskSpaceMb > 0 &&
+                new DriveInfo(drivePath).AvailableFreeSpace < minFreeBytes;
+            var exceedStorageSize = _options.MaxStorageSizeMb > 0 && currentStorageBytes > maxStorageBytes;
+            return belowFreeSpace || exceedStorageSize;
+        }
+
+        while (ShouldCleanup())
+        {
+            var deletedFileSize = _storagePipeline.Execute(DeleteOldestFileAndGetSize);
+            
+            if (deletedFileSize == 0) 
+                break;
+            
+            currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize); 
+        };
+    }
+
+    private long DeleteOldestFileAndGetSize()
+    {
+        var oldestFile = GetOldestFile();
+        if (oldestFile == null)
+            return 0;
+        
+        long deletedFileSize = 0;
+        try
+        {
+            deletedFileSize = new FileInfo(oldestFile).Length;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read file size for {File}", oldestFile);
+        }
+
+        File.Delete(oldestFile);
+
+        var sensorDir = Path.GetDirectoryName(oldestFile);
+        if (sensorDir != null && Directory.Exists(sensorDir) && !Directory.EnumerateFileSystemEntries(sensorDir).Any())
+        {
+            Directory.Delete(sensorDir);
+        }
+
+        return deletedFileSize;
+    }
+
+    private long GetStorageSizeBytes()
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return 0;
+
+        long totalBytes = 0;
+        foreach (var file in Directory.GetDirectories(_resolvedStorageDirectory)
+                     .SelectMany(sensorDir => Directory.GetFiles(sensorDir, "*.bin")))
+        {
+            try
+            {
+                totalBytes += new FileInfo(file).Length;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read file size for {File} during storage calculation", file);
+            }
+        }
+
+        return totalBytes;
+    }
+
+    /// <summary>
+    /// Gets the oldest recording file based on date in filename.
+    /// </summary>
+    private string? GetOldestFile()
+    {
+        if (!Directory.Exists(_resolvedStorageDirectory))
+            return null;
+
+        return Directory.GetDirectories(_resolvedStorageDirectory)
+            .SelectMany(sensorDir => Directory.GetFiles(sensorDir, "*.bin"))
+            .Select(file => new
+            {
+                Path = file,
+                Date = ParseDateFromFileName(Path.GetFileNameWithoutExtension(file))
+            })
+            .Where(f => f.Date.HasValue)
+            .OrderBy(f => f.Date)
+            .Select(f => f.Path)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Parses date from filename format: yyyy-MM-dd_interval
+    /// </summary>
+    private static DateTime? ParseDateFromFileName(string? fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+            return null;
+
+        var datePart = fileName.Split('_')[0];
+        return DateTime.TryParse(datePart, out var date) ? date : null;
+    }
+}

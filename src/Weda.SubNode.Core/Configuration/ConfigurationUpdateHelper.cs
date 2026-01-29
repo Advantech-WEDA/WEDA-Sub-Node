@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration.Results;
 using Weda.SubNode.Core.Configuration.Validators;
+using Weda.SubNode.Core.Configuration.Validators.Device;
 using Weda.SubNode.Core.Utilities;
 
 namespace Weda.SubNode.Core.Configuration;
@@ -285,6 +286,13 @@ public static partial class ConfigurationUpdateHelper
             deviceConfig.Sensors.Add(newSensor);
             addedSensors.Add(newSensor.Name);
         }
+
+        // Invalidate sensor lookup cache after adding sensors
+        if (addedSensors.Count > 0)
+        {
+            deviceConfig.InvalidateSensorLookup();
+        }
+
         return addedSensors;
     }
 
@@ -355,6 +363,14 @@ public static partial class ConfigurationUpdateHelper
             }
         }
 
+        // Invalidate sensor lookup cache only when new sensors are added
+        // - Removed sensors won't be queried (no new data from removed sensors)
+        // - Updated sensors don't need invalidation (ResourceId unchanged, same object reference)
+        if (result.AddedSensors.Count > 0)
+        {
+            deviceConfig.InvalidateSensorLookup();
+        }
+
         return result;
     }
 
@@ -395,6 +411,14 @@ public static partial class ConfigurationUpdateHelper
                 };
             }
 
+            wasUpdated = true;
+        }
+
+        // Update Record config if provided
+        if (desired.Record != null)
+        {
+            sensor.Record.Enabled = desired.Record.Enabled;
+            sensor.Record.Interval = desired.Record.Interval;
             wasUpdated = true;
         }
 
@@ -986,6 +1010,13 @@ public static partial class ConfigurationUpdateHelper
                     })
                     .ToList();
             }
+        }
+
+        // Map Record config
+        if (dto.Record != null)
+        {
+            sensor.Record.Enabled = dto.Record.Enabled;
+            sensor.Record.Interval = dto.Record.Interval;
         }
 
         return sensor;

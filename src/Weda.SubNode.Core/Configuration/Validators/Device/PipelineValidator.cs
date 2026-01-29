@@ -7,7 +7,7 @@ using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 
-namespace Weda.SubNode.Core.Configuration.Validators;
+namespace Weda.SubNode.Core.Configuration.Validators.Device;
 
 /// <summary>
 /// Validates Transform and DSP Filter pipeline parameters.

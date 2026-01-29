@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Abstractions.Context;
 
@@ -35,6 +36,16 @@ public interface IWedaApplicationContext : IDisposable
     /// Gets the cloud service instance.
     /// </summary>
     IWedaCloudService CloudService { get; }
+
+    /// <summary>
+    /// Gets the recording service for local data storage.
+    /// </summary>
+    IRecordingService? RecordingService { get; }
+    
+    /// <summary>
+    /// Gets the recording service for local data storage.
+    /// </summary>
+    RecordingOptions? RecordingOptions { get; }
 
     /// <summary>
     /// Gets the logger factory instance.
@@ -94,7 +105,7 @@ public interface IWedaApplicationContext : IDisposable
 
     /// <summary>
     /// Gets the configuration cache for persisting cloud-updated configurations.
-    /// When configuration is updated from cloud (UC9868), changes are cached locally
+    /// When configuration is updated from cloud, changes are cached locally
     /// so device restart uses the latest cloud-provided config instead of the local config files.
     /// </summary>
     IConfigurationCache ConfigurationCache { get; }
@@ -149,4 +160,22 @@ public interface IWedaApplicationContext : IDisposable
     /// <param name="deviceName">The device name to search for</param>
     /// <returns>The device instance cast to TDevice, or null</returns>
     TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice;
+
+    /// <summary>
+    /// Gets all registered devices of a specific type.
+    /// Convenience method that delegates to DeviceRegistry.GetAllDevices&lt;TDevice&gt;.
+    /// </summary>
+    /// <typeparam name="TDevice">The device type to filter by</typeparam>
+    /// <returns>A collection of devices matching the specified type</returns>
+    /// <example>
+    /// <code>
+    /// // Get all Modbus devices and set DO
+    /// var modbusDevices = context.GetAllDevices&lt;TcpModbusDevice&gt;();
+    /// foreach (var device in modbusDevices)
+    /// {
+    ///     await device.SetDO("do0", true);
+    /// }
+    /// </code>
+    /// </example>
+    IReadOnlyCollection<TDevice> GetAllDevices<TDevice>() where TDevice : IDevice;
 }

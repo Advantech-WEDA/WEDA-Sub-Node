@@ -8,6 +8,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Core.Context;
 
 namespace Weda.SubNode.TestBase;
@@ -164,6 +165,12 @@ public class MockApplicationContext : IWedaApplicationContext
     public IConfigurationCache ConfigurationCache => MockConfigurationCache;
 
     /// <inheritdoc />
+    public IRecordingService? RecordingService { get; set; }
+
+    /// <inheritdoc />
+    public RecordingOptions? RecordingOptions { get; set; }
+
+    /// <inheritdoc />
     public ILogger<T> GetLogger<T>() => MockLoggerFactory.CreateLogger<T>();
 
     // ===== Device Registry Convenience Methods =====
@@ -181,6 +188,10 @@ public class MockApplicationContext : IWedaApplicationContext
     /// <inheritdoc />
     public TDevice? FindDevice<TDevice>(string deviceName) where TDevice : class, IDevice
         => DeviceRegistry.FindDevice<TDevice>(deviceName);
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<TDevice> GetAllDevices<TDevice>() where TDevice : IDevice
+        => DeviceRegistry.GetAllDevices<TDevice>();
 
     /// <inheritdoc />
     public ISubNodeManager SubNodeManager => MockSubNodeManager;

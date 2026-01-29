@@ -1,7 +1,7 @@
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Configuration.Validators;
 
-namespace Weda.SubNode.Core.Configuration.Validators;
+namespace Weda.SubNode.Core.Configuration.Validators.Device;
 
 /// <summary>
 /// Validates background task periods configuration.

@@ -24,7 +24,7 @@
             },
             "Sensors": [
               {
-                "Name": "temperature.sensor.in.c",
+                "Name": "temperature.sensor",
                 "SensorGroup": "TEMP",
                 "Parameters": {
                   "RegisterType": "HoldingRegister",
@@ -39,7 +39,11 @@
                 },
                 "Report": {
                   "Enabled": true,
-                  "Interval": 1000
+                  "Interval": 2000
+                },
+                "Record": {
+                  "Enabled": true,
+                  "Interval": 4000
                 }
               }
             ]

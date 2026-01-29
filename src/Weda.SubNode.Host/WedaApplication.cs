@@ -130,6 +130,7 @@ public class WedaApplication : IAsyncDisposable
         builder.AddHealthReporting();     // Uplink: Send health status
         builder.AddCommands();            // Downlink: Receive commands
         builder.AddConfigUpdates();       // Downlink: Receive config updates
+        builder.AddRecording();
 
         return builder;
     }

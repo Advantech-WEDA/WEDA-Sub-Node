@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Utilities;
 
 namespace Weda.SubNode.Core.Storage;
 
@@ -40,7 +41,7 @@ public class JsonConfigurationCache : IConfigurationCache
         ILogger<JsonConfigurationCache>? logger = null)
     {
         _cacheDirectoryPath = cacheDirectoryPath ?? Path.Combine(
-            FindProjectRoot() ?? Directory.GetCurrentDirectory(),
+            PathHelper.FindProjectRoot() ?? Directory.GetCurrentDirectory(),
             DefaultCacheDirectory);
 
         _logger = logger ?? NullLoggerFactory.Instance
@@ -292,23 +293,4 @@ public class JsonConfigurationCache : IConfigurationCache
         return _locks.GetOrAdd(configType.Value, _ => new SemaphoreSlim(1, 1));
     }
 
-    /// <summary>
-    /// Finds the project root directory by looking for .csproj file.
-    /// </summary>
-    private static string? FindProjectRoot()
-    {
-        var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-
-        while (directory != null)
-        {
-            if (directory.GetFiles("*.csproj").Length > 0)
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        return null;
-    }
 }

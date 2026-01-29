@@ -5,7 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -293,8 +295,19 @@ public class MockCloudService : IWedaCloudService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "[MockCloud] Command response: Topic={Topic}, Status={Status}, Command={Command}",
-            responseTopic, response.Status, response.Command);
+            "[MockCloud] Command response: Topic={Topic}",
+            responseTopic);
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> SendBatchTelemetryAsync(
+        string deviceId,
+        BatchTelemetrySendMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[MockCloud] Batch telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}",
+            deviceId, message.Data.Measures.Count);
         return Task.FromResult(true);
     }
 

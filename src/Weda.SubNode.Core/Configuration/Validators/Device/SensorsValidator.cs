@@ -1,7 +1,7 @@
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Configuration.Validators;
 
-namespace Weda.SubNode.Core.Configuration.Validators;
+namespace Weda.SubNode.Core.Configuration.Validators.Device;
 
 /// <summary>
 /// Validates sensor configurations.
@@ -46,10 +46,10 @@ public class SensorsValidator : IConfigurationPropertyValidator
             // Validate sensor config values
             if (options.ValidateSensors && sensor.Config != null)
             {
-                if (sensor.Config.Interval < 0)
+                if (sensor.Config.Interval <= 0)
                 {
                     return ConfigurationValidationResult.Failure(
-                        $"Sensor '{sensor.Name}' interval cannot be negative");
+                        $"Sensor '{sensor.Name}' interval must be greater than 0");
                 }
 
                 // Validate thresholds if provided (if enabled)

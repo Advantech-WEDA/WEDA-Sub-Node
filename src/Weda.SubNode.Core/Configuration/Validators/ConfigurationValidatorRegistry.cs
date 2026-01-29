@@ -1,5 +1,6 @@
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Configuration.Validators;
+using Weda.SubNode.Core.Configuration.Validators.Device;
 
 namespace Weda.SubNode.Core.Configuration.Validators;
 
@@ -21,6 +22,8 @@ public class ConfigurationValidatorRegistry
         var registry = new ConfigurationValidatorRegistry();
 
         // Register known property validators (whitelist)
+        // Note: Enabled is a boolean with default value, so it's always present
+        // and applied directly in DeviceBase.ApplyDeviceConfigurationUpdateAsync
         registry.Register(new DtdlValidator());
         registry.Register(new PeriodsValidator());
         registry.Register(new SensorsValidator());

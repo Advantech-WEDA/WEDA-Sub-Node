@@ -31,6 +31,12 @@ public class DeviceOptions
     public bool EnableHealthReporting { get; set; } = false;
 
     /// <summary>
+    /// Enable recording in local storage for historical data
+    /// When enabled, devices will recording data to bin files in local storage
+    /// </summary>
+    public bool EnableRecording { get; set; } = false;
+
+    /// <summary>
     /// Default timeout for command execution (in milliseconds).
     /// Individual commands can override this via DeviceCommand.Timeout.
     /// Default: 30000ms (30 seconds) as per UC9884 specification.
