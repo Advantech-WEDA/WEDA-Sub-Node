@@ -76,7 +76,7 @@ public class Sensor
     /// Gets the effective schema type for DTDL generation.
     /// Delegates to SensorInfo.GetEffectiveSchema().
     /// </summary>
-    public string GetEffectiveSchema() => SensorInfo.Schema;
+    public string Schema => SensorInfo.Schema;
 
     /// <summary>
     /// Gets the effective display name for DTDL generation.
