@@ -1,5 +1,7 @@
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Configuration.Validators;
+using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Configuration.Validators.Device;
 
@@ -9,6 +11,12 @@ namespace Weda.SubNode.Core.Configuration.Validators.Device;
 /// </summary>
 public class SensorsValidator : IConfigurationPropertyValidator
 {
+    private static readonly HashSet<string> _validPrimitives = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "boolean", "date", "dateTime", "double", "duration",
+        "float", "integer", "long", "string", "time"
+    };
+
     public string PropertyName => "Sensors";
 
     public ConfigurationValidationResult Validate(ConfigurationValidationContext context)
@@ -60,6 +68,10 @@ public class SensorsValidator : IConfigurationPropertyValidator
                         return thresholdResult;
                 }
             }
+
+            var schemaResult = ValidateSchema(sensor);
+            if (!schemaResult.IsValid)
+                return schemaResult;
         }
 
         // Check if all sensors are required (if enabled)
@@ -109,4 +121,49 @@ public class SensorsValidator : IConfigurationPropertyValidator
 
         return ConfigurationValidationResult.Success;
     }
+
+    private static ConfigurationValidationResult ValidateSchema(SubNodeSensorReportDto sensor)
+    {
+        var schema = sensor.SensorInfo?.Schema;
+
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return ConfigurationValidationResult.Failure(
+                $"Sensor '{sensor.Name}': Schema is required");
+        }
+
+        if (!IsValidSchema(schema))
+        {
+            return ConfigurationValidationResult.Failure(
+                $"Sensor '{sensor.Name}': Invalid schema '{schema}'. " +
+                "Must be DTDL primitive (boolean, double, integer, string, etc.) or MIME type (image/jpeg, application/json, etc.)");
+        }
+
+        if (IsMimeType(schema) && !string.IsNullOrEmpty(sensor.Dtmi))
+        {
+            return ConfigurationValidationResult.Failure(
+                $"Sensor '{sensor.Name}': MIME type schema '{schema}' cannot have custom DTMI. " +
+                "Please remove Dtmi field.");
+        }
+
+        return ConfigurationValidationResult.Success;
+    }
+
+    private static bool IsValidSchema(string schema)
+    {
+        if (_validPrimitives.Contains(schema))
+            return true;
+        
+        if (IsMimeType(schema))
+        {
+            var parts = schema.Split('/');
+            return parts.Length == 2 && 
+                !string.IsNullOrWhiteSpace(parts[0]) &&
+                !string.IsNullOrWhiteSpace(parts[1]);
+        }
+
+        return false;
+    }
+
+    private static bool IsMimeType(string schema) => schema.Contains('/');
 }

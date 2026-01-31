@@ -38,7 +38,8 @@ public class DeviceConfigurationBuilder
             {
                 Enabled = true,
                 Interval = 1000
-            }
+            },
+            SensorInfo = new SensorInfo { Schema = "double" }
         }
     };
     private Dictionary<string, object> _deviceCommunication = new()

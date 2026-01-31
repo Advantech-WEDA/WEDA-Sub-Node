@@ -41,6 +41,7 @@ public class Sensor
     /// <summary>
     /// DTDL-related information (Schema, DisplayName, Description).
     /// Used for auto-generating DTDL when AutoGenEnabled is true.
+    /// Note: Schema is validated at configuration time by SensorsValidator.
     /// </summary>
     public SensorInfo SensorInfo { get; set; } = new();
 
@@ -75,7 +76,7 @@ public class Sensor
     /// Gets the effective schema type for DTDL generation.
     /// Delegates to SensorInfo.GetEffectiveSchema().
     /// </summary>
-    public string GetEffectiveSchema() => SensorInfo.GetEffectiveSchema(SensorGroup);
+    public string GetEffectiveSchema() => SensorInfo.Schema;
 
     /// <summary>
     /// Gets the effective display name for DTDL generation.

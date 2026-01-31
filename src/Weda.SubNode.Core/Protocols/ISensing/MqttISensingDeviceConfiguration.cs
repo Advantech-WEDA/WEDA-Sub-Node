@@ -200,7 +200,8 @@ public class MqttISensingDeviceConfiguration : IDeviceConfiguration
                 {
                     Unit = sensorConfig.Unit
                 },
-                Metadata = sensorConfig.Metadata
+                Metadata = sensorConfig.Metadata,
+                SensorInfo = sensorConfig.Info
             };
         }).ToList();
 
@@ -277,4 +278,9 @@ public class ISensingSensorReporturation
     /// Additional metadata
     /// </summary>
     public Dictionary<string, object> Metadata { get; set; } = new();
+
+    /// <summary>
+    /// DTDL-related information for the sensor (DisplayName, Description, Schema)
+    /// </summary>
+    public SensorInfo Info { get; set; } = new() { Schema = "double" };
 }

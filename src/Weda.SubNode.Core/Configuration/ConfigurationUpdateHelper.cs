@@ -964,7 +964,13 @@ public static partial class ConfigurationUpdateHelper
             SensorGroup = sensorGroup,
             Parameters = ConvertJsonElementsToNativeTypes(dto.Parameters),
             Metadata = ConvertJsonElementsToNativeTypes(dto.Metadata),
-            DeviceResourceId = subNodeDeviceId
+            DeviceResourceId = subNodeDeviceId,
+            SensorInfo = new SensorInfo
+            {
+                Schema = dto.SensorInfo?.Schema ?? sensorGroup.GetDefaultSchema(),
+                DisplayName = dto.SensorInfo?.DisplayName,
+                Description = dto.SensorInfo?.Description
+            }
         };
 
         if (dto.Report != null)

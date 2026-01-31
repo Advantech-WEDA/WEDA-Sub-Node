@@ -6,6 +6,7 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Abstractions.Telemetry.Validation;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices.Health;
 using Weda.SubNode.Core.Dsp;
@@ -24,6 +25,7 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     private readonly ILogger<TelemetryPipeline> _logger;
     private readonly IWedaCloudService _cloudService;
     private readonly IDeviceHealthMonitor? _healthMonitor;
+    private readonly ITelemetryValidator? _validator;
     private readonly List<ITelemetryTransform> _transforms = new();
     private readonly List<IDspFilter> _filters = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -51,13 +53,15 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
         DeviceConfiguration? configuration,
         IWedaCloudService cloudService,
         ILogger<TelemetryPipeline> logger,
-        IDeviceHealthMonitor? healthMonitor = null)
+        IDeviceHealthMonitor? healthMonitor = null,
+        ITelemetryValidator? validator = null)
     {
         _deviceId = deviceId ?? throw new ArgumentNullException(nameof(deviceId));
         _configuration = configuration;
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _healthMonitor = healthMonitor;
+        _validator = validator;
     }
 
     /// <inheritdoc/>
@@ -96,8 +100,20 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
 
         try
         {
+            // Stage 0: Validate
+            bool[] valid = ValidateMeasures(measures);
+            var validMeasures = new List<TelemetryMeasure>();
+            var invalidMeasures = new List<TelemetryMeasure>();
+            for (int i = 0; i < measures.Count; i++)
+            {
+                if (valid[i])
+                    validMeasures.Add(measures[i]);
+                else
+                    invalidMeasures.Add(measures[i]);
+            }
+
             // Stage 1: Transform
-            var transformResult = await ExecuteTransformStageAsync(measures, cancellationToken);
+            var transformResult = await ExecuteTransformStageAsync(validMeasures, cancellationToken);
             if (transformResult.IsError)
             {
                 Interlocked.Increment(ref _failedToSend);
@@ -112,21 +128,17 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 return filterResult.Errors;
             }
 
-            // Check if all measures were filtered out
-            if (filterResult.Value.Count == 0)
-            {
-                _logger.LogDebug(
-                    "All {Count} telemetry measures were filtered out for device {DeviceId}",
-                    measures.Count, _deviceId);
-                Interlocked.Add(ref _filteredOut, measures.Count);
-                totalStopwatch.Stop();
-                RecordDuration(_totalDurations, totalStopwatch.Elapsed);
-                _lastProcessedAt = DateTimeOffset.UtcNow;
-                return Result.Success;
-            }
-
             // Stage 3: Send
-            var sendResult = await ExecuteSendStageAsync(filterResult.Value, cancellationToken);
+            var allMeasures = new List<TelemetryMeasure>();
+            for (int i = 0, j = 0, k = 0; i < measures.Count; i++)
+            {
+                if (valid[i])
+                    allMeasures.Add(filterResult.Value[j++]);
+                else
+                    allMeasures.Add(invalidMeasures[k++]);
+
+            }
+            var sendResult = await ExecuteSendStageAsync(allMeasures, cancellationToken);
             if (sendResult.IsError)
             {
                 Interlocked.Increment(ref _failedToSend);
@@ -160,6 +172,41 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 description: $"Pipeline failed: {ex.Message}");
         }
     }
+
+    private bool[] ValidateMeasures(List<TelemetryMeasure> measures)
+    {
+        int n = measures.Count;
+        bool[] valid = new bool[n];
+
+        if (_validator == null || _configuration == null)
+        {
+            Array.Fill(valid, true);
+            return valid;
+        }
+
+        var sensorMap = _configuration.Sensors.ToDictionary(s => s.ResourceId);
+        for (int i = 0; i < n; i++)
+        {
+            var measure = measures[i];
+            if (!sensorMap.TryGetValue(measure.ResourceId, out var sensor))
+            {
+                valid[i] = true;  // sensor not found, pass through
+                continue;   
+            }
+
+            var result = _validator.Validate(measure.Value, sensor.SensorInfo.Schema);
+            valid[i] = !result.IsError;
+
+            if (result.IsError)
+            {
+                _logger.LogWarning("Validation failed, skipping tranform/filter: Sensor={ResourceId}, Schema={Schema}, Error={Error}",
+                    measure.ResourceId, sensor.SensorInfo.Schema, result.FirstError.Description);
+            }
+        }
+
+        return valid;
+    }
+
 
     /// <inheritdoc/>
     public async Task<ErrorOr<List<TelemetryMeasure>>> TransformAndFilterAsync(

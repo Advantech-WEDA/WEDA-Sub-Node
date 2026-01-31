@@ -288,7 +288,8 @@ public class ConfigurationUpdateHelperTests
             new SubNodeSensorReportDto
             {
                 Name = "unknown-sensor",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 }
+                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
             });
         var currentConfig = CreateDeviceConfiguration("TestDevice");
         var options = ConfigUpdateOptions.Strict; // Strict mode rejects unknown sensors
@@ -311,7 +312,8 @@ public class ConfigurationUpdateHelperTests
             new SubNodeSensorReportDto
             {
                 Name = "unknown-sensor",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 }
+                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
             });
         var currentConfig = CreateDeviceConfiguration("TestDevice");
         var options = new ConfigUpdateOptions { RejectUnknownSensors = false, RequireAllSensors = false };
@@ -991,7 +993,8 @@ public class ConfigurationUpdateHelperTests
                                             {
                                                 Enabled = true,
                                                 Interval = 2000
-                                            }
+                                            },
+                                            SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
                                         },
                                         new SubNodeSensorReportDto
                                         {
@@ -1001,7 +1004,8 @@ public class ConfigurationUpdateHelperTests
                                             {
                                                 Enabled = true,
                                                 Interval = 3000
-                                            }
+                                            },
+                                            SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
                                         }
                                     ]
                                 }
@@ -1067,7 +1071,8 @@ public class ConfigurationUpdateHelperTests
                                             {
                                                 Enabled = true,
                                                 Interval = 1000
-                                            }
+                                            },
+                                            SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
                                         },
                                         new()
                                         {
@@ -1078,7 +1083,8 @@ public class ConfigurationUpdateHelperTests
                                             {
                                                 Enabled = true,
                                                 Interval = 1000
-                                            }
+                                            },
+                                            SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
                                         }
                                     },
                                     Periods = new SubNodePeriodsDto
