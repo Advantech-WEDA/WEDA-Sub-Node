@@ -17,6 +17,14 @@ public class SensorsValidator : IConfigurationPropertyValidator
         "float", "integer", "long", "string", "time"
     };
 
+    private static readonly HashSet<string> _validMimeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/json",
+        "application/octet-stream",
+        "image/png",
+        "image/jpeg"  
+    };
+
     public string PropertyName => "Sensors";
 
     public ConfigurationValidationResult Validate(ConfigurationValidationContext context)
@@ -136,10 +144,11 @@ public class SensorsValidator : IConfigurationPropertyValidator
         {
             return ConfigurationValidationResult.Failure(
                 $"Sensor '{sensor.Name}': Invalid schema '{schema}'. " +
-                "Must be DTDL primitive (boolean, double, integer, string, etc.) or MIME type (image/jpeg, application/json, etc.)");
+                "Must be DTDL primitive (boolean, double, integer, string, etc.) " +
+                "or valid MIME type (application/json, application/octet-stream, image/png, image/jpeg)");
         }
 
-        if (IsMimeType(schema) && !string.IsNullOrEmpty(sensor.Dtmi))
+        if (_validMimeTypes.Contains(schema) && !string.IsNullOrEmpty(sensor.Dtmi))
         {
             return ConfigurationValidationResult.Failure(
                 $"Sensor '{sensor.Name}': MIME type schema '{schema}' cannot have custom DTMI. " +
@@ -151,19 +160,7 @@ public class SensorsValidator : IConfigurationPropertyValidator
 
     private static bool IsValidSchema(string schema)
     {
-        if (_validPrimitives.Contains(schema))
-            return true;
-        
-        if (IsMimeType(schema))
-        {
-            var parts = schema.Split('/');
-            return parts.Length == 2 && 
-                !string.IsNullOrWhiteSpace(parts[0]) &&
-                !string.IsNullOrWhiteSpace(parts[1]);
-        }
-
-        return false;
+        return _validPrimitives.Contains(schema) || 
+               _validMimeTypes.Contains(schema);
     }
-
-    private static bool IsMimeType(string schema) => schema.Contains('/');
 }

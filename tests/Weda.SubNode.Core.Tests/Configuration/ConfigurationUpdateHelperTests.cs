@@ -246,6 +246,50 @@ public class ConfigurationUpdateHelperTests
 
     #region Sensor Validation Tests
 
+    [Theory]
+    [InlineData("application/json")]
+    [InlineData("application/octet-stream")]
+    [InlineData("image/png")]
+    [InlineData("image/jpeg")]
+    public void ValidateDeviceConfiguration_Should_AcceptValidMimeTypeSchema(string schema)
+    {
+        // Arrange
+        var message = CreateValidMessage();
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].SensorInfo = 
+            new SubNodeSensorInfoDto { Schema = schema };
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Dtmi = null;
+        var currentConfig = CreateDeviceConfiguration("TestDevice");
+
+        // Act
+        var result = ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, currentConfig);
+        
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("video/mp4")]
+    [InlineData("image/gif")]
+    [InlineData("application/xml")]
+    [InlineData("text/plain")]
+    [InlineData("audio/mpeg")]
+    public void ValidateDeviceConfiguration_Should_RejectInvalidMimeTypeSchema(string schema)
+    {
+        var message = CreateValidMessage();
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].SensorInfo = 
+            new SubNodeSensorInfoDto { Schema = schema };
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Dtmi = null; 
+        var currentConfig = CreateDeviceConfiguration("TestDevice");
+
+        // Act
+        var result = ConfigurationUpdateHelper.ValidateDeviceConfiguration(message, currentConfig);
+        
+        // Assert
+        result.IsValid.ShouldBeFalse();
+        result.ErrorMessage!.ShouldContain("Invalid schema");
+        result.ErrorMessage!.ShouldContain(schema);
+    }
+
     [Fact]
     public void ValidateDeviceConfiguration_Should_ReturnFailure_When_SensorNameIsEmpty()
     {
