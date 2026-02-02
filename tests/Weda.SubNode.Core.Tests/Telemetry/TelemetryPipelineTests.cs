@@ -372,7 +372,6 @@ public sealed class TelemetryPipelineTests
         stats.TotalProcessed.ShouldBe(0);
         stats.SuccessfullySent.ShouldBe(0);
         stats.FailedToSend.ShouldBe(0);
-        stats.FilteredOut.ShouldBe(0);
         stats.LastProcessedAt.ShouldBeNull();
     }
 

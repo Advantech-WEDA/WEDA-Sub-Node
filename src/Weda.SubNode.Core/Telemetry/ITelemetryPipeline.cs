@@ -97,7 +97,6 @@ public sealed record PipelineStatistics
     public required int TotalProcessed { get; init; }
     public required int SuccessfullySent { get; init; }
     public required int FailedToSend { get; init; }
-    public required int FilteredOut { get; init; }
     public TimeSpan AverageTransformDuration { get; init; }
     public TimeSpan AverageFilterDuration { get; init; }
     public TimeSpan AverageSendDuration { get; init; }

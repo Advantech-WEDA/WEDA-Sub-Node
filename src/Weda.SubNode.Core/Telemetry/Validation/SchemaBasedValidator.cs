@@ -1,13 +1,19 @@
 using System.Text.Json;
-
 using ErrorOr;
+using Microsoft.Extensions.Options;
 
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Telemetry.Validation;
 
 namespace Weda.SubNode.Core.Telemetry.Validation;
 
-public class SchemaBasedValidator : ITelemetryValidator
+public class SchemaBasedValidator(IOptions<TelemetryOptions> options) : ITelemetryValidator
 {
+    private readonly TelemetryOptions _options = options.Value;
+    public SchemaBasedValidator() : this(Options.Create(TelemetryOptions.Default))
+    {   
+    }
+
     public ErrorOr<Success> Validate(object? value, string schema)
     {
         if (value is null)
@@ -19,7 +25,7 @@ public class SchemaBasedValidator : ITelemetryValidator
             "boolean" => ValidateBoolean(value),
             "string" => ValidateString(value),
             var s when s.StartsWith("application/json") => ValidateJson(value),
-            var s when s.Contains('/') => ValidateBase64(value),
+            var s when s.Contains('/') => ValidateBase64(value, _options.MaxBinarySize),
             _ => Result.Success
         };
     }
@@ -68,13 +74,16 @@ public class SchemaBasedValidator : ITelemetryValidator
     }
 
 
-    private static ErrorOr<Success> ValidateBase64(object value)
+    private static ErrorOr<Success> ValidateBase64(object value, int maxSize)
     {
         if (value is not string s)
-            return Error.Failure($"Expected Base64 string. go {value.GetType().Name}");
+            return Error.Failure(description: $"Expected Base64 string, got {value.GetType().Name}");
 
         if (string.IsNullOrEmpty(s))
-            return Error.Failure("Base64 string cannot be empty");
+            return Error.Failure(description: "Base64 string cannot be empty");
+
+        if (s.Length > maxSize)
+            return Error.Failure(description: $"Base64 data exceeds maximum size of {maxSize / 1024 / 1024}MB ({s.Length} bytes encoded)");
 
         try
         {

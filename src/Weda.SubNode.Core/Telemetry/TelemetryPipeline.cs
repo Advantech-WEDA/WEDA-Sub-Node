@@ -10,7 +10,6 @@ using Weda.SubNode.Abstractions.Telemetry.Validation;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices.Health;
 using Weda.SubNode.Core.Dsp;
-using Weda.SubNode.Core.Telemetry.Validation;
 using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Telemetry;
@@ -39,7 +38,6 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     private long _totalProcessed;
     private long _successfullySent;
     private long _failedToSend;
-    private long _filteredOut;
     private readonly List<TimeSpan> _transformDurations = new();
     private readonly List<TimeSpan> _filterDurations = new();
     private readonly List<TimeSpan> _sendDurations = new();
@@ -398,7 +396,6 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
             TotalProcessed = (int)Interlocked.Read(ref _totalProcessed),
             SuccessfullySent = (int)Interlocked.Read(ref _successfullySent),
             FailedToSend = (int)Interlocked.Read(ref _failedToSend),
-            FilteredOut = (int)Interlocked.Read(ref _filteredOut),
             AverageTransformDuration = CalculateAverage(_transformDurations),
             AverageFilterDuration = CalculateAverage(_filterDurations),
             AverageSendDuration = CalculateAverage(_sendDurations),
