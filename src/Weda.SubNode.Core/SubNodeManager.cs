@@ -120,6 +120,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 return false;
             }
             _logger.LogInformation("SubNode registered with ID: {SubNodeId}", _subNodeId);
+            _subNodeInfo.DeviceId = _subNodeId;
 
             // Step 3: Subscribe to cloud events (once for all devices)
             await SubscribeToCloudEventsAsync(_subNodeId, ct);
