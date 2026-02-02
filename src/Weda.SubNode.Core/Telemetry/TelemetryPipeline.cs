@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Telemetry.Validation;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices.Health;
 using Weda.SubNode.Core.Dsp;
+using Weda.SubNode.Core.Telemetry.Validation;
 using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Telemetry;
@@ -43,6 +44,10 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
     private readonly List<TimeSpan> _filterDurations = new();
     private readonly List<TimeSpan> _sendDurations = new();
     private readonly List<TimeSpan> _totalDurations = new();
+    private long _validationSuccessCount;
+    private long _validationFailureCount;
+    private DateTimeOffset _lastMetricsLogTime = DateTimeOffset.UtcNow;
+    private static readonly TimeSpan MetricsLogInterval = TimeSpan.FromSeconds(120);
     private DateTimeOffset? _lastProcessedAt;
 
     /// <summary>
@@ -157,6 +162,8 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 "Telemetry pipeline completed for device {DeviceId}: {InputCount} → {OutputCount} measures in {Duration}ms",
                 _deviceId, measures.Count, filterResult.Value.Count, totalStopwatch.ElapsedMilliseconds);
 
+            LogValidationMetricsIfNeeded();
+
             return Result.Success;
         }
         catch (Exception ex)
@@ -199,14 +206,38 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
 
             if (result.IsError)
             {
+                Interlocked.Increment(ref _validationFailureCount);
                 _logger.LogWarning("Validation failed, skipping tranform/filter: Sensor={ResourceId}, Schema={Schema}, Error={Error}",
                     measure.ResourceId, sensor.SensorInfo.Schema, result.FirstError.Description);
+            }
+            else
+            {
+                Interlocked.Increment(ref _validationSuccessCount);
             }
         }
 
         return valid;
     }
 
+    private void LogValidationMetricsIfNeeded()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastMetricsLogTime < MetricsLogInterval)
+            return;
+
+        _lastMetricsLogTime = now;
+
+        var success = Interlocked.Read(ref _validationSuccessCount);
+        var failure = Interlocked.Read(ref _validationFailureCount);
+        var total = success + failure;
+
+        if (total == 0) return;
+
+        var invalidRate = (double)failure / total * 100;
+        _logger.LogInformation(
+            "Telemetry validation statistics for {DeviceId}: Total={Total}, Valid={Valid}, Invalid={Invalid}, InvalidRate:{InvalidRate:F2}%",
+            _deviceId, total, success, failure, invalidRate);        
+    }
 
     /// <inheritdoc/>
     public async Task<ErrorOr<List<TelemetryMeasure>>> TransformAndFilterAsync(
