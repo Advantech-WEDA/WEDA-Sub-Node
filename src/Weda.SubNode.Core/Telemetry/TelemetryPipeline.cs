@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Telemetry.Validation;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices.Health;
 using Weda.SubNode.Core.Dsp;
+using Weda.SubNode.Core.Telemetry.Validation;
 using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Telemetry;
@@ -207,6 +208,10 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
                 Interlocked.Increment(ref _validationFailureCount);
                 _logger.LogWarning("Validation failed, skipping tranform/filter: Sensor={ResourceId}, Schema={Schema}, Error={Error}",
                     measure.ResourceId, sensor.SensorInfo.Schema, result.FirstError.Description);
+            }
+            else
+            {
+                Interlocked.Increment(ref _validationSuccessCount);
             }
             else
             {
