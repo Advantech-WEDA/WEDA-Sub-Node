@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Cloud.Clients.Common;
@@ -52,9 +53,36 @@ public record TelemetryMeasureDto
             Measures = measures.ConvertAll(m => new TelemetryMeasureDto
             {
                 SensorId = m.SensorId,
-                Value = m.Value,
+                Value = AdaptValue(m.Value),
                 Timestamp = m.Timestamp
             })
         };
+    }
+
+    private static object AdaptValue(object value)
+    {
+        if (value is string str && IsJsonString(str))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(str);
+                return doc.RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                return value;
+            }
+        }
+
+        return value;
+    }
+
+    private static bool IsJsonString(string str)
+    {
+        if (string.IsNullOrWhiteSpace(str))
+            return false;
+
+        var trimmed = str.TrimStart();
+        return trimmed.StartsWith('{') || trimmed.StartsWith('[');
     }
 }
