@@ -155,6 +155,35 @@ public class StreamingDeviceBase : DeviceBase
     /// 2. Interval-grouped sampling tasks - sample from SensorCache and enqueue via EnqueueTelemetryAsync
     /// 3. Health task - periodic health reporting
     /// </summary>
+    internal sealed override async Task StopDeviceTasksAsync()
+    {
+        var tasksToAwait = new List<Task>();
+
+        if (_streamTask is { IsCompleted: false })
+            tasksToAwait.Add(_streamTask);
+
+        tasksToAwait.AddRange(_samplingTasks.Where(t => !t.IsCompleted));
+
+        if (tasksToAwait.Count > 0)
+        {
+            try
+            {
+                await Task.WhenAll(tasksToAwait).WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Timed out waiting for stream/sampling tasks to stop for device {SubNodeId}", SubNodeId);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when tasks are cancelled
+            }
+        }
+
+        _streamTask = null;
+        _samplingTasks.Clear();
+    }
+
     internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         // Clear previous tasks reference (for restart scenarios)

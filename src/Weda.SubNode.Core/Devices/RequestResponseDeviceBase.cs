@@ -112,6 +112,27 @@ public class RequestResponseDeviceBase : DeviceBase
     /// 1. Interval-grouped polling tasks - read sensors and enqueue via EnqueueTelemetryAsync
     /// 2. Health task - periodic health reporting
     /// </summary>
+    internal sealed override async Task StopDeviceTasksAsync()
+    {
+        if (_pollingTasks.Count > 0)
+        {
+            try
+            {
+                await Task.WhenAll(_pollingTasks).WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Timed out waiting for polling tasks to stop for device {SubNodeId}", SubNodeId);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when tasks are cancelled
+            }
+
+            _pollingTasks.Clear();
+        }
+    }
+
     internal sealed override Task StartBackgroundTasksAsync(CancellationToken cancellationToken)
     {
         // Clear previous tasks reference (for restart scenarios)
