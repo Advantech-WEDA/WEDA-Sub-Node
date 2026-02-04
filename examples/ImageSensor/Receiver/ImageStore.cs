@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.IO.Hashing;
+using System.Text;
 using Receiver.Models;
 
 namespace Receiver;
@@ -18,9 +20,9 @@ class ImageStore(int maxImages)
         Console.WriteLine($"[{record.Timestamp}] Image received: {sensorId}, {base64.Length} chars, {contentType}");
     }
 
-    public void AddChunk(string imageId, int chunkIndex, int totalChunks, string chunk, string sensorId)
+    public void AddChunk(string imageId, int chunkIndex, int totalChunks, string chunk, string sensorId, uint? expectedChecksum = null)
     {
-        var buffer = _pending.GetOrAdd(imageId, _ => new ChunkBuffer(totalChunks, sensorId));
+        var buffer = _pending.GetOrAdd(imageId, _ => new ChunkBuffer(totalChunks, sensorId, expectedChecksum));
         buffer.Chunks[chunkIndex] = chunk;
 
         Console.WriteLine($"  Chunk {chunkIndex + 1}/{totalChunks} for {imageId[..8]}...");
@@ -29,6 +31,17 @@ class ImageStore(int maxImages)
         {
             _pending.TryRemove(imageId, out _);
             var fullBase64 = string.Concat(buffer.Chunks);
+
+            if (buffer.ExpectedChecksum.HasValue)
+            {
+                var actualChecksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(fullBase64));
+                if (actualChecksum != buffer.ExpectedChecksum.Value)
+                {
+                    Console.WriteLine($"[WARNING] Checksum mismatch for {imageId[..8]}...: expected {buffer.ExpectedChecksum.Value}, got {actualChecksum}");
+                    return;
+                }
+            }
+
             var contentType = DetectContentType(fullBase64);
             var record = new ImageRecord(imageId, fullBase64, sensorId,
                 DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"), contentType);

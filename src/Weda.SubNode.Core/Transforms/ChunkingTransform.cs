@@ -1,3 +1,6 @@
+using System.IO.Hashing;
+using System.Text;
+
 using ErrorOr;
 
 using Weda.SubNode.Abstractions.Telemetry;
@@ -69,6 +72,7 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
     {
         var imageId = Guid.NewGuid().ToString();
         var totalChunks = (int)Math.Ceiling((double)base64.Length / _chunkSize);
+        var checksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(base64));
         var chunks = new List<TelemetryMeasure>();
 
         for (int i = 0; i < totalChunks; i++)
@@ -82,7 +86,7 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
                 ["imageId"] = imageId,
                 ["chunkIndex"] = i,
                 ["totalChunks"] = totalChunks,
-                ["totalSize"] = base64.Length
+                ["checksum"] = checksum
             };
 
             if (measure.Metadata != null)

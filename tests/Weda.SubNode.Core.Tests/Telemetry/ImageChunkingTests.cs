@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+using System.Text;
 using System.Text.Json;
 
 using Microsoft.Extensions.Options;
@@ -101,7 +103,7 @@ public class ImageChunkingTests
         firstChunk.Metadata!["chunkIndex"].ShouldBe(0);
         firstChunk.Metadata["totalChunks"].ShouldBe(dto.Measures.Count);
         firstChunk.Metadata.ContainsKey("imageId").ShouldBeTrue();
-        firstChunk.Metadata.ContainsKey("totalSize").ShouldBeTrue();
+        firstChunk.Metadata.ContainsKey("checksum").ShouldBeTrue();
 
         // All chunks should have same imageId
         var imageId = firstChunk.Metadata["imageId"];
@@ -176,6 +178,38 @@ public class ImageChunkingTests
         result.Count.ShouldBeGreaterThan(1);
         result[0].Metadata.ShouldNotBeNull();
         result[0].Metadata!["chunkIndex"].ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ChunkingTransform_Checksum_ShouldMatchReassembledData()
+    {
+        // Arrange
+        var transform = ChunkingTransform.Create(new Dictionary<string, object>
+        {
+            ["chunkSize"] = 50 * 1024
+        });
+        var base64 = GenerateBase64(100 * 1024);
+        var measures = new List<TelemetryMeasure>
+        {
+            new() { ResourceId = "dev01-12345", Value = base64 }
+        };
+
+        // Act
+        var result = await transform.TransformAsync(measures, new TelemetryTransformContext());
+
+        // Assert - all chunks should carry the same checksum
+        result.Count.ShouldBeGreaterThan(1);
+        var expectedChecksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(base64));
+
+        foreach (var chunk in result)
+        {
+            chunk.Metadata!["checksum"].ShouldBe(expectedChecksum);
+        }
+
+        // Reassemble and verify
+        var reassembled = string.Concat(result.Select(c => (string)c.Value));
+        var actualChecksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(reassembled));
+        actualChecksum.ShouldBe(expectedChecksum);
     }
 
     [Fact]

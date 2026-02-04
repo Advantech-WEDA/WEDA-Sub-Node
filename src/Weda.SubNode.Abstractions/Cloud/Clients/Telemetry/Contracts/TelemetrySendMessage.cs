@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -91,6 +93,7 @@ public record TelemetryMeasureDto
     {
         var imageId = Guid.NewGuid().ToString();
         var totalChunks = (int)Math.Ceiling((double)base64.Length / chunkSize);
+        var checksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(base64));
         var chunks = new List<TelemetryMeasureDto>();
 
         for (int i = 0; i < totalChunks; i++)
@@ -104,7 +107,7 @@ public record TelemetryMeasureDto
                 ["imageId"] = imageId,
                 ["chunkIndex"] = i,
                 ["totalChunks"] = totalChunks,
-                ["totalSize"] = base64.Length
+                ["checksum"] = checksum
             };
 
             if (measure.Metadata != null)
