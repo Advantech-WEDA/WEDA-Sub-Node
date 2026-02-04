@@ -12,16 +12,19 @@ namespace Weda.SubNode.Core.Protocols.Image;
 
 /// <summary>
 /// Image protocol parser implementing Pub/Sub pattern.
-/// Subscribes to a single MQTT topic, receives raw image bytes,
-/// converts to Base64 TelemetryMeasure via ImageProtocolParser.
+/// Subscribes to each sensor's MQTT topic (from Parameters.Topic),
+/// receives raw image bytes, converts to Base64 TelemetryMeasure via ImageProtocolParser.
 /// </summary>
 public class ImagePubSubParser : IPubSubProtocolParser
 {
     private readonly IPubSub _communication;
-    private readonly DeviceConfiguration _configuration;
     private readonly ImageProtocolParser _parser;
     private readonly ILogger<ImagePubSubParser> _logger;
-    private readonly string _dataTopic;
+
+    /// <summary>
+    /// Maps MQTT topic to the corresponding Sensor for routing incoming messages.
+    /// </summary>
+    private readonly Dictionary<string, Sensor> _topicSensorMap = new();
 
     private bool _isSubscribed;
 
@@ -32,14 +35,20 @@ public class ImagePubSubParser : IPubSubProtocolParser
         IPubSub communication,
         ILogger<ImagePubSubParser> logger)
     {
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _parser = new ImageProtocolParser(communication);
 
-        _dataTopic = configuration.DeviceCommunication.TryGetValue("Topic", out var topic)
-            ? topic?.ToString() ?? "sensor/image/#"
-            : "sensor/image/#";
+        // Build topic -> sensor mapping from each sensor's Topic parameter
+        foreach (var sensor in configuration.Sensors)
+        {
+            if (sensor.Parameters?.TryGetValue("Topic", out var t) == true
+                && t?.ToString() is { } topic)
+            {
+                _topicSensorMap[topic] = sensor;
+            }
+        }
     }
 
     #region IProtocolParserCore
@@ -57,15 +66,19 @@ public class ImagePubSubParser : IPubSubProtocolParser
     {
         if (_isSubscribed)
         {
-            _logger.LogWarning("Already subscribed to image topic");
+            _logger.LogWarning("Already subscribed to image topics");
             return;
         }
 
         _communication.MessageReceived += OnMessageReceived;
-        await _communication.SubscribeAsync(_dataTopic, cancellationToken);
-        _isSubscribed = true;
 
-        _logger.LogInformation("Subscribed to image topic: {Topic}", _dataTopic);
+        foreach (var topic in _topicSensorMap.Keys)
+        {
+            await _communication.SubscribeAsync(topic, cancellationToken);
+            _logger.LogInformation("Subscribed to image topic: {Topic}", topic);
+        }
+
+        _isSubscribed = true;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -73,10 +86,14 @@ public class ImagePubSubParser : IPubSubProtocolParser
         if (!_isSubscribed) return;
 
         _communication.MessageReceived -= OnMessageReceived;
-        await _communication.UnsubscribeAsync(_dataTopic, cancellationToken);
-        _isSubscribed = false;
 
-        _logger.LogInformation("Unsubscribed from image topic");
+        foreach (var topic in _topicSensorMap.Keys)
+        {
+            await _communication.UnsubscribeAsync(topic, cancellationToken);
+        }
+
+        _isSubscribed = false;
+        _logger.LogInformation("Unsubscribed from all image topics");
     }
 
     public Task<ErrorOr<object>> ExecuteCommandAsync(
@@ -93,8 +110,21 @@ public class ImagePubSubParser : IPubSubProtocolParser
     {
         try
         {
-            // Use ImageProtocolParser to convert raw bytes → Base64 TelemetryMeasure
-            var sensorMapping = BuildSensorMapping();
+            // Look up the sensor by the incoming topic
+            if (!_topicSensorMap.TryGetValue(e.Topic, out var sensor))
+            {
+                _logger.LogTrace("No sensor mapping for topic {Topic}, skipping", e.Topic);
+                return;
+            }
+
+            var sensorMapping = new SensorMapping
+            {
+                FieldToResourceId = new Dictionary<string, string>
+                {
+                    ["image"] = sensor.ResourceId
+                }
+            };
+
             var measures = _parser.ParseSensorData(e.Payload, sensorMapping);
 
             if (measures.Count > 0)
@@ -111,20 +141,5 @@ public class ImagePubSubParser : IPubSubProtocolParser
         {
             _logger.LogError(ex, "Error parsing image from topic {Topic}", e.Topic);
         }
-    }
-
-    private SensorMapping BuildSensorMapping()
-    {
-        var imageSensor = _configuration.Sensors.FirstOrDefault();
-        if (imageSensor == null)
-            return new SensorMapping();
-
-        return new SensorMapping
-        {
-            FieldToResourceId = new Dictionary<string, string>
-            {
-                ["image"] = imageSensor.ResourceId
-            }
-        };
     }
 }

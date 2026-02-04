@@ -86,7 +86,7 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
                 ["imageId"] = imageId,
                 ["chunkIndex"] = i,
                 ["totalChunks"] = totalChunks,
-                ["checksum"] = checksum
+                ["crc32Checksum"] = checksum
             };
 
             if (measure.Metadata != null)

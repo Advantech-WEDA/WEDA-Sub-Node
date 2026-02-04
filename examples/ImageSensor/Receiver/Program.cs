@@ -78,7 +78,7 @@ var subscriberTask = Task.Run(async () =>
                     var imageId = imageIdEl.GetString()!;
                     var chunkIndex = chunkIndexEl.GetInt32();
                     var totalChunks = totalChunksEl.GetInt32();
-                    uint? checksum = metadata.TryGetValue("checksum", out var checksumEl)
+                    uint? checksum = metadata.TryGetValue("crc32Checksum", out var checksumEl)
                         ? checksumEl.GetUInt32()
                         : null;
 

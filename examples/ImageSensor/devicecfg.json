@@ -11,8 +11,7 @@
       "Enabled": true,
       "DeviceCommunication": {
         "BrokerUrl": "mqtt://localhost:1883",
-        "ClientId": "image-sensor-demo",
-        "Topic": "sensor/image/mnist"
+        "ClientId": "image-sensor-demo"
       },
       "Dtdl": {
         "AutoGenEnabled": true
@@ -22,10 +21,7 @@
           "Name": "MnistCamera",
           "SensorGroup": "SYS",
           "Parameters": {
-            "RegisterType": "HoldingRegister",
-            "RegisterAddress": 0,
-            "RegisterCount": 2,
-            "DataType": "Float32"
+            "Topic": "sensor/image/mnist"
           },
           "SensorInfo": {
             "DisplayName": "MNIST Image Sensor",

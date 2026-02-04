@@ -103,7 +103,7 @@ public class ImageChunkingTests
         firstChunk.Metadata!["chunkIndex"].ShouldBe(0);
         firstChunk.Metadata["totalChunks"].ShouldBe(dto.Measures.Count);
         firstChunk.Metadata.ContainsKey("imageId").ShouldBeTrue();
-        firstChunk.Metadata.ContainsKey("checksum").ShouldBeTrue();
+        firstChunk.Metadata.ContainsKey("crc32Checksum").ShouldBeTrue();
 
         // All chunks should have same imageId
         var imageId = firstChunk.Metadata["imageId"];
@@ -203,7 +203,7 @@ public class ImageChunkingTests
 
         foreach (var chunk in result)
         {
-            chunk.Metadata!["checksum"].ShouldBe(expectedChecksum);
+            chunk.Metadata!["crc32Checksum"].ShouldBe(expectedChecksum);
         }
 
         // Reassemble and verify
