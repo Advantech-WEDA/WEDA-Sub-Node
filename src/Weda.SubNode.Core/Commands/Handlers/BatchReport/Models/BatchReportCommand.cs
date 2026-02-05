@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
@@ -15,29 +15,28 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 /// - StartTime/EndTime are Unix milliseconds
 /// </remarks>
 [DeviceCmd("report.historical")]
-public record BatchReportCommand : ICommand
+public class BatchReportCommand : CommandData<BatchReportParameters>
 {
     /// <summary>
-    /// The device command from cloud.
+    /// Gets the effective time range, applying defaults if needed.
     /// </summary>
-    [JsonPropertyName("deviceCmd")]
-    public string DeviceCmd { get; init; } = "report.historical";
+    /// <returns>A TimeRange with StartTime and EndTime in Unix milliseconds.</returns>
+    public TimeRange GetEffectiveTimeRange()
+    {
+        if (Parameters.TimeRange is not null)
+        {
+            return Parameters.TimeRange;
+        }
 
-    /// <summary>
-    /// Sequence ID from the original command envelope.
-    /// Set by CommandDispatcher for response correlation.
-    /// All responses (initial ack, progress, final) should use this same SeqId.
-    /// </summary>
-    [JsonIgnore]
-    public ulong SeqId { get; set; }
+        // Default to last 10 minutes
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var tenMinutesAgo = now - (10 * 60 * 1000);
+        return new TimeRange(tenMinutesAgo, now);
+    }
+}
 
-    /// <summary>
-    /// Request sequence ID from the original command envelope.
-    /// Set by CommandDispatcher for response correlation.
-    /// </summary>
-    [JsonIgnore]
-    public string? ReqSeqId { get; set; }
-
+public class BatchReportParameters
+{
     /// <summary>
     /// Time range for historical data query.
     /// If null, defaults to last 10 minutes.
@@ -50,13 +49,6 @@ public record BatchReportCommand : ICommand
     /// </summary>
     [JsonPropertyName("sensorFilter")]
     public SensorFilter? SensorFilter { get; init; }
-
-    /// <summary>
-    /// Response topic for command acknowledgment.
-    /// If empty, no response will be sent.
-    /// </summary>
-    [JsonPropertyName("respTopic")]
-    public string RespTopic { get; init; } = string.Empty;
 
     /// <summary>
     /// Maximum number of batches (measures) per message.
@@ -80,28 +72,4 @@ public record BatchReportCommand : ICommand
     [JsonPropertyName("transmissionRateLimit")]
     [Range(0, 10000, ErrorMessage = "TransmissionRateLimit must be between 0 and 10000")]
     public int TransmissionRateLimit { get; init; } = 0;
-
-    /// <summary>
-    /// Command timeout in seconds.
-    /// </summary>
-    [JsonPropertyName("timeout")]
-    [Range(1, 3600, ErrorMessage = "Timeout must be between 1 and 3600 seconds")]
-    public int Timeout { get; init; } = 300;
-
-    /// <summary>
-    /// Gets the effective time range, applying defaults if needed.
-    /// </summary>
-    /// <returns>A TimeRange with StartTime and EndTime in Unix milliseconds.</returns>
-    public TimeRange GetEffectiveTimeRange()
-    {
-        if (TimeRange is not null)
-        {
-            return TimeRange;
-        }
-
-        // Default to last 10 minutes
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var tenMinutesAgo = now - (10 * 60 * 1000);
-        return new TimeRange(tenMinutesAgo, now);
-    }
 }
