@@ -80,17 +80,88 @@ public class TelemetryClient : ITelemetryClient
                 "Call ConfigureTopics() after device registration.");
         }
 
-        // Create message with audit fields
-        var message = TelemetrySendMessage.Create(TelemetryMeasureDto.From(telemetryData.Measures));
+        var dto = TelemetryMeasureDto.From(telemetryData.Measures);
+
+        // checck if we need per-chunk publishing
+        if (dto.Measures.Any(m => m.Metadata?.ContainsKey("transferId") == true))
+        {
+            return await SendChunkedTelemetryAsync(deviceId, dto, topicAssignments, cancellationToken);
+        }
+        else
+        {
+            return await SendNormalTelemetryAsync(deviceId, dto, topicAssignments, cancellationToken);
+        }
+    }
+
+    private async Task<TelemetrySendResponse> SendChunkedTelemetryAsync(string deviceId, TelemetryDataDto dto, NatsTopicAssignments topicAssignments, CancellationToken cancellationToken)
+    {
+        var chunkCount = dto.Measures.Count;
+        var transferId = dto.Measures[0].Metadata?["transferId"]?.ToString();
 
         _logger.LogDebug(
-            "Sending telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}, Topic={Topic}, ReqSeqId={ReqSeqId}",
+            "Sending chunked telemetry: DeviceId={DeviceId}, TransferId={TransferId}, ChunkCount={ChunkCount}, Topic={Topic}",
             deviceId,
-            telemetryData.Measures.Count,
-            topicAssignments.TelemetryTopic,
-            message.SeqId);
+            transferId,
+            chunkCount,
+            topicAssignments.TelemetryTopic);
 
-        foreach (var measure in telemetryData.Measures)
+        var seqId = 0;
+        for (int i = 0; i < chunkCount; i++)
+        {
+            var measure = dto.Measures[i];
+            var chunkDto = new TelemetryDataDto { Measures = [measure] };
+            var message = TelemetrySendMessage.Create(chunkDto);
+            seqId = message.SeqId;
+
+            _logger.LogDebug(
+                "  Measure: ResourceId={ResourceId}, chunks={ChunkIndex}/{TotalChunks} Value={Value}, Timestamp={Timestamp}",
+                measure.SensorId,
+                measure.Metadata?["chunkIndex"],
+                measure.Metadata?["totalChunks"],
+                measure.Value,
+                DateTimeOffset.FromUnixTimeMilliseconds(measure.Timestamp));
+
+            await _client.PublishAsync(
+                subject: topicAssignments.TelemetryTopic,
+                data: message,
+                cancellationToken: cancellationToken);
+        }
+
+        var response = new TelemetrySendResponse
+        {
+            ReqSeqId = seqId.ToString(),
+            RspSeqId = Guid.NewGuid().ToString(),
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Code = 0,
+            Message = "Telemetry sent successfully",
+            Data = new TelemetrySendResponseData
+            {
+                Status = "success",
+                MeasureCount = dto.Measures.Count
+            }
+        };
+
+        _logger.LogDebug(
+            "Telemetry sent successfully: ChunkCount={ChunkCount}, Topic={Topic}",
+            chunkCount,
+            topicAssignments.TelemetryTopic);
+
+        return response;
+    }
+
+
+    public async Task<TelemetrySendResponse> SendNormalTelemetryAsync(string deviceId, TelemetryDataDto dto, NatsTopicAssignments topicAssignments, CancellationToken cancellationToken)
+    {
+        // Create message with audit fields
+        var message = TelemetrySendMessage.Create(dto);
+
+        _logger.LogDebug(
+            "Sending telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}, Topic={Topic}",
+            deviceId,
+            dto.Measures.Count,
+            topicAssignments.TelemetryTopic);
+
+        foreach (var measure in dto.Measures)
         {
             _logger.LogDebug(
                 "  Measure: ResourceId={ResourceId}, Value={Value}, Timestamp={Timestamp}",
@@ -116,13 +187,13 @@ public class TelemetryClient : ITelemetryClient
             Data = new TelemetrySendResponseData
             {
                 Status = "success",
-                MeasureCount = telemetryData.Measures.Count
+                MeasureCount = dto.Measures.Count
             }
         };
 
         _logger.LogDebug(
             "Telemetry sent successfully: MeasureCount={MeasureCount}, Topic={Topic}",
-            telemetryData.Measures.Count,
+            dto.Measures.Count,
             topicAssignments.TelemetryTopic);
 
         return response;

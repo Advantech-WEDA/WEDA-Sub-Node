@@ -13,6 +13,11 @@ public class TelemetryOptions
     public int MaxBinarySize { get; set; } = 10 * 1024 * 1024;
 
     /// <summary>
+    /// Maximum NATS message payload size (1MB - overhead margin)
+    /// </summary>
+    public int MaxMessageSize { get; set; } = 950 * 1024;
+
+    /// <summary>
     /// Chunk size threshold for automatic chunking in bytes.
     /// Base64 strings larger than this will be automatically split into chunks.
     /// Default is 750KB (768,000 bytes) to stay under NATS 1MB payload limit.
