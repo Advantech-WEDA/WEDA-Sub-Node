@@ -9,8 +9,9 @@ public enum SchemaType : byte
     // Primitives types (0x00 - 0x0F)
     Double = 0x00,
     Integer = 0x01,
-    String = 0x02,
-    Boolean = 0x03,
+    Long = 0x02,
+    String = 0x03,
+    Boolean = 0x04,
 
     // MIME types (0x10+)
     ImageJpeg = 0x10,
