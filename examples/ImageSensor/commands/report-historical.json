@@ -1,0 +1,23 @@
+{
+  "cmd": "deviceCmd",
+  "seqId": 100,
+  "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": 1737004691020,
+  "data": {
+    "deviceCmd": "report.historical",
+    "respTopic": "eco1j.weda.277053588570636288.subnode.cmd.rsp",
+    "timeout": 300,
+    "parameters": {
+      "sensorFilter": {
+        "include": [],
+        "exclude": []
+      },
+      "timeRange": {
+        "startTime": 1770192000000,
+        "endTime": 1770194004000
+      },
+      "maxBatchesPerMessage": 10,
+      "transmissionRateLimit": 100
+    }
+  }
+}

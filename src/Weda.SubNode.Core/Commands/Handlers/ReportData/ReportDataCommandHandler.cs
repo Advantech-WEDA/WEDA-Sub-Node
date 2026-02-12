@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Handlers.ReportData.Models;
 
@@ -30,7 +31,6 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<ReportDataCommandHandler>();
-        var recordingService = context.RecordingService;
         var cloudService = context.CloudService;
         var subNodeId = context.SubNodeInfo.Id;
         var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -43,16 +43,6 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
             TransferId = parameters.TransferId,
             DataTransferred = false
         };
-
-        // Validate recording service is available
-        if (recordingService is null)
-        {
-            return ReportDataResult.Error(
-                ReportDataStatusCode.StorageError,
-                "RecordingService is not configured",
-                resultData,
-                executedAt);
-        }
 
         // Validate SubNode is registered
         if (string.IsNullOrEmpty(subNodeId))
@@ -74,92 +64,32 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
 
         try
         {
-            // Query the specific timestamp (with small range to find exact match)
-            var targetTime = DateTimeOffset.FromUnixTimeMilliseconds(parameters.ResourceTimestamp);
-            var startTime = targetTime.AddMilliseconds(-1);
-            var endTime = targetTime.AddMilliseconds(1);
+            var (device, sensor) = FindDeviceAndSensor(context, parameters.SensorShortResourceId);
 
-            var recordingResult = await recordingService.GetRecordingsAsync(
-                parameters.SensorShortResourceId, startTime, endTime, cancellationToken);
-
-            if (recordingResult.IsError)
+            if (device is null || sensor is null)
             {
-                logger.LogWarning("Failed to get recordings for sensor {SensorId}: {Error}",
-                    parameters.SensorShortResourceId, recordingResult.FirstError.Description);
-                return ReportDataResult.Error(
-                    ReportDataStatusCode.StorageError,
-                    recordingResult.FirstError.Description,
-                    resultData,
-                    executedAt);
-            }
-
-            var recording = recordingResult.Value;
-            if (recording.Measures.Count == 0)
-            {
-                logger.LogInformation("No data found for sensor {SensorId} at timestamp {Timestamp}",
-                    parameters.SensorShortResourceId, parameters.ResourceTimestamp);
+                logger.LogWarning("Device or sensor not found for short ID {SensorId}",
+                    parameters.SensorShortResourceId);
                 return ReportDataResult.Error(
                     ReportDataStatusCode.NoDataAvailable,
-                    "No data found for specified sensor and timestamp",
+                    "Sensor not found",
                     resultData,
                     executedAt);
             }
 
-            // Find the exact value at the requested timestamp
-            double? foundValue = null;
-            long foundTimestamp = 0;
+            var measures = await device.ReadSensorTelemetryAsync(sensor.ResourceId, cancellationToken);
 
-            foreach (var measure in recording.Measures)
+            if (measures.Count == 0)
             {
-                for (int i = 0; i < measure.Values.Count; i++)
-                {
-                    var valueTimestamp = measure.StartTimeStamp + (i * measure.Interval);
-                    if (valueTimestamp == parameters.ResourceTimestamp)
-                    {
-                        foundValue = measure.Values[i];
-                        foundTimestamp = valueTimestamp;
-                        break;
-                    }
-                }
-                if (foundValue.HasValue) break;
-            }
-
-            if (!foundValue.HasValue)
-            {
-                logger.LogInformation("Exact timestamp not found for sensor {SensorId} at {Timestamp}",
-                    parameters.SensorShortResourceId, parameters.ResourceTimestamp);
+                logger.LogInformation("No cached data for sensor {SensorId}", parameters.SensorShortResourceId);
                 return ReportDataResult.Error(
                     ReportDataStatusCode.NoDataAvailable,
-                    "No data found at exact timestamp",
+                    "No data available for specified sensor",
                     resultData,
                     executedAt);
             }
 
-            // Build the full resource ID for telemetry (need to find it from device configs)
-            var fullResourceId = FindFullResourceId(context, parameters.SensorShortResourceId);
-            if (string.IsNullOrEmpty(fullResourceId))
-            {
-                // Fallback: construct a placeholder resource ID
-                fullResourceId = $"00000000-0000-0000-0000-00000{parameters.SensorShortResourceId}";
-            }
-
-            // Send as realtime telemetry format
-            var telemetryData = new TelemetryData
-            {
-                Measures =
-                [
-                    new TelemetryMeasure
-                    {
-                        ResourceId = fullResourceId,
-                        Value = foundValue.Value,
-                        Timestamp = foundTimestamp,
-                        Metadata = parameters.TransferId != null
-                            ? new Dictionary<string, object> { ["transferId"] = parameters.TransferId }
-                            : null
-                    }
-                ]
-            };
-
+            var telemetryData = new TelemetryData { Measures = measures };
             var sendResult = await cloudService.SendTelemetryAsync(subNodeId, telemetryData, cancellationToken);
             if (!sendResult)
             {
@@ -171,8 +101,8 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
                     executedAt);
             }
 
-            logger.LogInformation("ReportData completed: sent value {Value} for sensor {SensorId} at {Timestamp}",
-                foundValue, parameters.SensorShortResourceId, foundTimestamp);
+            logger.LogInformation("ReportData completed: sent {Count} measures for sensor {SensorId}",
+                measures.Count, parameters.SensorShortResourceId);
 
             var completedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             return ReportDataResult.Success(
@@ -191,22 +121,16 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
         }
     }
 
-    /// <summary>
-    /// Finds the full resource ID from device configs by sensor short ID.
-    /// </summary>
-    private static string? FindFullResourceId(IWedaApplicationContext context, string sensorShortId)
+    private static (IDevice? device, Sensor? sensor) FindDeviceAndSensor(IWedaApplicationContext context, string sensorShortResourceId)
     {
-        foreach (var deviceConfig in context.DeviceConfigs.Values)
+        foreach (var device in context.DeviceRegistry.GetAllDevices())
         {
-            foreach (var sensor in deviceConfig.Sensors)
-            {
-                if (sensor.ShortId == sensorShortId)
-                {
-                    return sensor.ResourceId;
-                }
-            }
+            var sensor = device.Configuration.Sensors
+                .FirstOrDefault(s => s.ShortId == sensorShortResourceId);
+            if (sensor != null)
+                return (device, sensor);
         }
-        return null;
+        return (null, null);
     }
 
     private static async Task SendAckAsync(

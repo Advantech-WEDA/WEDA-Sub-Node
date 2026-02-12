@@ -16,7 +16,7 @@ builder.Services.AddHostedService(sp =>
         BrokerHost = "localhost",
         BrokerPort = 1883,
         Topic = "sensor/image/mnist",
-        IntervalSeconds = 3
+        IntervalSeconds = 30
     };
     var logger = sp.GetRequiredService<ILogger<MqttImageSimulator>>();
     return new MqttImageSimulatorHostedService(config, logger);

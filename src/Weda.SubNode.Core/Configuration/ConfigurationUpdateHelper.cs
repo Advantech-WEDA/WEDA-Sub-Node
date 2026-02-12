@@ -422,6 +422,31 @@ public static partial class ConfigurationUpdateHelper
             wasUpdated = true;
         }
 
+        if (desired.Report != null)
+        {
+            sensor.Report.TransformPipeline = desired.Report.TransformPipeline?
+                .Select(t => new TransformConfig
+                {
+                    Type = t.Type,
+                    Enabled = t.Enabled,
+                    Parameters = t.Parameters != null
+                        ? new Dictionary<string, object>(t.Parameters)
+                        : []
+                }).ToList() ?? [];
+        
+            sensor.Report.DspPipeline = desired.Report.DspPipeline?
+                .Select(t => new DspFilterConfig
+                {
+                    Type = t.Type,
+                    Enabled = t.Enabled,
+                    Parameters = t.Parameters != null
+                        ? new Dictionary<string, object>(t.Parameters)
+                        : []
+                }).ToList() ?? [];
+            
+            wasUpdated = true;
+        }
+
         return wasUpdated;
     }
 

@@ -44,6 +44,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// Data is enqueued by derived classes via EnqueueTelemetryAsync and sent by the batch send task.
     /// </summary>
     protected readonly ConcurrentQueue<TelemetryMeasure> _telemetryBatch = new();
+    protected readonly ConcurrentDictionary<string, List<TelemetryMeasure>> _lastTelemetryValues = new();
 
     public DeviceConfiguration Configuration { get; }
     public string SubNodeId => _orchestrator.SubNodeId;
@@ -326,6 +327,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     // ===== IDevice Operations =====
 
+    public virtual Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken ct = default)
+    {
+        _lastTelemetryValues.TryGetValue(sensorResourceId, out var measure);
+        return Task.FromResult(measure ?? []);    
+    }
+
     public abstract Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken ct = default);
 
     public async Task<bool> SendTelemetryAsync(List<TelemetryMeasure> measures, CancellationToken ct = default)
@@ -420,6 +427,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     Timestamp: processedMeasure.Timestamp,
                     Value: Convert.ToDouble(processedMeasure.Value)));
             }
+        }
+
+        foreach (var group in processedMeasures.GroupBy(m => m.ResourceId))
+        {
+            _lastTelemetryValues[group.Key] = group.ToList();
         }
 
         // Raise DataProcessed event AFTER transform/filter processing
@@ -1656,27 +1668,5 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         StartAllBackgroundTasks(_samplingCts.Token);
 
         _logger.LogInformation("Background tasks restarted successfully for device {SubNodeId}", SubNodeId);
-    }
-
-    /// <summary>
-    /// Compares two interval group dictionaries for equality.
-    /// Used to detect if sensor interval configuration has changed.
-    /// </summary>
-    private static bool AreIntervalGroupsEqual(
-        Dictionary<int, HashSet<string>> previous,
-        Dictionary<int, HashSet<string>> current)
-    {
-        if (previous.Count != current.Count)
-            return false;
-
-        foreach (var (interval, sensorIds) in previous)
-        {
-            if (!current.TryGetValue(interval, out var currentSensorIds))
-                return false;
-            if (!sensorIds.SetEquals(currentSensorIds))
-                return false;
-        }
-
-        return true;
     }
 }

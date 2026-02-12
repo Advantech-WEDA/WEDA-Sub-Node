@@ -70,6 +70,11 @@ public interface IDevice : IDisposable
     // ===== Local Operations (SubNode ↔ Device) =====
 
     /// <summary>
+    /// Read telemetry from specific sensor value of device (well-parsed physical values)
+    /// </summary>
+    Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Read telemetry from device (well-parsed physical values)
     /// </summary>
     Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default);

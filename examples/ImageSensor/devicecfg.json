@@ -34,7 +34,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 3000,
+            "Interval": 30000,
             "TransformPipeline": [
               {
                 "Type": "chunking",
