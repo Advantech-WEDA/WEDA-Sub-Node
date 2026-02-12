@@ -42,7 +42,7 @@ public class Sensor
     /// DTDL-related information (Schema, DisplayName, Description).
     /// Used for auto-generating DTDL when AutoGenEnabled is true.
     /// </summary>
-    public SensorInfo Info { get; set; } = new();
+    public SensorInfo SensorInfo { get; set; } = new();
 
     /// <summary>
     /// Protocol-specific parameters (e.g., Modbus: RegisterAddress, RegisterCount, DataType; MQTT: topic, qos)
@@ -75,11 +75,11 @@ public class Sensor
     /// Gets the effective schema type for DTDL generation.
     /// Delegates to SensorInfo.GetEffectiveSchema().
     /// </summary>
-    public string GetEffectiveSchema() => Info.GetEffectiveSchema(SensorGroup);
+    public string GetEffectiveSchema() => SensorInfo.GetEffectiveSchema(SensorGroup);
 
     /// <summary>
     /// Gets the effective display name for DTDL generation.
     /// Delegates to SensorInfo.GetEffectiveDisplayName().
     /// </summary>
-    public string GetEffectiveDisplayName() => Info.GetEffectiveDisplayName(Name);
+    public string GetEffectiveDisplayName() => SensorInfo.GetEffectiveDisplayName(Name);
 }

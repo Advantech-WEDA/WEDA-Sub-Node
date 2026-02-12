@@ -70,7 +70,7 @@ public static class DtdlGenerator
             Type = "Telemetry",
             Name = SanitizeName(sensor.Name),
             DisplayName = sensor.GetEffectiveDisplayName(),
-            Description = sensor.Info.Description,
+            Description = sensor.SensorInfo.Description,
             Schema = sensor.GetEffectiveSchema(),
             Unit = sensor.Report.Unit
         };

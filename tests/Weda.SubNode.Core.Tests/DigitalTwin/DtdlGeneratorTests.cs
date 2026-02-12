@@ -138,7 +138,7 @@ public class DtdlGeneratorTests
         {
             Name = "temperature.sensor",
             SensorGroup = SensorGroup.TEMP,
-            Info = new SensorInfo { Description = "Main temperature reading" }
+            SensorInfo = new SensorInfo { Description = "Main temperature reading" }
         };
 
         // Act
@@ -203,7 +203,7 @@ public class DtdlGeneratorTests
         {
             Name = "counter",
             SensorGroup = SensorGroup.SYS,
-            Info = new SensorInfo { Schema = "integer" }
+            SensorInfo = new SensorInfo { Schema = "integer" }
         };
 
         // Act
@@ -232,7 +232,7 @@ public class DtdlGeneratorTests
         {
             Name = "temp",
             SensorGroup = SensorGroup.TEMP,
-            Info = new SensorInfo { DisplayName = "Main Temperature Sensor" }
+            SensorInfo = new SensorInfo { DisplayName = "Main Temperature Sensor" }
         };
 
         // Act
@@ -525,7 +525,7 @@ public class DtdlGeneratorTests
             {
                 Name = "channel.0",
                 SensorGroup = SensorGroup.AI,
-                Info = new SensorInfo
+                SensorInfo = new SensorInfo
                 {
                     DisplayName = "Analog Input 0",
                     Description = "First analog input channel"
@@ -536,13 +536,13 @@ public class DtdlGeneratorTests
             {
                 Name = "channel.1",
                 SensorGroup = SensorGroup.AI,
-                Info = new SensorInfo { DisplayName = "Analog Input 1" }
+                SensorInfo = new SensorInfo { DisplayName = "Analog Input 1" }
             },
             new()
             {
                 Name = "do.0",
                 SensorGroup = SensorGroup.DO,
-                Info = new SensorInfo
+                SensorInfo = new SensorInfo
                 {
                     DisplayName = "Digital Output 0",
                     Schema = "boolean"
