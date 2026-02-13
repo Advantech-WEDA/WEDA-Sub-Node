@@ -84,11 +84,6 @@ public interface IDevice : IDisposable
     /// </summary>
     Task<DeviceHealth> GetHealthAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Execute command on physical device (called internally from CommandReceived event handler)
-    /// </summary>
-    Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default);
-
     // ===== Cloud Interactions (SubNode → Cloud) =====
 
     /// <summary>
@@ -187,20 +182,6 @@ public interface IDevice : IDisposable
     /// Default is false.
     /// </summary>
     bool EnableConfigurationUpdateTracking { get; set; }
-
-    /// <summary>
-    /// Event: Command received from cloud (Cloud → SubNode).
-    /// Only fires when EnableCommandReceivedTracking is true.
-    /// NOTE: For internal framework use only. Command execution is automatic.
-    /// Use OnBeforeCommandAsync/OnAfterCommandAsync hooks for custom logic.
-    /// </summary>
-    event EventHandler<ExecuteCommandEvent>? CommandReceived;
-
-    /// <summary>
-    /// Gets or sets whether CommandReceived events are emitted.
-    /// Default is false.
-    /// </summary>
-    bool EnableCommandReceivedTracking { get; set; }
 
     /// <summary>
     /// Event: Telemetry values changed through transform or filter pipeline.

@@ -1,8 +1,5 @@
-using ErrorOr;
-
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
-using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Abstractions.Protocols;
@@ -90,50 +87,19 @@ public interface IProtocolParser : IProtocolParser<byte[], object>
 }
 
 /// <summary>
-/// Protocol parser metadata interface.
-/// Provides information about parser capabilities and supported data types.
-/// </summary>
-public interface IProtocolParserMetadata
-{
-    /// <summary>
-    /// Protocol name (e.g., "Modbus", "ISensing", "OPC-UA")
-    /// </summary>
-    string ProtocolName { get; }
-
-    /// <summary>
-    /// Supported data types for this protocol
-    /// </summary>
-    IReadOnlyList<string> SupportedDataTypes { get; }
-
-    /// <summary>
-    /// Whether this protocol supports bidirectional communication
-    /// </summary>
-    bool SupportsBidirectional { get; }
-}
-
-/// <summary>
 /// Base class for protocol parsers with common functionality.
 /// Provides a convenient starting point for implementing protocol parsers.
 /// </summary>
 /// <typeparam name="TRawData">Protocol-specific raw data type</typeparam>
 /// <typeparam name="TValue">Intermediate parsed value type</typeparam>
-public abstract class ProtocolParserBase<TRawData, TValue> : IProtocolParser<TRawData, TValue>, IProtocolParserMetadata
+public abstract class ProtocolParserBase<TRawData, TValue> : IProtocolParser<TRawData, TValue>
 {
     /// <inheritdoc />
     public abstract ICommunication Communication { get; }
 
     /// <inheritdoc />
-    public abstract string ProtocolName { get; }
-
-    /// <inheritdoc />
-    public abstract IReadOnlyList<string> SupportedDataTypes { get; }
-
-    /// <inheritdoc />
-    public virtual bool SupportsBidirectional => true;
-
-    /// <inheritdoc />
     public abstract TValue Parse(TRawData rawData);
-
+    
     /// <inheritdoc />
     public abstract TRawData Encode(TValue value);
 

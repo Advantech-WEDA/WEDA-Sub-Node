@@ -43,4 +43,11 @@ public interface IDynamicRecordStorage
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of file pairs (.idx + .dat) deleted</returns>
     Task<int> CleanupAsync(DateTimeOffset cutoffDate, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets list of sensor IDs that have stored records.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of sensor short IDs</returns>
+    Task<IReadOnlyList<string>> GetSensorIdsAsync(CancellationToken cancellationToken = default);
 }

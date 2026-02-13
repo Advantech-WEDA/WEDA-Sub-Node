@@ -205,10 +205,6 @@ public class MyCustomParser : IRequestResponseProtocolParser
     // 重要：Parser 擁有 Communication
     public ICommunication Communication => _communication;
 
-    public string ProtocolName => "MyCustomProtocol";
-    public IReadOnlyList<string> SupportedDataTypes => ["temperature", "humidity"];
-    public bool SupportsBidirectional => false;
-
     public async Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken ct)
     {
         // 1. 透過 Communication 發送請求

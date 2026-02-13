@@ -37,9 +37,6 @@ public class AggregatorProtocolParser : IPubSubProtocolParser
     public delegate IAggregatorDefinition DefinitionFactory(Sensor sensor);
 
     public ICommunication Communication => _communication;
-    public string ProtocolName => "Aggregator";
-    public IReadOnlyList<string> SupportedDataTypes => ["double", "int", "float"];
-    public bool SupportsBidirectional => false;
 
     /// <summary>
     /// All external sources aggregated from all definitions.

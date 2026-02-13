@@ -4,8 +4,7 @@
     "SubNodeType": "AdamEthernet",
     "Manufacturer": "Advantech",
     "Model": "Demo",
-    "SwVersion": "1.0.0",
-    "AutoGenEnabled": true
+    "SwVersion": "1.0.0"
   },
   "DeviceConfigs": {
     "MyFirstDeviceConfig": {
@@ -14,6 +13,9 @@
         "Host": "127.0.0.1",
         "Port": 5020
       },
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
       "Properties": {
         "SlaveId": 1
       },
@@ -21,8 +23,11 @@
         {
           "Name": "temperature.sensor",
           "SensorGroup": "TEMP",
-          "DisplayName": "Temperature Sensor",
-          "Description": "Main temperature reading",
+          "SensorInfo": {
+            "DisplayName": "Temperature Sensor",
+            "Description": "Main temperature reading",
+            "Schema": "double"
+          },
           "Parameters": {
             "RegisterType": "HoldingRegister",
             "RegisterAddress": 0,

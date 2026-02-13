@@ -69,13 +69,25 @@ public class MockCloudService : IWedaCloudService
 
     public Task<string?> GetOrRegisterDeviceIdAsync(DeviceInfo info, CancellationToken cancellationToken = default)
     {
-        var mockDeviceId = Guid.NewGuid().ToString();
+        // Generate deterministic GUID based on DeviceName for consistent ID across restarts
+        var mockDeviceId = GenerateDeterministicGuid(info.DeviceName).ToString();
         _logger.LogInformation(
             "Get or register device ID (simulated): DeviceName={DeviceName}, DeviceId={DeviceId}",
             info.DeviceName,
             mockDeviceId);
 
         return Task.FromResult<string?>(mockDeviceId);
+    }
+
+    /// <summary>
+    /// Generates a deterministic GUID based on a name string.
+    /// Uses MD5 hash to create a version 3-like UUID (name-based).
+    /// </summary>
+    private static Guid GenerateDeterministicGuid(string name)
+    {
+        var inputBytes = System.Text.Encoding.UTF8.GetBytes(name);
+        var hashBytes = System.Security.Cryptography.MD5.HashData(inputBytes);
+        return new Guid(hashBytes);
     }
 
     public Task<ErrorOr<bool>> UploadDeviceConfigurationAsync(

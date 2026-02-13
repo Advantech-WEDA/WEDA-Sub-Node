@@ -260,13 +260,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// <inheritdoc />
     public void RegisterDeviceHandler(
         string deviceName,
-        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler,
-        Func<ExecuteCommandEvent, Task>? commandHandler = null)
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
         ArgumentNullException.ThrowIfNull(configHandler);
 
-        var handlers = new DeviceHandlers(configHandler, commandHandler);
+        var handlers = new DeviceHandlers(configHandler);
         _deviceHandlers.AddOrUpdate(deviceName, handlers, (_, _) => handlers);
 
         _logger.LogDebug("Registered device handler for: {DeviceName}", deviceName);
@@ -832,6 +831,5 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// Container for device-specific event handlers.
     /// </summary>
     private sealed record DeviceHandlers(
-        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> ConfigHandler,
-        Func<ExecuteCommandEvent, Task>? CommandHandler);
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> ConfigHandler);
 }

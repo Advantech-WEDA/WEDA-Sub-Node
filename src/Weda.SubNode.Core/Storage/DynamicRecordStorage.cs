@@ -170,6 +170,33 @@ public class DynamicRecordStorage : IDynamicRecordStorage
         return Task.FromResult(deletedCount);
     }
 
+    public Task<IReadOnlyList<string>> GetSensorIdsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_dataDir))
+            return Task.FromResult<IReadOnlyList<string>>([]);
+
+        // Pattern: {sensorId}_{yyyy-MM-dd}_v{version}.idx
+        var idxFiles = Directory.GetFiles(_dataDir, $"*{DrsHelper.IndexExtension}");
+
+        var sensorIds = idxFiles
+            .Select(path => ExtractSensorIdFromFileName(Path.GetFileNameWithoutExtension(path)))
+            .Where(id => id != null)
+            .Distinct()
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<string>>(sensorIds!);
+    }
+
+    private static string? ExtractSensorIdFromFileName(string fileName)
+    {
+        // Format: {sensorId}_{yyyy-MM-dd}_v{version}
+        var firstUnderscore = fileName.IndexOf('_');
+        if (firstUnderscore <= 0)
+            return null;
+
+        return fileName[..firstUnderscore];
+    }
+
     private static DateOnly? ExtractDateFromFileName(string fileName)
     {
         // Format: {sensorId}_{yyyy-MM-dd}_v{version}

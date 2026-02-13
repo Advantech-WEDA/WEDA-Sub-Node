@@ -419,9 +419,6 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     private readonly ILogger<SystemMetricsParser> _logger;
 
     public ICommunication Communication => _communication;
-    public string ProtocolName => "LocalSystem";
-    public IReadOnlyList<string> SupportedDataTypes => ["cpu", "memory", "disk", "network"];
-    public bool SupportsBidirectional => false;
 
     public SystemMetricsParser(
         DeviceConfiguration configuration,

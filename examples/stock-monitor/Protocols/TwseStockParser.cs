@@ -1,17 +1,7 @@
 using System.Text.Json;
-
-
-using ErrorOr;
-
-
 using Microsoft.Extensions.Logging;
-
-
 using StockMonitor.Communication;
 using StockMonitor.Models;
-
-using Weda.SubNode.Abstractions.Commands.Contracts;
-
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
@@ -30,9 +20,6 @@ public class TwseStockParser : IRequestResponseProtocolParser
     private readonly Dictionary<string, List<SensorMetricsConfig>> _sensorConfigByStockCode;
 
     public ICommunication Communication => _communication;
-    public string ProtocolName => "TWSE Stock API";
-    public IReadOnlyList<string> SupportedDataTypes => ["StockPrice", "StockVolume"];
-    public bool SupportsBidirectional => false; // Read-only API
 
     public TwseStockParser(
         DeviceConfiguration configuration,
@@ -285,27 +272,5 @@ public class TwseStockParser : IRequestResponseProtocolParser
     {
         result = 0;
         return value != null && value != "-" && long.TryParse(value, out result);
-    }
-
-    /// <summary>
-    /// Stock API is read-only, commands are not supported.
-    /// </summary>
-    public Task<ErrorOr<object>> ExecuteCommandAsync(
-        DeviceCommand command,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogWarning("Commands are not supported for TWSE Stock API");
-        return Task.FromResult<ErrorOr<object>>(Error.Failure("TWSE.NotSupported", "TWSE Stock API is read-only"));
-    }
-
-    /// <summary>
-    /// Stock API is read-only, write operations are not supported.
-    /// </summary>
-    public Task<bool> WriteSensorDataAsync(
-        IEnumerable<TelemetryMeasure> measures,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogWarning("Write operations are not supported for TWSE Stock API");
-        return Task.FromResult(false);
     }
 }

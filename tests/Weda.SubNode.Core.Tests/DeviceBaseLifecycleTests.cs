@@ -40,9 +40,6 @@ public class DeviceBaseLifecycleTests : IDisposable
         // Create mock protocol parser that wraps the mock communication
         _mockProtocolParser = Substitute.For<IProtocolParserCore>();
         _mockProtocolParser.Communication.Returns(_mockCommunication);
-        _mockProtocolParser.ProtocolName.Returns("Test Protocol");
-        _mockProtocolParser.SupportedDataTypes.Returns(new List<string> { "Int16", "Float32" });
-        _mockProtocolParser.SupportsBidirectional.Returns(true);
 
         _testConfig = DeviceConfigurationBuilder.Default()
             .WithDeviceName("test-device")
@@ -732,11 +729,6 @@ internal class TestDevice : DeviceBase
     public override Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(new List<TelemetryMeasure>());
-    }
-
-    public override Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(CommandResponseStatusCode.Success);
     }
 
     protected override Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(

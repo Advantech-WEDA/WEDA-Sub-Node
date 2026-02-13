@@ -56,26 +56,6 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
 
     public ICommunication Communication => _communication;
 
-    public string ProtocolName => "LocalSystem";
-
-    public IReadOnlyList<string> SupportedDataTypes => [
-        SupportedDataType.Cpu,
-        SupportedDataType.Memory,
-        SupportedDataType.Disk,
-        SupportedDataType.Network,
-        SupportedDataType.Gpu,
-        SupportedDataType.System,
-        SupportedDataType.Temperature,
-        SupportedDataType.Voltage,
-        SupportedDataType.Fanspeed,
-        SupportedDataType.Hwinfo,
-        SupportedDataType.Gpio,
-        SupportedDataType.Watchdog,
-        SupportedDataType.Thermalprotection,
-        SupportedDataType.Health
-    ];
-
-    public bool SupportsBidirectional => false;
 
     /// <summary>
     /// Read telemetry data for all enabled sensors.

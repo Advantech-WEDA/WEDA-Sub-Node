@@ -564,6 +564,10 @@ public class WedaApplicationBuilder
         Services.AddSingleton<IRecordingService>(sp =>
             sp.GetRequiredService<IWedaApplicationContext>().RecordingService!);
 
+        // Register IDynamicRecordStorage from the context (for MIME type data)
+        Services.AddSingleton(sp =>
+            sp.GetRequiredService<IWedaApplicationContext>().DynamicRecordStorage!);
+
         // Register device factory
         Services.AddSingleton<IDeviceFactory, DeviceFactory>();
 

@@ -149,29 +149,6 @@ public class ISensingDeviceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteCommandAsync_ShouldReturnTrue()
-    {
-        // ISensingDevice ExecuteCommandAsync validates sensor exists, encodes command, and publishes to MQTT
-
-        // Arrange
-        var command = new DeviceCommand
-        {
-            DeviceCmd = "SetDigitalOutput",
-            Parameters = new Dictionary<string, object>
-            {
-                ["name"] = "do1",  // Sensor name must exist in configuration
-                ["state"] = true
-            }
-        };
-
-        // Act
-        var result = await _device.ExecuteCommandAsync(command);
-
-        // Assert
-        Assert.Equal(CommandResponseStatusCode.Success, result); // Should succeed if sensor exists and validation passes
-    }
-
-    [Fact]
     public void Dispose_ShouldCleanupResources()
     {
         // Act

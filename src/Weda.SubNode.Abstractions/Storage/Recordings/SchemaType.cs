@@ -19,3 +19,23 @@ public enum SchemaType : byte
     ApplicationJson = 0x20,
     ApplicationOctetStream = 0x21,
 }
+
+public static class SchemaTypeExtensions
+{
+    public static SchemaType? ParseMimeSchema(string? schema)
+    {
+        if (string.IsNullOrEmpty(schema))
+            return null;
+        
+        return schema.ToLowerInvariant() switch
+        {
+            "image/jpeg" or "image/jpg" => SchemaType.ImageJpeg,
+            "image/png" => SchemaType.ImagePng,
+            "application/json" => SchemaType.ApplicationJson,
+            "application/octet-stream" => SchemaType.ApplicationOctetStream,
+            _ => null
+        };
+    }
+
+    public static bool IsMimeType(this SchemaType schemaType) => (byte)schemaType >= 0x10;
+}

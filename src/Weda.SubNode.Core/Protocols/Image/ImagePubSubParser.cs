@@ -54,9 +54,6 @@ public class ImagePubSubParser : IPubSubProtocolParser
     #region IProtocolParserCore
 
     public ICommunication Communication => _communication;
-    public string ProtocolName => "Image MQTT";
-    public IReadOnlyList<string> SupportedDataTypes => ["image/png", "image/jpeg", "application/octet-stream"];
-    public bool SupportsBidirectional => false;
 
     #endregion
 

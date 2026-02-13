@@ -48,6 +48,11 @@ public interface IWedaApplicationContext : IDisposable
     RecordingOptions? RecordingOptions { get; }
 
     /// <summary>
+    /// Gets the dynamic record storage for MIME type data (JSON, images, etc.).
+    /// </summary>
+    IDynamicRecordStorage? DynamicRecordStorage { get; }
+
+    /// <summary>
     /// Gets the logger factory instance.
     /// </summary>
     ILoggerFactory LoggerFactory { get; }

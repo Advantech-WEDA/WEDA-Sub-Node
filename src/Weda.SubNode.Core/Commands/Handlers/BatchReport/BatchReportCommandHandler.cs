@@ -158,7 +158,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             messageCount++;
 
             // Progress update
-            await SendProgressAsync(cloudService, subNodeId, command.RespTopic, command.SeqId, command.ReqSeqId,
+            await SendProgressAsync(cloudService, subNodeId, command.RespTopic!, command.SeqId, command.ReqSeqId,
                 new BatchReportProgress
                 {
                     DeviceCmd = command.DeviceCmd,

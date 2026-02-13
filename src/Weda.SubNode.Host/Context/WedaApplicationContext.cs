@@ -94,6 +94,7 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly WedaContextOptions _options;
     private readonly IWedaCloudService _cloudService;
     private readonly IRecordingService? _recordingService;
+    private readonly IDynamicRecordStorage? _dynamicRecordStorage;
     private readonly ILoggerFactory _loggerFactory;
     private readonly NatsClient? _natsClient;
     private readonly IConfiguration? _configuration;
@@ -281,6 +282,15 @@ public class WedaApplicationContext : IWedaApplicationContext
                 period: TimeSpan.FromDays(1));
         }
 
+        // Initialize DynamicRecordStorage for MIME type data (JSON, images, etc.)
+        // This is independent of RecordingService (which handles primitive types)
+        if (_options.DeviceOptions.EnableRecording || _options.RecordingService != null)
+        {
+            _dynamicRecordStorage = new DynamicRecordStorage(
+                _loggerFactory.CreateLogger<DynamicRecordStorage>(),
+                RecordingOptions.StorageDirectory);
+        }
+
         // Bind configuration objects using Options Pattern
         _systemCfg = BindConfiguration<SystemCfg>(SystemCfg.SectionName);
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
@@ -428,6 +438,9 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <inheritdoc />
     public IRecordingService? RecordingService => _recordingService;
+    
+    /// <inheritdoc />
+    public IDynamicRecordStorage? DynamicRecordStorage => _dynamicRecordStorage;
 
     /// <inheritdoc />
     public ILoggerFactory LoggerFactory => _loggerFactory;
