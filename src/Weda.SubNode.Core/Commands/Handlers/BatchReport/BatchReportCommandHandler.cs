@@ -123,7 +123,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             command.Parameters.TransmissionRateLimit, context, logger);
 
         // Send initial ack with estimates (include SeqId and ReqSeqId from command)
-        await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic, command.DeviceCmd,
+        await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic!, command.DeviceCmd,
             command.SeqId, command.ReqSeqId, estimate.EstimatedBatches, estimate.EstimatedSamples,
             estimate.EstimatedDurationSeconds, logger, cancellationToken);
 
