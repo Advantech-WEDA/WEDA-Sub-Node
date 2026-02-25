@@ -1,0 +1,52 @@
+{
+  "SubNode": {
+    "Name": "ImageSensorDemo",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "Advantech",
+    "Model": "MNIST-Demo",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "ImageSensorConfig": {
+      "Enabled": true,
+      "DeviceCommunication": {
+        "BrokerUrl": "mqtt://localhost:1883",
+        "ClientId": "image-sensor-demo"
+      },
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Sensors": [
+        {
+          "Name": "MnistCamera",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "Topic": "sensor/image/mnist"
+          },
+          "SensorInfo": {
+            "DisplayName": "MNIST Image Sensor",
+            "Description": "Receives MNIST digit images via MQTT",
+            "Schema": "image/png"
+          },
+          "Record": {
+            "Enabled": false,
+            "Interval": 5000
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000,
+            "TransformPipeline": [
+              {
+                "Type": "chunking",
+                "Enabled": true,
+                "Parameters": {
+                  "chunkSize": 128
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

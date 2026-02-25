@@ -61,7 +61,8 @@ public class ISensingDeviceTests : IDisposable
                     {
                         Enabled = true,
                         Unit = "mA"
-                    }
+                    },
+                    SensorInfo = new SensorInfo { Schema = "double" }
                 },
                 new()
                 {
@@ -70,7 +71,8 @@ public class ISensingDeviceTests : IDisposable
                     Dtmi = "dtmi:advantech:EdgeSync:DO;1",
                     DeviceResourceId = "test-mqtt-device",
                     SensorGroup = SensorGroup.DO,
-                    Report = new SensorReport { Enabled = true }
+                    Report = new SensorReport { Enabled = true },
+                    SensorInfo = new SensorInfo { Schema = "boolean" }
                 }
             }
         };

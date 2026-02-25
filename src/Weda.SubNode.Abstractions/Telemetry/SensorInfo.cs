@@ -8,12 +8,11 @@ public class SensorInfo
 {
     /// <summary>
     /// DTDL schema type for this sensor's telemetry value.
-    /// Examples: "double", "integer", "boolean", "string", "float"
-    /// If not specified, inferred from SensorGroup:
-    /// - AI, AO, TEMP, PWR, SYS → "double"
-    /// - DI, DO → "boolean"
+    /// Must be DTDL primitives or MIME type.
+    /// Examples: "double", "integer", "boolean", "string", "image/jpeg", "application/json"
+    /// Note: Validated at configuration time by SensorsValidator. Defaults to "double".
     /// </summary>
-    public string? Schema { get; set; }
+    public string Schema { get; set; } = "double";
 
     /// <summary>
     /// Human-readable display name for DTDL generation.
@@ -26,24 +25,6 @@ public class SensorInfo
     /// Optional field for documentation purposes.
     /// </summary>
     public string? Description { get; set; }
-
-    /// <summary>
-    /// Gets the effective schema type for DTDL generation.
-    /// Returns Schema if specified, otherwise infers from the provided SensorGroup.
-    /// </summary>
-    /// <param name="sensorGroup">The sensor group to use for inference when Schema is not specified.</param>
-    public string GetEffectiveSchema(SensorGroup sensorGroup)
-    {
-        if (!string.IsNullOrEmpty(Schema))
-            return Schema;
-
-        return sensorGroup switch
-        {
-            SensorGroup.DI => "boolean",
-            SensorGroup.DO => "boolean",
-            _ => "double"  // AI, AO, TEMP, PWR, SYS default to double
-        };
-    }
 
     /// <summary>
     /// Gets the effective display name for DTDL generation.

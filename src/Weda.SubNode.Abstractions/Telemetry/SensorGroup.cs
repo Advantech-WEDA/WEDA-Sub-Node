@@ -109,4 +109,22 @@ public static class SensorGroupExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(sensorGroup), sensorGroup, null)
         };
     }
+
+    /// <summary>
+    /// Get default DTDL schema for the sensor group
+    /// </summary>
+    public static string GetDefaultSchema(this SensorGroup sensorGroup)
+    {
+        return sensorGroup switch
+        {
+            SensorGroup.AI => "double",
+            SensorGroup.AO => "double",
+            SensorGroup.DI => "boolean",
+            SensorGroup.DO => "boolean",
+            SensorGroup.TEMP => "double",
+            SensorGroup.PWR => "double",
+            SensorGroup.SYS => "string",
+            _ => "double"
+        };
+    }
 }

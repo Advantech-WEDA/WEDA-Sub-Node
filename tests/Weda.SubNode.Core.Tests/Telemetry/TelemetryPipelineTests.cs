@@ -129,9 +129,9 @@ public sealed class TelemetryPipelineTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WithFilter_ShouldApplyFiltering()
+    public async Task ProcessAsync_WithFilter_ShouldApplySmoothing()
     {
-        // Arrange
+        // Arrange - DSP filters smooth values but don't remove items
         var measures = new List<TelemetryMeasure>
         {
             new() { ResourceId = "Temp1", Value = 10 },
@@ -146,18 +146,20 @@ public sealed class TelemetryPipelineTests
             .Returns(callInfo =>
             {
                 var input = callInfo.ArgAt<IAsyncEnumerable<TelemetryMeasure>>(0);
-                return FilterAsync(input);
+                return SmoothAsync(input);
 
-                static async IAsyncEnumerable<TelemetryMeasure> FilterAsync(
+                // DSP filter smooths values (e.g., moving average) but preserves count
+                static async IAsyncEnumerable<TelemetryMeasure> SmoothAsync(
                     IAsyncEnumerable<TelemetryMeasure> source)
                 {
                     await foreach (var measure in source)
                     {
-                        // Filter out values below 20
-                        if (Convert.ToDouble(measure.Value) >= 20)
+                        // Simulate smoothing: multiply by 0.9 (like a low-pass filter)
+                        yield return new TelemetryMeasure
                         {
-                            yield return measure;
-                        }
+                            ResourceId = measure.ResourceId,
+                            Value = Convert.ToDouble(measure.Value) * 0.9
+                        };
                     }
                 }
             });
@@ -177,26 +179,19 @@ public sealed class TelemetryPipelineTests
         result.IsError.ShouldBeFalse();
         await _mockCloudService.Received(1).SendTelemetryAsync(
             TestDeviceId,
-            Arg.Is<TelemetryData>(td => td.Measures.Count == 2), // Only 30 and 50
+            Arg.Is<TelemetryData>(td =>
+                td.Measures.Count == 3 && // All measures preserved
+                Convert.ToDouble(td.Measures[0].Value) == 9 && // 10 * 0.9
+                Convert.ToDouble(td.Measures[1].Value) == 27 && // 30 * 0.9
+                Convert.ToDouble(td.Measures[2].Value) == 45), // 50 * 0.9
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ProcessAsync_FilterRemovesAll_ShouldNotSend()
+    public async Task ProcessAsync_WithEmptyMeasuresAfterValidation_ShouldReturnSuccessWithoutSend()
     {
-        // Arrange
-        var measures = new List<TelemetryMeasure>
-        {
-            new() { ResourceId = "Temp", Value = 10 }
-        };
-
-        var filter = Substitute.For<IDspFilter>();
-        filter.ApplyAsync(
-            Arg.Any<IAsyncEnumerable<TelemetryMeasure>>(),
-            Arg.Any<CancellationToken>())
-            .Returns(EmptyAsync());
-
-        _pipeline.AddFilter(filter);
+        // Arrange - Empty measures list (all filtered out by validation, not DSP filter)
+        var measures = new List<TelemetryMeasure>();
 
         // Act
         var result = await _pipeline.ProcessAsync(measures);
@@ -207,9 +202,6 @@ public sealed class TelemetryPipelineTests
             Arg.Any<string>(),
             Arg.Any<TelemetryData>(),
             Arg.Any<CancellationToken>());
-
-        var stats = _pipeline.GetStatistics();
-        stats.FilteredOut.ShouldBe(1);
     }
 
     [Fact]
@@ -380,7 +372,6 @@ public sealed class TelemetryPipelineTests
         stats.TotalProcessed.ShouldBe(0);
         stats.SuccessfullySent.ShouldBe(0);
         stats.FailedToSend.ShouldBe(0);
-        stats.FilteredOut.ShouldBe(0);
         stats.LastProcessedAt.ShouldBeNull();
     }
 
@@ -495,13 +486,4 @@ public sealed class TelemetryPipelineTests
 
     #endregion
 
-    #region Helper Methods
-
-    private static async IAsyncEnumerable<TelemetryMeasure> EmptyAsync()
-    {
-        await Task.CompletedTask;
-        yield break;
-    }
-
-    #endregion
 }

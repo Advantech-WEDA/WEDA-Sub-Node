@@ -161,7 +161,8 @@ public class DtdlGeneratorTests
         {
             Name = "temperature",
             SensorGroup = SensorGroup.TEMP,
-            Dtmi = existingDtmi
+            Dtmi = existingDtmi,
+            SensorInfo = new SensorInfo { Schema = "double" }
         };
 
         // Act
@@ -178,7 +179,8 @@ public class DtdlGeneratorTests
         var sensor = new Sensor
         {
             Name = "channel.0",
-            SensorGroup = SensorGroup.AI
+            SensorGroup = SensorGroup.AI,
+            SensorInfo = new SensorInfo { Schema = "double" }
         };
 
         // Act
@@ -193,10 +195,10 @@ public class DtdlGeneratorTests
     public void GenerateTelemetryContent_Should_UseEffectiveSchema()
     {
         // Arrange - AI sensor without explicit schema should use "double"
-        var aiSensor = new Sensor { Name = "voltage", SensorGroup = SensorGroup.AI };
+        var aiSensor = new Sensor { Name = "voltage", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } };
 
         // Arrange - DI sensor without explicit schema should use "boolean"
-        var diSensor = new Sensor { Name = "switch", SensorGroup = SensorGroup.DI };
+        var diSensor = new Sensor { Name = "switch", SensorGroup = SensorGroup.DI, SensorInfo = new SensorInfo { Schema = "boolean" } };
 
         // Arrange - Sensor with explicit schema
         var customSensor = new Sensor
@@ -224,7 +226,8 @@ public class DtdlGeneratorTests
         var sensorWithoutDisplayName = new Sensor
         {
             Name = "temperature.sensor",
-            SensorGroup = SensorGroup.TEMP
+            SensorGroup = SensorGroup.TEMP,
+            SensorInfo = new SensorInfo { Schema = "double" }
         };
 
         // Arrange - Sensor with explicit DisplayName
@@ -251,7 +254,8 @@ public class DtdlGeneratorTests
         var sensor = new Sensor
         {
             Name = "channel.0",
-            SensorGroup = SensorGroup.AI
+            SensorGroup = SensorGroup.AI,
+            SensorInfo = new SensorInfo { Schema = "double" }
         };
 
         // Act
@@ -270,7 +274,8 @@ public class DtdlGeneratorTests
         {
             Name = "temperature",
             SensorGroup = SensorGroup.TEMP,
-            Report = new SensorReport { Unit = "celsius" }
+            Report = new SensorReport { Unit = "celsius" },
+            SensorInfo = new SensorInfo { Schema = "double" }
         };
 
         // Act
@@ -291,8 +296,8 @@ public class DtdlGeneratorTests
         var deviceName = "MyModbusDevice";
         var sensors = new List<Sensor>
         {
-            new() { Name = "channel.0", SensorGroup = SensorGroup.AI },
-            new() { Name = "channel.1", SensorGroup = SensorGroup.AI }
+            new() { Name = "channel.0", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "channel.1", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -315,7 +320,7 @@ public class DtdlGeneratorTests
         var description = "4-channel analog input device";
         var sensors = new List<Sensor>
         {
-            new() { Name = "ch0", SensorGroup = SensorGroup.AI }
+            new() { Name = "ch0", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -366,9 +371,9 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "channel.0", SensorGroup = SensorGroup.AI },
-            new() { Name = "channel.1", SensorGroup = SensorGroup.AI, Dtmi = "" },
-            new() { Name = "channel.2", SensorGroup = SensorGroup.AI }
+            new() { Name = "channel.0", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "channel.1", SensorGroup = SensorGroup.AI, Dtmi = "", SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "channel.2", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -387,8 +392,8 @@ public class DtdlGeneratorTests
         var existingDtmi = "dtmi:advantech:EdgeSync:AI;1";
         var sensors = new List<Sensor>
         {
-            new() { Name = "channel.0", SensorGroup = SensorGroup.AI, Dtmi = existingDtmi },
-            new() { Name = "channel.1", SensorGroup = SensorGroup.AI }
+            new() { Name = "channel.0", SensorGroup = SensorGroup.AI, Dtmi = existingDtmi, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "channel.1", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -405,8 +410,8 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "temperature", SensorGroup = SensorGroup.TEMP },
-            new() { Name = "humidity", SensorGroup = SensorGroup.TEMP }
+            new() { Name = "temperature", SensorGroup = SensorGroup.TEMP, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "humidity", SensorGroup = SensorGroup.TEMP, SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -426,8 +431,8 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1" },
-            new() { Name = "ch1", Dtmi = "dtmi:test:sensor2;1" }
+            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1", SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "ch1", Dtmi = "dtmi:test:sensor2;1", SensorInfo = new SensorInfo { Schema = "double" } }
         };
         var dtdlPath = "dtdl/device.json";
 
@@ -444,7 +449,7 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1" }
+            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1", SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -461,7 +466,7 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1" }
+            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1", SensorInfo = new SensorInfo { Schema = "double" } }
         };
 
         // Act
@@ -478,9 +483,9 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1" },
-            new() { Name = "ch1" },  // Missing Dtmi
-            new() { Name = "ch2", Dtmi = "" }  // Empty Dtmi
+            new() { Name = "ch0", Dtmi = "dtmi:test:sensor1;1", SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "ch1", SensorInfo = new SensorInfo { Schema = "double" } },  // Missing Dtmi
+            new() { Name = "ch2", Dtmi = "", SensorInfo = new SensorInfo { Schema = "double" } }  // Empty Dtmi
         };
         var dtdlPath = "dtdl/device.json";
 
@@ -499,8 +504,8 @@ public class DtdlGeneratorTests
         // Arrange
         var sensors = new List<Sensor>
         {
-            new() { Name = "ch0" },  // Missing Dtmi
-            new() { Name = "ch1" }   // Missing Dtmi
+            new() { Name = "ch0", SensorInfo = new SensorInfo { Schema = "double" } },  // Missing Dtmi
+            new() { Name = "ch1", SensorInfo = new SensorInfo { Schema = "double" } }   // Missing Dtmi
         };
 
         // Act
@@ -508,6 +513,231 @@ public class DtdlGeneratorTests
 
         // Assert
         errors.Count.ShouldBe(3);  // 1 for DtdlPath + 2 for sensors
+    }
+
+    #endregion
+
+    #region IsMimeType Tests
+
+    [Theory]
+    [InlineData("image/jpeg", true)]
+    [InlineData("image/png", true)]
+    [InlineData("application/json", true)]
+    [InlineData("application/octet-stream", true)]
+    [InlineData("video/mp4", true)]
+    [InlineData("double", false)]
+    [InlineData("integer", false)]
+    [InlineData("boolean", false)]
+    [InlineData("string", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsMimeType_Should_CorrectlyIdentifyMimeTypes(string? schema, bool expected)
+    {
+        // Act
+        var result = DtdlGenerator.IsMimeType(schema);
+
+        // Assert
+        result.ShouldBe(expected);
+    }
+
+    #endregion
+
+    #region GenerateMimeTypeDtmi Tests
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_ConvertImageJpeg()
+    {
+        // Arrange
+        var schema = "image/jpeg";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:image:jpeg");
+    }
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_ConvertImagePng()
+    {
+        // Arrange
+        var schema = "image/png";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:image:png");
+    }
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_ShortenApplicationToApp()
+    {
+        // Arrange
+        var schema = "application/json";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:app:json");
+    }
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_ConvertApplicationOctetStream()
+    {
+        // Arrange
+        var schema = "application/octet-stream";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:app:octet-stream");
+    }
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_ReplacePlusWithHyphen()
+    {
+        // Arrange - application/vnd.api+json should become app:vnd.api-json
+        var schema = "application/vnd.api+json";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:app:vnd.api-json");
+    }
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_HandleVideoMimeType()
+    {
+        // Arrange
+        var schema = "video/mp4";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:video:mp4");
+    }
+
+    [Fact]
+    public void GenerateMimeTypeDtmi_Should_HandleAudioMimeType()
+    {
+        // Arrange
+        var schema = "audio/mpeg";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateMimeTypeDtmi(schema);
+
+        // Assert
+        dtmi.ShouldBe("dtmi:advantech:audio:mpeg");
+    }
+
+    #endregion
+
+    #region GenerateInterface MimeType Tests
+
+    [Fact]
+    public void GenerateInterface_Should_SkipMimeTypeSensors()
+    {
+        // Arrange
+        var deviceName = "CameraDevice";
+        var sensors = new List<Sensor>
+        {
+            new() { Name = "temperature", SensorGroup = SensorGroup.TEMP, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "snapshot", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "image/jpeg" } },
+            new() { Name = "humidity", SensorGroup = SensorGroup.TEMP, SensorInfo = new SensorInfo { Schema = "double" } }
+        };
+
+        // Act
+        var dtdlInterface = DtdlGenerator.GenerateInterface(deviceName, sensors);
+
+        // Assert
+        dtdlInterface.Contents.Count.ShouldBe(2); // Only temperature and humidity
+        dtdlInterface.Contents.ShouldAllBe(c => c.Name != "snapshot");
+        dtdlInterface.Contents.ShouldContain(c => c.Name == "temperature");
+        dtdlInterface.Contents.ShouldContain(c => c.Name == "humidity");
+    }
+
+    [Fact]
+    public void GenerateInterface_Should_HandleAllMimeTypeSensors()
+    {
+        // Arrange - Device with only MIME type sensors
+        var deviceName = "CameraOnlyDevice";
+        var sensors = new List<Sensor>
+        {
+            new() { Name = "snapshot", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "image/jpeg" } },
+            new() { Name = "video", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "video/mp4" } }
+        };
+
+        // Act
+        var dtdlInterface = DtdlGenerator.GenerateInterface(deviceName, sensors);
+
+        // Assert
+        dtdlInterface.Contents.ShouldBeEmpty();
+    }
+
+    #endregion
+
+    #region PopulateSensorDtmis MimeType Tests
+
+    [Fact]
+    public void PopulateSensorDtmis_Should_UseMimeTypeDtmiForMimeTypeSensors()
+    {
+        // Arrange
+        var sensors = new List<Sensor>
+        {
+            new() { Name = "temperature", SensorGroup = SensorGroup.TEMP, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "snapshot", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "image/jpeg" } }
+        };
+
+        // Act
+        DtdlGenerator.PopulateSensorDtmis(sensors);
+
+        // Assert
+        sensors[0].Dtmi.ShouldStartWith("dtmi:autogen:temp:");
+        sensors[1].Dtmi.ShouldBe("dtmi:advantech:image:jpeg");
+    }
+
+    [Fact]
+    public void PopulateSensorDtmis_Should_NotOverwriteExistingDtmiForMimeTypeSensors()
+    {
+        // Arrange - User should NOT set custom DTMI for MIME type, but if they do (before validation catches it)
+        var existingDtmi = "dtmi:custom:image:sensor;1";
+        var sensors = new List<Sensor>
+        {
+            new() { Name = "snapshot", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "image/jpeg" }, Dtmi = existingDtmi }
+        };
+
+        // Act
+        DtdlGenerator.PopulateSensorDtmis(sensors);
+
+        // Assert - Should preserve existing (validation layer will catch the invalid combination)
+        sensors[0].Dtmi.ShouldBe(existingDtmi);
+    }
+
+    [Fact]
+    public void PopulateSensorDtmis_Should_HandleMixedSensorTypes()
+    {
+        // Arrange
+        var sensors = new List<Sensor>
+        {
+            new() { Name = "ch0", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "double" } },
+            new() { Name = "snapshot", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "image/jpeg" } },
+            new() { Name = "ch1", SensorGroup = SensorGroup.AI, SensorInfo = new SensorInfo { Schema = "integer" } },
+            new() { Name = "config", SensorGroup = SensorGroup.SYS, SensorInfo = new SensorInfo { Schema = "application/json" } }
+        };
+
+        // Act
+        DtdlGenerator.PopulateSensorDtmis(sensors);
+
+        // Assert
+        sensors[0].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        sensors[1].Dtmi.ShouldBe("dtmi:advantech:image:jpeg");
+        sensors[2].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        sensors[3].Dtmi.ShouldBe("dtmi:advantech:app:json");
     }
 
     #endregion
@@ -527,6 +757,7 @@ public class DtdlGeneratorTests
                 SensorGroup = SensorGroup.AI,
                 SensorInfo = new SensorInfo
                 {
+                    Schema = "double",
                     DisplayName = "Analog Input 0",
                     Description = "First analog input channel"
                 },

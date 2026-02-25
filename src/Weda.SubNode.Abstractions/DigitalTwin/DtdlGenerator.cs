@@ -48,6 +48,9 @@ public static class DtdlGenerator
 
         foreach (var sensor in sensors)
         {
+            if (IsMimeType(sensor.SensorInfo.Schema)) 
+                continue;
+
             var content = GenerateTelemetryContent(sensor);
             dtdlInterface.Contents.Add(content);
         }
@@ -118,7 +121,11 @@ public static class DtdlGenerator
         {
             if (string.IsNullOrEmpty(sensor.Dtmi))
             {
-                sensor.Dtmi = GenerateDtmi(sensor.Name, sensor.SensorGroup.ToString());
+                var schema = sensor.SensorInfo.Schema;
+
+                sensor.Dtmi = IsMimeType(schema)
+                    ? GenerateMimeTypeDtmi(schema)
+                    : GenerateDtmi(sensor.Name, sensor.SensorGroup.ToString());
             }
         }
     }
@@ -201,5 +208,34 @@ public static class DtdlGenerator
                 .Replace('-', ' ')
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 .Select(word => char.ToUpper(word[0]) + word[1..].ToLower()));
+    }
+
+    /// <summary>
+    /// Determines if a schema is a MIME type (contains '/').
+    /// </summary>
+    /// <param name="schema"></param>
+    /// <returns></returns>
+    public static bool IsMimeType(string? schema)
+    {
+        return !string.IsNullOrEmpty(schema) && schema.Contains('/');
+    }
+
+    /// <summary>
+    /// Generate DTMI for MIMT type schema using convention.
+    /// e.g. "image/jpeg" to "dtmi:advantech:iamge:jpeg"
+    /// e.g. "application/json" to "dtmi:advantech:app:json"
+    /// </summary>
+    public static string GenerateMimeTypeDtmi(string schema)
+    {
+        var parts = schema.Split('/', 2);
+        var category = parts[0] switch
+        {
+            "application" => "app",
+            _ => parts[0]
+        };
+        var subtype = parts.Length > 1 ? parts[1].Replace("+", "-") : "unknown";
+        var dtmi = $"dtmi:advantech:{category}:{subtype}";
+
+        return dtmi;
     }
 }
