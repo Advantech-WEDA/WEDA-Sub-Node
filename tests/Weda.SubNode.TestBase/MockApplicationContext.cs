@@ -202,9 +202,12 @@ public class MockApplicationContext : IWedaApplicationContext
     /// </summary>
     public ISubNodeManager MockSubNodeManager { get; private set; } = null!;
 
+    public IDynamicRecordStorage? DynamicRecordStorage { get; set;}
+
     #endregion
 
     #region Helper Methods
+
 
     /// <summary>
     /// Creates a mock communication instance.

@@ -213,10 +213,6 @@ public sealed class TelemetryPipeline : ITelemetryPipeline
             {
                 Interlocked.Increment(ref _validationSuccessCount);
             }
-            else
-            {
-                Interlocked.Increment(ref _validationSuccessCount);
-            }
         }
 
         return valid;
