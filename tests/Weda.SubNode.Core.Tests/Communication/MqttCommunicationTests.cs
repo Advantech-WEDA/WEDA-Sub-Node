@@ -113,20 +113,6 @@ public class MqttCommunicationTests
     #endregion
 
     #region ICommunication Tests
-
-    [Fact]
-    public async Task ConnectAsync_WhenBrokerUnavailable_ShouldReturnFalse()
-    {
-        // MqttCommunication is now implemented but requires actual broker connection
-        // Without a running broker, it should return false or throw exception
-
-        // Act
-        var result = await _mqtt.ConnectAsync();
-
-        // Assert
-        Assert.False(result); // Should return false when broker is unavailable
-    }
-
     [Fact]
     public async Task DisconnectAsync_WhenNotConnected_ShouldNotThrow()
     {

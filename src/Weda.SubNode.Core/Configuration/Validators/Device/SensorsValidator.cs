@@ -1,7 +1,6 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Configuration.Validators;
-using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Configuration.Validators.Device;
 
@@ -22,7 +21,7 @@ public class SensorsValidator : IConfigurationPropertyValidator
         "application/json",
         "application/octet-stream",
         "image/png",
-        "image/jpeg"  
+        "image/jpeg"
     };
 
     public string PropertyName => "Sensors";
@@ -40,10 +39,17 @@ public class SensorsValidator : IConfigurationPropertyValidator
         foreach (var sensor in desiredConfig.Sensors)
         {
             // Validate sensor name (if enabled)
-            if (options.ValidateSensors && string.IsNullOrEmpty(sensor.Name))
+            if (options.ValidateSensors)
             {
-                return ConfigurationValidationResult.Failure(
-                    "Sensor name cannot be empty");
+                if (string.IsNullOrEmpty(sensor.Name))
+                {
+                    return ConfigurationValidationResult.Failure(
+                        "Sensor name cannot be empty");
+                }
+
+                var nameResult = ValidateSensorName(sensor.Name);
+                if (!nameResult.IsValid)
+                    return nameResult;
             }
 
             // Check for unknown sensors (if enabled)
@@ -160,7 +166,17 @@ public class SensorsValidator : IConfigurationPropertyValidator
 
     private static bool IsValidSchema(string schema)
     {
-        return _validPrimitives.Contains(schema) || 
+        return _validPrimitives.Contains(schema) ||
                _validMimeTypes.Contains(schema);
+    }
+
+    /// <summary>
+    /// Validates sensor name for IoTDB compatibility using the shared SensorNameValidator.
+    /// </summary>
+    private static ConfigurationValidationResult ValidateSensorName(string sensorName)
+    {
+        return !SensorNameValidator.TryValidate(sensorName, out var errorMessage)
+            ? ConfigurationValidationResult.Failure(errorMessage!)
+            : ConfigurationValidationResult.Success;
     }
 }

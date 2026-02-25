@@ -24,6 +24,7 @@ using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
 using Weda.SubNode.Host.Configuration;
+using SensorNameValidator = Weda.SubNode.Core.Configuration.SensorNameValidator;
 
 namespace Weda.SubNode.Host.Context;
 
@@ -647,6 +648,9 @@ public class WedaApplicationContext : IWedaApplicationContext
                 // Note: If cache is applied, RawDeviceCfgJson will be updated
                 ApplyCachedConfigurationIfExists(deviceConfig, logger);
 
+                // Validate sensor names for IoTDB compatibility (fail-fast on startup)
+                ValidateSensorNames(deviceConfig, logger);
+
                 // Auto-load DTDL if enabled
                 LoadDtdlIfEnabled(deviceConfig, logger);
 
@@ -658,6 +662,11 @@ public class WedaApplicationContext : IWedaApplicationContext
                     deviceConfig.DeviceName,
                     deviceConfig.Enabled,
                     deviceConfig.Sensors.Count);
+            }
+            catch (InvalidOperationException)
+            {
+                // Re-throw validation errors (sensor name, duplicate keys, etc.) to fail-fast on startup
+                throw;
             }
             catch (Exception ex)
             {
@@ -754,6 +763,27 @@ public class WedaApplicationContext : IWedaApplicationContext
             logger.LogWarning(ex,
                 "Failed to apply cached configuration to '{DeviceName}'",
                 deviceConfig.DeviceName);
+        }
+    }
+
+    /// <summary>
+    /// Validates all sensor names in a device configuration for IoTDB compatibility.
+    /// Throws InvalidOperationException if any sensor name is invalid, causing application to fail-fast on startup.
+    /// </summary>
+    private static void ValidateSensorNames(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        if (deviceConfig.Sensors.Count == 0)
+            return;
+
+        logger.LogDebug("Validating {Count} sensor names for IoTDB compatibility in device '{DeviceName}'",
+            deviceConfig.Sensors.Count, deviceConfig.DeviceName);
+
+        var result = SensorNameValidator.ValidateAll(deviceConfig.Sensors, deviceConfig.DeviceName);
+        if (result.IsError)
+        {
+            var errorMessages = string.Join(Environment.NewLine, result.Errors.Select(e => $"  - {e.Description}"));
+            throw new InvalidOperationException(
+                $"Invalid sensor name(s) detected in device '{deviceConfig.DeviceName}':{Environment.NewLine}{errorMessages}");
         }
     }
 
