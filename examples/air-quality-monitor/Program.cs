@@ -9,7 +9,6 @@ Console.WriteLine("===========================================");
 Console.WriteLine();
 
 var builder = WedaApplication.CreateDefaultBuilder(args)
-    .UseMockCloud()
     .AddWebApi();
 
 builder.AddDevice<AirQualityDevice>("AirQualityConfig");
