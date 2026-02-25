@@ -1,0 +1,37 @@
+services:
+  # MQTT Broker - Eclipse Mosquitto
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: image-sensor-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  # ImageSensor Application
+  image-sensor:
+    build:
+      context: ../..
+      dockerfile: examples/image-sensor/Dockerfile
+    container_name: image-sensor-app
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - SystemConfig__WedaNode__Url=172.22.160.197:4224
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      # Configuration files
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      # Persist .weda directory for device registration
+      - ./weda-data:/app/.weda
