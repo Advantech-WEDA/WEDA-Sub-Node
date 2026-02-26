@@ -5,7 +5,6 @@ using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Communication.Mqtt;
-using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Devices.Generic;
 using Weda.SubNode.TestBase;
 using Xunit;

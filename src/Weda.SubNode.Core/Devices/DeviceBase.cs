@@ -331,10 +331,9 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         var processedMeasures = processResult.Value;
 
+        // Handle recording for each measure (independent of send mode)
         foreach (var processedMeasure in processedMeasures)
         {
-            _telemetryBatch.Enqueue(processedMeasure);
-            
             var sensor = Configuration.GetSensorById(processedMeasure.ResourceId);
             if (sensor?.Record.Enabled == true)
             {
@@ -393,9 +392,26 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             RaiseDataProcessed(processedMeasures);
         }
 
-        _logger.LogTrace(
-            "Enqueued {Count} processed measures for device {SubNodeId}",
-            processedMeasures.Count, SubNodeId);
+        // Send telemetry: immediate or batched based on configuration
+        if (!Configuration.Periods.BatchSend)
+        {
+            // Immediate mode: send directly without batching
+            _logger.LogTrace(
+                "Sending {Count} measures immediately for device {SubNodeId}",
+                processedMeasures.Count, SubNodeId);
+            await SendTelemetryAsync(processedMeasures, ct);
+        }
+        else
+        {
+            // Batch mode: enqueue for periodic batch send
+            foreach (var measure in processedMeasures)
+            {
+                _telemetryBatch.Enqueue(measure);
+            }
+            _logger.LogTrace(
+                "Enqueued {Count} processed measures for device {SubNodeId}",
+                processedMeasures.Count, SubNodeId);
+        }
     }
 
     public async Task<DeviceHealth> GetHealthAsync(CancellationToken ct = default)
@@ -1437,8 +1453,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Start device-specific background tasks (polling, subscription, etc.)
         _ = StartBackgroundTasksAsync(ct);
 
-        // Start batch send task
-        StartBatchSendTask(ct);
+        // Start batch send task only if not using immediate send mode
+        if (Configuration.Periods.BatchSend)
+        {
+            StartBatchSendTask(ct);
+        }
+        else
+        {
+            _logger.LogDebug("Batch send task skipped - ImmediateSend is enabled for device {SubNodeId}", SubNodeId);
+        }
 
         // Start health task
         StartHealthTask(ct);

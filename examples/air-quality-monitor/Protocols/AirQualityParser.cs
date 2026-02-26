@@ -1,9 +1,9 @@
 using System.Text.Json;
 
 using AirQualityMonitor.Communication;
-using ErrorOr;
+using AirQualityMonitor.Models;
+
 using Microsoft.Extensions.Logging;
-using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
@@ -51,14 +51,15 @@ public class AirQualityParser(
             }
 
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var jsonPayload = JsonSerializer.Serialize(response);
+            var records = new AirQualityRecords(response);
+            var jsonPayload = JsonSerializer.Serialize(records);
 
             foreach (var resourceId in sensorResourceIds)
             {
                 measures.Add(new TelemetryMeasure
                 {
                     ResourceId = resourceId,
-                    Value = jsonPayload,
+                    Value = records,
                     Timestamp = timestamp
                 });
             }

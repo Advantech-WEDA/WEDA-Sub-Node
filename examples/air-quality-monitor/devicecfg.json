@@ -9,6 +9,9 @@
   "DeviceConfigs": {
     "AirQualityConfig": {
       "Enabled": true,
+      "Periods": {
+        "BatchSend": false
+      },
       "Dtdl": {
         "AutoGenEnabled": true
       },
