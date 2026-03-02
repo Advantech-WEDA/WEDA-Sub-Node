@@ -331,7 +331,7 @@ public class ConfigurationUpdateHelperTests
         message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors!.Add(
             new SubNodeSensorReportDto
             {
-                Name = "unknown-sensor",
+                Name = "unknown_sensor",
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
                 SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
             });
@@ -344,7 +344,7 @@ public class ConfigurationUpdateHelperTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorMessage?.ShouldContain("Unknown sensor");
-        result.ErrorMessage?.ShouldContain("unknown-sensor");
+        result.ErrorMessage?.ShouldContain("unknown_sensor");
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public class ConfigurationUpdateHelperTests
         message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors!.Add(
             new SubNodeSensorReportDto
             {
-                Name = "unknown-sensor",
+                Name = "unknown_sensor",
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
                 SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
             });
@@ -385,7 +385,7 @@ public class ConfigurationUpdateHelperTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorMessage?.ShouldContain("Missing sensor");
-        result.ErrorMessage?.ShouldContain("channel.1");
+        result.ErrorMessage?.ShouldContain("channel_1");
     }
 
     [Fact]
@@ -597,7 +597,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 1000 }
             }
         };
@@ -606,7 +606,7 @@ public class ConfigurationUpdateHelperTests
         var updatedSensors = ConfigurationUpdateHelper.ApplysensorReportUpdates(config, desiredSensors);
 
         // Assert
-        updatedSensors.ShouldContain("channel.0");
+        updatedSensors.ShouldContain("channel_0");
         config.Sensors[0].Report.Enabled.ShouldBeFalse();
     }
 
@@ -621,7 +621,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 5000 }
             }
         };
@@ -644,7 +644,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000, Unit = "V" }
             }
         };
@@ -666,7 +666,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "unknown-sensor",
+                Name = "unknown_sensor",
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 9999 }
             }
         };
@@ -689,7 +689,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "CHANNEL.0", // Uppercase
+                Name = "CHANNEL_0", // Uppercase
                 Config = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 1000 }
             }
         };
@@ -697,8 +697,8 @@ public class ConfigurationUpdateHelperTests
         // Act
         var updatedSensors = ConfigurationUpdateHelper.ApplysensorReportUpdates(config, desiredSensors);
 
-        // Assert - Should match "channel.0"
-        updatedSensors.ShouldContain("channel.0");
+        // Assert - Should match "channel_0"
+        updatedSensors.ShouldContain("channel_0");
         config.Sensors[0].Report.Enabled.ShouldBeFalse();
     }
 
@@ -712,7 +712,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 Config = new SubNodeSensorRuntimeConfigDto
                 {
                     Enabled = true,
@@ -781,7 +781,7 @@ public class ConfigurationUpdateHelperTests
         backup.ReportConfigurationPeriod.ShouldBe(1800000);
         backup.SensorBackups.Count.ShouldBe(2);
 
-        var sensorBackup = backup.SensorBackups.First(s => s.Name == "channel.0");
+        var sensorBackup = backup.SensorBackups.First(s => s.Name == "channel_0");
         sensorBackup.Enabled.ShouldBeTrue();
         sensorBackup.Interval.ShouldBe(2000);
         sensorBackup.Unit.ShouldBe("mV");
@@ -803,7 +803,7 @@ public class ConfigurationUpdateHelperTests
             {
                 new()
                 {
-                    Name = "channel.0",
+                    Name = "channel_0",
                     Enabled = false,
                     Interval = 5000,
                     Unit = "V",
@@ -815,7 +815,7 @@ public class ConfigurationUpdateHelperTests
                 },
                 new()
                 {
-                    Name = "channel.1",
+                    Name = "channel_1",
                     Enabled = true,
                     Interval = 3000,
                     Unit = "A"
@@ -854,7 +854,7 @@ public class ConfigurationUpdateHelperTests
             {
                 new()
                 {
-                    Name = "unknown-sensor",
+                    Name = "unknown_sensor",
                     Enabled = false,
                     Interval = 9999
                 }
@@ -1108,7 +1108,7 @@ public class ConfigurationUpdateHelperTests
                                     {
                                         new()
                                         {
-                                            Name = "channel.0",
+                                            Name = "channel_0",
                                             Dtmi = "dtmi:test:sensor;1",
                                             SensorGroup = "AI",
                                             Config = new SubNodeSensorRuntimeConfigDto
@@ -1120,7 +1120,7 @@ public class ConfigurationUpdateHelperTests
                                         },
                                         new()
                                         {
-                                            Name = "channel.1",
+                                            Name = "channel_1",
                                             Dtmi = "dtmi:test:sensor;1",
                                             SensorGroup = "AI",
                                             Config = new SubNodeSensorRuntimeConfigDto
@@ -1168,7 +1168,7 @@ public class ConfigurationUpdateHelperTests
             [
                 new Sensor
                 {
-                    Name = "channel.0",
+                    Name = "channel_0",
                     Dtmi = "dtmi:test:sensor;1",
                     SensorGroup = SensorGroup.AI,
                     Parameters = new Dictionary<string, object>(),
@@ -1181,7 +1181,7 @@ public class ConfigurationUpdateHelperTests
                 },
                 new Sensor
                 {
-                    Name = "channel.1",
+                    Name = "channel_1",
                     Dtmi = "dtmi:test:sensor;1",
                     SensorGroup = SensorGroup.AI,
                     Parameters = new Dictionary<string, object>(),
@@ -1217,7 +1217,7 @@ public class ConfigurationUpdateHelperTests
             // Keep existing sensor
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 SensorGroup = "AI",
                 Report = new SubNodeSensorRuntimeConfigDto
                 {
@@ -1257,7 +1257,7 @@ public class ConfigurationUpdateHelperTests
 
         // Assert
         result.AddedSensors.ShouldContain("new.sensor");
-        result.RemovedSensors.ShouldContain("channel.1"); // Was in original but not in desired
+        result.RemovedSensors.ShouldContain("channel_1"); // Was in original but not in desired
         result.HasChanges.ShouldBeTrue();
 
         // Verify new sensor was added with TransformPipeline
@@ -1274,14 +1274,14 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var deviceConfig = CreateDeviceConfiguration("TestDevice");
-        deviceConfig.Sensors.Count.ShouldBe(2); // channel.0, channel.1
+        deviceConfig.Sensors.Count.ShouldBe(2); // channel_0, channel_1
 
-        // Desired only contains channel.0
+        // Desired only contains channel_0
         var desiredSensors = new List<SubNodeSensorReportDto>
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 SensorGroup = "AI",
                 Report = new SubNodeSensorRuntimeConfigDto
                 {
@@ -1296,10 +1296,10 @@ public class ConfigurationUpdateHelperTests
             deviceConfig, desiredSensors, "test-device-id");
 
         // Assert
-        result.RemovedSensors.ShouldContain("channel.1");
+        result.RemovedSensors.ShouldContain("channel_1");
         result.AddedSensors.ShouldBeEmpty();
         deviceConfig.Sensors.Count.ShouldBe(1);
-        deviceConfig.Sensors[0].Name.ShouldBe("channel.0");
+        deviceConfig.Sensors[0].Name.ShouldBe("channel_0");
     }
 
     [Fact]
@@ -1313,7 +1313,7 @@ public class ConfigurationUpdateHelperTests
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 SensorGroup = "AI",
                 Report = new SubNodeSensorRuntimeConfigDto
                 {
@@ -1323,7 +1323,7 @@ public class ConfigurationUpdateHelperTests
             },
             new()
             {
-                Name = "channel.1",
+                Name = "channel_1",
                 SensorGroup = "AI",
                 Report = new SubNodeSensorRuntimeConfigDto
                 {
@@ -1338,10 +1338,10 @@ public class ConfigurationUpdateHelperTests
             deviceConfig, desiredSensors, "test-device-id");
 
         // Assert
-        result.UpdatedSensors.ShouldContain("channel.0");
+        result.UpdatedSensors.ShouldContain("channel_0");
         result.AddedSensors.ShouldBeEmpty();
         result.RemovedSensors.ShouldBeEmpty();
-        deviceConfig.Sensors.First(s => s.Name == "channel.0").Report.Interval.ShouldBe(5000);
+        deviceConfig.Sensors.First(s => s.Name == "channel_0").Report.Interval.ShouldBe(5000);
     }
 
     [Fact]
@@ -1420,16 +1420,16 @@ public class ConfigurationUpdateHelperTests
             Parameters = new Dictionary<string, object>(),
             Report = new SensorReport { Enabled = true, Interval = 1000 }
         });
-        deviceConfig.Sensors.Count.ShouldBe(3); // channel.0, channel.1, temperature.sensor3
+        deviceConfig.Sensors.Count.ShouldBe(3); // channel_0, channel_1, temperature.sensor3
 
         // Desired has 2 sensors with different names:
-        // - channel.0 (exists)
+        // - channel_0 (exists)
         // - temperature.sensor.NEW (does not exist, should be added)
         var desiredSensors = new List<SubNodeSensorReportDto>
         {
             new()
             {
-                Name = "channel.0",
+                Name = "channel_0",
                 SensorGroup = "AI",
                 Report = new SubNodeSensorRuntimeConfigDto
                 {
@@ -1467,16 +1467,16 @@ public class ConfigurationUpdateHelperTests
             deviceConfig, desiredSensors, "test-device-id");
 
         // Assert
-        // Should remove 2 sensors: channel.1 and temperature.sensor3
+        // Should remove 2 sensors: channel_1 and temperature.sensor3
         result.RemovedSensors.Count.ShouldBe(2);
-        result.RemovedSensors.ShouldContain("channel.1");
+        result.RemovedSensors.ShouldContain("channel_1");
         result.RemovedSensors.ShouldContain("temperature.sensor3");
 
         // Should add 1 sensor: temperature.sensor.NEW
         result.AddedSensors.Count.ShouldBe(1);
         result.AddedSensors.ShouldContain("temperature.sensor.NEW");
 
-        // Final count should be 2 (channel.0 kept, temperature.sensor.NEW added)
+        // Final count should be 2 (channel_0 kept, temperature.sensor.NEW added)
         deviceConfig.Sensors.Count.ShouldBe(2);
 
         // Verify the new sensor was properly added
