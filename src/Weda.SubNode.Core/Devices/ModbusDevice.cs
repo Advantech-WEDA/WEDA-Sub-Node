@@ -10,12 +10,12 @@ namespace Weda.SubNode.Core.Devices;
 /// <summary>
 /// Modbus device implementation with real Modbus protocol support.
 /// Inherits from RequestResponseDeviceBase for Request/Response communication pattern.
-/// Adds Modbus-specific functionality like register scanning and sensor discovery.
+/// Adds Modbus-specific functionality like register scanning, sensor discovery, and digital output control.
 ///
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstDevice -> TcpModbusDevice -> ModbusDevice -> RequestResponseDeviceBase -> DeviceBase
 /// </summary>
-public class ModbusDevice : RequestResponseDeviceBase
+public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllable
 {
     /// <summary>
     /// Initializes a new instance of ModbusDevice.
@@ -129,6 +129,44 @@ public class ModbusDevice : RequestResponseDeviceBase
         };
 
         return scanner.GenerateMarkdownReport(scanResults, config, deviceInfo);
+    }
+
+    #endregion
+
+    #region IDigitalOutputControllable Implementation
+
+    /// <summary>
+    /// Sets the state of a digital output using Modbus FC05 (Write Single Coil).
+    /// </summary>
+    /// <param name="outputName">The name of the digital output (must match a Coil sensor in configuration)</param>
+    /// <param name="state">The desired state: true = ON, false = OFF</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if successful, false otherwise</returns>
+    public async Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SetDigitalOutputAsync: {OutputName}={State}", outputName, state);
+
+        var command = new Abstractions.Commands.Contracts.DeviceCommand
+        {
+            DeviceCmd = "SetDO",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = outputName,
+                ["state"] = state
+            }
+        };
+
+        var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("SetDigitalOutputAsync failed for {OutputName}: {Error}",
+                outputName, result.FirstError.Description);
+            return false;
+        }
+
+        _logger.LogInformation("SetDigitalOutputAsync succeeded: {OutputName}={State}", outputName, state);
+        return true;
     }
 
     #endregion

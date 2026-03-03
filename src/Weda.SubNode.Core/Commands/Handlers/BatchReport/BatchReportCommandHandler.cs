@@ -6,7 +6,6 @@ using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;

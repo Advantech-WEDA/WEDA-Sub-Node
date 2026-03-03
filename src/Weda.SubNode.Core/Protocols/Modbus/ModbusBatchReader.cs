@@ -203,7 +203,15 @@ public class ModbusBatchReader
             batch.RegisterCount,
             string.Join(", ", batch.Sensors.Select(s => s.Name)));
 
-        // Read all registers in this batch
+        // Handle Coil/DiscreteInput reads differently from Register reads
+        // FC 01 (Coil) and FC 02 (DiscreteInput) return bit-packed data
+        if (batch.RegisterType is ModbusRegisterType.Coil or ModbusRegisterType.DiscreteInput)
+        {
+            await ExecuteBitBatchAsync(batch, results, cancellationToken);
+            return;
+        }
+
+        // Read all registers in this batch (FC 03/04)
         var registers = await ReadModbusRegistersAsync(
             batch.RegisterType,
             batch.StartAddress,
@@ -249,6 +257,147 @@ public class ModbusBatchReader
                 };
             }
         }
+    }
+
+    /// <summary>
+    /// Executes a batch read for bit-type registers (Coils and Discrete Inputs).
+    /// FC 01: Read Coils - for reading DO (Digital Output) status
+    /// FC 02: Read Discrete Inputs - for reading DI (Digital Input) status
+    /// Both return bit-packed data: 8 bits per byte, LSB first.
+    /// </summary>
+    private async Task ExecuteBitBatchAsync(
+        RegisterBatch batch,
+        Dictionary<string, SensorReadResult> results,
+        CancellationToken cancellationToken)
+    {
+        var fcName = batch.RegisterType == ModbusRegisterType.Coil ? "Coils (FC01)" : "Discrete Inputs (FC02)";
+        _logger.LogDebug(
+            "Executing {FcName} batch read: StartAddress={Start}, Count={Count}",
+            fcName,
+            batch.StartAddress,
+            batch.RegisterCount);
+
+        // Read bits using FC 01 or FC 02
+        var bitStates = await ReadModbusBitsAsync(
+            batch.RegisterType,
+            batch.StartAddress,
+            batch.RegisterCount,
+            cancellationToken);
+
+        // Distribute results to individual sensors
+        foreach (var sensor in batch.Sensors)
+        {
+            try
+            {
+                // Calculate offset within the batch
+                var offset = sensor.RegisterAddress - batch.StartAddress;
+
+                // For bit registers, each sensor typically reads 1 bit (boolean)
+                // But we support reading multiple consecutive bits as well
+                if (sensor.RegisterCount == 1)
+                {
+                    // Single bit - return as boolean
+                    var bitState = bitStates[offset];
+                    results[sensor.Name] = new SensorReadResult
+                    {
+                        Success = true,
+                        Value = bitState,
+                        RawRegisters = [(ushort)(bitState ? 1 : 0)]
+                    };
+
+                    _logger.LogTrace("{FcName} {Name}: Value={Value}", fcName, sensor.Name, bitState);
+                }
+                else
+                {
+                    // Multiple bits - return as ushort bitmask
+                    ushort bitmask = 0;
+                    for (int i = 0; i < sensor.RegisterCount && (offset + i) < bitStates.Length; i++)
+                    {
+                        if (bitStates[offset + i])
+                            bitmask |= (ushort)(1 << i);
+                    }
+
+                    results[sensor.Name] = new SensorReadResult
+                    {
+                        Success = true,
+                        Value = bitmask,
+                        RawRegisters = [bitmask]
+                    };
+
+                    _logger.LogTrace("{FcName} {Name}: Bitmask=0x{Value:X4}", fcName, sensor.Name, bitmask);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing {FcName} sensor {Name}", fcName, sensor.Name);
+                results[sensor.Name] = new SensorReadResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads Modbus bit-type registers (FC 01: Read Coils, FC 02: Read Discrete Inputs)
+    /// </summary>
+    private async Task<bool[]> ReadModbusBitsAsync(
+        ModbusRegisterType registerType,
+        ushort startAddress,
+        ushort count,
+        CancellationToken cancellationToken)
+    {
+        // Function code based on register type
+        byte functionCode = registerType switch
+        {
+            ModbusRegisterType.Coil => 0x01,          // FC 01: Read Coils
+            ModbusRegisterType.DiscreteInput => 0x02, // FC 02: Read Discrete Inputs
+            _ => throw new NotSupportedException($"Register type {registerType} is not a bit type")
+        };
+
+        var request = BuildModbusRequest(functionCode, startAddress, count);
+        var response = await _communication.RequestAsync(request, cancellationToken);
+        return ParseBitResponse(response, count);
+    }
+
+    /// <summary>
+    /// Parses the Modbus FC 01/02 response.
+    /// Bits are packed: 8 bits per byte, LSB first.
+    /// Example: Reading coils 17-18, response byte 0x03 means:
+    ///   - bit 0 (coil 17) = 1 (ON)
+    ///   - bit 1 (coil 18) = 1 (ON)
+    /// </summary>
+    private static bool[] ParseBitResponse(byte[] response, ushort expectedCount)
+    {
+        // Modbus TCP response format:
+        // [0-1] Transaction ID
+        // [2-3] Protocol ID (0x0000)
+        // [4-5] Length
+        // [6]   Unit ID
+        // [7]   Function Code
+        // [8]   Byte Count
+        // [9+]  Data bytes (bit-packed)
+
+        if (response.Length < 9)
+            throw new InvalidOperationException($"Invalid Modbus bit response length: {response.Length}");
+
+        var byteCount = response[8];
+        var expectedByteCount = (expectedCount + 7) / 8; // Ceiling division: 8 bits per byte
+
+        if (byteCount != expectedByteCount)
+            throw new InvalidOperationException($"Unexpected byte count: {byteCount}, expected: {expectedByteCount}");
+
+        var bits = new bool[expectedCount];
+        for (int i = 0; i < expectedCount; i++)
+        {
+            var byteIndex = i / 8;
+            var bitIndex = i % 8;
+            var dataByte = response[9 + byteIndex];
+            bits[i] = (dataByte & (1 << bitIndex)) != 0;
+        }
+
+        return bits;
     }
 
     /// <summary>
