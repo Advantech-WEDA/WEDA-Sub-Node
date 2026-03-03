@@ -197,6 +197,10 @@ public class WedaApplicationContext : IWedaApplicationContext
                 var logger = new LoggerConfiguration()
                     .ReadFrom.Configuration(_configuration)
                     .CreateLogger();
+
+                // Set the global Serilog logger so Log.Fatal() etc. work in Program.cs catch blocks
+                Log.Logger = logger;
+
                 _loggerFactory = new SerilogLoggerFactory(logger);
             }
             catch
