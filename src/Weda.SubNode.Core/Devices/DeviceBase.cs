@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
@@ -349,11 +350,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     var dynamicStorage = _context.DynamicRecordStorage;
                     if (dynamicStorage != null)
                     {
-                        // Convert value to byte[] - support both byte[] and string (JSON)
+                        // Convert value to byte[] - support byte[], string, and object (auto-serialize)
                         byte[]? payload = processedMeasure.Value switch
                         {
+                            null => null,
                             byte[] bytes => bytes,
                             string str => System.Text.Encoding.UTF8.GetBytes(str),
+                            // Fallback: auto-serialize objects to JSON for application/json schema
+                            _ when schemaType.Value == SchemaType.ApplicationJson =>
+                                JsonSerializer.SerializeToUtf8Bytes(processedMeasure.Value),
                             _ => null
                         };
 
