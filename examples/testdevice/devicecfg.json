@@ -21,7 +21,7 @@
       },
       "Sensors": [
         {
-          "Name": "temperature.sensor",
+          "Name": "temperature_sensor",
           "SensorGroup": "TEMP",
           "Parameters": {
             "RegisterType": "HoldingRegister",

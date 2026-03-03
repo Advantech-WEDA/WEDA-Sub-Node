@@ -18,7 +18,7 @@
       },
       "Sensors": [
         {
-          "Name": "2395",
+          "Name": "stock_2395",
           "SensorGroup": "SYS",
           "Parameters": {
             "StockCode": "2395",
@@ -35,7 +35,7 @@
           }
         },
         {
-          "Name": "2330",
+          "Name": "stock_2330",
           "SensorGroup": "AI",
           "Parameters": {
             "StockCode": "2330",

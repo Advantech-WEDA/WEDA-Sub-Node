@@ -17,7 +17,7 @@
       },
       "Sensors": [
         {
-          "Name": "taipei-air-quality",
+          "Name": "taipei_air_quality",
           "SensorGroup": "TEMP",
           "SensorInfo": {
             "DisplayName": "Taipei Air Quality",
