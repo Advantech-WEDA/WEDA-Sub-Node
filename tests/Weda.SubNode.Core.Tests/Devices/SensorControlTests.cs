@@ -65,10 +65,10 @@ public class SensorControlTests : IDisposable
     }
 
     [Fact]
-    public void Device_ShouldImplementISensorControl()
+    public void Device_ShouldImplementIDigitalOutputControllable()
     {
         // Assert
-        Assert.IsAssignableFrom<ISensorControl>(_device);
+        Assert.IsAssignableFrom<IDigitalOutputControllable>(_device);
     }
 
     public void Dispose()

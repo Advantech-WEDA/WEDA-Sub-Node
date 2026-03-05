@@ -15,7 +15,7 @@ namespace Weda.SubNode.Core.Devices;
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> PubSubDeviceBase -> DeviceBase
 /// </summary>
-public class ISensingDevice : PubSubDeviceBase
+public class ISensingDevice : PubSubDeviceBase, IDigitalOutputControllable
 {
     /// <summary>
     /// Initializes a new instance of ISensingDevice.
@@ -41,4 +41,42 @@ public class ISensingDevice : PubSubDeviceBase
     {
         return new ISensingPubSubParser(configuration, pubSub, logger);
     }
+
+    #region IDigitalOutputControllable Implementation
+
+    /// <summary>
+    /// Sets the state of a digital output using ISensing protocol.
+    /// </summary>
+    /// <param name="outputName">The name of the digital output (must match a DO sensor in configuration)</param>
+    /// <param name="state">The desired state: true = ON, false = OFF</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if successful, false otherwise</returns>
+    public async Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SetDigitalOutputAsync: {OutputName}={State}", outputName, state);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "SetDO",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = outputName,
+                ["state"] = state
+            }
+        };
+
+        var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("SetDigitalOutputAsync failed for {OutputName}: {Error}",
+                outputName, result.FirstError.Description);
+            return false;
+        }
+
+        _logger.LogInformation("SetDigitalOutputAsync succeeded: {OutputName}={State}", outputName, state);
+        return true;
+    }
+
+    #endregion
 }
