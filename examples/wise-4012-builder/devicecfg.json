@@ -22,7 +22,7 @@
       },
       "Sensors": [
         {
-          "Name": "channel.0",
+          "Name": "channel_0",
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
@@ -37,7 +37,7 @@
           }
         },
         {
-          "Name": "channel.1",
+          "Name": "channel_1",
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
@@ -52,7 +52,7 @@
           }
         },
         {
-          "Name": "channel.2",
+          "Name": "channel_2",
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
@@ -67,7 +67,7 @@
           }
         },
         {
-          "Name": "channel.3",
+          "Name": "channel_3",
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {

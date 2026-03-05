@@ -14,7 +14,7 @@
       },
       "Sensors": [
         {
-          "Name": "cpu.usage",
+          "Name": "cpu_usage",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "cpu",
@@ -31,7 +31,7 @@
           }
         },
         {
-          "Name": "cpu.load.1m",
+          "Name": "cpu_load_1m",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "cpu",
@@ -48,7 +48,7 @@
           }
         },
         {
-          "Name": "cpu.load.5m",
+          "Name": "cpu_load_5m",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "cpu",
@@ -65,7 +65,7 @@
           }
         },
         {
-          "Name": "cpu.load.15m",
+          "Name": "cpu_load_15m",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "cpu",
@@ -82,7 +82,7 @@
           }
         },
         {
-          "Name": "memory.total",
+          "Name": "memory_total",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "memory",
@@ -99,7 +99,7 @@
           }
         },
         {
-          "Name": "memory.available",
+          "Name": "memory_available",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "memory",
@@ -116,7 +116,7 @@
           }
         },
         {
-          "Name": "memory.used",
+          "Name": "memory_used",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "memory",
@@ -133,7 +133,7 @@
           }
         },
         {
-          "Name": "memory.cached",
+          "Name": "memory_cached",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "memory",
@@ -150,7 +150,7 @@
           }
         },
         {
-          "Name": "disk.root.total",
+          "Name": "disk_root_total",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "disk",
@@ -168,7 +168,7 @@
           }
         },
         {
-          "Name": "disk.root.available",
+          "Name": "disk_root_available",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "disk",
@@ -186,7 +186,7 @@
           }
         },
         {
-          "Name": "disk.root.used",
+          "Name": "disk_root_used",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "disk",
@@ -204,7 +204,7 @@
           }
         },
         {
-          "Name": "disk.root.usage_percent",
+          "Name": "disk_root_usage_percent",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "disk",
@@ -222,7 +222,7 @@
           }
         },
         {
-          "Name": "network.en0.bytes_sent",
+          "Name": "network_en0_bytes_sent",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
@@ -240,7 +240,7 @@
           }
         },
         {
-          "Name": "network.en0.bytes_received",
+          "Name": "network_en0_bytes_received",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
@@ -258,7 +258,7 @@
           }
         },
         {
-          "Name": "network.en0.packets_sent",
+          "Name": "network_en0_packets_sent",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
@@ -276,7 +276,7 @@
           }
         },
         {
-          "Name": "network.en0.packets_received",
+          "Name": "network_en0_packets_received",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
@@ -294,7 +294,7 @@
           }
         },
         {
-          "Name": "network.en0.errors",
+          "Name": "network_en0_errors",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
@@ -312,7 +312,7 @@
           }
         },
         {
-          "Name": "hwinfo.motherboard",
+          "Name": "hwinfo_motherboard",
           "Parameters": {
             "MetricType": "hwinfo",
             "MetricName": "motherboardname"
@@ -328,7 +328,7 @@
           }
         },
         {
-          "Name": "temperature.cpU-therm",
+          "Name": "temperature_cpU_therm",
           "Parameters": {
             "MetricType": "temperature",
             "MetricName": "cpU-therm"
@@ -344,7 +344,7 @@
           }
         },
         {
-          "Name": "temperature.gpU-therm",
+          "Name": "temperature_gpU_therm",
           "Parameters": {
             "MetricType": "temperature",
             "MetricName": "gpU-therm"
@@ -360,7 +360,7 @@
           }
         },
         {
-          "Name": "gpio.isSupported",
+          "Name": "gpio_isSupported",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "isSupported"
@@ -376,7 +376,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO2",
+          "Name": "gpio_pin_UIO_GPIO2",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -393,7 +393,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO4",
+          "Name": "gpio_pin_UIO_GPIO4",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -410,7 +410,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO5",
+          "Name": "gpio_pin_UIO_GPIO5",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -427,7 +427,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO6",
+          "Name": "gpio_pin_UIO_GPIO6",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -444,7 +444,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO7",
+          "Name": "gpio_pin_UIO_GPIO7",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -461,7 +461,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO8",
+          "Name": "gpio_pin_UIO_GPIO8",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -478,7 +478,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO9",
+          "Name": "gpio_pin_UIO_GPIO9",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -495,7 +495,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO10",
+          "Name": "gpio_pin_UIO_GPIO10",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -512,7 +512,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO11_CPU",
+          "Name": "gpio_pin_UIO_GPIO11_CPU",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -529,7 +529,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO12_CPU",
+          "Name": "gpio_pin_UIO_GPIO12_CPU",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -546,7 +546,7 @@
           }
         },
         {
-          "Name": "gpio.pin.CN13_GPIO1",
+          "Name": "gpio_pin_CN13_GPIO1",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -563,7 +563,7 @@
           }
         },
         {
-          "Name": "gpio.pin.CN13_GPIO7",
+          "Name": "gpio_pin_CN13_GPIO7",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -580,7 +580,7 @@
           }
         },
         {
-          "Name": "gpio.pin.CN13_GPIO9",
+          "Name": "gpio_pin_CN13_GPIO9",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -597,7 +597,7 @@
           }
         },
         {
-          "Name": "gpio.pin.CN13_GPIO11",
+          "Name": "gpio_pin_CN13_GPIO11",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -614,7 +614,7 @@
           }
         },
         {
-          "Name": "gpio.pin.CN13_GPIO12",
+          "Name": "gpio_pin_CN13_GPIO12",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -631,7 +631,7 @@
           }
         },
         {
-          "Name": "gpio.pin.CN13_GPIO13",
+          "Name": "gpio_pin_CN13_GPIO13",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -648,7 +648,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO11_Expender",
+          "Name": "gpio_pin_UIO_GPIO11_Expender",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -665,7 +665,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_GPIO12_Expender",
+          "Name": "gpio_pin_UIO_GPIO12_Expender",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -682,7 +682,7 @@
           }
         },
         {
-          "Name": "gpio.pin.UIO_ID_SW",
+          "Name": "gpio_pin_UIO_ID_SW",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
@@ -699,7 +699,7 @@
           }
         },
         {
-          "Name": "watchdog.isSupported",
+          "Name": "watchdog_isSupported",
           "Parameters": {
             "MetricType": "watchdog",
             "MetricName": "isSupported"
@@ -715,7 +715,7 @@
           }
         },
         {
-          "Name": "thermalprotection.isSupported",
+          "Name": "thermalprotection_isSupported",
           "Parameters": {
             "MetricType": "thermalprotection",
             "MetricName": "isSupported"
