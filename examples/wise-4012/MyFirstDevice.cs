@@ -60,10 +60,9 @@ public class MyFirstDevice : TcpModbusDevice
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
             if (measure?.Value != null)
             {
-                _logger.LogInformation("{SensorName}: {Value} (Enabled={Enabled})",
+                _logger.LogInformation("{SensorName}: {Value}",
                     sensor.Name,
-                    measure.Value,
-                    sensor.Report.Enabled);
+                    measure.Value);
             }
         }
     }

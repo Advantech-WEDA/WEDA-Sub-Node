@@ -20,7 +20,7 @@ public interface ICommand
     /// <summary>
     /// Device request command composed of `cmdType` and `subCmd`. e.g., "report.historical", "report.data"
     /// </summary>
-    string DeviceCmd { get; set; }
+    string DeviceCmd { get; }
 
     /// <summary>
     /// Topic to response command execution result.

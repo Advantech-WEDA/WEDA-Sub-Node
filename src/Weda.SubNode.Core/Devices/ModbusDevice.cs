@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -156,7 +158,7 @@ public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllabl
             }
         };
 
-        var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
+        var result = await ExecuteCommandAsync(command, cancellationToken);
 
         if (result.IsError)
         {
@@ -167,6 +169,20 @@ public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllabl
 
         _logger.LogInformation("SetDigitalOutputAsync succeeded: {OutputName}={State}", outputName, state);
         return true;
+    }
+
+    /// <summary>
+    /// Executes a Modbus command via the underlying parser.
+    /// </summary>
+    /// <param name="command">The device command to execute</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result of the command execution</returns>
+    protected Task<ErrorOr.ErrorOr<object>> ExecuteCommandAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var modbusParser = (ModbusRequestResponseParser)_parser;
+        return modbusParser.ExecuteCommandAsync(command, cancellationToken);
     }
 
     #endregion

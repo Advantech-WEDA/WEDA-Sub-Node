@@ -21,7 +21,7 @@ public class SetDigitalOutputCommandValidator : ICommandValidator<SetDigitalOutp
         var errors = new List<Error>();
 
         // Validate Outputs array
-        if (command.Outputs is null || command.Outputs.Length == 0)
+        if (command.Parameters.Outputs is null || command.Parameters.Outputs.Length == 0)
         {
             errors.Add(Errors.Command.ValidationFailed(
                 "At least one output must be specified"));
@@ -29,9 +29,9 @@ public class SetDigitalOutputCommandValidator : ICommandValidator<SetDigitalOutp
         else
         {
             // Check for empty output names
-            for (int i = 0; i < command.Outputs.Length; i++)
+            for (int i = 0; i < command.Parameters.Outputs.Length; i++)
             {
-                if (string.IsNullOrWhiteSpace(command.Outputs[i].Name))
+                if (string.IsNullOrWhiteSpace(command.Parameters.Outputs[i].Name))
                 {
                     errors.Add(Errors.Command.ValidationFailed(
                         $"Output at index {i} has an empty name"));
@@ -39,7 +39,7 @@ public class SetDigitalOutputCommandValidator : ICommandValidator<SetDigitalOutp
             }
 
             // Check for duplicate output names
-            var duplicates = command.Outputs
+            var duplicates = command.Parameters.Outputs
                 .GroupBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1)
                 .Select(g => g.Key)
