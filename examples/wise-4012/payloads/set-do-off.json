@@ -5,18 +5,20 @@
   "timestamp": 1737004691020,
   "data": {
     "deviceCmd": "cmd.do",
-    "deviceName": "MyFirstDevice",
     "respTopic": "eco1j.weda.270078643315671040.subnode.cmd.rsp",
     "timeout": 30,
-    "outputs": [
-      {
-        "name": "do_0",
-        "state": false
-      },
-      {
-        "name": "do_1",
-        "state": false
-      }
-    ]
+    "parameters": {
+      "deviceName": "MyFirstDevice",
+      "outputs": [
+        {
+          "name": "do_0",
+          "state": false
+        },
+        {
+          "name": "do_1",
+          "state": false
+        }
+      ]
+    }
   }
 }

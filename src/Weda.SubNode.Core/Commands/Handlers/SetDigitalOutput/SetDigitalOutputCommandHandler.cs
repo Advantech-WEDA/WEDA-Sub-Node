@@ -47,22 +47,22 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
 
         logger.LogInformation(
             "Processing SetDigitalOutput command: {OutputCount} outputs, DeviceName={DeviceName}",
-            command.Outputs.Length, command.DeviceName ?? "(all)");
+            command.Parameters.Outputs.Length, command.Parameters.DeviceName ?? "(all)");
 
         // Filter devices if DeviceName is specified
         IReadOnlyCollection<IDigitalOutputControllable> targetDevices;
-        if (!string.IsNullOrEmpty(command.DeviceName))
+        if (!string.IsNullOrEmpty(command.Parameters.DeviceName))
         {
             var specificDevice = controllableDevices
-                .FirstOrDefault(d => d.DeviceName.Equals(command.DeviceName, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(d => d.DeviceName.Equals(command.Parameters.DeviceName, StringComparison.OrdinalIgnoreCase));
 
             if (specificDevice is null)
             {
-                logger.LogWarning("Device '{DeviceName}' not found or does not support digital output", command.DeviceName);
+                logger.LogWarning("Device '{DeviceName}' not found or does not support digital output", command.Parameters.DeviceName);
                 return SetDigitalOutputResult.Error(
                     SetDigitalOutputStatusCode.DeviceNotFound,
                     "DEVICE_NOT_FOUND",
-                    $"Device '{command.DeviceName}' not found or does not support digital output control",
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital output control",
                     executedAt);
             }
 
@@ -81,7 +81,7 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(command.Timeout));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-        foreach (var output in command.Outputs)
+        foreach (var output in command.Parameters.Outputs)
         {
             try
             {
