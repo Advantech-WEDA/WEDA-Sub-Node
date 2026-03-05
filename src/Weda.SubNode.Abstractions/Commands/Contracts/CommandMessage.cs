@@ -1,11 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Weda.SubNode.Abstractions.Cloud.Clients.Command.Contracts;
+namespace Weda.SubNode.Abstractions.Commands.Contracts;
 
 /// <summary>
-/// NATS command message envelope received from cloud.
-/// This is the raw structure of command messages on the NATS topic.
+/// Command message envelope received from cloud.
+/// Contains metadata for tracking and the command data payload.
 /// </summary>
 /// <example>
 /// Sample payload:
@@ -14,43 +14,51 @@ namespace Weda.SubNode.Abstractions.Cloud.Clients.Command.Contracts;
 ///   "seqId": 100,
 ///   "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 ///   "timestamp": 1737004691020,
-///   "data": {
-///     "deviceCmd": "report",
-///     "reportType": "historicalTelemetry",
-///     ...
-///   }
+///   "data": { ... }
 /// }
 /// </example>
-public class NatsCommandMessage
+public class CommandMessage
 {
     /// <summary>
-    /// Command type identifier (e.g., "deviceCmd").
+    /// Specific message type of payload message. (e.g., "deviceCmd").
     /// </summary>
     [JsonPropertyName("cmd")]
     public string Cmd { get; set; } = string.Empty;
 
     /// <summary>
-    /// Sequence ID for message tracking.
+    /// Message increment sequence id at sender side.
     /// </summary>
     [JsonPropertyName("seqId")]
     public ulong SeqId { get; set; }
 
     /// <summary>
-    /// Request sequence ID for correlation (optional).
+    /// Command request unique id in UUID format.
     /// </summary>
     [JsonPropertyName("reqSeqId")]
     public string? ReqSeqId { get; set; }
 
     /// <summary>
-    /// Message timestamp in Unix milliseconds.
+    /// Unix timestamp in milliseconds.
     /// </summary>
     [JsonPropertyName("timestamp")]
     public long Timestamp { get; set; }
 
     /// <summary>
-    /// Command data payload as raw JSON element.
-    /// This will be deserialized to the specific command type by CommandRegistry.
+    /// Specific data payload message of each type of request.
+    /// Raw JsonElement for deferred deserialization by CommandRegistry.
     /// </summary>
     [JsonPropertyName("data")]
     public JsonElement? Data { get; set; }
+}
+
+/// <summary>
+/// Strongly-typed command message with generic data payload.
+/// </summary>
+public class CommandMessage<T> : CommandMessage
+{
+    /// <summary>
+    /// Strongly-typed data payload.
+    /// </summary>
+    [JsonIgnore]
+    public CommandData<T>? TypedData { get; set; }
 }

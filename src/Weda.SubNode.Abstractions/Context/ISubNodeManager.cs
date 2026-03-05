@@ -57,11 +57,9 @@ public interface ISubNodeManager
     /// </summary>
     /// <param name="deviceName">The device name to register handler for.</param>
     /// <param name="configHandler">Handler for configuration update events. Returns ConfigUpdateResult for SubNodeManager to publish report.</param>
-    /// <param name="commandHandler">Optional handler for command events.</param>
     void RegisterDeviceHandler(
         string deviceName,
-        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler,
-        Func<ExecuteCommandEvent, Task>? commandHandler = null);
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler);
 
     /// <summary>
     /// Unregisters a device's event handlers.

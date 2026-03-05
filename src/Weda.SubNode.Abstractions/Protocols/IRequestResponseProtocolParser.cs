@@ -47,25 +47,4 @@ public interface IRequestResponseProtocolParser : IProtocolParserCore
                 return t.Result.Where(m => requestedIds.Contains(m.ResourceId)).ToList();
             }, cancellationToken);
     }
-
-    /// <summary>
-    /// Execute command synchronously (request-response).
-    /// Device calls this method and waits for command execution confirmation.
-    /// </summary>
-    /// <param name="command">Device command to execute</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Command execution result or error</returns>
-    Task<ErrorOr<object>> ExecuteCommandAsync(
-        DeviceCommand command,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Write sensor data to device (if protocol supports write operations).
-    /// </summary>
-    /// <param name="measures">Telemetry measures to write</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if write succeeded</returns>
-    Task<bool> WriteSensorDataAsync(
-        IEnumerable<TelemetryMeasure> measures,
-        CancellationToken cancellationToken = default);
 }

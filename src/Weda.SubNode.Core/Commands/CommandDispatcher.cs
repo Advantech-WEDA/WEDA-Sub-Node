@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Commands;
@@ -35,43 +36,47 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
     private static readonly ConcurrentDictionary<Type, MethodInfo?> _behaviorMethodCache = [];
 
     public async Task<ErrorOr<object?>> DispatchAsync(
-        CommandEnvelope envelope,
+        CommandMessage message,
         CancellationToken cancellationToken = default)
     {
-        var registration = registry.GetRegistration(envelope.CommandName);
+        // Extract command name from data
+        var commandName = ExtractCommandName(message.Data);
+        if (string.IsNullOrEmpty(commandName))
+        {
+            _logger.LogWarning("Command name not found in message data");
+            return Errors.Command.DeserializationFailed("Command name (deviceCmd) not found in message data");
+        }
+
+        var registration = registry.GetRegistration(commandName);
         if (registration is null)
         {
-            _logger.LogWarning("No handler found for command: {CommandName}", envelope.CommandName);
-            return Errors.Command.HandlerNotFound($"No handler registered for command '{envelope.CommandName}'");
+            _logger.LogWarning("No handler found for command: {CommandName}", commandName);
+            return Errors.Command.HandlerNotFound($"No handler registered for command '{commandName}'");
         }
 
         // Deserialize command to strongly-typed object
         object command;
         try
         {
-            command = registry.DeserializeCommand(envelope, registration.CommandType);
+            command = registry.DeserializeCommand(message.Data, registration.CommandType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to deserialize command {CommandName}", envelope.CommandName);
+            _logger.LogError(ex, "Failed to deserialize command {CommandName}", commandName);
             return Errors.Command.DeserializationFailed(ex.Message);
         }
 
-        // Set SeqId and ReqSeqId from envelope to command for response correlation
-        if (command is ICommand typedCommand)
-        {
-            typedCommand.SeqId = envelope.SeqId;
-            typedCommand.ReqSeqId = envelope.ReqSeqId;
-        }
+        // Populate SeqId and ReqSeqId from message envelope for handlers that need them
+        PopulateCommandMetadata(command, message.SeqId, message.ReqSeqId);
 
         // Extract metadata from command (RespTopic, Timeout)
-        var metadata = ExtractCommandMetadata(command, envelope.CommandName);
+        var metadata = ExtractCommandMetadata(command, commandName);
 
         // Send "Received" response if RespTopic is provided and auto ack is enabled
         if (!string.IsNullOrEmpty(metadata.RespTopic) && registration.AutoAckEnabled)
         {
             await SendResponseAsync(metadata.RespTopic,
-                CommandResponse.Received(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, envelope.ReqSeqId));
+                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId));
         }
 
         try
@@ -85,9 +90,9 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                 {
                     var firstError = validationResult.FirstError;
                     await SendResponseAsync(metadata.RespTopic,
-                        CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
-                            CommandResponseStatusCode.InvalidInputArguments, 
-                            firstError.Description, envelope.ReqSeqId));
+                        CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
+                            CommandResponseStatusCode.InvalidInputArguments,
+                            firstError.Description, message.ReqSeqId));
                 }
                 return validationResult.Errors;
             }
@@ -96,8 +101,8 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
             var handler = registry.CreateHandler(registration);
             if (handler is null)
             {
-                _logger.LogWarning("Failed to create handler for command: {CommandName}", envelope.CommandName);
-                return Errors.Command.HandlerNotFound($"Failed to create handler for command '{envelope.CommandName}'");
+                _logger.LogWarning("Failed to create handler for command: {CommandName}", commandName);
+                return Errors.Command.HandlerNotFound($"Failed to create handler for command '{commandName}'");
             }
 
             // Create behavior instances and build the pipeline
@@ -113,13 +118,13 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                 if (result.IsError)
                 {
                     var firstError = result.FirstError;
-                    var errorCode = $"{envelope.CommandName}.{firstError.Code}";
+                    var errorCode = $"{commandName}.{firstError.Code}";
                     var errorMessage = firstError.Description;
 
                     // Use "Rejected" for validation errors, "Failed" for execution errors
                     var response = firstError.Type == ErrorType.Validation
-                        ? CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, CommandResponseStatusCode.InvalidInputArguments, errorMessage, envelope.ReqSeqId)
-                        : CommandResponse.Failed(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId, CommandResponseStatusCode.UnexptectedError, errorMessage, envelope.ReqSeqId);
+                        ? CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, CommandResponseStatusCode.InvalidInputArguments, errorMessage, message.ReqSeqId)
+                        : CommandResponse.Failed(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, CommandResponseStatusCode.UnexptectedError, errorMessage, message.ReqSeqId);
 
                     await SendResponseAsync(metadata.RespTopic, response);
                 }
@@ -131,11 +136,11 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                         var response = new CommandResponse
                         {
                             DeviceId = context.SubNodeInfo.Id ?? "",
-                            SeqId = envelope.SeqId,
-                            ReqSeqId = envelope.ReqSeqId,
+                            SeqId = message.SeqId,
+                            ReqSeqId = message.ReqSeqId,
                             Data = new CommandResponseData
                             {
-                                DeviceCmd = envelope.CommandName,
+                                DeviceCmd = commandName,
                                 MsgType = "result",
                                 Status = typedResult.Status,
                                 Message = typedResult.Message,
@@ -150,8 +155,8 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                     {
                         // Fallback for non-IResult responses
                         await SendResponseAsync(metadata.RespTopic,
-                            CommandResponse.Success(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
-                                CommandResponseStatusCode.Success, null, result.Value, envelope.ReqSeqId));
+                            CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
+                                CommandResponseStatusCode.Success, null, result.Value, message.ReqSeqId));
                     }
                 }
             }
@@ -160,18 +165,32 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Command {CommandName} execution failed", envelope.CommandName);
+            _logger.LogError(ex, "Command {CommandName} execution failed", commandName);
 
             // Send "Failed" response on exception
             if (!string.IsNullOrEmpty(metadata.RespTopic))
             {
                 await SendResponseAsync(metadata.RespTopic,
-                    CommandResponse.Failed(context.SubNodeInfo.Id ?? "", envelope.CommandName, envelope.SeqId,
-                        CommandResponseStatusCode.UnexptectedError, ex.Message, envelope.ReqSeqId));
+                    CommandResponse.Failed(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
+                        CommandResponseStatusCode.UnexptectedError, ex.Message, message.ReqSeqId));
             }
 
             return Errors.Command.ExecutionFailed(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Extracts the command name (deviceCmd) from the raw JSON data.
+    /// </summary>
+    private static string? ExtractCommandName(JsonElement? data)
+    {
+        if (data is null || data.Value.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (data.Value.TryGetProperty("deviceCmd", out var deviceCmd))
+            return deviceCmd.GetString();
+
+        return null;
     }
 
     /// <summary>
@@ -222,7 +241,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
         var handleMethod = _behaviorMethodCache.GetOrAdd(
             behavior.GetType(),
             type => type.GetMethod("HandleAsync"));
-        
+
         if (handleMethod is null)
         {
             _logger.LogWarning("Behavior {BehaviorType} does not have HandleAsync method",
@@ -348,6 +367,21 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
         return CommandRegistry.ConvertToObjectResult(result).Match<ErrorOr<Success>>(
             value => Result.Success,
             errors => errors);
+    }
+
+    /// <summary>
+    /// Populates SeqId and ReqSeqId from the message envelope into the command object.
+    /// This allows handlers to access envelope metadata for custom response handling.
+    /// </summary>
+    private static void PopulateCommandMetadata(object command, ulong seqId, string? reqSeqId)
+    {
+        var type = command.GetType();
+
+        var seqIdProperty = type.GetProperty("SeqId", BindingFlags.Public | BindingFlags.Instance);
+        seqIdProperty?.SetValue(command, seqId);
+
+        var reqSeqIdProperty = type.GetProperty("ReqSeqId", BindingFlags.Public | BindingFlags.Instance);
+        reqSeqIdProperty?.SetValue(command, reqSeqId);
     }
 
     /// <summary>

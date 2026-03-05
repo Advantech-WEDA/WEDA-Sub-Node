@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Web;
 
 namespace Weda.SubNode.WebApi;
@@ -29,6 +30,13 @@ public class WebApiHostedService(IServiceProvider serviceProvider, IOptions<WebA
         builder.Services.AddSwaggerGen();
         builder.Services.AddSingleton(_serviceProvider.GetRequiredService<IDeviceRegistry>());
         builder.Services.AddSingleton(_serviceProvider.GetRequiredService<IRecordingService>());
+
+        // Register IDynamicRecordStorage if available (for MIME type data)
+        var dynamicStorage = _serviceProvider.GetService<IDynamicRecordStorage>();
+        if (dynamicStorage != null)
+        {
+            builder.Services.AddSingleton(dynamicStorage);
+        }
 
         _webApp = builder.Build();
 

@@ -5,6 +5,7 @@
 本文件描述 SubNode SDK 的 Command 處理架構設計。
 
 **設計原則**：
+
 - **SubNode-Centric**：所有 Command 都從 SubNode 出發
 - **Developer 決定**：Handler 中自己決定要不要操作 Device
 - **自動掃描**：Handler 自動從 Assembly 掃描，不需手動註冊
@@ -53,7 +54,7 @@ Cloud Command (NATS)
 │  {                                                              │
 │      public async Task<CommandResult> HandleAsync(              │
 │          SetDoCmd command,                                      │
-│          IWedaApplicationContext context,  // 直接用現有 Context │
+│          IWedaApplicationContext context,                       │
 │          CancellationToken ct)                                  │
 │      {                                                          │
 │          var device = context.GetDevice<MyModbusDevice>("plc"); │
@@ -86,21 +87,21 @@ Cloud Command (NATS)
   "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "timestamp": 1737004691020,
   "data": {
-    "deviceCmd": "report",
-    "reportType": "historicalTelemetry",
-    "timeRange": {
-      "startTime": 1737000000000,
-      "endTime": 1737004000000
-    },
-    "sensorFilter": {
-      "include": ["sensor1", "sensor2"],
-      "exclude": []
-    },
+    "deviceCmd": "report.historical",
     "respTopic": "eco1p.advantech.xxx.subnode.cmd.rsp",
-    "dataTopic": "eco1p.advantech.xxx.subnode.telemetry.batch",
-    "maxBatchesPerMessage": 10,
-    "transmissionRateLimit": 100,
-    "timeout": 300
+    "timeout": 300,
+    "parameters": {
+      "timeRange": {
+        "startTime": 1737000000000,
+        "endTime": 1737004000000
+      },
+      "sensorFilter": {
+        "include": ["sensor1", "sensor2"],
+        "exclude": []
+      },
+      "maxBatchesPerMessage": 10,
+      "transmissionRateLimit": 100
+    }
   }
 }
 ```
@@ -128,32 +129,32 @@ Cloud Command (NATS)
 │    Mode A       │     │    Mode B       │     │    Mode C       │
 │  SubNode Only   │     │  Device Only    │     │    Hybrid       │
 ├─────────────────┤     ├─────────────────┤     ├─────────────────┤
-│                 │     │                 │     │                 │ 
-│  ┌───────────┐  │     │  ┌───────────┐  │     │  ┌───────────┐  │ 
-│  │  Handler  │  │     │  │  Handler  │  │     │  │  Handler  │  │ 
-│  │           │  │     │  │           │  │     │  │           │  │ 
-│  │ ┌───────┐ │  │     │  │           │  │     │  │ ┌───────┐ │  │ 
-│  │ │Service│ │  │     │  │           │  │     │  │ │Service│ │  │ 
-│  │ └───────┘ │  │     │  │           │  │     │  │ └───────┘ │  │ 
-│  └───────────┘  │     │  │           │  │     │  │           │  │ 
-│                 │     │  │ ┌───────┐ │  │     │  │ ┌───────┐ │  │ 
-│                 │     │  │ │Router │ │  │     │  │ │Router │ │  │ 
-│                 │     │  │ └───┬───┘ │  │     │  │ └───┬───┘ │  │ 
-│                 │     │  └─────│─────┘  │     │  └─────│─────┘  │ 
-│                 │     │        ▼        │     │        ▼        │ 
-│                 │     │  ┌───────────┐  │     │  ┌───────────┐  │ 
-│                 │     │  │  Device   │  │     │  │  Device   │  │ 
-│                 │     │  │ ┌───────┐ │  │     │  │ ┌───────┐ │  │ 
-│                 │     │  │ | Parse │ │  │     │  │ | Parse │ │  │ 
-│                 │     │  │ └───┬───┘ │  │     │  │ └───┬───┘ │  │ 
-│                 │     │  └─────│─────┘  │     │  └─────│─────┘  │ 
-│                 │     │        ▼        │     │        ▼        │ 
-│                 │     │  ┌───────────┐  │     │  ┌───────────┐  │ 
-│                 │     │  │ Physical  │  │     │  │ Physical  │  │ 
-│                 │     │  │  Device   │  │     │  │  Device   │  │ 
-│                 │     │  └───────────┘  │     │  └───────────┘  │ 
-│                 │     │                 │     │                 │ 
-└─────────────────┘     └─────────────────┘     └─────────────────┘ 
+│                 │     │                 │     │                 │
+│  ┌───────────┐  │     │  ┌───────────┐  │     │  ┌───────────┐  │
+│  │  Handler  │  │     │  │  Handler  │  │     │  │  Handler  │  │
+│  │           │  │     │  │           │  │     │  │           │  │
+│  │ ┌───────┐ │  │     │  │           │  │     │  │ ┌───────┐ │  │
+│  │ │Service│ │  │     │  │           │  │     │  │ │Service│ │  │
+│  │ └───────┘ │  │     │  │           │  │     │  │ └───────┘ │  │
+│  └───────────┘  │     │  │           │  │     │  │           │  │
+│                 │     │  │ ┌───────┐ │  │     │  │ ┌───────┐ │  │
+│                 │     │  │ │Router │ │  │     │  │ │Router │ │  │
+│                 │     │  │ └───┬───┘ │  │     │  │ └───┬───┘ │  │
+│                 │     │  └─────│─────┘  │     │  └─────│─────┘  │
+│                 │     │        ▼        │     │        ▼        │
+│                 │     │  ┌───────────┐  │     │  ┌───────────┐  │
+│                 │     │  │  Device   │  │     │  │  Device   │  │
+│                 │     │  │ ┌───────┐ │  │     │  │ ┌───────┐ │  │
+│                 │     │  │ | Parse │ │  │     │  │ | Parse │ │  │
+│                 │     │  │ └───┬───┘ │  │     │  │ └───┬───┘ │  │
+│                 │     │  └─────│─────┘  │     │  └─────│─────┘  │
+│                 │     │        ▼        │     │        ▼        │
+│                 │     │  ┌───────────┐  │     │  ┌───────────┐  │
+│                 │     │  │ Physical  │  │     │  │ Physical  │  │
+│                 │     │  │  Device   │  │     │  │  Device   │  │
+│                 │     │  └───────────┘  │     │  └───────────┘  │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
         │                        │                       │
         ▼                        ▼                       ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -192,9 +193,11 @@ Cloud Command (NATS)
 
 ```csharp
 // 1. 定義 Command
-public record GetLogsCommand : ICommand
+[DeviceCmd("get.logs")]
+public class GetLogsCommand : CommandData<GetLogsParameter>;
+
+public class GetLogsParameter
 {
-    public string DeviceCmd => "getLogs";
     public int MaxLines { get; init; } = 100;
 }
 
@@ -208,18 +211,13 @@ public class GetLogsCommandHandler : ICommandHandler<GetLogsCommand>
     {
         // 透過 context 取得所需服務
         var logger = context.GetLogger<GetLogsCommandHandler>();
-        logger.LogInformation("Getting logs, max lines: {MaxLines}", command.MaxLines);
+        logger.LogInformation("Getting logs, max lines: {MaxLines}", command.Parameters.MaxLines);
 
         // 實際邏輯...
         var logs = new[] { "log1", "log2" };
         return CommandResult.Success(logs);
     }
 }
-
-// 3. 註冊 (WedaBuilder 模式)
-builder.ConfigureCommands(cmd => {
-    cmd.Register<GetLogsCommand, GetLogsCommandHandler>();
-});
 ```
 
 ---
@@ -245,8 +243,7 @@ builder.ConfigureCommands(cmd => {
 ┌──────────────────┐
 │  Device (plc-1)  │
 │  ┌────────────┐  │
-│  │ Execute    │  │     ← Device 負責執行
-│  │ CommandAsync│  │       (Modbus FC05 Write Coil)
+│  │ SetDO()    │  │     ← Device 負責執行 (Modbus FC05 Write Coil)
 │  └────────────┘  │
 └──────────────────┘
       │
@@ -260,8 +257,6 @@ builder.ConfigureCommands(cmd => {
 **內建 Handler** (SDK 提供，不需自己實作):
 
 ```csharp
-// DeviceControlCommandHandler 是 SDK 內建的
-// 它會根據 deviceName 找到對應的 Device，並呼叫 ExecuteCommandAsync
 public class DeviceControlCommandHandler : ICommandHandler<DeviceControlCommand>
 {
     public async Task<CommandResult> HandleAsync(
@@ -269,8 +264,9 @@ public class DeviceControlCommandHandler : ICommandHandler<DeviceControlCommand>
         IWedaApplicationContext context,
         CancellationToken ct)
     {
-        var device = context.GetDevice(command.DeviceName);
-        var result = await device.ExecuteCommandAsync(command.ToDeviceCommand(), ct);
+        var device = context.GetDevice(command.Parameters.DeviceName);
+        if (device == null) return Error.NotFound("Device.NotFound", $"Device {command.Parameters.DeviceName} not found.")
+        var result = await device.SetDO(command.Parameters.Do, command.Parameters.State, ct);
         return result.IsError
             ? CommandResult.Failure(result.FirstError)
             : CommandResult.Success(result.Value);
@@ -286,378 +282,173 @@ public class DeviceControlCommandHandler : ICommandHandler<DeviceControlCommand>
   "deviceName": "plc-1",
   "command": "SetDO",
   "parameters": { "do": "do0", "state": true }
-}
-```
-
----
-
-### Mode C: Hybrid (SubNode 處理 + 轉發給 Device)
-
-**場景**：校正所有感測器、批次更新設定、韌體更新
-
-```
-    Cloud
-      │
-      │  { "deviceCmd": "calibrateAll", "referenceValue": 25.0 }
-      ▼
-┌────────────────────────────────────────────────────────────────┐
-│  SubNode                                                       │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ CalibrateAllCommandHandler                               │  │
-│  │                                                          │  │
-│  │  1. Record calibration start (SubNode Operation)         │  │
-│  │  2. Traverse all devices, forward calibration command    │  │
-│  │  3. Collect results                                      │  │
-│  │  4. Record calibration results to DB (SubNode Operation) │  │
-│  │  5. Return aggregated result                             │  │
-│  │                                                          │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
-           │                    │                    │
-           ▼                    ▼                    ▼
-     ┌───────────┐        ┌───────────┐        ┌───────────┐
-     │ Device 1  │        │ Device 2  │        │ Device 3  │
-     │ Calibrate │        │ Calibrate │        │ Calibrate │
-     └───────────┘        └───────────┘        └───────────┘
-```
-
-**SDK User 實作**:
-
-```csharp
-// 1. 定義 Command
-public record CalibrateAllCommand : ICommand
-{
-    public string DeviceCmd => "calibrateAll";
-    public double ReferenceValue { get; init; }
-}
-
-// 2. 實作 Hybrid Handler
-public class CalibrateAllCommandHandler : ICommandHandler<CalibrateAllCommand>
-{
-    public async Task<CommandResult> HandleAsync(
-        CalibrateAllCommand command,
-        IWedaApplicationContext context,
-        CancellationToken ct)
-    {
-        var logger = context.GetLogger<CalibrateAllCommandHandler>();
-
-        // ===== 轉發給所有 Devices =====
-        var results = new List<DeviceCalibrationResult>();
-        var devices = context.DeviceRegistry.GetAllDevices();
-
-        logger.LogInformation("Calibrating {Count} devices with reference {Value}",
-            devices.Count, command.ReferenceValue);
-
-        foreach (var device in devices)
-        {
-            var deviceCmd = new DeviceCommand
-            {
-                DeviceCmd = "Calibrate",
-                Parameters = new Dictionary<string, object>
-                {
-                    ["referenceValue"] = command.ReferenceValue
-                }
-            };
-
-            var result = await device.ExecuteCommandAsync(deviceCmd, ct);
-
-            results.Add(new DeviceCalibrationResult
-            {
-                DeviceName = device.Configuration.DeviceName,
-                Success = !result.IsError,
-                Error = result.IsError ? result.FirstError.Description : null
-            });
-        }
-
-        return CommandResult.Success(new
-        {
-            totalDevices = results.Count,
-            successCount = results.Count(r => r.Success),
-            results
-        });
+  
+  "cmd": "deviceCmd",
+  "seqId": 100,
+  "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": 1737004691020,
+  "data": {
+    "deviceCmd": "set.do",
+    "respTopic": "eco1p.advantech.xxx.subnode.cmd.rsp",
+    "timeout": 300,
+    "parameters": {
+      "do": "do0",
+      "state": true
     }
+  }
 }
 ```
 
----
-
-## SDK 使用模式
-
-### 模式 1: WedaBuilder 模式 (Declarative)
-
-適合 Production 環境，透過 DI 注入。
-
-```csharp
-var builder = WedaApplication.CreateBuilder(args);
-builder.LoadConfiguration("devicecfg.json");
-
-builder.ConfigureCommands(commands =>
-{
-    // Type-based registration (DI friendly)
-    commands.Register<CalibrateAllCommand, CalibrateAllCommandHandler>();
-    commands.RegisterValidator<CalibrateAllCommand, CalibrateAllValidator>();
-});
-
-var app = builder.Build();
-await app.RunAsync();
+## Command Flow
 ```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CLOUD                                                                    │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │ CommandMessage (JSON)                                                │ │
+│ │ {                                                                    │ │
+│ │   "cmd": "deviceCmd",                                                │ │
+│ │   "seqId": 100,                                                      │ │
+│ │   "reqSeqId": "uuid-xxx",                                            │ │
+│ │   "timestamp": 1737004691020,                                        │ │
+│ │   "data": {                                                          │ │
+│ │     "deviceCmd": "report.historical",                                │ │
+│ │     "timeout": 300,                                                  │ │
+│ │     "respTopic": "eco1j.weda...cmd.rsp",                             │ │
+│ │     "parameters": { "timeRange": {...}, "maxBatchSize": 1000 }       │ │
+│ │   }                                                                  │ │
+│ │ }                                                                    │ │
+│ └───────────────────────────────┬──────────────────────────────────────┘ │
+└─────────────────────────────────┼────────────────────────────────────────┘
+                                  │ NATS
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ WedaCloudService                                                         │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │ SubscribeAsync<CommandMessage>()                                     │ │
+│ │   ↓                                                                  │ │
+│ │ ExtractDeviceCommand(envelope)                                       │ │
+│ │ - Deserialize to DeviceCommand                                       │ │
+│ │ - Copy SeqId, ReqSeqId                                               │ │
+│ │ - Store RawData (JsonElement)                                        │ │
+│ │   ↓                                                                  │ │
+│ │ Fire ExecuteCommandEvent                                             │ │
+│ └───────────────────────────────┬──────────────────────────────────────┘ │
+└─────────────────────────────────┼────────────────────────────────────────┘
+                                  │ Event
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ SubNodeManager                                                           │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │ RouteCommandAsync(ExecuteCommandEvent e)                             │ │
+│ │   ↓                                                                  │ │
+│ │ CreateCommandMessage(e)                                              │ │
+│ │ - Create CommandMessage from ExecuteCommandEvent                     │ │
+│ │ - Data = e.Command.RawData (JsonElement)                             │ │
+│ │   ↓                                                                  │ │
+│ │ _commandDispatcher.DispatchAsync(message)                            │ │
+│ └───────────────────────────────┬──────────────────────────────────────┘ │
+└─────────────────────────────────┼────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CommandDispatcher                                                        │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │ DispatchAsync(CommandMessage message)                                │ │
+│ │   ↓                                                                  │ │
+│ │ 1. ExtractCommandName(message.Data)                                  │ │
+│ │     → "report.historical"                                            │ │
+│ │   ↓                                                                  │ │
+│ │ 2. registry.GetRegistration("report.historical")                     │ │
+│ │     → CommandRegistration { HandlerType: BatchReportCommandHandler } │ │
+│ │   ↓                                                                  │ │
+│ │ 3. registry.DeserializeCommand(message.Data, BatchReportCommand)     │ │
+│ │     → BatchReportCommand instance                                    │ │
+│ │   ↓                                                                  │ │
+│ │ 4. PopulateCommandMetadata(command, message.SeqId, message.ReqSeqId) │ │
+│ │     → Set command.SeqId, command.ReqSeqId via reflection             │ │
+│ │   ↓                                                                  │ │
+│ │ 5. Send "Received" response (if AutoAck enabled)                     │ │
+│ │   ↓                                                                  │ │
+│ │ 6. RunDataAnnotationValidation()                                     │ │
+│ │   ↓                                                                  │ │
+│ │ 7. CreateBehaviors() → [ValidatorBehavior, LoggingBehavior]          │ │
+│ │   ↓                                                                  │ │
+│ │ 8. ExecutePipelineAsync()                                            │ │
+│ └───────────────────────────────┬──────────────────────────────────────┘ │
+└─────────────────────────────────┼────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Pipeline Execution                                                       │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │                                                                      │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ ValidatorBehavior<BatchReportCommand, BatchReportResult>         │ │ │
+│ │ │ → BatchReportCommandValidator.Validate()                         │ │ │
+│ │ └─────────────────────────────┬────────────────────────────────────┘ │ │
+│ │                               │ next()                               │ │
+│ │                               ▼                                      │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ LoggingBehavior<BatchReportCommand, BatchReportResult>           │ │ │   
+│ │ │ → Log before/after execution                                     │ │ │
+│ │ └─────────────────────────────┬────────────────────────────────────┘ │ │
+│ │                               │ next()                               │ │
+│ │                               ▼                                      │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ BatchReportCommandHandler.HandleAsync()                          │ │ │
+│ │ │ - Access command.Parameters.TimeRange                            │ │ │
+│ │ │ - Access command.Parameters.MaxBatchSize                         │ │ │
+│ │ │ - Access command.SeqId, command.ReqSeqId                         │ │ │
+│ │ │ - Query recordings, send batch telemetry                         │ │ │
+│ │ │ - Return BatchReportResult                                       │ │ │
+│ │ └─────────────────────────────┬────────────────────────────────────┘ │ │
+│ │                               │                                      │ │
+│ └───────────────────────────────┼──────────────────────────────────────┘ │
+└─────────────────────────────────┼────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CommandDispatcher (Response)                                             │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │ 9. SendResponseAsync()                                               │ │
+│ │ → Success/Failed/Rejected based on result                            │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────┘
+關鍵類別關係
 
-### 模式 2: SubNode 模式 (Programmatic)
+CommandMessage (Envelope) CommandData<T> (Data Payload)
+┌──────────────────────┐           ┌───────────────────────────────┐
+│ cmd: string          │           │ deviceCmd: string             │
+│ seqId: ulong         │           │ timeout: uint                 │
+│ reqSeqId: string?    │           │ respTopic: string?            │
+│ timestamp: long      │           │ parameters: T                 │
+│ data: JsonElement?   │──────────▶│ seqId: ulong [JsonIgnore]     │
+└──────────────────────┘           │ reqSeqId: string? [JsonIgnore]│
+                                   └───────────────────────────────┘
+                                             ▲
+                                             │ extends
+                       ┌───────────────────────────────────────────┐
+                       │ BatchReportCommand                        │
+                       │ : CommandData<BatchReportParameters>      │
+                       │                                           │
+                       │ + GetEffectiveTimeRange()                 │
+                       └───────────────────────────────────────────┘
+Handler 註冊流程
 
-適合快速開發、測試、完全程式化控制。
-
-```csharp
-// 1. 建立 registry (不需要 DI)
-var registry = new CommandRegistry();
-
-// 2. 用 delegate 註冊 (簡單場景)
-// context 是 IWedaApplicationContext，提供所有必要服務
-registry.Register("getLogs", async (command, context, ct) =>
-{
-    var logger = context.GetLogger<Program>();
-    logger.LogInformation("Getting logs...");
-    return CommandResult.Success(new[] { "log1", "log2" });
-});
-
-// 3. 用 delegate 存取 devices
-registry.Register("setDo", async (command, context, ct) =>
-{
-    var device = context.GetDevice<MyModbusDevice>("plc-1");
-    await device.SetDO("do0", true);
-    return CommandResult.Success();
-});
-
-// 4. 用 instance 註冊 (複雜場景)
-registry.Register("report", new ReportCommandHandler());
-
-// 5. 建立 SubNodeManager 並啟動
-var dispatcher = new CommandDispatcher(registry, context);
-var manager = context.SubNodeManager;
-await manager.StartAsync();
-```
-
-### 兩種模式對照
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CommandRegistry                                     │
-│                                                                             │
-│   支援兩種註冊方式:                                                          │
-│   1. Type-based: Register<TCommand, THandler>()     (DI 模式)              │
-│   2. Delegate-based: Register("cmd", handler)       (Programmatic 模式)    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────┬───────────────────────────────────────┐
-│  WedaBuilder 模式                   │  SubNode 模式                         │
-├─────────────────────────────────────┼───────────────────────────────────────┤
-│                                     │                                       │
-│  builder.ConfigureCommands(cmd => { │  var registry = new CommandRegistry();│
-│    cmd.Register<T, THandler>();     │  registry.Register("cmd", handler);   │
-│  });                                │                                       │
-│                                     │  var manager = new SubNodeManager(    │
-│  // DI 自動注入                     │      options, registry);              │
-│                                     │                                       │
-└─────────────────────────────────────┴───────────────────────────────────────┘
-```
-
-| 模式 | 註冊方式 | 適用場景 |
-|------|----------|----------|
-| **WedaBuilder** | `Register<T, THandler>()` | Production、需要 DI、Pipeline |
-| **SubNode** | `Register("cmd", handler)` | 快速開發、測試、Programmatic 控制 |
-
----
-
-## Core Abstractions
-
-### File Structure
-
-```
-src/Weda.SubNode.Abstractions/Commands/
-├── ICommand.cs
-├── ICommandHandler.cs
-├── CommandEnvelope.cs
-├── CommandResult.cs
-├── Pipeline/
-│   └── IPipelineBehavior.cs
-├── Validation/
-│   ├── ICommandValidator.cs
-│   └── ValidationResult.cs
-└── Definitions/
-    ├── ReportCommand.cs           # SubNode-level (Mode A)
-    └── DeviceControlCommand.cs    # Device-level (Mode B)
-
-src/Weda.SubNode.Core/Commands/
-├── CommandRegistry.cs
-├── CommandDispatcher.cs
-├── CommandParser.cs
-├── Behaviors/
-│   ├── LoggingBehavior.cs
-│   └── ValidatorBehavior.cs
-├── Handlers/
-│   ├── ReportCommandHandler.cs
-│   └── DeviceControlCommandHandler.cs
-└── Validators/
-    └── ReportCommandValidator.cs
-```
-
-> **Note**: Handler 使用 `IWedaApplicationContext` 作為 context 參數，不需要額外的 CommandContext 類別。
-> `IWedaApplicationContext` 已提供：DeviceRegistry、RecordingService、CloudService、Logger 等所有必要服務。
-
-### Key Interfaces
-
-```csharp
-// ICommand - 所有 command 的 marker interface
-public interface ICommand
-{
-    string DeviceCmd { get; }
-}
-
-// ICommandHandler - command handler 介面
-// 使用 IWedaApplicationContext 作為 context，提供 DeviceRegistry、RecordingService 等服務
-public interface ICommandHandler<TCommand> where TCommand : ICommand
-{
-    Task<CommandResult> HandleAsync(
-        TCommand command,
-        IWedaApplicationContext context,
-        CancellationToken ct);
-}
-
-// IPipelineBehavior - pipeline middleware
-public interface IPipelineBehavior<TCommand> where TCommand : ICommand
-{
-    Task<CommandResult> HandleAsync(
-        TCommand command,
-        IWedaApplicationContext context,
-        CommandHandlerDelegate<TCommand> next,
-        CancellationToken ct);
-}
-
-// ICommandValidator - command 驗證器
-public interface ICommandValidator<TCommand> where TCommand : ICommand
-{
-    ValidationResult Validate(TCommand command, IWedaApplicationContext context);
-}
-```
-
-### CommandRegistry API
-
-```csharp
-public class CommandRegistry
-{
-    // ===== Type-based registration (for DI) =====
-    public void Register<TCommand, THandler>()
-        where TCommand : ICommand
-        where THandler : ICommandHandler<TCommand>;
-
-    // ===== Delegate-based registration (for programmatic) =====
-    public void Register(string deviceCmd, CommandHandlerDelegate handler);
-    public void Register(string deviceCmd, ICommandHandler handler);
-
-    // ===== Lookup =====
-    public CommandRegistration? GetRegistration(string deviceCmd);
-}
-
-public delegate Task<CommandResult> CommandHandlerDelegate(
-    ICommand command,
-    IWedaApplicationContext context,
-    CancellationToken ct);
-```
-
----
-
-## Implementation Plan
-
-### Phase 1: Core Abstractions
-
-- [ ] Step 1.1: Create ICommand marker interface
-- [ ] Step 1.2: Create ICommandHandler interface (uses IWedaApplicationContext)
-- [ ] Step 1.3: Create CommandEnvelope (NATS payload wrapper)
-- [ ] Step 1.4: Create CommandResult
-
-### Phase 2: Pipeline Infrastructure
-
-- [ ] Step 2.1: Create IPipelineBehavior interface
-- [ ] Step 2.2: Create LoggingBehavior
-- [ ] Step 2.3: Create ICommandValidator interface
-- [ ] Step 2.4: Create ValidatorBehavior
-
-### Phase 3: Registry & Dispatcher
-
-- [ ] Step 3.1: Create CommandRegistry (supports delegate & type registration)
-- [ ] Step 3.2: Create CommandDispatcher (executes pipeline → handler)
-- [ ] Step 3.3: Create CommandParser (JSON → ICommand)
-
-### Phase 4: Built-in Commands
-
-- [ ] Step 4.1: Create ReportCommand & ReportCommandHandler
-- [ ] Step 4.2: Create DeviceControlCommand & DeviceControlCommandHandler
-
-### Phase 5: Integration
-
-- [ ] Step 5.1: Integrate CommandDispatcher into SubNodeManager
-- [ ] Step 5.2: Add ConfigureCommands() to WedaApplicationBuilder
-- [ ] Step 5.3: Write unit tests
-- [ ] Step 5.4: Integration test with NATS
-
----
-
-## SDK User 快速參考
-
-### 決策流程圖
-
-```
-                    ┌─────────────────────────┐
-                    │ 我要實作一個新 Command   │
-                    └───────────┬─────────────┘
-                                │
-                                ▼
-                    ┌─────────────────────────┐
-                    │ 需要操作 Physical Device │
-                    │ 嗎？                     │
-                    └───────────┬─────────────┘
-                                │
-              ┌─────────────────┴─────────────────┐
-              │ No                                │ Yes
-              ▼                                   ▼
-    ┌─────────────────┐               ┌─────────────────────────┐
-    │    Mode A       │               │ 需要 SubNode 也做事嗎？ │
-    │  SubNode Only   │               │ (記錄、統整、協調)      │
-    │                 │               └───────────┬─────────────┘
-    │ 實作:           │                           │
-    │ ICommandHandler │             ┌─────────────┴─────────────┐
-    └─────────────────┘             │ No                        │ Yes
-                                    ▼                           ▼
-                          ┌─────────────────┐       ┌─────────────────┐
-                          │    Mode B       │       │    Mode C       │
-                          │  Device Only    │       │    Hybrid       │
-                          │                 │       │                 │
-                          │ 使用內建        │       │ 實作:           │
-                          │ DeviceControl   │       │ ICommandHandler │
-                          │ Command         │       │ + 呼叫 devices  │
-                          └─────────────────┘       └─────────────────┘
-```
-
-### 快速參考表
-
-| 我想要... | 用哪個 Mode | 我需要實作 |
-|-----------|-------------|-----------|
-| 查詢 SubNode 的歷史資料 | Mode A | `ICommandHandler<T>` |
-| 讀取 SubNode 的設定 | Mode A | `ICommandHandler<T>` |
-| 控制單一 Device 的 DO | Mode B | 使用內建 `DeviceControlCommand`（不需實作） |
-| 讀取單一 Device 的 Register | Mode B | 使用內建 `DeviceControlCommand`（不需實作） |
-| 校正所有 Devices 並記錄 | Mode C | `ICommandHandler<T>` + 呼叫 `device.ExecuteCommandAsync` |
-| 批次更新多個 Devices 設定 | Mode C | `ICommandHandler<T>` + 遍歷 devices |
-| 複雜工作流程 (有先後順序) | Mode C | `ICommandHandler<T>` + orchestration logic |
-
----
-
-## Suggested Commits
-
-```
-feat(commands): add ICommand, ICommandHandler and CommandResult (Phase 1)
-feat(commands): add pipeline behavior infrastructure (Phase 2)
-feat(commands): add CommandRegistry and CommandDispatcher (Phase 3)
-feat(commands): add ReportCommand and DeviceControlCommand (Phase 4)
-refactor(commands): integrate CommandDispatcher into SubNodeManager (Phase 5)
+Application Startup
+    │
+    ▼
+CommandRegistry.ScanAssembly()
+│
+├── Find ICommandHandler<TCommand, TResult> implementations
+│
+├── Get [DeviceCmd("report.historical")] from BatchReportCommand
+│
+├── Get [Validation], [Logging], [AutoAck] from BatchReportCommandHandler
+│
+└── Register: "report.historical" → CommandRegistration
+    ├─ CommandType: BatchReportCommand
+    ├─ HandlerType: BatchReportCommandHandler
+    ├─ BehaviorConfigs: [Validation, Logging]
+    └─ AutoAckEnabled: false
 ```

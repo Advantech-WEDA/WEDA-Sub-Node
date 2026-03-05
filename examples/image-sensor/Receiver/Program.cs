@@ -71,11 +71,11 @@ var subscriberTask = Task.Run(async () =>
 
                 // Check if this is a chunked message
                 if (metadata != null
-                    && metadata.TryGetValue("imageId", out var imageIdEl)
+                    && metadata.TryGetValue("transferId", out var transferIdEl)
                     && metadata.TryGetValue("chunkIndex", out var chunkIndexEl)
                     && metadata.TryGetValue("totalChunks", out var totalChunksEl))
                 {
-                    var imageId = imageIdEl.GetString()!;
+                    var imageId = transferIdEl.GetString()!;
                     var chunkIndex = chunkIndexEl.GetInt32();
                     var totalChunks = totalChunksEl.GetInt32();
                     uint? checksum = metadata.TryGetValue("crc32Checksum", out var checksumEl)

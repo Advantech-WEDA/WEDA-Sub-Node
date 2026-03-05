@@ -1,28 +1,38 @@
 {
-  "cfg": {
-    "desired": {
-      "devicecfg": {
-        "SubNode": {
-          "Name": "TestDevice",
-          "SubNodeType": "AdamEthernet",
-          "Manufacturer": "Advantech",
-          "Model": "Demo",
-          "SwVersion": "1.0.0"
-        },
-        "DeviceConfigs": {
-          "MyFirstDeviceConfig": {
-            "Enabled": true,
-            "DeviceCommunication": {
-              "Host": "127.0.0.1",
-              "Port": 5020
-            },
-            "Dtdl": {
-              "AutoGenEnabled": true
-            },
-            "Properties": {
-              "SlaveId": 1
-            },
-            "Sensors": []
+  "protoVer": "eco1j",
+  "groupId": "yyds",
+  "deviceId": "276580090500874240",
+  "cmd": "updateCmd",
+  "seqId": 36,
+  "reqSeqId": "1235",
+  "rspSeqId": "38354ceb-585a-43bd-a791-79364f77d586",
+  "timestamp": 1765264758310,
+  "data": {
+    "cfg": {
+      "desired": {
+        "devicecfg": {
+          "SubNode": {
+            "Name": "TestDevice",
+            "SubNodeType": "AdamEthernet",
+            "Manufacturer": "Advantech",
+            "Model": "Demo",
+            "SwVersion": "1.0.0"
+          },
+          "DeviceConfigs": {
+            "MyFirstDeviceConfig": {
+              "Enabled": true,
+              "DeviceCommunication": {
+                "Host": "127.0.0.1",
+                "Port": 5020
+              },
+              "Dtdl": {
+                "AutoGenEnabled": true
+              },
+              "Properties": {
+                "SlaveId": 1
+              },
+              "Sensors": []
+            }
           }
         }
       }

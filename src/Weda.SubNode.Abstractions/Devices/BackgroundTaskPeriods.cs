@@ -23,4 +23,10 @@ public class BackgroundTaskPeriods
     /// Minimum: 60000ms (1 minute).
     /// </summary>
     public int ReportConfiguration { get; set; } = DefaultReportConfigurationPeriod;
+
+    /// <summary>
+    /// When true (default), telemetry is batched and sent at intervals based on minimum sensor interval.
+    /// When false telemetry is sent immediately after processing (no batching).
+    /// </summary>
+    public bool BatchSend { get; set; } = true;
 }

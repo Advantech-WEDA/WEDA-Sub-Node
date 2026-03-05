@@ -100,6 +100,8 @@ public class FakeDevice : IDevice
     public void Dispose() { }
 
     // IDevice telemetry - minimal implementation
+    public Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken cancellationToken = default)
+        => Task.FromResult(new List<TelemetryMeasure>());
     public Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(new List<TelemetryMeasure>());
     public Task<DeviceHealth> GetHealthAsync(CancellationToken cancellationToken = default)

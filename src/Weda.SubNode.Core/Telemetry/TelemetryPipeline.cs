@@ -10,6 +10,7 @@ using Weda.SubNode.Abstractions.Telemetry.Validation;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices.Health;
 using Weda.SubNode.Core.Dsp;
+using Weda.SubNode.Core.Telemetry.Validation;
 using Weda.SubNode.Core.Transforms;
 
 namespace Weda.SubNode.Core.Telemetry;

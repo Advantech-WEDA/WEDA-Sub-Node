@@ -15,7 +15,7 @@ namespace Weda.SubNode.Core.Devices;
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> PubSubDeviceBase -> DeviceBase
 /// </summary>
-public class ISensingDevice : PubSubDeviceBase, ISensorControl
+public class ISensingDevice : PubSubDeviceBase
 {
     /// <summary>
     /// Initializes a new instance of ISensingDevice.
@@ -41,106 +41,4 @@ public class ISensingDevice : PubSubDeviceBase, ISensorControl
     {
         return new ISensingPubSubParser(configuration, pubSub, logger);
     }
-
-    #region ISensorControl Implementation
-
-    public async Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Setting digital output {OutputName} to {State} on device {SubNodeId}",
-            outputName, state, SubNodeId);
-
-        var command = new DeviceCommand
-        {
-            DeviceCmd = "SetDigitalOutput",
-            Parameters = new Dictionary<string, object>
-            {
-                ["outputName"] = outputName,
-                ["state"] = state
-            }
-        };
-
-        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
-        return statusCode == CommandResponseStatusCode.Success;
-    }
-
-    public async Task<bool> SetAnalogOutputAsync(string outputName, double value, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Setting analog output {OutputName} to {Value} on device {SubNodeId}",
-            outputName, value, SubNodeId);
-
-        var command = new DeviceCommand
-        {
-            DeviceCmd = "SetAnalogOutput",
-            Parameters = new Dictionary<string, object>
-            {
-                ["outputName"] = outputName,
-                ["value"] = value
-            }
-        };
-
-        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
-        return statusCode == CommandResponseStatusCode.Success;
-    }
-
-    public Task<Dictionary<string, object>> GetConfigurationAsync(ushort configIndex = 0, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Getting configuration index {ConfigIndex} on device {SubNodeId}",
-            configIndex, SubNodeId);
-
-        var command = new DeviceCommand
-        {
-            DeviceCmd = "GetConfig",
-            Parameters = new Dictionary<string, object>
-            {
-                ["configIndex"] = configIndex
-            }
-        };
-
-        // Fire and forget - command execution result is not needed for GetConfig
-        _ = ExecuteCommandAsync(command, cancellationToken);
-
-        // Note: In real implementation, this would wait for response from device
-        // For now, return empty dictionary indicating command was sent
-        return Task.FromResult(new Dictionary<string, object>());
-    }
-
-    public async Task<bool> SetConfigurationAsync(ushort configIndex, Dictionary<string, object> configData, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("Setting configuration index {ConfigIndex} on device {SubNodeId}",
-            configIndex, SubNodeId);
-
-        var command = new DeviceCommand
-        {
-            DeviceCmd = "SetConfig",
-            Parameters = new Dictionary<string, object>
-            {
-                ["configIndex"] = configIndex,
-                ["configData"] = configData
-            }
-        };
-
-        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
-        return statusCode == CommandResponseStatusCode.Success;
-    }
-
-    public async Task<bool> SetSensorEnabledAsync(string sensorName, bool enabled, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("{Action} sensor {SensorName} on device {SubNodeId}",
-            enabled ? "Enabling" : "Disabling", sensorName, SubNodeId);
-
-        var command = new DeviceCommand
-        {
-            DeviceCmd = "SetSensorEnable",
-            Parameters = new Dictionary<string, object>
-            {
-                ["sensorName"] = sensorName,
-                ["enabled"] = enabled
-            }
-        };
-
-        var statusCode = await ExecuteCommandAsync(command, cancellationToken);
-        return statusCode == CommandResponseStatusCode.Success;
-    }
-
-    #endregion
 }

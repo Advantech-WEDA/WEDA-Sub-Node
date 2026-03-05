@@ -9,7 +9,6 @@ using NATS.Client.Core;
 using NATS.Net;
 
 using Weda.SubNode.Abstractions.Cloud;
-using Weda.SubNode.Abstractions.Cloud.Clients.Command.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Clients.Telemetry;
@@ -468,7 +467,7 @@ public sealed class WedaCloudService : IWedaCloudService
 
         // Use subscription manager for the actual subscription
         // Subscribe to NatsCommandMessage (envelope) and extract DeviceCommand from data
-        var subscriptionInfo = await _subscriptionManager.SubscribeAsync<NatsCommandMessage>(
+        var subscriptionInfo = await _subscriptionManager.SubscribeAsync<CommandMessage>(
             topic: commandTopic,
             handler: async envelope =>
             {
@@ -707,10 +706,10 @@ public sealed class WedaCloudService : IWedaCloudService
     }
 
     /// <summary>
-    /// Extracts a DeviceCommand from a NatsCommandMessage envelope.
+    /// Extracts a DeviceCommand from a CommandMessage envelope.
     /// The envelope contains the command data in its Data property as a JsonElement.
     /// </summary>
-    private DeviceCommand? ExtractDeviceCommand(NatsCommandMessage envelope)
+    private DeviceCommand? ExtractDeviceCommand(CommandMessage envelope)
     {
         if (envelope.Data is null)
         {

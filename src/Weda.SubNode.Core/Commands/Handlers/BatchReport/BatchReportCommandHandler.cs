@@ -6,7 +6,6 @@ using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
@@ -86,7 +85,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         logger.LogInformation(
             "Executing BatchReport: {StartTime} to {EndTime}, MaxBatches={MaxBatches}, RateLimit={RateLimit}",
-            startTime, endTime, command.MaxBatchesPerMessage, command.TransmissionRateLimit);
+            startTime, endTime, command.Parameters.MaxBatchesPerMessage, command.Parameters.TransmissionRateLimit);
 
         // Step 1. Get all sensor IDs
         var sensorIdsResult = await recordingService.GetSensorIdsAsync(cancellationToken);
@@ -99,7 +98,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 executedAt);
         }
 
-        var sensorIds = FilterSensors(sensorIdsResult.Value, command.SensorFilter);
+        var sensorIds = FilterSensors(sensorIdsResult.Value, command.Parameters.SensorFilter);
         if (sensorIds.Count == 0)
         {
             logger.LogInformation("No sensors match the filter criteria");
@@ -120,11 +119,11 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         // Calculate estimated metrics for initial ack based on sensor intervals and command parameters
         var estimate = CalculateEstimatedMetrics(
-            sensorIds, effectiveTimeRange, command.MaxBatchesPerMessage, command.MaxBatchSize,
-            command.TransmissionRateLimit, context, logger);
+            sensorIds, effectiveTimeRange, command.Parameters.MaxBatchesPerMessage, command.Parameters.MaxBatchSize,
+            command.Parameters.TransmissionRateLimit, context, logger);
 
         // Send initial ack with estimates (include SeqId and ReqSeqId from command)
-        await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic, command.DeviceCmd,
+        await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic!, command.DeviceCmd,
             command.SeqId, command.ReqSeqId, estimate.EstimatedBatches, estimate.EstimatedSamples,
             estimate.EstimatedDurationSeconds, logger, cancellationToken);
 
@@ -159,7 +158,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             messageCount++;
 
             // Progress update
-            await SendProgressAsync(cloudService, subNodeId, command.RespTopic, command.SeqId, command.ReqSeqId,
+            await SendProgressAsync(cloudService, subNodeId, command.RespTopic!, command.SeqId, command.ReqSeqId,
                 new BatchReportProgress
                 {
                     DeviceCmd = command.DeviceCmd,
@@ -173,9 +172,9 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                     }
                 }, logger, linkedToken);
 
-            if (command.TransmissionRateLimit > 0)
+            if (command.Parameters.TransmissionRateLimit > 0)
             {
-                var delayMs = 1000 / command.TransmissionRateLimit;
+                var delayMs = 1000 / command.Parameters.TransmissionRateLimit;
                 await Task.Delay(delayMs, linkedToken);
             }
 
@@ -209,15 +208,15 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                     while (valuesProcessed < values.Count)
                     {
                         // Calculate how many samples we can add to current batch
-                        var remainingInBatch = command.MaxBatchSize - batchBufferSampleCount;
+                        var remainingInBatch = command.Parameters.MaxBatchSize - batchBufferSampleCount;
                         var remainingInMeasure = values.Count - valuesProcessed;
                         var samplesToTake = Math.Min(remainingInBatch, remainingInMeasure);
 
                         // If current batch is full, flush it first
-                        if (samplesToTake == 0 || batchBuffer.Count >= command.MaxBatchesPerMessage)
+                        if (samplesToTake == 0 || batchBuffer.Count >= command.Parameters.MaxBatchesPerMessage)
                         {
                             await FlushBatchBufferAsync();
-                            remainingInBatch = command.MaxBatchSize;
+                            remainingInBatch = command.Parameters.MaxBatchSize;
                             samplesToTake = Math.Min(remainingInBatch, remainingInMeasure);
                         }
 
@@ -244,8 +243,8 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                         valuesProcessed += samplesToTake;
 
                         // Check if we should send a batch (horizontal split by measure count)
-                        if (batchBuffer.Count >= command.MaxBatchesPerMessage ||
-                            batchBufferSampleCount >= command.MaxBatchSize)
+                        if (batchBuffer.Count >= command.Parameters.MaxBatchesPerMessage ||
+                            batchBufferSampleCount >= command.Parameters.MaxBatchSize)
                         {
                             await FlushBatchBufferAsync();
                         }

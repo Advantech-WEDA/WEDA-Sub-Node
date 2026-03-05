@@ -1,27 +1,35 @@
 namespace Weda.SubNode.Abstractions.Commands;
 
 /// <summary>
-/// Marker interface for all commands that can be handled by the SubNode.
-/// Each command must specify a unique DeviceCmd identifier for routing.
+/// Generic command interface with strongly-typed parameters.
+/// </summary>
+public interface ICommand<TParameter> : ICommand
+{
+    /// <summary>
+    /// Command parameters.
+    /// </summary>
+    TParameter Parameters { get; set; }
+}
+
+/// <summary>
+/// Non-generic marker interface for all commands.
+/// Used as generic constraint in ICommandHandler and ICommandValidator
 /// </summary>
 public interface ICommand
 {
     /// <summary>
-    /// Gets the command identifier used for routing (e.g. "report").
-    /// This value is matched against the "deviceCmd" field in incoming request payload.
+    /// Device request command composed of `cmdType` and `subCmd`. e.g., "report.historical", "report.data"
     /// </summary>
-    string DeviceCmd { get; }
+    string DeviceCmd { get; set; }
 
     /// <summary>
-    /// Gets or sets the sequence ID from the original command envelope.
-    /// This is set by the CommandDispatcher after deserialization and used for response correlation.
-    /// All responses (initial ack, progress, final) should use this same SeqId.
+    /// Topic to response command execution result.
     /// </summary>
-    ulong SeqId { get; set; }
+    string? RespTopic { get; set; }
 
     /// <summary>
-    /// Gets or sets the request sequence ID from the original command envelope.
-    /// This is set by the CommandDispatcher after deserialization and used for response correlation.
+    /// Command execution timeout in seconds.
     /// </summary>
-    string? ReqSeqId { get; set; }
+    uint Timeout { get; set; }
+
 }

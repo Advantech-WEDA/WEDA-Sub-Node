@@ -1,0 +1,16 @@
+{
+  "cmd": "deviceCmd",
+  "seqId": 100,
+  "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": 1737004691020,
+  "data": {
+    "deviceCmd": "report.data",
+    "respTopic": "eco1j.weda.284873935466528768.subnode.cmd.rsp",
+    "timeout": 300,
+    "parameters": {
+      "sensorShortResourceId": "0d912",
+      "resourceTimestamp": 1706500000000,
+       "transferId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    }
+  }
+}

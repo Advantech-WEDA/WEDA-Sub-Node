@@ -4,7 +4,7 @@ using Polly;
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
-using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -260,13 +260,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// <inheritdoc />
     public void RegisterDeviceHandler(
         string deviceName,
-        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler,
-        Func<ExecuteCommandEvent, Task>? commandHandler = null)
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> configHandler)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceName);
         ArgumentNullException.ThrowIfNull(configHandler);
 
-        var handlers = new DeviceHandlers(configHandler, commandHandler);
+        var handlers = new DeviceHandlers(configHandler);
         _deviceHandlers.AddOrUpdate(deviceName, handlers, (_, _) => handlers);
 
         _logger.LogDebug("Registered device handler for: {DeviceName}", deviceName);
@@ -703,8 +702,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return;
         }
 
-        var envelope = CreateCommandEnvelope(e);
-        var result = await _commandDispatcher.DispatchAsync(envelope);
+        var message = CreateCommandMessage(e);
+        var result = await _commandDispatcher.DispatchAsync(message);
 
         if (result.IsError)
         {
@@ -727,18 +726,17 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates a CommandEnvelope from an ExecuteCommandEvent.
+    /// Creates a CommandMessage from an ExecuteCommandEvent.
     /// </summary>
-    private static CommandEnvelope CreateCommandEnvelope(ExecuteCommandEvent e)
+    private static CommandMessage CreateCommandMessage(ExecuteCommandEvent e)
     {
-        return new CommandEnvelope
+        return new CommandMessage
         {
-            CommandName = e.Command!.DeviceCmd!,
-            SeqId = e.Command.SeqId,
+            Cmd = "deviceCmd",
+            SeqId = e.Command!.SeqId,
             ReqSeqId = e.Command.ReqSeqId,
-            Timestamp = (ulong)e.Timestamp.ToUnixTimeMilliseconds(),
-            // Use RawData (JsonElement) if available, otherwise fall back to Parameters
-            Data = e.Command.RawData.HasValue ? e.Command.RawData.Value : e.Command.Parameters
+            Timestamp = e.Timestamp.ToUnixTimeMilliseconds(),
+            Data = e.Command.RawData
         };
     }
 
@@ -833,6 +831,5 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// Container for device-specific event handlers.
     /// </summary>
     private sealed record DeviceHandlers(
-        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> ConfigHandler,
-        Func<ExecuteCommandEvent, Task>? CommandHandler);
+        Func<UpdateConfigurationEvent, Task<ConfigUpdateResult>> ConfigHandler);
 }

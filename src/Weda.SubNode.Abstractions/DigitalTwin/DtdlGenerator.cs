@@ -74,7 +74,7 @@ public static class DtdlGenerator
             Name = SanitizeName(sensor.Name),
             DisplayName = sensor.GetEffectiveDisplayName(),
             Description = sensor.SensorInfo.Description,
-            Schema = sensor.GetEffectiveSchema(),
+            Schema = sensor.Schema,
             Unit = sensor.Report.Unit
         };
     }

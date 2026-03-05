@@ -71,3 +71,31 @@ public record RecordingMeasure
     [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
     public required List<double> Values { get; init; }
 }
+
+/// <summary>
+/// Response for MIME type recordings (JSON, images, etc.)
+/// </summary>
+public record DynamicRecordingResponse
+{
+    [JsonPropertyName("sensorId")]
+    public required string SensorId { get; init; }
+
+    [JsonPropertyName("schemaType")]
+    public required string SchemaType { get; init; }
+
+    [JsonPropertyName("records")]
+    public required List<DynamicRecordItem> Records { get; init; }
+}
+
+public record DynamicRecordItem
+{
+    [JsonPropertyName("timestamp")]
+    public required long Timestamp { get; init; }
+
+    /// <summary>
+    /// For JSON schema: raw JSON object (not escaped).
+    /// For binary schemas (images): base64 encoded string.
+    /// </summary>
+    [JsonPropertyName("data")]
+    public required object Data { get; init; }
+}

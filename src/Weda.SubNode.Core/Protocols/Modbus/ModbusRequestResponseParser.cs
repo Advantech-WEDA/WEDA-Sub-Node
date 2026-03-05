@@ -101,15 +101,6 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     /// </summary>
     public ICommunication Communication => _communication;
 
-    public string ProtocolName => "Modbus TCP";
-
-    public IReadOnlyList<string> SupportedDataTypes => new[]
-    {
-        "Int16", "UInt16", "Int32", "UInt32", "Float32", "Float64", "Boolean", "String16"
-    };
-
-    public bool SupportsBidirectional => true;
-
     /// <summary>
     /// Refresh sensor metadata from current configuration.
     /// Must be called after sensors are added/removed/updated at runtime.

@@ -399,35 +399,20 @@ public class CommandRegistry
     }
 
     /// <summary>
-    /// Deserializes the command envelope data to the specified command type.
+    /// Deserializes the command data to the specified command type.
     /// </summary>
-    /// <param name="envelope">The command envelope containing raw data.</param>
+    /// <param name="data">The raw JSON data from CommandMessage.</param>
     /// <param name="commandType">The target command type.</param>
     /// <returns>The deserialized command object.</returns>
     /// <exception cref="InvalidOperationException">If deserialization fails.</exception>
-    public object DeserializeCommand(CommandEnvelope envelope, Type commandType)
+    public object DeserializeCommand(JsonElement? data, Type commandType)
     {
-        if (envelope.Data is null)
+        if (data is null || data.Value.ValueKind == JsonValueKind.Null || data.Value.ValueKind == JsonValueKind.Undefined)
         {
             throw new InvalidOperationException("Command data is null");
         }
 
-        // If data is already the correct type, return it directly
-        if (envelope.Data.GetType() == commandType)
-        {
-            return envelope.Data;
-        }
-
-        // If data is a JsonElement, deserialize it
-        if (envelope.Data is JsonElement jsonElement)
-        {
-            return jsonElement.Deserialize(commandType, JsonSerializerOptions)
-                ?? throw new InvalidOperationException($"Failed to deserialize command to {commandType.Name}");
-        }
-
-        // Otherwise, serialize then deserialize (handles Dictionary<string, object> etc.)
-        var json = JsonSerializer.Serialize(envelope.Data, JsonSerializerOptions);
-        return JsonSerializer.Deserialize(json, commandType, JsonSerializerOptions)
+        return data.Value.Deserialize(commandType, JsonSerializerOptions)
             ?? throw new InvalidOperationException($"Failed to deserialize command to {commandType.Name}");
     }
 

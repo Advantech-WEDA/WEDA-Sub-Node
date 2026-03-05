@@ -63,16 +63,6 @@ public class ISensingPubSubParser : IPubSubProtocolParser
 
     public ICommunication Communication => _communication;
 
-    public string ProtocolName => "ISensing MQTT";
-
-    public IReadOnlyList<string> SupportedDataTypes => new[]
-    {
-        "AnalogInput", "DigitalInput", "AnalogOutput", "DigitalOutput",
-        "Temperature", "Humidity", "Accelerometer", "Battery", "Geolocation"
-    };
-
-    public bool SupportsBidirectional => true;
-
     #endregion
 
     #region IPubSubProtocolParser Implementation

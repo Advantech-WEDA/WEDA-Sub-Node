@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Cloud;
@@ -12,6 +13,7 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
 using Weda.SubNode.Core.Devices.Lifecycle;
@@ -44,6 +46,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// Data is enqueued by derived classes via EnqueueTelemetryAsync and sent by the batch send task.
     /// </summary>
     protected readonly ConcurrentQueue<TelemetryMeasure> _telemetryBatch = new();
+    protected readonly ConcurrentDictionary<string, List<TelemetryMeasure>> _lastTelemetryValues = new();
 
     public DeviceConfiguration Configuration { get; }
     public string SubNodeId => _orchestrator.SubNodeId;
@@ -167,8 +170,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Step 6: Register this device's event handlers with SubNodeManager for Hybrid routing
         _context.SubNodeManager.RegisterDeviceHandler(
             Configuration.DeviceName,
-            HandleConfigurationUpdateAsync,
-            HandleCommandReceivedAsync);
+            HandleConfigurationUpdateAsync);
 
         await OnAfterInitializeAsync(ct);
         return Result.Success;
@@ -203,85 +205,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         {
             _logger.LogError(ex, "Error handling configuration update for device {DeviceName}", Configuration.DeviceName);
             return ConfigUpdateResult.Failed(Configuration, deviceTypeName, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Handles command events routed from SubNodeManager.
-    /// </summary>
-    private async Task HandleCommandReceivedAsync(ExecuteCommandEvent e)
-    {
-        int statusCode = CommandResponseStatusCode.Success;
-        string? message = null;
-        bool success = false;
-
-        try
-        {
-            // Pre-hook (can be used for validation)
-            await OnBeforeCommandAsync(e, CancellationToken.None);
-
-            // Raise event (for framework monitoring/logging)
-            if (EnableCommandReceivedTracking)
-                CommandReceived?.Invoke(this, e);
-
-            // Send "received" response immediately after validation passes
-            await SendCommandResponseAsync(
-                e.Command.RespTopic,
-                CommandResponse.Received(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId, e.Command.ReqSeqId));
-
-            // Execute command on device
-            _logger.LogInformation("Executing command: {CommandName}", e.Command.DeviceCmd);
-            statusCode = await ExecuteCommandAsync(e.Command);
-            success = statusCode == CommandResponseStatusCode.Success;
-
-            _logger.LogInformation("Command execution {Result}: {CommandName} {Reason}",
-                success ? "succeeded" : "failed",
-                e.Command.DeviceCmd,
-                CommandResponseStatusCode.GetDescription(statusCode));
-
-            message = CommandResponseStatusCode.GetDescription(statusCode);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing command: {CommandName}", e.Command.DeviceCmd);
-            statusCode = CommandResponseStatusCode.UnexptectedError;
-            message = CommandResponseStatusCode.GetDescription(statusCode);
-        }
-        finally
-        {
-            // Send final response (success or failed)
-            try
-            {
-                if (success)
-                {
-                    await SendCommandResponseAsync(
-                        e.Command.RespTopic,
-                        CommandResponse.Success(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId, reqSeqId: e.Command.ReqSeqId));
-                }
-                else
-                {
-                    await SendCommandResponseAsync(
-                        e.Command.RespTopic,
-                        CommandResponse.Failed(SubNodeId!, e.Command.DeviceCmd, e.Command.SeqId,
-                            statusCode,
-                            message,
-                            e.Command.ReqSeqId));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending command response for {CommandName}", e.Command.DeviceCmd);
-            }
-
-            // Post-hook (always called, even on failure)
-            try
-            {
-                await OnAfterCommandAsync(e, success, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in OnAfterCommandAsync hook for command {CommandName}", e.Command.DeviceCmd);
-            }
         }
     }
 
@@ -325,6 +248,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     // ===== IDevice Operations =====
+
+    public virtual Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken ct = default)
+    {
+        _lastTelemetryValues.TryGetValue(sensorResourceId, out var measure);
+        return Task.FromResult(measure ?? []);    
+    }
 
     public abstract Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken ct = default);
 
@@ -403,23 +332,62 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         var processedMeasures = processResult.Value;
 
+        // Handle recording for each measure (independent of send mode)
         foreach (var processedMeasure in processedMeasures)
         {
-            _telemetryBatch.Enqueue(processedMeasure);
-            
             var sensor = Configuration.GetSensorById(processedMeasure.ResourceId);
-            if (sensor?.Record.Enabled == true && processedMeasure.Value is IConvertible)
+            if (sensor?.Record.Enabled == true)
             {
                 var interval = sensor.Record.Interval > 0
                     ? sensor.Record.Interval
                     : (int)sensor.Report.Interval;
 
-                RaiseTelemetryRecording(new TelemetryRecordingEvent(
-                    Sensor: sensor,
-                    Interval: interval,
-                    Timestamp: processedMeasure.Timestamp,
-                    Value: Convert.ToDouble(processedMeasure.Value)));
+                // Check if sensor uses MIME schema (JSON, images, etc.)
+                var schemaType = SchemaTypeExtensions.ParseMimeSchema(sensor.Schema);
+                if (schemaType != null && schemaType.Value.IsMimeType())
+                {
+                    // Use DynamicRecordStorage for MIME types
+                    var dynamicStorage = _context.DynamicRecordStorage;
+                    if (dynamicStorage != null)
+                    {
+                        // Convert value to byte[] - support byte[], string, and object (auto-serialize)
+                        byte[]? payload = processedMeasure.Value switch
+                        {
+                            null => null,
+                            byte[] bytes => bytes,
+                            string str => System.Text.Encoding.UTF8.GetBytes(str),
+                            // Fallback: auto-serialize objects to JSON for application/json schema
+                            _ when schemaType.Value == SchemaType.ApplicationJson =>
+                                JsonSerializer.SerializeToUtf8Bytes(processedMeasure.Value),
+                            _ => null
+                        };
+
+                        if (payload != null)
+                        {
+                            _ = dynamicStorage.AppendAsync(
+                                sensor.ShortId,
+                                processedMeasure.Timestamp,
+                                payload,
+                                schemaType.Value,
+                                CancellationToken.None);
+                        }
+                    }
+                }
+                else if (processedMeasure.Value is IConvertible)
+                {
+                    // Use RecordingService for primitive types
+                    RaiseTelemetryRecording(new TelemetryRecordingEvent(
+                        Sensor: sensor,
+                        Interval: interval,
+                        Timestamp: processedMeasure.Timestamp,
+                        Value: Convert.ToDouble(processedMeasure.Value)));
+                }
             }
+        }
+
+        foreach (var group in processedMeasures.GroupBy(m => m.ResourceId))
+        {
+            _lastTelemetryValues[group.Key] = group.ToList();
         }
 
         // Raise DataProcessed event AFTER transform/filter processing
@@ -429,9 +397,26 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             RaiseDataProcessed(processedMeasures);
         }
 
-        _logger.LogTrace(
-            "Enqueued {Count} processed measures for device {SubNodeId}",
-            processedMeasures.Count, SubNodeId);
+        // Send telemetry: immediate or batched based on configuration
+        if (!Configuration.Periods.BatchSend)
+        {
+            // Immediate mode: send directly without batching
+            _logger.LogTrace(
+                "Sending {Count} measures immediately for device {SubNodeId}",
+                processedMeasures.Count, SubNodeId);
+            await SendTelemetryAsync(processedMeasures, ct);
+        }
+        else
+        {
+            // Batch mode: enqueue for periodic batch send
+            foreach (var measure in processedMeasures)
+            {
+                _telemetryBatch.Enqueue(measure);
+            }
+            _logger.LogTrace(
+                "Enqueued {Count} processed measures for device {SubNodeId}",
+                processedMeasures.Count, SubNodeId);
+        }
     }
 
     public async Task<DeviceHealth> GetHealthAsync(CancellationToken ct = default)
@@ -442,8 +427,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     public async Task<string?> RegisterAsync(CancellationToken ct = default)
         => await _cloudService.GetOrRegisterDeviceIdAsync(DeviceInfo, ct);
-
-    public abstract Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken ct = default);
 
     // ===== Lifecycle Hooks =====
 
@@ -1195,24 +1178,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// </summary>
     protected virtual Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct) => Task.CompletedTask;
 
-    // NOTE: HasWedaNodeChanges has been removed.
-    // SystemConfig updates (including WedaNode) are now handled by SubNodeManager directly.
-
-    /// <summary>
-    /// Hook: Called before command execution.
-    /// Use this for logging, validation, or preparation.
-    /// </summary>
-    protected virtual Task OnBeforeCommandAsync(ExecuteCommandEvent e, CancellationToken ct) => Task.CompletedTask;
-
-    /// <summary>
-    /// Hook: Called after command execution.
-    /// Use this for cleanup, logging, or follow-up actions.
-    /// </summary>
-    /// <param name="e">The command event</param>
-    /// <param name="success">Whether the command executed successfully</param>
-    /// <param name="ct">Cancellation token</param>
-    protected virtual Task OnAfterCommandAsync(ExecuteCommandEvent e, bool success, CancellationToken ct) => Task.CompletedTask;
-
     /// <summary>
     /// Triggers DataReceived event. Derived classes can call this to raise the event.
     /// Only fires if EnableDataReceivedTracking is true.
@@ -1272,7 +1237,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged;
     public event EventHandler<TelemetrySentEvent>? TelemetrySent;
     public event EventHandler<UpdateConfigurationEvent>? ConfigurationUpdateReceived;
-    public event EventHandler<ExecuteCommandEvent>? CommandReceived;
     public event EventHandler<TelemetryValueChangedEvent>? ValueChanged;
 
     /// <inheritdoc />
@@ -1494,8 +1458,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         // Start device-specific background tasks (polling, subscription, etc.)
         _ = StartBackgroundTasksAsync(ct);
 
-        // Start batch send task
-        StartBatchSendTask(ct);
+        // Start batch send task only if not using immediate send mode
+        if (Configuration.Periods.BatchSend)
+        {
+            StartBatchSendTask(ct);
+        }
+        else
+        {
+            _logger.LogDebug("Batch send task skipped - ImmediateSend is enabled for device {SubNodeId}", SubNodeId);
+        }
 
         // Start health task
         StartHealthTask(ct);
@@ -1656,27 +1627,5 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         StartAllBackgroundTasks(_samplingCts.Token);
 
         _logger.LogInformation("Background tasks restarted successfully for device {SubNodeId}", SubNodeId);
-    }
-
-    /// <summary>
-    /// Compares two interval group dictionaries for equality.
-    /// Used to detect if sensor interval configuration has changed.
-    /// </summary>
-    private static bool AreIntervalGroupsEqual(
-        Dictionary<int, HashSet<string>> previous,
-        Dictionary<int, HashSet<string>> current)
-    {
-        if (previous.Count != current.Count)
-            return false;
-
-        foreach (var (interval, sensorIds) in previous)
-        {
-            if (!current.TryGetValue(interval, out var currentSensorIds))
-                return false;
-            if (!sensorIds.SetEquals(currentSensorIds))
-                return false;
-        }
-
-        return true;
     }
 }

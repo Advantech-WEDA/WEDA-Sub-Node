@@ -1,0 +1,39 @@
+{
+  "SubNode": {
+    "Name": "AirQualityMonitor",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "MOENV",
+    "Model": "AQX-P-136",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "AirQualityConfig": {
+      "Enabled": true,
+      "Periods": {
+        "BatchSend": false
+      },
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Sensors": [
+        {
+          "Name": "taipei-air-quality",
+          "SensorGroup": "TEMP",
+          "SensorInfo": {
+            "DisplayName": "Taipei Air Quality",
+            "Description": "Air quality monitoring data from MOENV",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3600000
+          },
+          "Record": {
+            "Enabled": true,
+            "Interval": 3600000
+          }
+        }
+      ]
+    }
+  }
+}

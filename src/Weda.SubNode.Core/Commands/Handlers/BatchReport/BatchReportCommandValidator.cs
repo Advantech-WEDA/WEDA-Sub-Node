@@ -21,9 +21,9 @@ public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
         var errors = new List<Error>();
 
         // Validate TimeRange if provided
-        if (command.TimeRange is not null)
+        if (command.Parameters.TimeRange is not null)
         {
-            if (command.TimeRange.EndTime <= command.TimeRange.StartTime)
+            if (command.Parameters.TimeRange.EndTime <= command.Parameters.TimeRange.StartTime)
             {
                 errors.Add(Errors.Command.ValidationFailed(
                     "TimeRange.EndTime must be greater than TimeRange.StartTime"));
@@ -31,7 +31,7 @@ public class BatchReportCommandValidator : ICommandValidator<BatchReportCommand>
 
             // Check for future time
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            if (command.TimeRange.StartTime > now)
+            if (command.Parameters.TimeRange.StartTime > now)
             {
                 errors.Add(Errors.Command.ValidationFailed(
                     "TimeRange.StartTime cannot be in the future"));

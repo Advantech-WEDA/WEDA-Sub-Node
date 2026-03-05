@@ -70,7 +70,7 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
 
     private List<TelemetryMeasure> CreateChunks(TelemetryMeasure measure, string base64)
     {
-        var imageId = Guid.NewGuid().ToString();
+        var transferId = Guid.NewGuid().ToString();
         var totalChunks = (int)Math.Ceiling((double)base64.Length / _chunkSize);
         var checksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(base64));
         var chunks = new List<TelemetryMeasure>();
@@ -83,7 +83,7 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
 
             var metadata = new Dictionary<string, object>
             {
-                ["imageId"] = imageId,
+                ["transferId"] = transferId,
                 ["chunkIndex"] = i,
                 ["totalChunks"] = totalChunks,
                 ["crc32Checksum"] = checksum

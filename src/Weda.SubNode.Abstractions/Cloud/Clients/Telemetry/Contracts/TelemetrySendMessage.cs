@@ -91,7 +91,7 @@ public record TelemetryMeasureDto
 
     private static List<TelemetryMeasureDto> CreateChunks(TelemetryMeasure measure, string base64, int chunkSize)
     {
-        var imageId = Guid.NewGuid().ToString();
+        var transferId = Guid.NewGuid().ToString();
         var totalChunks = (int)Math.Ceiling((double)base64.Length / chunkSize);
         var checksum = Crc32.HashToUInt32(Encoding.UTF8.GetBytes(base64));
         var chunks = new List<TelemetryMeasureDto>();
@@ -104,7 +104,7 @@ public record TelemetryMeasureDto
 
             var metadata = new Dictionary<string, object>
             {
-                ["imageId"] = imageId,
+                ["transferId"] = transferId,
                 ["chunkIndex"] = i,
                 ["totalChunks"] = totalChunks,
                 ["crc32Checksum"] = checksum
