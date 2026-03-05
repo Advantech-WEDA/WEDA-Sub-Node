@@ -80,6 +80,36 @@
             "Enabled": true,
             "Interval": 3000
           }
+        },
+        {
+          "Name": "do_0",
+          "SensorGroup": "DO",
+          "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
+          "Parameters": {
+            "RegisterType": "Coil",
+            "RegisterAddress": 16,
+            "RegisterCount": 1,
+            "DataType": "UInt16"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        },
+        {
+          "Name": "do_1",
+          "SensorGroup": "DO",
+          "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
+          "Parameters": {
+            "RegisterType": "Coil",
+            "RegisterAddress": 17,
+            "RegisterCount": 1,
+            "DataType": "UInt16"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
         }
       ]
     }

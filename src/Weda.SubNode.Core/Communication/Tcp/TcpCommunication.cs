@@ -131,6 +131,8 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
     /// <summary>
     /// Send a request and wait for response.
     /// For TCP, this writes the request data and then reads the response.
+    /// Implements proper Modbus TCP response reading by first reading the MBAP header
+    /// to determine the total message length.
     /// </summary>
     protected override async Task<byte[]> RequestAsyncCore(byte[] request, CancellationToken cancellationToken = default)
     {
@@ -144,21 +146,44 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
             await _stream.WriteAsync(request, cancellationToken);
             await _stream.FlushAsync(cancellationToken);
 
-            // Read response
-            var buffer = new byte[256]; // Modbus typical response size
-            var bytesRead = await _stream.ReadAsync(buffer, cancellationToken);
+            // Read MBAP header first (6 bytes: Transaction ID 2 + Protocol ID 2 + Length 2)
+            var header = new byte[6];
+            var headerBytesRead = await ReadExactAsync(_stream, header, 0, 6, cancellationToken);
 
-            if (bytesRead == 0)
+            if (headerBytesRead == 0)
             {
                 _logger.LogWarning("Connection closed by remote host");
                 State = CommunicationState.Disconnected;
-                return Array.Empty<byte>();
+                return [];
             }
 
-            var response = new byte[bytesRead];
-            Array.Copy(buffer, response, bytesRead);
+            if (headerBytesRead < 6)
+            {
+                _logger.LogWarning("Incomplete MBAP header: {BytesRead} bytes, expected 6", headerBytesRead);
+                return header[..headerBytesRead];
+            }
 
-            _logger.LogDebug("Received TCP response with {ByteCount} bytes", bytesRead);
+            // Extract the Length field from MBAP header (bytes 4-5, big-endian)
+            // Length = Unit ID (1) + PDU (function code + data)
+            var pduLength = (header[4] << 8) | header[5];
+
+            // Read the remaining bytes (Unit ID + PDU)
+            var pdu = new byte[pduLength];
+            var pduBytesRead = await ReadExactAsync(_stream, pdu, 0, pduLength, cancellationToken);
+
+            if (pduBytesRead < pduLength)
+            {
+                _logger.LogWarning("Incomplete PDU: {BytesRead} bytes, expected {Expected}", pduBytesRead, pduLength);
+            }
+
+            // Combine header and PDU into complete response
+            var totalLength = 6 + pduBytesRead;
+            var response = new byte[totalLength];
+            Array.Copy(header, 0, response, 0, 6);
+            Array.Copy(pdu, 0, response, 6, pduBytesRead);
+
+            _logger.LogDebug("Received TCP response with {ByteCount} bytes (header: 6, pdu: {PduLength})",
+                totalLength, pduBytesRead);
             return response;
         }
         catch (Exception ex)
@@ -167,5 +192,33 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
             State = CommunicationState.Error;
             throw;
         }
+    }
+
+    /// <summary>
+    /// Reads exactly the specified number of bytes from the stream, handling partial reads.
+    /// </summary>
+    private static async Task<int> ReadExactAsync(
+        NetworkStream stream,
+        byte[] buffer,
+        int offset,
+        int count,
+        CancellationToken cancellationToken)
+    {
+        var totalBytesRead = 0;
+        while (totalBytesRead < count)
+        {
+            var bytesRead = await stream.ReadAsync(
+                buffer.AsMemory(offset + totalBytesRead, count - totalBytesRead),
+                cancellationToken);
+
+            if (bytesRead == 0)
+            {
+                // Connection closed
+                break;
+            }
+
+            totalBytesRead += bytesRead;
+        }
+        return totalBytesRead;
     }
 }

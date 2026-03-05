@@ -264,7 +264,14 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         {
             return command.DeviceCmd switch
             {
+                // FC 05: Write Single Coil
                 "SetDO" or "SetDigitalOutput" => await ExecuteSetDOAsync(command, linkedCts.Token),
+                // FC 06: Write Single Register
+                "SetAO" or "SetAnalogOutput" or "WriteRegister" => await ExecuteSetAOAsync(command, linkedCts.Token),
+                // FC 15: Write Multiple Coils
+                "SetMultipleDO" or "WriteCoils" => await ExecuteWriteMultipleCoilsAsync(command, linkedCts.Token),
+                // FC 16: Write Multiple Registers
+                "SetMultipleAO" or "WriteRegisters" => await ExecuteWriteMultipleRegistersAsync(command, linkedCts.Token),
                 _ => Error.Validation(
                     code: "Command.NotSupported",
                     description: $"Command '{command.DeviceCmd}' is not supported by Modbus protocol")
@@ -378,6 +385,242 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
+    /// Execute SetAO command (FC 06: Write Single Register)
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteSetAOAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        // 1. Extract output name from parameters
+        var name = ExtractOutputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "SetAO.MissingName",
+                description: "Missing 'name', 'ao', or 'outputName' parameter");
+        }
+
+        // 2. Extract value parameter
+        if (!command.Parameters.TryGetValue("value", out var valueObj))
+        {
+            return Error.Validation(
+                code: "SetAO.MissingValue",
+                description: "Missing 'value' parameter");
+        }
+
+        ushort value;
+        try
+        {
+            value = ConvertToUInt16(valueObj);
+        }
+        catch (Exception)
+        {
+            return Error.Validation(
+                code: "SetAO.InvalidValue",
+                description: $"Invalid 'value': {valueObj}. Expected integer 0-65535.");
+        }
+
+        // 3. Find sensor in metadata (case-insensitive)
+        var sensorEntry = _sensorMetadata
+            .FirstOrDefault(kvp => kvp.Key.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (sensorEntry.Value == null)
+        {
+            return Error.NotFound(
+                code: "SetAO.SensorNotFound",
+                description: $"Sensor '{name}' not found in device configuration");
+        }
+
+        var sensor = sensorEntry.Value;
+
+        // 4. Validate register type is HoldingRegister
+        if (sensor.RegisterType != ModbusRegisterType.HoldingRegister)
+        {
+            return Error.Validation(
+                code: "SetAO.InvalidRegisterType",
+                description: $"Sensor '{name}' is not a HoldingRegister (actual: {sensor.RegisterType}). " +
+                             "SetAO command requires RegisterType=HoldingRegister.");
+        }
+
+        // 5. Build and send Modbus FC 06 request
+        _logger.LogDebug(
+            "Writing Register: Address={Address}, Value={Value}",
+            sensor.RegisterAddress, value);
+
+        var request = BuildWriteSingleRegisterRequest(sensor.RegisterAddress, value);
+        var response = await _communication.RequestAsync(request, cancellationToken);
+
+        // 6. Validate response
+        ValidateWriteRegisterResponse(response, sensor.RegisterAddress, value);
+
+        _logger.LogInformation(
+            "SetAO succeeded: {Name} (Address={Address}) = {Value}",
+            name, sensor.RegisterAddress, value);
+
+        return new Dictionary<string, object>
+        {
+            ["success"] = true,
+            ["name"] = name,
+            ["address"] = sensor.RegisterAddress,
+            ["value"] = value
+        };
+    }
+
+    /// <summary>
+    /// Execute WriteMultipleCoils command (FC 15: Write Multiple Coils)
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteWriteMultipleCoilsAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        // 1. Extract address (required for multi-write)
+        if (!command.Parameters.TryGetValue("address", out var addressObj))
+        {
+            return Error.Validation(
+                code: "WriteCoils.MissingAddress",
+                description: "Missing 'address' parameter");
+        }
+
+        ushort address;
+        try
+        {
+            address = ConvertToUInt16(addressObj);
+        }
+        catch (Exception)
+        {
+            return Error.Validation(
+                code: "WriteCoils.InvalidAddress",
+                description: $"Invalid 'address': {addressObj}. Expected integer 0-65535.");
+        }
+
+        // 2. Extract states array
+        if (!command.Parameters.TryGetValue("states", out var statesObj))
+        {
+            return Error.Validation(
+                code: "WriteCoils.MissingStates",
+                description: "Missing 'states' parameter (array of booleans)");
+        }
+
+        bool[] states;
+        try
+        {
+            states = ConvertToBooleanArray(statesObj);
+        }
+        catch (Exception ex)
+        {
+            return Error.Validation(
+                code: "WriteCoils.InvalidStates",
+                description: $"Invalid 'states': {ex.Message}. Expected array of booleans.");
+        }
+
+        if (states.Length == 0)
+        {
+            return Error.Validation(
+                code: "WriteCoils.EmptyStates",
+                description: "States array cannot be empty");
+        }
+
+        // 3. Build and send Modbus FC 15 request
+        _logger.LogDebug(
+            "Writing Multiple Coils: Address={Address}, Count={Count}",
+            address, states.Length);
+
+        var request = BuildWriteMultipleCoilsRequest(address, states);
+        var response = await _communication.RequestAsync(request, cancellationToken);
+
+        // 4. Validate response
+        ValidateWriteMultipleCoilsResponse(response, address, (ushort)states.Length);
+
+        _logger.LogInformation(
+            "WriteMultipleCoils succeeded: Address={Address}, Count={Count}",
+            address, states.Length);
+
+        return new Dictionary<string, object>
+        {
+            ["success"] = true,
+            ["address"] = address,
+            ["count"] = states.Length
+        };
+    }
+
+    /// <summary>
+    /// Execute WriteMultipleRegisters command (FC 16: Write Multiple Registers)
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteWriteMultipleRegistersAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        // 1. Extract address (required for multi-write)
+        if (!command.Parameters.TryGetValue("address", out var addressObj))
+        {
+            return Error.Validation(
+                code: "WriteRegisters.MissingAddress",
+                description: "Missing 'address' parameter");
+        }
+
+        ushort address;
+        try
+        {
+            address = ConvertToUInt16(addressObj);
+        }
+        catch (Exception)
+        {
+            return Error.Validation(
+                code: "WriteRegisters.InvalidAddress",
+                description: $"Invalid 'address': {addressObj}. Expected integer 0-65535.");
+        }
+
+        // 2. Extract values array
+        if (!command.Parameters.TryGetValue("values", out var valuesObj))
+        {
+            return Error.Validation(
+                code: "WriteRegisters.MissingValues",
+                description: "Missing 'values' parameter (array of integers)");
+        }
+
+        ushort[] values;
+        try
+        {
+            values = ConvertToUInt16Array(valuesObj);
+        }
+        catch (Exception ex)
+        {
+            return Error.Validation(
+                code: "WriteRegisters.InvalidValues",
+                description: $"Invalid 'values': {ex.Message}. Expected array of integers 0-65535.");
+        }
+
+        if (values.Length == 0)
+        {
+            return Error.Validation(
+                code: "WriteRegisters.EmptyValues",
+                description: "Values array cannot be empty");
+        }
+
+        // 3. Build and send Modbus FC 16 request
+        _logger.LogDebug(
+            "Writing Multiple Registers: Address={Address}, Count={Count}",
+            address, values.Length);
+
+        var request = BuildWriteMultipleRegistersRequest(address, values);
+        var response = await _communication.RequestAsync(request, cancellationToken);
+
+        // 4. Validate response
+        ValidateWriteMultipleRegistersResponse(response, address, (ushort)values.Length);
+
+        _logger.LogInformation(
+            "WriteMultipleRegisters succeeded: Address={Address}, Count={Count}",
+            address, values.Length);
+
+        return new Dictionary<string, object>
+        {
+            ["success"] = true,
+            ["address"] = address,
+            ["count"] = values.Length
+        };
+    }
+
+    /// <summary>
     /// Extract output name from command parameters (supports multiple aliases)
     /// </summary>
     private static string? ExtractOutputName(Dictionary<string, object> parameters)
@@ -423,6 +666,86 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
+    /// Convert object to ushort, handling JsonElement from JSON deserialization
+    /// </summary>
+    private static ushort ConvertToUInt16(object value)
+    {
+        if (value is System.Text.Json.JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Number => (ushort)jsonElement.GetInt32(),
+                System.Text.Json.JsonValueKind.String => ushort.Parse(jsonElement.GetString()!),
+                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to ushort")
+            };
+        }
+
+        return Convert.ToUInt16(value);
+    }
+
+    /// <summary>
+    /// Convert object to boolean array, handling JsonElement from JSON deserialization
+    /// </summary>
+    private static bool[] ConvertToBooleanArray(object value)
+    {
+        if (value is System.Text.Json.JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+                throw new InvalidOperationException("Expected array of booleans");
+
+            return jsonElement.EnumerateArray()
+                .Select(e => e.ValueKind switch
+                {
+                    System.Text.Json.JsonValueKind.True => true,
+                    System.Text.Json.JsonValueKind.False => false,
+                    System.Text.Json.JsonValueKind.Number => e.GetInt32() != 0,
+                    _ => throw new InvalidOperationException($"Invalid boolean value: {e}")
+                })
+                .ToArray();
+        }
+
+        if (value is IEnumerable<bool> boolEnumerable)
+            return boolEnumerable.ToArray();
+
+        if (value is IEnumerable<object> objEnumerable)
+            return objEnumerable.Select(o => Convert.ToBoolean(o)).ToArray();
+
+        throw new InvalidOperationException("Cannot convert value to boolean array");
+    }
+
+    /// <summary>
+    /// Convert object to ushort array, handling JsonElement from JSON deserialization
+    /// </summary>
+    private static ushort[] ConvertToUInt16Array(object value)
+    {
+        if (value is System.Text.Json.JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+                throw new InvalidOperationException("Expected array of integers");
+
+            return jsonElement.EnumerateArray()
+                .Select(e => e.ValueKind switch
+                {
+                    System.Text.Json.JsonValueKind.Number => (ushort)e.GetInt32(),
+                    System.Text.Json.JsonValueKind.String => ushort.Parse(e.GetString()!),
+                    _ => throw new InvalidOperationException($"Invalid integer value: {e}")
+                })
+                .ToArray();
+        }
+
+        if (value is IEnumerable<ushort> ushortEnumerable)
+            return ushortEnumerable.ToArray();
+
+        if (value is IEnumerable<int> intEnumerable)
+            return intEnumerable.Select(i => (ushort)i).ToArray();
+
+        if (value is IEnumerable<object> objEnumerable)
+            return objEnumerable.Select(o => Convert.ToUInt16(o)).ToArray();
+
+        throw new InvalidOperationException("Cannot convert value to ushort array");
+    }
+
+    /// <summary>
     /// Build Modbus FC 05 (Write Single Coil) request
     /// </summary>
     private byte[] BuildWriteSingleCoilRequest(ushort coilAddress, bool state)
@@ -448,18 +771,20 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     /// </summary>
     private static void ValidateWriteCoilResponse(byte[] response, ushort expectedAddress, bool expectedState)
     {
-        // Minimum response length: MBAP header (7) + FC (1) + Address (2) + Value (2) = 12 bytes
-        if (response.Length < 12)
+        // Minimum response length: MBAP header (7) + FC (1) = 8 bytes
+        // Error response: 9 bytes (MBAP 7 + FC 1 + Error Code 1)
+        // Success response: 12 bytes (MBAP 7 + FC 1 + Address 2 + Value 2)
+        if (response.Length < 8)
         {
             throw new InvalidOperationException(
-                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+                $"Invalid Modbus response length: {response.Length}, expected at least 8 bytes");
         }
 
         // Check for error response (function code has high bit set)
         var functionCode = response[7];
         if ((functionCode & 0x80) != 0)
         {
-            var errorCode = response[8];
+            var errorCode = response.Length > 8 ? response[8] : (byte)0xFF;
             throw new InvalidOperationException(
                 $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
         }
@@ -469,6 +794,13 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         {
             throw new InvalidOperationException(
                 $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x05");
+        }
+
+        // For success response, we need at least 12 bytes
+        if (response.Length < 12)
+        {
+            throw new InvalidOperationException(
+                $"Incomplete Modbus response: {response.Length} bytes, expected 12 bytes for FC05 success response");
         }
 
         // Verify echoed address matches
@@ -487,6 +819,234 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         {
             throw new InvalidOperationException(
                 $"Value mismatch in response: expected 0x{expectedValue:X4}, got 0x{actualValue:X4}");
+        }
+    }
+
+    /// <summary>
+    /// Build Modbus FC 06 (Write Single Register) request
+    /// </summary>
+    private byte[] BuildWriteSingleRegisterRequest(ushort registerAddress, ushort value)
+    {
+        var transactionId = ++_transactionId;
+
+        return
+        [
+            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),      // Transaction ID
+            0x00, 0x00,                                                     // Protocol ID
+            0x00, 0x06,                                                     // Length (6 bytes follow)
+            _slaveId,                                                       // Unit ID
+            0x06,                                                           // Function Code (Write Single Register)
+            (byte)(registerAddress >> 8), (byte)(registerAddress & 0xFF),  // Register Address
+            (byte)(value >> 8), (byte)(value & 0xFF)                       // Value
+        ];
+    }
+
+    /// <summary>
+    /// Validate Modbus FC 06 response (echo of request on success)
+    /// </summary>
+    private static void ValidateWriteRegisterResponse(byte[] response, ushort expectedAddress, ushort expectedValue)
+    {
+        if (response.Length < 12)
+        {
+            throw new InvalidOperationException(
+                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+        }
+
+        var functionCode = response[7];
+        if ((functionCode & 0x80) != 0)
+        {
+            var errorCode = response[8];
+            throw new InvalidOperationException(
+                $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
+        }
+
+        if (functionCode != 0x06)
+        {
+            throw new InvalidOperationException(
+                $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x06");
+        }
+
+        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        if (actualAddress != expectedAddress)
+        {
+            throw new InvalidOperationException(
+                $"Address mismatch in response: expected {expectedAddress}, got {actualAddress}");
+        }
+
+        var actualValue = (ushort)((response[10] << 8) | response[11]);
+        if (actualValue != expectedValue)
+        {
+            throw new InvalidOperationException(
+                $"Value mismatch in response: expected {expectedValue}, got {actualValue}");
+        }
+    }
+
+    /// <summary>
+    /// Build Modbus FC 15 (Write Multiple Coils) request
+    /// Coils are bit-packed: 8 coils per byte, LSB first
+    /// </summary>
+    private byte[] BuildWriteMultipleCoilsRequest(ushort startAddress, bool[] states)
+    {
+        var transactionId = ++_transactionId;
+        var coilCount = (ushort)states.Length;
+        var byteCount = (byte)((coilCount + 7) / 8); // Ceiling division
+
+        // Pack coils into bytes (LSB first)
+        var coilBytes = new byte[byteCount];
+        for (int i = 0; i < states.Length; i++)
+        {
+            if (states[i])
+            {
+                var byteIndex = i / 8;
+                var bitIndex = i % 8;
+                coilBytes[byteIndex] |= (byte)(1 << bitIndex);
+            }
+        }
+
+        // Build request
+        var pduLength = (ushort)(7 + byteCount); // Unit ID + FC + Address(2) + Count(2) + ByteCount(1) + Data
+        var request = new byte[6 + pduLength];
+
+        // MBAP Header
+        request[0] = (byte)(transactionId >> 8);
+        request[1] = (byte)(transactionId & 0xFF);
+        request[2] = 0x00; // Protocol ID
+        request[3] = 0x00;
+        request[4] = (byte)(pduLength >> 8);
+        request[5] = (byte)(pduLength & 0xFF);
+
+        // PDU
+        request[6] = _slaveId;                              // Unit ID
+        request[7] = 0x0F;                                  // Function Code (Write Multiple Coils)
+        request[8] = (byte)(startAddress >> 8);             // Start Address (high)
+        request[9] = (byte)(startAddress & 0xFF);           // Start Address (low)
+        request[10] = (byte)(coilCount >> 8);               // Quantity of Coils (high)
+        request[11] = (byte)(coilCount & 0xFF);             // Quantity of Coils (low)
+        request[12] = byteCount;                            // Byte Count
+
+        // Coil data
+        Array.Copy(coilBytes, 0, request, 13, byteCount);
+
+        return request;
+    }
+
+    /// <summary>
+    /// Validate Modbus FC 15 response
+    /// </summary>
+    private static void ValidateWriteMultipleCoilsResponse(byte[] response, ushort expectedAddress, ushort expectedCount)
+    {
+        if (response.Length < 12)
+        {
+            throw new InvalidOperationException(
+                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+        }
+
+        var functionCode = response[7];
+        if ((functionCode & 0x80) != 0)
+        {
+            var errorCode = response[8];
+            throw new InvalidOperationException(
+                $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
+        }
+
+        if (functionCode != 0x0F)
+        {
+            throw new InvalidOperationException(
+                $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x0F");
+        }
+
+        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        if (actualAddress != expectedAddress)
+        {
+            throw new InvalidOperationException(
+                $"Address mismatch in response: expected {expectedAddress}, got {actualAddress}");
+        }
+
+        var actualCount = (ushort)((response[10] << 8) | response[11]);
+        if (actualCount != expectedCount)
+        {
+            throw new InvalidOperationException(
+                $"Count mismatch in response: expected {expectedCount}, got {actualCount}");
+        }
+    }
+
+    /// <summary>
+    /// Build Modbus FC 16 (Write Multiple Registers) request
+    /// </summary>
+    private byte[] BuildWriteMultipleRegistersRequest(ushort startAddress, ushort[] values)
+    {
+        var transactionId = ++_transactionId;
+        var registerCount = (ushort)values.Length;
+        var byteCount = (byte)(registerCount * 2);
+
+        // Build request
+        var pduLength = (ushort)(7 + byteCount); // Unit ID + FC + Address(2) + Count(2) + ByteCount(1) + Data
+        var request = new byte[6 + pduLength];
+
+        // MBAP Header
+        request[0] = (byte)(transactionId >> 8);
+        request[1] = (byte)(transactionId & 0xFF);
+        request[2] = 0x00; // Protocol ID
+        request[3] = 0x00;
+        request[4] = (byte)(pduLength >> 8);
+        request[5] = (byte)(pduLength & 0xFF);
+
+        // PDU
+        request[6] = _slaveId;                              // Unit ID
+        request[7] = 0x10;                                  // Function Code (Write Multiple Registers)
+        request[8] = (byte)(startAddress >> 8);             // Start Address (high)
+        request[9] = (byte)(startAddress & 0xFF);           // Start Address (low)
+        request[10] = (byte)(registerCount >> 8);           // Quantity of Registers (high)
+        request[11] = (byte)(registerCount & 0xFF);         // Quantity of Registers (low)
+        request[12] = byteCount;                            // Byte Count
+
+        // Register data (big-endian)
+        for (int i = 0; i < values.Length; i++)
+        {
+            request[13 + (i * 2)] = (byte)(values[i] >> 8);
+            request[14 + (i * 2)] = (byte)(values[i] & 0xFF);
+        }
+
+        return request;
+    }
+
+    /// <summary>
+    /// Validate Modbus FC 16 response
+    /// </summary>
+    private static void ValidateWriteMultipleRegistersResponse(byte[] response, ushort expectedAddress, ushort expectedCount)
+    {
+        if (response.Length < 12)
+        {
+            throw new InvalidOperationException(
+                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+        }
+
+        var functionCode = response[7];
+        if ((functionCode & 0x80) != 0)
+        {
+            var errorCode = response[8];
+            throw new InvalidOperationException(
+                $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
+        }
+
+        if (functionCode != 0x10)
+        {
+            throw new InvalidOperationException(
+                $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x10");
+        }
+
+        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        if (actualAddress != expectedAddress)
+        {
+            throw new InvalidOperationException(
+                $"Address mismatch in response: expected {expectedAddress}, got {actualAddress}");
+        }
+
+        var actualCount = (ushort)((response[10] << 8) | response[11]);
+        if (actualCount != expectedCount)
+        {
+            throw new InvalidOperationException(
+                $"Count mismatch in response: expected {expectedCount}, got {actualCount}");
         }
     }
 

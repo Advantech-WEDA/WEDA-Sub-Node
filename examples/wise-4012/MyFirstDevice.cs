@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Devices.Generic;
 
@@ -22,15 +23,25 @@ namespace Wise4012Example;
 public class MyFirstDevice : TcpModbusDevice
 {
     /// <summary>
-    /// Creates MyFirstDevice using ApplicationContext and config key.
+    /// Creates MyFirstDevice using ApplicationContext and config key (for WedaApplicationBuilder pattern).
     /// Configuration is retrieved from context.DeviceConfigs[configKey].
     /// </summary>
     /// <param name="context">The application context</param>
-    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    /// <param name="configKey">The configuration key from devicecfg.json DeviceConfigs section</param>
     public MyFirstDevice(IWedaApplicationContext context, string configKey)
         : base(context, configKey)
     {
         // Subscribe to DataReceived event to process telemetry
+        EnableDataReceivedTracking = true;
+        DataReceived += OnDataReceived;
+    }
+
+    /// <summary>
+    /// Creates MyFirstDevice using DeviceConfiguration directly (for SubNode pattern).
+    /// </summary>
+    public MyFirstDevice(IWedaApplicationContext context, DeviceConfiguration configuration)
+        : base(context, configuration)
+    {
         EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;
     }

@@ -1,15 +1,17 @@
 using Serilog;
 using Weda.SubNode.Host;
-using Weda.SubNode.Host.Context;
 using Wise4012Example;
 
 try
 {
-    await using var subNode = new SubNode(new WedaApplicationContext(args));
-    subNode.AddDevice(new MyFirstDevice(subNode.Context, "MyFirstDevice"));
+    // Use WedaApplication builder pattern with MockCloud for local testing
+    var builder = WedaApplication.CreateDefaultBuilder(args);
 
-    await subNode.InitializeAsync();
-    await subNode.StartAsync();
+    builder.AddDevice<MyFirstDevice>("MyFirstDevice");
+
+    var app = builder.Build();
+
+    await app.RunAsync();
 
     Log.Information("SubNode started. Press Ctrl+C to stop...");
 
