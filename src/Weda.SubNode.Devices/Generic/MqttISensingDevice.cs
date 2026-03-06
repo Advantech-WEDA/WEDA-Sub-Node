@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;

@@ -29,7 +29,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 3000
           }
         },
         {
@@ -41,7 +41,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 3000
           }
         },
         {
@@ -53,7 +53,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 3000
           }
         },
         {
@@ -65,7 +65,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 3000
           }
         },
         {
@@ -77,7 +77,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 3000
           }
         },
         {
@@ -89,7 +89,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 3000
           }
         }
       ]
