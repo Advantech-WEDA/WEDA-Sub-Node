@@ -48,6 +48,8 @@ public sealed class DeviceInitializer(
                 sensor.Name,
                 groupId: "weda");
             sensor.DeviceResourceId = subNodeDeviceId;
+            // Propagate device-level Enabled flag to sensors
+            sensor.DeviceEnabled = configuration.Enabled;
         }
 
         _logger.LogDebug(

@@ -520,7 +520,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     protected List<(int IntervalMs, List<Sensor> Sensors)> GroupSensorsByInterval()
     {
         return Configuration.Sensors
-            .Where(s => s.Report.Enabled)
+            .Where(s => s.IsEffectivelyEnabled)
             .GroupBy(s => (int)s.Report.Interval)
             .Select(g => (IntervalMs: g.Key, Sensors: g.ToList()))
             .ToList();
@@ -734,17 +734,18 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
         _logger.LogInformation("Applying configuration update for device: {DeviceName}", Configuration.DeviceName);
 
-        // Apply device-level Enabled flag
-        if (Configuration.Enabled != desiredConfig.Enabled)
+        // Apply device-level Enabled flag and propagate to all sensors
+        Configuration.Enabled = desiredConfig.Enabled;
+
+        // Always propagate device-level Enabled flag to all sensors
+        foreach (var sensor in Configuration.Sensors)
         {
-            _logger.LogInformation("Updating device Enabled: {Old} -> {New}",
-                Configuration.Enabled, desiredConfig.Enabled);
-            Configuration.Enabled = desiredConfig.Enabled;
+            sensor.DeviceEnabled = desiredConfig.Enabled;
         }
 
         // Record pre-update state for detecting interval/period changes
         var previousIntervalGroups = Configuration.Sensors
-            .Where(s => s.Report.Enabled)
+            .Where(s => s.IsEffectivelyEnabled)
             .GroupBy(s => (int)s.Report.Interval)
             .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
         var previousHealthPeriod = Configuration.Periods.ReportHealth;
@@ -993,9 +994,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 return ConfigUpdateResult.NoUpdateRequired(Configuration, deviceTypeName);
             }
 
+            // Apply device-level Enabled flag
+            Configuration.Enabled = desiredConfig.Enabled;
+
             // Record pre-update state for detecting interval/period changes
             var previousIntervalGroups = Configuration.Sensors
-                .Where(s => s.Report.Enabled)
+                .Where(s => s.IsEffectivelyEnabled)
                 .GroupBy(s => (int)s.Report.Interval)
                 .ToDictionary(g => g.Key, g => g.Select(s => s.ResourceId).ToHashSet());
             var previousHealthPeriod = Configuration.Periods.ReportHealth;
@@ -1088,6 +1092,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
                 // Recalculate send telemetry period
                 CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(Configuration);
+
+                // Propagate device-level Enabled flag to all sensors (after ReplaceSensors)
+                foreach (var sensor in Configuration.Sensors)
+                {
+                    sensor.DeviceEnabled = Configuration.Enabled;
+                }
 
                 // Refresh parser metadata and restart background tasks with updated configuration
                 _protocolParser?.RefreshSensorMetadata();
@@ -1382,7 +1392,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     private static void ValidateSensorIntervals(DeviceConfiguration configuration)
     {
         var invalidSensors = configuration.Sensors
-            .Where(s => s.Report.Enabled && s.Report.Interval <= 0)
+            .Where(s => s.IsEffectivelyEnabled && s.Report.Interval <= 0)
             .Select(s => s.Name)
             .ToList();
 
@@ -1434,7 +1444,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     private static int CalculateSendTelemetryPeriod(DeviceConfiguration configuration)
     {
         var enabledIntervals = configuration.Sensors
-            .Where(s => s.Report.Enabled && s.Report.Interval > 0)
+            .Where(s => s.IsEffectivelyEnabled && s.Report.Interval > 0)
             .Select(s => (int)s.Report.Interval)
             .ToList();
 
@@ -1452,6 +1462,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <summary>
     /// Starts all background tasks that may need to be restarted on config update.
     /// This includes: device-specific tasks (polling/sampling), batch send task, and health task.
+    /// Note: Device-level Enabled flag is applied at sensor level via Sensor.IsEffectivelyEnabled.
     /// </summary>
     private void StartAllBackgroundTasks(CancellationToken ct)
     {

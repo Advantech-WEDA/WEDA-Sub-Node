@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Weda.SubNode.Abstractions.Telemetry;
 
 /// <summary>
@@ -71,6 +73,20 @@ public class Sensor
     /// Auto-populated during device initialization.
     /// </summary>
     public string DeviceResourceId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Device-level Enabled flag, propagated from DeviceConfiguration.Enabled.
+    /// Auto-populated during device initialization and updated on configuration changes.
+    /// </summary>
+    [JsonIgnore]
+    public bool DeviceEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets whether this sensor is effectively enabled for reporting.
+    /// Combines device-level Enabled (master switch) with sensor-level Report.Enabled.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsEffectivelyEnabled => DeviceEnabled && Report.Enabled;
 
     /// <summary>
     /// Gets the effective schema type for DTDL generation.

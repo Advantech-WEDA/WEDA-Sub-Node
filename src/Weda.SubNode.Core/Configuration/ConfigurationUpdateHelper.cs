@@ -282,7 +282,8 @@ public static partial class ConfigurationUpdateHelper
             var newSensor = MapToSensor(
                 desiredSensor,
                 deviceConfig.DeviceId ?? deviceResourceId,
-                deviceConfig.DeviceName);
+                deviceConfig.DeviceName,
+                deviceConfig.Enabled);
             deviceConfig.Sensors.Add(newSensor);
             addedSensors.Add(newSensor.Name);
         }
@@ -348,7 +349,8 @@ public static partial class ConfigurationUpdateHelper
                 var newSensor = MapToSensor(
                     desiredSensor,
                     deviceConfig.DeviceId ?? deviceResourceId,
-                    deviceConfig.DeviceName);
+                    deviceConfig.DeviceName,
+                    deviceConfig.Enabled);
                 deviceConfig.Sensors.Add(newSensor);
                 result.AddedSensors.Add(newSensor.Name);
             }
@@ -955,7 +957,7 @@ public static partial class ConfigurationUpdateHelper
         return changes;
     }
 
-    private static Sensor MapToSensor(SubNodeSensorReportDto dto, string subNodeDeviceId, string deviceName)
+    private static Sensor MapToSensor(SubNodeSensorReportDto dto, string subNodeDeviceId, string deviceName, bool deviceEnabled = true)
     {
         // Parse SensorGroup with fallback to AI if null or invalid
         var sensorGroup = SensorGroup.AI;
@@ -990,6 +992,7 @@ public static partial class ConfigurationUpdateHelper
             Parameters = ConvertJsonElementsToNativeTypes(dto.Parameters),
             Metadata = ConvertJsonElementsToNativeTypes(dto.Metadata),
             DeviceResourceId = subNodeDeviceId,
+            DeviceEnabled = deviceEnabled,
             SensorInfo = new SensorInfo
             {
                 Schema = dto.SensorInfo?.Schema ?? sensorGroup.GetDefaultSchema(),
