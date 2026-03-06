@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Weda.SubNode.Abstractions.Telemetry;
 
 /// <summary>
@@ -76,12 +78,14 @@ public class Sensor
     /// Device-level Enabled flag, propagated from DeviceConfiguration.Enabled.
     /// Auto-populated during device initialization and updated on configuration changes.
     /// </summary>
+    [JsonIgnore]
     public bool DeviceEnabled { get; set; } = true;
 
     /// <summary>
     /// Gets whether this sensor is effectively enabled for reporting.
     /// Combines device-level Enabled (master switch) with sensor-level Report.Enabled.
     /// </summary>
+    [JsonIgnore]
     public bool IsEffectivelyEnabled => DeviceEnabled && Report.Enabled;
 
     /// <summary>
