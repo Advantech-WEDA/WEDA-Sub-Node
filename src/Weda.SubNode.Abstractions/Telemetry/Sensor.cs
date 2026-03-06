@@ -73,6 +73,18 @@ public class Sensor
     public string DeviceResourceId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Device-level Enabled flag, propagated from DeviceConfiguration.Enabled.
+    /// Auto-populated during device initialization and updated on configuration changes.
+    /// </summary>
+    public bool DeviceEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets whether this sensor is effectively enabled for reporting.
+    /// Combines device-level Enabled (master switch) with sensor-level Report.Enabled.
+    /// </summary>
+    public bool IsEffectivelyEnabled => DeviceEnabled && Report.Enabled;
+
+    /// <summary>
     /// Gets the effective schema type for DTDL generation.
     /// Delegates to SensorInfo.GetEffectiveSchema().
     /// </summary>
