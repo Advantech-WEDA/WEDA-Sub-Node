@@ -1,216 +1,159 @@
 ---
-title: "Weda SubNode SDK - 文檔中心"
-description: "使用 Weda SubNode SDK 建立工業物聯網邊緣裝置的完整文檔"
-author: "Rain Hu"
-date: "2025-11-07"
-lang: "zh"
-translations:
-  - lang: "en"
-    path: "../en/README.md"
+sidebar_position: 0
+sidebar_label: '首頁'
+hide_title: true
+title: 'SubNode SDK 文件'
+keywords: ['SubNode', 'SDK', 'Documentation', 'IoT', 'Edge Device']
+description: 'SubNode SDK 官方文件 - 基於 .NET 的工業物聯網邊緣裝置 SDK'
 ---
 
-# Weda SubNode SDK - 文檔中心
+# SubNode SDK 文件
 
-歡迎使用 Weda SubNode SDK 文檔！本指南將協助您使用 .NET 10.0 建立工業物聯網邊緣應用程式。
+> 一個輕量級 .NET SDK，用於建構連接工業設備到 WedaCore 雲端平台的邊緣裝置應用程式。
 
-**[English Documentation →](../en/README.md)**
+## 快速導覽
 
----
+### 快速開始
 
-## 什麼是 Weda SubNode SDK？
+SubNode 新手？從這裡開始：
 
-Weda SubNode SDK 是一個用於建立工業物聯網邊緣應用程式的 .NET 框架，提供以下功能：
-- 透過 Modbus TCP/RTU 及其他協定連接裝置
-- 從感測器與設備收集遙測數據
-- 使用 Transformation 與 DSP 濾波器處理數據
-- 透過 NATS 訊息傳遞至雲端服務
-- 從雲端控制邊緣裝置，實現遠端控制
-- 監控裝置健康狀態並妥善處理錯誤
-
----
-
-## 快速導航
-
-### 初學者入門
-如果您是第一次使用 Weda SubNode SDK，請從這裡開始：
-1. [概覽 - 選擇模板](01_quick_start/00_overview.md)（5 分鐘）
-2. [安裝模板](01_quick_start/01_install_templates.md)（3 分鐘）
-3. [您的第一個裝置 - wedabuilder](01_quick_start/02_wedabuilder_basic.md)（10 分鐘）
-
-### 進階開發者
-直接跳到進階主題：
-- [Console App 風格 - subnode](01_quick_start/03_subnode_basic.md)
-- [使用案例](02_use_cases/)
-
----
-
-## 學習路徑
-
-### 步驟 1：開始使用（30 分鐘）
-
-根據您的需求選擇兩種模板之一：
-
-| 文檔 | 說明 | 模板 | 時間 | 難度 |
-|------|------|------|------|------|
-| [00. 概覽](01_quick_start/00_overview.md) | 比較模板並選擇適合的 | - | 5 分鐘 | 初學者 |
-| [01. 安裝模板](01_quick_start/01_install_templates.md) | 安裝專案模板 | - | 3 分鐘 | 初學者 |
-| [02. wedabuilder - Web API](01_quick_start/02_wedabuilder_basic.md) | Web API 風格，適合 production 多裝置 | `wedabuilder` | 10 分鐘 | 初學者 |
-| [03. subnode - Console App](01_quick_start/03_subnode_basic.md) | Console 風格，適合單一裝置開發 | `subnode` | 15 分鐘 | 中級 |
-
-**預設設定**：所有模板預設使用 **Modbus Simulator** + **MockCloudService**。
-
-### 步驟 2：連接真實環境（30 分鐘）
-
-| 文檔 | 說明 | 時間 | 難度 |
-|------|------|------|------|
-| [05. 連接真實裝置](01_quick_start/05_connect_real_device.md) | 從 Simulator 切換到真實 Modbus 裝置 | 15 分鐘 | 初學者 |
-| [06. 連接 Weda.Core](01_quick_start/06_connect_weda_core.md) | 從 MockCloudService 切換到 Weda.Core 雲端 | 15 分鐘 | 中級 |
-| [07. iSensing 裝置](01_quick_start/07_real_device_isensing.md) | 連接 iSensing 協定裝置 | 20 分鐘 | 進階 |
-
-### 步驟 3：進階使用案例（60+ 分鐘）
-
-| 文檔 | 說明 | 時間 | 難度 |
-|------|------|------|------|
-| [自訂 Capability](02_use_cases/01_custom_capability.md) | 定義自訂 DTDL capability 欄位 | 20 分鐘 | 中級 |
-| [Transformation Pipeline](02_use_cases/02_transformation.md) | 校正、單位轉換、自訂轉換 | 30 分鐘 | 中級 |
-| [DSP 濾波器](02_use_cases/03_dsp_filters.md) | 降噪、Kalman 濾波 | 30 分鐘 | 進階 |
-| [Hooks 與事件](02_use_cases/04_hooks.md) | 生命週期 hooks、資料庫持久化 | 30 分鐘 | 進階 |
-
-### 步驟 4：進階主題（依需求）
-
-| 文檔 | 說明 |
+| 指南 | 說明 |
 |------|------|
-| [裝置生命週期](03_advanced/device_lifecycle.md) | 裝置狀態機與生命週期管理 |
-| [Modbus Scanner](03_advanced/modbus_scanner.md) | 自動設定與裝置探索 |
-| [Telemetry Transform](03_advanced/telemetry_transform.md) | 數據轉換 pipeline 架構 |
+| [SubNode 是什麼？](./01-introduction/what-is-subnode.md) | 概述和功能 |
+| [環境準備](./02-getting-started/prerequisites.md) | 開發環境設定 |
+| [使用範例開始](./02-getting-started/start-with-example.md) | 執行您的第一個 SubNode 應用程式 |
+| [使用範本開始](./02-getting-started/start-with-template.md) | 建立新專案 |
 
----
+### 核心概念
 
-## 兩種模板比較
+了解基礎知識：
 
-| 功能 | subnode | wedabuilder |
-|------|---------|---------|
-| **風格** | Console App | Web API |
-| **設定時間** | 15 分鐘 | 10 分鐘 |
-| **程式碼需求** | 自訂類別 | 最少 |
-| **彈性** | 高 | 中等 |
-| **學習曲線** | 中等 | 簡單 |
-| **使用情境** | 單一裝置開發/調試 | Production 多裝置 |
-| **最適合** | 開發與調試 | Production 部署 |
+| 主題 | 說明 |
+|------|------|
+| [架構概述](./01-introduction/architecture.md) | 系統設計和元件 |
+| [術語表](./01-introduction/terminology.md) | 關鍵術語和定義 |
+| [專案結構](./03-architecture/project-structure.md) | SDK 組織 |
 
-**建議**：
-- 第一次使用 SDK？從 **wedabuilder** 開始
-- 需要單一裝置開發/調試？使用 **subnode**
-- Production 部署？使用 **wedabuilder**
+### 設定
 
----
+設定您的裝置和感測器：
 
-## 先決條件
+| 指南 | 說明 |
+|------|------|
+| [透過 JSON 設定](./04-sensor-configuration/configuration-via-json.md) | JSON 設定方式（建議）|
+| [透過程式碼設定](./04-sensor-configuration/configuration-via-code.md) | 程式化設定 |
+| [設定參考](./04-sensor-configuration/configuration-reference.md) | 完整選項參考 |
 
-開始之前，請確認：
+### 資料處理
 
-- **.NET 10.0 SDK** 或更新版本
-  ```bash
-  dotnet --version  # 應該是 9.0.x 或更高
-  ```
+處理和轉換感測器資料：
 
-- **程式碼編輯器**（VS Code、Visual Studio 或 Rider）
+| 主題 | 說明 |
+|------|------|
+| [Pipeline 概述](./05-data-pipeline/pipeline-overview.md) | 資料處理架構 |
 
-- **選用**：Modbus 裝置或模擬器
-  - 實體裝置（例如：Advantech WISE-4012、PLC）
-  - 軟體模擬器（ModbusPal、pyModSlave）
-  - 模板內建的模擬器
+### 雲端整合
 
-- **選用**：NATS Server（用於雲端整合）
-  ```bash
-  # 安裝 NATS server
-  # macOS: brew install nats-server
-  # Linux: 參見 https://docs.nats.io/
+連接到 WedaCore：
 
-  # 啟動 NATS 與 JetStream
-  nats-server -js
-  ```
+| 指南 | 說明 |
+|------|------|
+| [連接到 WedaCore](./02-getting-started/connect-to-wedacore.md) | 雲端連線設定 |
 
----
-
-## 範例專案
-
-探索儲存庫中的可運作範例：
-
-### 開源範例
-- [examples/basic-modbus](../../examples/basic-modbus) - 使用 wedabuilder 的基礎 Modbus 裝置
-- [examples/simulator-demo](../../examples/simulator-demo) - 完整的模擬器設定
-
-### 內部範例（僅限內部分支）
-- `internal/wise-4012` - Advantech WISE-4012 整合
-- `internal/wise-4012-isensing` - 使用 iSensing 協定的 WISE-4012
-
----
-
-## 文檔結構
+## 文件結構
 
 ```
-docs/wiki/
-├── en/                                # 英文文檔
-│   ├── README.md                      # 英文版導覽中心
-│   ├── 01_quick_start/                # 快速開始指南
-│   ├── 02_use_cases/                  # 使用案例
-│   └── 03_advanced/                   # 進階主題
-│
-└── zh/                                # 中文文檔（平行結構）
-    ├── README.md                      # 本文件 - 中文導覽中心
-    ├── 01_quick_start/                # 快速開始指南
-    │   ├── 00_overview.md             # 模板比較
-    │   ├── 01_install_templates.md    # 安裝
-    │   ├── 02_wedabuilder_basic.md        # wedabuilder 模板 (Web API)
-    │   ├── 03_subnode_basic.md        # subnode 模板 (Console App)
-    │   ├── 05_connect_real_device.md  # 連接真實裝置
-    │   ├── 06_connect_weda_core.md    # 連接 Weda.Core
-    │   └── 07_real_device_isensing.md # iSensing 裝置
-    ├── 02_use_cases/                  # 使用案例
-    │   ├── 01_custom_capability.md    # DTDL 自訂
-    │   ├── 02_transformation.md       # 數據轉換
-    │   ├── 03_dsp_filters.md          # 訊號處理
-    │   └── 04_hooks.md                # Hooks 與事件
-    └── 03_advanced/                   # 進階主題
-        ├── device_lifecycle.md        # 裝置狀態機
-        ├── modbus_scanner.md          # 自動設定
-        └── telemetry_transform.md     # 轉換 pipeline
+docs/wiki/zh/
+├── 01-introduction/          # SubNode 是什麼、架構、術語
+├── 02-getting-started/       # 環境準備、範例、範本、雲端
+├── 03-architecture/          # 專案結構、SDK 模組
+├── 04-sensor-configuration/  # JSON、程式碼、參考
+├── 05-data-pipeline/         # Transform、DSP 濾波器
+├── 06-remote-control/        # 命令、設定（即將推出）
+├── 07-custom-device/         # ICommunication、IProtocolParser（即將推出）
+├── 08-connection-settings/   # WedaNode 憑證（即將推出）
+└── 09-troubleshooting/       # FAQ、常見問題（即將推出）
 ```
 
----
+## 目標讀者
 
-## 取得協助
+本文件專為以下讀者設計：
 
-- **文檔**：您正在閱讀！
-- **範例**：查看 [examples/](../../examples/) 資料夾
-- **問題回報**：請至 GitHub repository
-- **貢獻指南**：參見 [docs/.rule.md](../../.rule.md) 的文檔撰寫規範
+| 讀者 | 重點領域 |
+|------|----------|
+| **解決方案架構師** | JSON 設定、範例、雲端整合 |
+| **.NET 開發人員** | 程式碼設定、自訂裝置、API 參考 |
 
----
+## 快速範例
 
-## 貢獻文檔
+最小的 SubNode 應用程式：
 
-新增文檔時：
+```csharp
+using Weda.SubNode.Host;
 
-1. 遵循 [docs/.rule.md](../../.rule.md) 中的規範
-2. 為所有 `.md` 檔案加上 YAML front matter
-3. **同時更新 en/README.md 與 zh/README.md** 加入新文章
-4. 測試所有程式碼範例
-5. 確保英文與中文版本同步
+var builder = WedaApplication.CreateDefaultBuilder(args);
+builder.AddDevice<TcpModbusDevice>("MyDevice");
 
----
+var app = builder.Build();
+await app.RunAsync();
+```
 
-## 下一步
+搭配 `devicecfg.json`：
 
-**準備好開始了嗎？**
+```json
+{
+  "SubNode": {
+    "Name": "MySubNode",
+    "SubNodeType": "CustomDevice"
+  },
+  "DeviceConfigs": {
+    "MyDevice": {
+      "Enabled": true,
+      "DeviceCommunication": {
+        "Host": "192.168.1.100",
+        "Port": 502
+      },
+      "Sensors": [
+        {
+          "Name": "temperature",
+          "SensorGroup": "TEMP",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 0,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 3000
+          }
+        }
+      ]
+    }
+  }
+}
+```
 
-1. [概覽 - 選擇模板 →](01_quick_start/00_overview.md)
-2. [安裝模板 →](01_quick_start/01_install_templates.md)
-3. [建立您的第一個裝置 →](01_quick_start/03_wedabuilder_basic.md)
+## 範例
 
----
+探索 `examples/` 目錄中的可直接使用範例：
 
-**版本**: 1.0.0
-**最後更新**: 2025-11-07
-**維護者**: Rain Hu
+| 範例 | 說明 | 協定 |
+|------|------|------|
+| [wise-4012](https://github.com/example/edge_subnode/tree/main/examples/wise-4012) | 工業 I/O 模組 | Modbus TCP |
+| [power-aggregation](https://github.com/example/edge_subnode/tree/main/examples/power-aggregation) | 多裝置聚合 | 多來源 |
+| [stock-monitor](https://github.com/example/edge_subnode/tree/main/examples/stock-monitor) | HTTP API 整合 | HTTP |
+| [image-sensor](https://github.com/example/edge_subnode/tree/main/examples/image-sensor) | 影像串流 | MQTT |
+
+## 版本
+
+本文件適用於 SubNode SDK v1.0.0。
+
+## 語言
+
+- [English](../en/README.md)
+- **繁體中文**（目前）
+
+import Revision from '@site/src/components/Revision';
+
+<Revision date="Mar-06, 2026" version="v1.0.0" />
