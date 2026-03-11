@@ -3,9 +3,9 @@ using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
-using Weda.SubNode.Core.Protocols.ISensing;
+using Weda.SubNode.Core.Devices;
 
-namespace Weda.SubNode.Core.Devices;
+namespace Weda.SubNode.Core.Protocols.ISensing;
 
 /// <summary>
 /// ISensing protocol device implementation.

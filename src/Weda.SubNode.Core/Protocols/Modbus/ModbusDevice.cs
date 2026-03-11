@@ -5,9 +5,9 @@ using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
-using Weda.SubNode.Core.Protocols.Modbus;
+using Weda.SubNode.Core.Devices;
 
-namespace Weda.SubNode.Core.Devices;
+namespace Weda.SubNode.Core.Protocols.Modbus;
 
 /// <summary>
 /// Modbus device implementation with real Modbus protocol support.

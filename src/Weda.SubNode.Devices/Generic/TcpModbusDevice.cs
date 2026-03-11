@@ -4,7 +4,6 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Communication.Tcp;
-using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Core.Protocols.Modbus;
 
 namespace Weda.SubNode.Devices.Generic;
