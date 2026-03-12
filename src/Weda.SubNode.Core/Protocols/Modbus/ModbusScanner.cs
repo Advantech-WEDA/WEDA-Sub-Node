@@ -63,7 +63,6 @@ public class ModbusScanner
     private readonly IRequestResponseCommunication<byte[], byte[]> _communication;
     private readonly byte _slaveId;
     private readonly ILogger? _logger;
-    private ushort _transactionId = 0;
 
     public ModbusScanner(
         IRequestResponseCommunication<byte[], byte[]> communication,
@@ -494,15 +493,14 @@ public class ModbusScanner
         return ParseModbusResponse(response, count);
     }
 
+    /// <summary>
+    /// Build Modbus read request PDU
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
+    /// </summary>
     private byte[] BuildModbusRequest(byte functionCode, ushort startAddress, ushort count)
     {
-        var transactionId = ++_transactionId;
-
         return
         [
-            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),
-            0x00, 0x00,
-            0x00, 0x06,
             _slaveId,
             functionCode,
             (byte)(startAddress >> 8), (byte)(startAddress & 0xFF),
@@ -510,12 +508,16 @@ public class ModbusScanner
         ];
     }
 
+    /// <summary>
+    /// Parse Modbus read response PDU
+    /// PDU format: [SlaveId, FC, ByteCount, Data...]
+    /// </summary>
     private static ushort[] ParseModbusResponse(byte[] response, ushort expectedCount)
     {
-        if (response.Length < 9)
+        if (response.Length < 3)
             throw new InvalidOperationException($"Invalid Modbus response length: {response.Length}");
 
-        var byteCount = response[8];
+        var byteCount = response[2];
         var expectedByteCount = expectedCount * 2;
 
         if (byteCount != expectedByteCount)
@@ -524,7 +526,7 @@ public class ModbusScanner
         var registers = new ushort[expectedCount];
         for (int i = 0; i < expectedCount; i++)
         {
-            var offset = 9 + (i * 2);
+            var offset = 3 + (i * 2);
             registers[i] = (ushort)((response[offset] << 8) | response[offset + 1]);
         }
 

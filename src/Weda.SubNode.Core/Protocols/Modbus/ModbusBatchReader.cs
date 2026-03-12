@@ -19,7 +19,6 @@ public class ModbusBatchReader
     private readonly ModbusByteOrder _byteOrder;
     private readonly ILogger _logger;
     private readonly ModbusBatchOptimizationOptions _options;
-    private ushort _transactionId = 0;
 
     public ModbusBatchReader(
         IRequestResponseCommunication<byte[], byte[]> communication,
@@ -362,7 +361,7 @@ public class ModbusBatchReader
     }
 
     /// <summary>
-    /// Parses the Modbus FC 01/02 response.
+    /// Parses the Modbus FC 01/02 response PDU.
     /// Bits are packed: 8 bits per byte, LSB first.
     /// Example: Reading coils 17-18, response byte 0x03 means:
     ///   - bit 0 (coil 17) = 1 (ON)
@@ -370,19 +369,11 @@ public class ModbusBatchReader
     /// </summary>
     private static bool[] ParseBitResponse(byte[] response, ushort expectedCount)
     {
-        // Modbus TCP response format:
-        // [0-1] Transaction ID
-        // [2-3] Protocol ID (0x0000)
-        // [4-5] Length
-        // [6]   Unit ID
-        // [7]   Function Code
-        // [8]   Byte Count
-        // [9+]  Data bytes (bit-packed)
-
-        if (response.Length < 9)
+        // PDU format: [SlaveId, FC, ByteCount, Data...]
+        if (response.Length < 3)
             throw new InvalidOperationException($"Invalid Modbus bit response length: {response.Length}");
 
-        var byteCount = response[8];
+        var byteCount = response[2];
         var expectedByteCount = (expectedCount + 7) / 8; // Ceiling division: 8 bits per byte
 
         if (byteCount != expectedByteCount)
@@ -393,7 +384,7 @@ public class ModbusBatchReader
         {
             var byteIndex = i / 8;
             var bitIndex = i % 8;
-            var dataByte = response[9 + byteIndex];
+            var dataByte = response[3 + byteIndex];
             bits[i] = (dataByte & (1 << bitIndex)) != 0;
         }
 
@@ -422,28 +413,31 @@ public class ModbusBatchReader
         return ParseModbusResponse(response, count);
     }
 
+    /// <summary>
+    /// Build Modbus read request PDU
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
+    /// </summary>
     private byte[] BuildModbusRequest(byte functionCode, ushort startAddress, ushort count)
     {
-        var transactionId = ++_transactionId;
-
-        return new byte[]
-        {
-            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),
-            0x00, 0x00,
-            0x00, 0x06,
+        return
+        [
             _slaveId,
             functionCode,
             (byte)(startAddress >> 8), (byte)(startAddress & 0xFF),
             (byte)(count >> 8), (byte)(count & 0xFF)
-        };
+        ];
     }
 
-    private ushort[] ParseModbusResponse(byte[] response, ushort expectedCount)
+    /// <summary>
+    /// Parse Modbus read response PDU
+    /// PDU format: [SlaveId, FC, ByteCount, Data...]
+    /// </summary>
+    private static ushort[] ParseModbusResponse(byte[] response, ushort expectedCount)
     {
-        if (response.Length < 9)
+        if (response.Length < 3)
             throw new InvalidOperationException($"Invalid Modbus response length: {response.Length}");
 
-        var byteCount = response[8];
+        var byteCount = response[2];
         var expectedByteCount = expectedCount * 2;
 
         if (byteCount != expectedByteCount)
@@ -452,7 +446,7 @@ public class ModbusBatchReader
         var registers = new ushort[expectedCount];
         for (int i = 0; i < expectedCount; i++)
         {
-            var offset = 9 + (i * 2);
+            var offset = 3 + (i * 2);
             registers[i] = (ushort)((response[offset] << 8) | response[offset + 1]);
         }
 

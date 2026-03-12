@@ -11,6 +11,7 @@
     <PackageReference Include="MQTTnet" />
     <PackageReference Include="Polly.Core" />
     <PackageReference Include="Polly.Extensions" />
+    <PackageReference Include="System.IO.Ports" />
   </ItemGroup>
 
 </Project>

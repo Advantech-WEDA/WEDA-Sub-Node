@@ -5,6 +5,7 @@ using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
+using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Core.Devices;
 
 namespace Weda.SubNode.Core.Protocols.Modbus;
@@ -148,7 +149,7 @@ public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllabl
     {
         _logger.LogDebug("SetDigitalOutputAsync: {OutputName}={State}", outputName, state);
 
-        var command = new Abstractions.Commands.Contracts.DeviceCommand
+        var command = new DeviceCommand
         {
             DeviceCmd = "SetDO",
             Parameters = new Dictionary<string, object>
@@ -186,4 +187,20 @@ public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllabl
     }
 
     #endregion
+
+    protected static byte GetSlaveId(DeviceConfiguration configuration)
+    {
+        // Check Properties first (recommended), then DeviceCommunication for backwards compatibility
+        return configuration.Properties.TryGetValue("SlaveId", out _)
+            ? (byte)configuration.Properties.GetInt32("SlaveId", 1)
+            : (byte)configuration.DeviceCommunication.GetInt32("SlaveId", 1);
+    }
+
+    protected static ModbusByteOrder GetByteOrder(DeviceConfiguration configuration)
+    {
+        // Check Properties first (recommended), then DeviceCommunication for backwards compatibility
+        return configuration.Properties.TryGetValue("ByteOrder", out _)
+            ? configuration.Properties.GetEnum("ByteOrder", ModbusByteOrder.BigEndian)
+            : configuration.DeviceCommunication.GetEnum("ByteOrder", ModbusByteOrder.BigEndian);
+    }
 }

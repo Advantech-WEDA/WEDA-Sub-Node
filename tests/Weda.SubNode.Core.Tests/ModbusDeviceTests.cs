@@ -1,11 +1,10 @@
 using NSubstitute;
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud;
-using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Devices;
+using Weda.SubNode.Core.Protocols.Modbus;
 using Weda.SubNode.TestBase;
 using Weda.SubNode.TestBase.Builders;
 using Xunit;
@@ -101,14 +100,11 @@ public class ModbusDeviceTests : IDisposable
         var config = CreateModbusConfiguration();
         var device = new ModbusDevice(_context, config, _mockCommunication);
 
-        // Mock Modbus TCP response for reading holding registers
-        // Transaction ID (2) + Protocol ID (2) + Length (2) + Unit ID (1) + Function Code (1) + Byte Count (1) + Data
+        // Mock Modbus PDU response for reading holding registers
+        // PDU format: [SlaveId, FC, ByteCount, Data...]
         var mockResponse = new byte[]
         {
-            0x00, 0x01, // Transaction ID
-            0x00, 0x00, // Protocol ID
-            0x00, 0x07, // Length = 7 (Unit ID + FC + Byte Count + 4 data bytes)
-            0x01,       // Unit ID (Slave ID)
+            0x01,       // Slave ID
             0x03,       // Function Code (Read Holding Registers)
             0x04,       // Byte Count = 4
             0x41, 0xC8, 0x00, 0x00  // Float32: 25.0 (IEEE 754)
@@ -237,17 +233,11 @@ public class ModbusDeviceTests : IDisposable
 
         // Assert
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.Length.ShouldBe(12); // Modbus TCP header (6) + PDU (6)
+        capturedRequest!.Length.ShouldBe(6); // Pure PDU: SlaveId(1) + FC(1) + Addr(2) + Count(2)
 
-        // Check Modbus TCP header
-        capturedRequest[2].ShouldBe((byte)0x00); // Protocol ID high byte
-        capturedRequest[3].ShouldBe((byte)0x00); // Protocol ID low byte
-        capturedRequest[4].ShouldBe((byte)0x00); // Length high byte
-        capturedRequest[5].ShouldBe((byte)0x06); // Length low byte = 6
-
-        // Check PDU
-        capturedRequest[6].ShouldBe((byte)0x01); // Slave ID
-        capturedRequest[7].ShouldBe((byte)0x03); // Function Code (Read Holding Registers)
+        // Check PDU format: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
+        capturedRequest[0].ShouldBe((byte)0x01); // Slave ID
+        capturedRequest[1].ShouldBe((byte)0x03); // Function Code (Read Holding Registers)
     }
 
     #endregion
@@ -368,7 +358,11 @@ public class ModbusDeviceTests : IDisposable
             .Build();
     }
 
-    private byte[] CreateModbusResponse(float value)
+    /// <summary>
+    /// Creates a Modbus PDU response (no MBAP header).
+    /// PDU format: [SlaveId, FC, ByteCount, Data...]
+    /// </summary>
+    private static byte[] CreateModbusResponse(float value)
     {
         var bytes = BitConverter.GetBytes(value);
         if (BitConverter.IsLittleEndian)
@@ -376,16 +370,13 @@ public class ModbusDeviceTests : IDisposable
             Array.Reverse(bytes);
         }
 
-        return new byte[]
-        {
-            0x00, 0x01, // Transaction ID
-            0x00, 0x00, // Protocol ID
-            0x00, 0x07, // Length
-            0x01,       // Unit ID
+        return
+        [
+            0x01,       // Slave ID
             0x03,       // Function Code
             0x04,       // Byte Count
             bytes[0], bytes[1], bytes[2], bytes[3] // Float32 data
-        };
+        ];
     }
 
     private DeviceConfiguration CreateModbusConfigurationWithDigitalOutput()
