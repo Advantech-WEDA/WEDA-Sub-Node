@@ -15,7 +15,7 @@ namespace Weda.SubNode.Core.Protocols.ISensing;
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> PubSubDeviceBase -> DeviceBase
 /// </summary>
-public class ISensingDevice : PubSubDeviceBase, IDigitalOutputControllable
+public class ISensingDevice : PubSubDeviceBase, IDigitalOutputControllable, IAnalogOutputControllable
 {
     /// <summary>
     /// Initializes a new instance of ISensingDevice.
@@ -75,6 +75,44 @@ public class ISensingDevice : PubSubDeviceBase, IDigitalOutputControllable
         }
 
         _logger.LogInformation("SetDigitalOutputAsync succeeded: {OutputName}={State}", outputName, state);
+        return true;
+    }
+
+    #endregion
+
+    #region IAnalogOutputControllable Implementation
+
+    /// <summary>
+    /// Sets the value of a analog output using ISensing protocol.
+    /// </summary>
+    /// <param name="outputName">The name of the analog output (must match a AO sensor in configuration)</param>
+    /// <param name="value">The desired value</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if successful, false otherwise</returns>
+    public async Task<bool> SetAnalogOutputAsync(string outputName, object value, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SetAnalogOutputAsync: {OutputName}={State}", outputName, value);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "SetAO",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = outputName,
+                ["value"] = value
+            }
+        };
+
+        var result = await _parser.ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("SetAnalogOutputAsync failed for {OutputName}: {Error}",
+                outputName, result.FirstError.Description);
+            return false;
+        }
+
+        _logger.LogInformation("SetAnalogOutputAsync succeeded: {OutputName}={Value}", outputName, value);
         return true;
     }
 
