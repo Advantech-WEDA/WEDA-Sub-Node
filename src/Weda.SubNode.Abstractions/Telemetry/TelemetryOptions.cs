@@ -25,6 +25,12 @@ public class TelemetryOptions
     public int ChunkSize { get; set; } = 750 * 1024;
 
     /// <summary>
+    /// Enables pipeline statistics collection (processing counts, durations, health monitoring).
+    /// Disabled by default for performance. Enable for debugging or monitoring scenarios.
+    /// </summary>
+    public bool EnableDataPipelineMetrics { get; set; } = false;
+
+    /// <summary>
     /// Default telemetry options instance.
     /// </summary>
     public static TelemetryOptions Default => new();
