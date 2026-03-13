@@ -13,12 +13,12 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 /// <summary>
 /// Modbus device implementation with real Modbus protocol support.
 /// Inherits from RequestResponseDeviceBase for Request/Response communication pattern.
-/// Adds Modbus-specific functionality like register scanning, sensor discovery, and digital output control.
+/// Adds Modbus-specific functionality like register scanning, sensor discovery, and output control.
 ///
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstDevice -> TcpModbusDevice -> ModbusDevice -> RequestResponseDeviceBase -> DeviceBase
 /// </summary>
-public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllable
+public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllable, IAnalogOutputControllable
 {
     /// <summary>
     /// Initializes a new instance of ModbusDevice.
@@ -184,6 +184,44 @@ public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllabl
     {
         var modbusParser = (ModbusRequestResponseParser)_parser;
         return modbusParser.ExecuteCommandAsync(command, cancellationToken);
+    }
+
+    #endregion
+
+    #region IAnalogOutputControllable Implementation
+
+    /// <summary>
+    /// Sets the value of an analog output using Modbus FC06 (Write Single Register).
+    /// </summary>
+    /// <param name="outputName">The name of the analog output (must match a HoldingRegister sensor in configuration)</param>
+    /// <param name="value">The desired value (converted to ushort for single register)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if successful, false otherwise</returns>
+    public async Task<bool> SetAnalogOutputAsync(string outputName, object value, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("SetAnalogOutputAsync: {OutputName}={Value}", outputName, value);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "SetAO",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = outputName,
+                ["value"] = value
+            }
+        };
+
+        var result = await ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("SetAnalogOutputAsync failed for {OutputName}: {Error}",
+                outputName, result.FirstError.Description);
+            return false;
+        }
+
+        _logger.LogInformation("SetAnalogOutputAsync succeeded: {OutputName}={Value}", outputName, value);
+        return true;
     }
 
     #endregion
