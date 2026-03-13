@@ -376,11 +376,22 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 else if (processedMeasure.Value is IConvertible)
                 {
                     // Use RecordingService for primitive types
-                    RaiseTelemetryRecording(new TelemetryRecordingEvent(
-                        Sensor: sensor,
-                        Interval: interval,
-                        Timestamp: processedMeasure.Timestamp,
-                        Value: Convert.ToDouble(processedMeasure.Value)));
+                    // Wrap in try-catch to prevent single sensor parsing errors from affecting the entire batch
+                    try
+                    {
+                        var doubleValue = Convert.ToDouble(processedMeasure.Value);
+                        RaiseTelemetryRecording(new TelemetryRecordingEvent(
+                            Sensor: sensor,
+                            Interval: interval,
+                            Timestamp: processedMeasure.Timestamp,
+                            Value: doubleValue));
+                    }
+                    catch (FormatException ex)
+                    {
+                        _logger.LogWarning(
+                            "Failed to convert value '{Value}' to double for sensor '{SensorName}' (ResourceId: {ResourceId}): {Error}",
+                            processedMeasure.Value, sensor.Name, sensor.ResourceId, ex.Message);
+                    }
                 }
             }
         }
