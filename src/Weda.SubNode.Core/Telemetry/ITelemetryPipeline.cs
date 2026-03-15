@@ -7,28 +7,19 @@ using Weda.SubNode.Abstractions.Transforms;
 namespace Weda.SubNode.Core.Telemetry;
 
 /// <summary>
-/// Manages telemetry processing pipeline: Transform → Filter → Send.
+/// Manages telemetry processing pipeline: Validate → Transform → Filter → Send.
 /// Provides clear separation of concerns with before/after events for each stage.
 /// </summary>
 public interface ITelemetryPipeline
 {
     /// <summary>
-    /// Processes telemetry data through the full pipeline (Transform → Filter → Send).
+    /// Processes telemetry data through Validate, Transform and Filter stages (no sending).
+    /// Invalid measures are filtered out based on sensor schema before processing.
+    /// Per-sensor exception isolation ensures one sensor's failure doesn't affect others.
     /// </summary>
     /// <param name="measures">Raw telemetry measures to process.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Success if telemetry was sent, or an error.</returns>
-    Task<ErrorOr<Success>> ProcessAsync(
-        List<TelemetryMeasure> measures,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Processes telemetry data through Transform and Filter stages only (no sending).
-    /// Use this for per-sensor collection before batch sending.
-    /// </summary>
-    /// <param name="measures">Raw telemetry measures to process.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Processed measures after transforms and filters, or an error.</returns>
+    /// <returns>Processed measures after validation, transforms and filters, or an error.</returns>
     Task<ErrorOr<List<TelemetryMeasure>>> TransformAndFilterAsync(
         List<TelemetryMeasure> measures,
         CancellationToken cancellationToken = default);
