@@ -8,13 +8,13 @@ namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 
 /// <summary>
 /// Command to set digital output state on a device.
-/// Maps to payload: data.deviceCmd = "cmd.do"
+/// Maps to payload: data.deviceCmd = "do.set"
 /// </summary>
 /// <remarks>
 /// Cloud → SubNode command structure:
 /// <code>
 /// {
-///   "deviceCmd": "cmd.do",
+///   "deviceCmd": "do.set",
 ///   "timeout": 30,
 ///   "respTopic": "...",
 ///   "parameters": {
@@ -27,13 +27,13 @@ namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 /// }
 /// </code>
 /// </remarks>
-[DeviceCmd("cmd.do")]
+[DeviceCmd("do.set")]
 public class SetDigitalOutputCommand : CommandData<SetDigitalOutputParameters>
 {
 }
 
 /// <summary>
-/// Parameters for cmd.do command.
+/// Parameters for do.set command.
 /// </summary>
 public class SetDigitalOutputParameters
 {

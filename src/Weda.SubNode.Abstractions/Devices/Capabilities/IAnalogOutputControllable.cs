@@ -1,4 +1,4 @@
-namespace Weda.SubNode.Abstractions.Devices;
+namespace Weda.SubNode.Abstractions.Devices.Capabilities;
 
 /// <summary>
 /// Interface for devices that support analog output control.

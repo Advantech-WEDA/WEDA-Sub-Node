@@ -35,6 +35,22 @@ public class ModbusBatchReader
     }
 
     /// <summary>
+    /// Reads a single sensor value from Modbus.
+    /// </summary>
+    /// <param name="sensor">The sensor register to read</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The result containing the read value or error information</returns>
+    public async Task<SensorReadResult> ReadSingleSensorAsync(
+        ModbusSensorRegister sensor,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await ReadSensorsAsync([sensor], cancellationToken);
+        return results.TryGetValue(sensor.Name, out var result)
+            ? result
+            : new SensorReadResult { Success = false, ErrorMessage = "Sensor not found in results" };
+    }
+
+    /// <summary>
     /// Reads multiple sensors using batch optimization.
     /// Returns a dictionary mapping sensor names to their parsed values.
     /// </summary>

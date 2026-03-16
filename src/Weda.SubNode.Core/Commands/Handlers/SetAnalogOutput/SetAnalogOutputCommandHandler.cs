@@ -1,16 +1,18 @@
 using ErrorOr;
+
+
 using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.SetAnalogOutput.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.SetAnalogOutput;
 
 /// <summary>
-/// Handler for the "cmd.ao" command that sets analog output values.
+/// Handler for the "ao.set" command that sets analog output values.
 /// </summary>
 /// <remarks>
 /// This handler locates devices implementing <see cref="IAnalogOutputControllable"/>

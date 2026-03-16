@@ -8,32 +8,32 @@ namespace Weda.SubNode.Core.Commands.Handlers.SetAnalogOutput.Models;
 
 /// <summary>
 /// Command to set analog output value on a device.
-/// Maps to payload: data.deviceCmd = "cmd.ao"
+/// Maps to payload: data.deviceCmd = "ao.set"
 /// </summary>
 /// <remarks>
 /// Cloud → SubNode command structure:
 /// <code>
 /// {
-///   "deviceCmd": "cmd.ao",
+///   "deviceCmd": "ao.set",
 ///   "timeout": 30,
 ///   "respTopic": "...",
 ///   "parameters": {
 ///     "deviceName": "...",
 ///     "outputs": [
-///       { "name": "do_0", "value": 1.23 },
-///       { "name": "do_1", "value": 2.45 }
+///       { "name": "ao_0", "value": 1.23 },
+///       { "name": "ao_1", "value": 2.45 }
 ///     ]
 ///   }
 /// }
 /// </code>
 /// </remarks>
-[DeviceCmd("cmd.ao")]
+[DeviceCmd("ao.set")]
 public class SetAnalogOutputCommand : CommandData<SetAnalogOutputParameters>
 {
 }
 
 /// <summary>
-/// Parameters for cmd.ao command.
+/// Parameters for ao.set command.
 /// </summary>
 public class SetAnalogOutputParameters
 {

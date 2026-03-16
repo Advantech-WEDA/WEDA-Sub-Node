@@ -264,6 +264,17 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         {
             return command.DeviceCmd switch
             {
+                // Read commands
+                // FC 01: Read Coils (Digital Outputs)
+                "GetDO" or "GetDigitalOutput" or "ReadCoil" => await ExecuteGetDOAsync(command, linkedCts.Token),
+                // FC 02: Read Discrete Inputs (Digital Inputs)
+                "GetDI" or "GetDigitalInput" or "ReadDiscreteInput" => await ExecuteGetDIAsync(command, linkedCts.Token),
+                // FC 03: Read Holding Registers (Analog Outputs)
+                "GetAO" or "GetAnalogOutput" or "ReadHoldingRegister" => await ExecuteGetAOAsync(command, linkedCts.Token),
+                // FC 04: Read Input Registers (Analog Inputs)
+                "GetAI" or "GetAnalogInput" or "ReadInputRegister" => await ExecuteGetAIAsync(command, linkedCts.Token),
+
+                // Write commands
                 // FC 05: Write Single Coil
                 "SetDO" or "SetDigitalOutput" => await ExecuteSetDOAsync(command, linkedCts.Token),
                 // FC 06: Write Single Register
@@ -301,6 +312,213 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                 description: ex.Message);
         }
     }
+
+    #region Read Commands (FC 01-04)
+
+    /// <summary>
+    /// Execute GetDO command (FC 01: Read Single Coil)
+    /// Reads the current state of a digital output (coil).
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetDOAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractOutputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetDO.MissingName",
+                description: "Missing 'name', 'do', or 'outputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetDO.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's a Coil type
+        if (register.RegisterType != ModbusRegisterType.Coil)
+        {
+            return Error.Validation(
+                code: "GetDO.InvalidSensorType",
+                description: $"Sensor '{name}' is not a Coil type (found: {register.RegisterType})");
+        }
+
+        // Read the coil using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetDO.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read coil");
+        }
+
+        _logger.LogDebug("GetDO: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Execute GetDI command (FC 02: Read Single Discrete Input)
+    /// Reads the current state of a digital input.
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetDIAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractInputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetDI.MissingName",
+                description: "Missing 'name', 'di', or 'inputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetDI.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's a DiscreteInput type
+        if (register.RegisterType != ModbusRegisterType.DiscreteInput)
+        {
+            return Error.Validation(
+                code: "GetDI.InvalidSensorType",
+                description: $"Sensor '{name}' is not a DiscreteInput type (found: {register.RegisterType})");
+        }
+
+        // Read the discrete input using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetDI.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read discrete input");
+        }
+
+        _logger.LogDebug("GetDI: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Execute GetAO command (FC 03: Read Holding Register)
+    /// Reads the current value of an analog output (holding register).
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetAOAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractOutputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetAO.MissingName",
+                description: "Missing 'name', 'ao', or 'outputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetAO.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's a HoldingRegister type
+        if (register.RegisterType != ModbusRegisterType.HoldingRegister)
+        {
+            return Error.Validation(
+                code: "GetAO.InvalidSensorType",
+                description: $"Sensor '{name}' is not a HoldingRegister type (found: {register.RegisterType})");
+        }
+
+        // Read the holding register using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetAO.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read holding register");
+        }
+
+        _logger.LogDebug("GetAO: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Execute GetAI command (FC 04: Read Input Register)
+    /// Reads the current value of an analog input (input register).
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetAIAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractInputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetAI.MissingName",
+                description: "Missing 'name', 'ai', or 'inputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetAI.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's an InputRegister type
+        if (register.RegisterType != ModbusRegisterType.InputRegister)
+        {
+            return Error.Validation(
+                code: "GetAI.InvalidSensorType",
+                description: $"Sensor '{name}' is not an InputRegister type (found: {register.RegisterType})");
+        }
+
+        // Read the input register using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetAI.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read input register");
+        }
+
+        _logger.LogDebug("GetAI: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Extracts input name from command parameters.
+    /// Supports aliases: 'name', 'di', 'ai', 'inputName'
+    /// </summary>
+    private static string? ExtractInputName(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("name", out var nameObj))
+            return nameObj?.ToString();
+        if (parameters.TryGetValue("di", out var diObj))
+            return diObj?.ToString();
+        if (parameters.TryGetValue("ai", out var aiObj))
+            return aiObj?.ToString();
+        if (parameters.TryGetValue("inputName", out var inputNameObj))
+            return inputNameObj?.ToString();
+        return null;
+    }
+
+    #endregion
+
+    #region Write Commands (FC 05-16)
 
     /// <summary>
     /// Execute SetDO command (FC 05: Write Single Coil)
@@ -1039,6 +1257,8 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         0x0B => "Gateway Target Device Failed to Respond",
         _ => "Unknown Error"
     };
+
+    #endregion
 
     /// <summary>
     /// Write sensor data to device (if protocol supports write operations)

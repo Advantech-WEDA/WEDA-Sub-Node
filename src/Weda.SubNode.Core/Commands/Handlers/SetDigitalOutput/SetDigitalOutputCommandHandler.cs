@@ -1,16 +1,18 @@
 using ErrorOr;
+
+
 using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput;
 
 /// <summary>
-/// Handler for the "cmd.do" command that sets digital output states.
+/// Handler for the "do.set" command that sets digital output states.
 /// </summary>
 /// <remarks>
 /// This handler locates devices implementing <see cref="IDigitalOutputControllable"/>

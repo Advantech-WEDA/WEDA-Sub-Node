@@ -3,6 +3,7 @@ using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Devices;
 
 namespace Weda.SubNode.Core.Protocols.ISensing;
@@ -15,7 +16,10 @@ namespace Weda.SubNode.Core.Protocols.ISensing;
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstISensingDevice -> MqttISensingDevice -> ISensingDevice -> PubSubDeviceBase -> DeviceBase
 /// </summary>
-public class ISensingDevice : PubSubDeviceBase, IDigitalOutputControllable, IAnalogOutputControllable
+public class ISensingDevice : PubSubDeviceBase,
+    IDigitalOutputControllable, IAnalogOutputControllable,
+    IDigitalOutputReadable, IAnalogOutputReadable,
+    IDigitalInputReadable, IAnalogInputReadable
 {
     /// <summary>
     /// Initializes a new instance of ISensingDevice.
@@ -114,6 +118,131 @@ public class ISensingDevice : PubSubDeviceBase, IDigitalOutputControllable, IAna
 
         _logger.LogInformation("SetAnalogOutputAsync succeeded: {OutputName}={Value}", outputName, value);
         return true;
+    }
+
+    #endregion
+
+    #region IDigitalOutputReadable Implementation
+
+    /// <summary>
+    /// Reads the current state of a digital output from the last received telemetry.
+    /// ISensing uses pub/sub pattern, so this returns the most recently received value.
+    /// </summary>
+    /// <param name="outputName">The name of the digital output (must match a DO sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current state: true = ON, false = OFF, null if not found or no data received yet</returns>
+    public Task<bool?> GetDigitalOutputAsync(string outputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetDigitalOutputAsync: {OutputName}", outputName);
+        return Task.FromResult(GetCachedBooleanValue(outputName));
+    }
+
+    #endregion
+
+    #region IAnalogOutputReadable Implementation
+
+    /// <summary>
+    /// Reads the current value of an analog output from the last received telemetry.
+    /// ISensing uses pub/sub pattern, so this returns the most recently received value.
+    /// </summary>
+    /// <param name="outputName">The name of the analog output (must match an AO sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current value, or null if not found or no data received yet</returns>
+    public Task<double?> GetAnalogOutputAsync(string outputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetAnalogOutputAsync: {OutputName}", outputName);
+        return Task.FromResult(GetCachedDoubleValue(outputName));
+    }
+
+    #endregion
+
+    #region IDigitalInputReadable Implementation
+
+    /// <summary>
+    /// Reads the current state of a digital input from the last received telemetry.
+    /// ISensing uses pub/sub pattern, so this returns the most recently received value.
+    /// </summary>
+    /// <param name="inputName">The name of the digital input (must match a DI sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current state: true = ON, false = OFF, null if not found or no data received yet</returns>
+    public Task<bool?> GetDigitalInputAsync(string inputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetDigitalInputAsync: {InputName}", inputName);
+        return Task.FromResult(GetCachedBooleanValue(inputName));
+    }
+
+    #endregion
+
+    #region IAnalogInputReadable Implementation
+
+    /// <summary>
+    /// Reads the current value of an analog input from the last received telemetry.
+    /// ISensing uses pub/sub pattern, so this returns the most recently received value.
+    /// </summary>
+    /// <param name="inputName">The name of the analog input (must match an AI sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current value, or null if not found or no data received yet</returns>
+    public Task<double?> GetAnalogInputAsync(string inputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetAnalogInputAsync: {InputName}", inputName);
+        return Task.FromResult(GetCachedDoubleValue(inputName));
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Gets a cached boolean value from the last received telemetry.
+    /// </summary>
+    private bool? GetCachedBooleanValue(string sensorName)
+    {
+        var sensor = FindSensor(sensorName);
+        if (sensor is null)
+        {
+            _logger.LogWarning("Sensor '{SensorName}' not found in configuration", sensorName);
+            return null;
+        }
+
+        var telemetry = ReadSensorTelemetryAsync(sensor.ResourceId).GetAwaiter().GetResult();
+        if (telemetry.Count == 0)
+        {
+            _logger.LogDebug("No cached telemetry found for sensor '{SensorName}'", sensorName);
+            return null;
+        }
+
+        var value = telemetry[0].Value;
+        return value switch
+        {
+            bool b => b,
+            int i => i != 0,
+            double d => d != 0,
+            string s when bool.TryParse(s, out var parsed) => parsed,
+            _ => Convert.ToBoolean(value)
+        };
+    }
+
+    /// <summary>
+    /// Gets a cached double value from the last received telemetry.
+    /// </summary>
+    private double? GetCachedDoubleValue(string sensorName)
+    {
+        var sensor = FindSensor(sensorName);
+        if (sensor is null)
+        {
+            _logger.LogWarning("Sensor '{SensorName}' not found in configuration", sensorName);
+            return null;
+        }
+
+        var telemetry = ReadSensorTelemetryAsync(sensor.ResourceId).GetAwaiter().GetResult();
+        if (telemetry.Count == 0)
+        {
+            _logger.LogDebug("No cached telemetry found for sensor '{SensorName}'", sensorName);
+            return null;
+        }
+
+        var value = telemetry[0].Value;
+        return Convert.ToDouble(value);
     }
 
     #endregion

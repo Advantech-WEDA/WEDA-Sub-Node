@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Core.Devices;
@@ -18,7 +19,10 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 /// Architecture: Device -> Parser -> Communication
 /// Inheritance: MyFirstDevice -> TcpModbusDevice -> ModbusDevice -> RequestResponseDeviceBase -> DeviceBase
 /// </summary>
-public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllable, IAnalogOutputControllable
+public class ModbusDevice : RequestResponseDeviceBase,
+    IDigitalOutputControllable, IAnalogOutputControllable,
+    IDigitalOutputReadable, IAnalogOutputReadable,
+    IDigitalInputReadable, IAnalogInputReadable
 {
     /// <summary>
     /// Initializes a new instance of ModbusDevice.
@@ -222,6 +226,154 @@ public class ModbusDevice : RequestResponseDeviceBase, IDigitalOutputControllabl
 
         _logger.LogInformation("SetAnalogOutputAsync succeeded: {OutputName}={Value}", outputName, value);
         return true;
+    }
+
+    #endregion
+
+    #region IDigitalOutputReadable Implementation
+
+    /// <summary>
+    /// Reads the current state of a digital output using Modbus FC01 (Read Coils).
+    /// </summary>
+    /// <param name="outputName">The name of the digital output (must match a Coil sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current state: true = ON, false = OFF, null if not found</returns>
+    public async Task<bool?> GetDigitalOutputAsync(string outputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetDigitalOutputAsync: {OutputName}", outputName);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "GetDO",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = outputName
+            }
+        };
+
+        var result = await ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("GetDigitalOutputAsync failed for {OutputName}: {Error}",
+                outputName, result.FirstError.Description);
+            return null;
+        }
+
+        var state = Convert.ToBoolean(result.Value);
+        _logger.LogDebug("GetDigitalOutputAsync succeeded: {OutputName}={State}", outputName, state);
+        return state;
+    }
+
+    #endregion
+
+    #region IAnalogOutputReadable Implementation
+
+    /// <summary>
+    /// Reads the current value of an analog output using Modbus FC03 (Read Holding Registers).
+    /// </summary>
+    /// <param name="outputName">The name of the analog output (must match a HoldingRegister sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current value, or null if not found</returns>
+    public async Task<double?> GetAnalogOutputAsync(string outputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetAnalogOutputAsync: {OutputName}", outputName);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "GetAO",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = outputName
+            }
+        };
+
+        var result = await ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("GetAnalogOutputAsync failed for {OutputName}: {Error}",
+                outputName, result.FirstError.Description);
+            return null;
+        }
+
+        var value = Convert.ToDouble(result.Value);
+        _logger.LogDebug("GetAnalogOutputAsync succeeded: {OutputName}={Value}", outputName, value);
+        return value;
+    }
+
+    #endregion
+
+    #region IDigitalInputReadable Implementation
+
+    /// <summary>
+    /// Reads the current state of a digital input using Modbus FC02 (Read Discrete Inputs).
+    /// </summary>
+    /// <param name="inputName">The name of the digital input (must match a DiscreteInput sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current state: true = ON, false = OFF, null if not found</returns>
+    public async Task<bool?> GetDigitalInputAsync(string inputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetDigitalInputAsync: {InputName}", inputName);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "GetDI",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = inputName
+            }
+        };
+
+        var result = await ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("GetDigitalInputAsync failed for {InputName}: {Error}",
+                inputName, result.FirstError.Description);
+            return null;
+        }
+
+        var state = Convert.ToBoolean(result.Value);
+        _logger.LogDebug("GetDigitalInputAsync succeeded: {InputName}={State}", inputName, state);
+        return state;
+    }
+
+    #endregion
+
+    #region IAnalogInputReadable Implementation
+
+    /// <summary>
+    /// Reads the current value of an analog input using Modbus FC04 (Read Input Registers).
+    /// </summary>
+    /// <param name="inputName">The name of the analog input (must match an InputRegister sensor in configuration)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The current value, or null if not found</returns>
+    public async Task<double?> GetAnalogInputAsync(string inputName, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GetAnalogInputAsync: {InputName}", inputName);
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = "GetAI",
+            Parameters = new Dictionary<string, object>
+            {
+                ["name"] = inputName
+            }
+        };
+
+        var result = await ExecuteCommandAsync(command, cancellationToken);
+
+        if (result.IsError)
+        {
+            _logger.LogWarning("GetAnalogInputAsync failed for {InputName}: {Error}",
+                inputName, result.FirstError.Description);
+            return null;
+        }
+
+        var value = Convert.ToDouble(result.Value);
+        _logger.LogDebug("GetAnalogInputAsync succeeded: {InputName}={Value}", inputName, value);
+        return value;
     }
 
     #endregion
