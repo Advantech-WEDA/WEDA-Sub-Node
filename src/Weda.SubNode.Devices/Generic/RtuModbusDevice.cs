@@ -15,6 +15,8 @@ namespace Weda.SubNode.Devices.Generic;
 /// </summary>
 public class RtuModbusDevice : ModbusDevice
 {
+    private readonly string _portName;
+
     /// <summary>
     /// Creates a RTU Modbus with ApplicationContext and config key.
     /// AUtomatically retrieves configuration from context.DeviceConfigs[configKey].
@@ -32,15 +34,17 @@ public class RtuModbusDevice : ModbusDevice
         : base(
             context,
             configuration,
-            CreateModbusRtuCommunication(context, configuration),
+            CreateModbusRtuCommunication(context, configuration, out var portName),
             slaveId: GetSlaveId(configuration),
             byteOrder: GetByteOrder(configuration))
-    {   
+    {
+        _portName = portName;
     }
 
     private static IRequestResponseCommunication<byte[], byte[]> CreateModbusRtuCommunication(
         IWedaApplicationContext context,
-        DeviceConfiguration configuration)
+        DeviceConfiguration configuration,
+        out string portName)
     {
         // Convert DeviceCommunication dictionary directly to strongly-typed settings
         var serialSettings = configuration.DeviceCommunication.GetObject<SerialCommunicationSettings>()
@@ -49,10 +53,28 @@ public class RtuModbusDevice : ModbusDevice
         // Use ConnectionSettings from configuration (retry, timeout, security)
         var connectionSettings = configuration.ConnectionSettings ?? new ConnectionSettings();
 
+        portName = serialSettings.PortName;
+
+        // Use shared factory to get or create serial communication
+        var factory = SerialCommunicationFactory.GetInstance(context.LoggerFactory);
+        var serialCommunication = factory.GetOrCreate(
+            serialSettings.PortName,
+            serialSettings,
+            connectionSettings);
+
         // Create RTU communication and wrap with ModbusRtuCommunication for CRC handling
         // Connection will be established automatically by DeviceBase.InitializeAsync via ConnectionManager
         var logger = context.GetLogger<CommunicationBase>();
-        var serialCommunication = new SerialCommunication(serialSettings, connectionSettings, logger);
+
         return new ModbusRtuCommunication(serialCommunication, logger);
+    }
+
+    /// <summary>
+    /// Decrease reference count when device disposed
+    /// </summary>
+    public override void Dispose()
+    {
+        SerialCommunicationFactory.GetInstance(null!).Release(_portName);
+        base.Dispose();
     }
 }
