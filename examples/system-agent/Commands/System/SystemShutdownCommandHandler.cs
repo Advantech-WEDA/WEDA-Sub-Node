@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Management;
 using System.Runtime.InteropServices;
 
 using ErrorOr;
@@ -21,12 +21,22 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// 2. Publishes a result response indicating the shutdown is commencing.
 /// 3. Initiates a system shutdown after an optional delay.
 ///
+/// On Linux: uses libc reboot() syscall with POWER_OFF (requires privileged container + pid: host).
+/// On Windows: uses WMI Win32_OperatingSystem.Win32Shutdown.
+///
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
 [Logging(LogLevel.Information)]
 [AutoAck(false)]
 public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownCommand, SystemShutdownResult>
 {
+    [DllImport("libc.so.6", SetLastError = true)]
+    private static extern int reboot(int magic, int magic2, int cmd, IntPtr arg);
+
+    private const int LINUX_REBOOT_MAGIC1 = unchecked((int)0xfee1dead);
+    private const int LINUX_REBOOT_MAGIC2 = 672274793;
+    private const int LINUX_REBOOT_CMD_POWER_OFF = unchecked((int)0x4321fedc);
+
     public async Task<ErrorOr<SystemShutdownResult>> HandleAsync(
         SystemShutdownCommand command,
         IWedaApplicationContext context,
@@ -51,19 +61,7 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
         await SendAckAsync(cloudService, deviceId ?? "", command.RespTopic, command.DeviceCmd,
             command.SeqId, command.ReqSeqId, resultData, logger, cancellationToken);
 
-        // 2. Verify platform support
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            logger.LogError(
-                "System shutdown via container is only supported on Linux. Current platform: {OS}",
-                RuntimeInformation.OSDescription);
-            return SystemShutdownResult.Error(
-                SystemCommandStatusCode.NotSupported,
-                $"System shutdown via container is only supported on Linux. Current platform: {RuntimeInformation.OSDescription}",
-                executedAt);
-        }
-
-        // 3. Initiate shutdown in the background so we can return the result response first
+        // 2. Initiate shutdown in the background so we can return the result response first
         _ = Task.Run(async () =>
         {
             try
@@ -83,26 +81,43 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
             }
         }, CancellationToken.None);
 
-        // 4. Return result indicating shutdown is commencing
+        // 3. Return result indicating shutdown is commencing
         return SystemShutdownResult.Success(resultData, executedAt);
     }
 
     /// <summary>
-    /// Executes the shutdown command.
-    /// Requires docker-compose: privileged: true + pid: host to actually shut down the host.
-    /// Without pid: host, this will only stop the container's PID 1.
+    /// Executes the shutdown command using platform-native APIs.
+    /// Linux: libc reboot() syscall with POWER_OFF. Requires privileged container + pid: host.
+    /// Windows: WMI Win32Shutdown with Forced Shutdown flag.
     /// </summary>
     private static void ExecuteShutdown(ILogger logger)
     {
         try
         {
-            Process.Start(new ProcessStartInfo
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                FileName = "/sbin/shutdown",
-                Arguments = "-h now",
-                CreateNoWindow = true,
-                UseShellExecute = false
-            });
+                int ret = reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, IntPtr.Zero);
+                if (ret != 0)
+                {
+                    logger.LogError("Linux shutdown syscall failed, errno={Errno}", Marshal.GetLastWin32Error());
+                }
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                using var mc = new ManagementClass("Win32_OperatingSystem");
+                mc.Get();
+                mc.Scope.Options.EnablePrivileges = true;
+
+                foreach (ManagementObject mo in mc.GetInstances())
+                {
+                    // Flag 5 = Forced Shutdown
+                    mo.InvokeMethod("Win32Shutdown", new object[] { 5, 0 });
+                }
+            }
+            else
+            {
+                logger.LogError("System shutdown is not supported on this platform: {OS}", RuntimeInformation.OSDescription);
+            }
         }
         catch (Exception ex)
         {
