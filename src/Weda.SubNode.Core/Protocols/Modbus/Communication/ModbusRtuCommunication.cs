@@ -23,11 +23,20 @@ public class ModbusRtuCommunication : RequestResponseCommunicationBase<byte[], b
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
     }
 
-    protected override Task<bool> ConnectCoreAsync(CancellationToken cancellationToken = default)
-        => _inner.ConnectAsync(cancellationToken);
+    protected override async Task<bool> ConnectCoreAsync(CancellationToken cancellationToken = default)
+    {
+        var connected = await _inner.ConnectAsync(cancellationToken);
+        // Sync state from inner communication
+        State = _inner.State;
+        return connected;
+    }
 
-    public override Task DisconnectAsync(CancellationToken cancellationToken = default)
-        => _inner.DisconnectAsync(cancellationToken);
+    public override async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    {
+        await _inner.DisconnectAsync(cancellationToken);
+        // Sync state from inner communication
+        State = _inner.State;
+    }
 
     protected override async Task<byte[]> RequestAsyncCore(byte[] pdu, CancellationToken cancellationToken = default)
     {

@@ -1,20 +1,15 @@
 {
   "cmd": "deviceCmd",
-  "seqId": 101,
-  "reqSeqId": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+  "seqId": 301,
+  "reqSeqId": "b1c2d3e4-f5a6-7890-bcde-111111111111",
   "timestamp": 1737004691020,
   "data": {
-    "deviceCmd": "do.set",
+    "deviceCmd": "ai.get",
     "respTopic": "eco1j.weda.270078643315671040.subnode.cmd.rsp",
     "timeout": 30,
     "parameters": {
       "deviceName": "MyFirstDevice",
-      "outputs": [
-        {
-          "name": "do_1",
-          "state": false
-        }
-      ]
+      "inputs": ["channel_0"]
     }
   }
 }

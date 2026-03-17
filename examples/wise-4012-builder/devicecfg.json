@@ -26,7 +26,7 @@
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
-            "RegisterType": "HoldingRegister",
+            "RegisterType": "InputRegister",
             "RegisterAddress": 0,
             "RegisterCount": 1,
             "DataType": "UInt16"
@@ -41,7 +41,7 @@
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
-            "RegisterType": "HoldingRegister",
+            "RegisterType": "InputRegister",
             "RegisterAddress": 1,
             "RegisterCount": 1,
             "DataType": "UInt16"
@@ -56,7 +56,7 @@
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
-            "RegisterType": "HoldingRegister",
+            "RegisterType": "InputRegister",
             "RegisterAddress": 2,
             "RegisterCount": 1,
             "DataType": "UInt16"
@@ -71,7 +71,7 @@
           "SensorGroup": "AI",
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
-            "RegisterType": "HoldingRegister",
+            "RegisterType": "InputRegister",
             "RegisterAddress": 3,
             "RegisterCount": 1,
             "DataType": "UInt16"
