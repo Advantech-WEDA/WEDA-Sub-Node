@@ -88,26 +88,25 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
     }
 
     /// <summary>
-    /// Executes the shutdown command via nsenter to shut down the host machine from within a container.
-    /// Requires docker-compose: privileged: true + pid: host
+    /// Executes the shutdown command.
+    /// Requires docker-compose: privileged: true + pid: host to actually shut down the host.
+    /// Without pid: host, this will only stop the container's PID 1.
     /// </summary>
     private static void ExecuteShutdown(ILogger logger)
     {
         try
         {
-            // nsenter -t 1 enters PID 1's (host init) mount/uts/ipc/net namespaces,
-            // then uses the host's shell to resolve and execute the shutdown command.
             Process.Start(new ProcessStartInfo
             {
-                FileName = "nsenter",
-                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c 'shutdown -h now'",
+                FileName = "/sbin/shutdown",
+                Arguments = "-h now",
                 CreateNoWindow = true,
                 UseShellExecute = false
             });
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to execute shutdown command via nsenter");
+            logger.LogError(ex, "Failed to execute shutdown command");
         }
     }
 

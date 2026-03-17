@@ -88,26 +88,24 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
     }
 
     /// <summary>
-    /// Executes the reboot command via nsenter to reboot the host machine from within a container.
-    /// Requires docker-compose: privileged: true + pid: host
+    /// Executes the reboot command.
+    /// Requires docker-compose: privileged: true + pid: host to actually reboot the host.
+    /// Without pid: host, this will only restart the container's PID 1.
     /// </summary>
     private static void ExecuteReboot(ILogger logger)
     {
         try
         {
-            // nsenter -t 1 enters PID 1's (host init) mount/uts/ipc/net namespaces,
-            // then uses the host's shell to resolve and execute the reboot command.
             Process.Start(new ProcessStartInfo
             {
-                FileName = "nsenter",
-                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c reboot",
+                FileName = "/sbin/reboot",
                 CreateNoWindow = true,
                 UseShellExecute = false
             });
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to execute reboot command via nsenter");
+            logger.LogError(ex, "Failed to execute reboot command");
         }
     }
 

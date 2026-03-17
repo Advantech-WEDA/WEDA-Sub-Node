@@ -59,8 +59,11 @@ COPY --from=build /app/publish/ ./
 RUN chmod +x SystemAgentDevice
 
 # Single layer for all runtime setup including CVE fix
+# Install systemd-sysv to provide /sbin/reboot and /sbin/shutdown commands
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gpgv=2.4.4-2ubuntu17.4 && \
+    apt-get install -y --no-install-recommends \
+      gpgv=2.4.4-2ubuntu17.4 \
+      systemd-sysv && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

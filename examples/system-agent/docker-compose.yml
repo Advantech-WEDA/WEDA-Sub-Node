@@ -5,7 +5,7 @@ services:
     image: harbor.arfa.wise-paas.com/edge-coa/system-agent:latest
     container_name: system-agent
     privileged: true
-    pid: host
+    # pid: host  # 故意註解掉，驗證沒有 pid:host 時 /sbin/reboot 只會重啟 container 而非 host
     restart: unless-stopped
     network_mode: host
     logging:
