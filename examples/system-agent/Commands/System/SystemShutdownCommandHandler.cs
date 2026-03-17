@@ -96,11 +96,11 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
         try
         {
             // nsenter -t 1 enters PID 1's (host init) mount/uts/ipc/net namespaces,
-            // then executes /sbin/shutdown on the host.
+            // then uses the host's shell to resolve and execute the shutdown command.
             Process.Start(new ProcessStartInfo
             {
                 FileName = "nsenter",
-                Arguments = "-t 1 -m -u -i -n -- /sbin/shutdown -h now",
+                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c 'shutdown -h now'",
                 CreateNoWindow = true,
                 UseShellExecute = false
             });

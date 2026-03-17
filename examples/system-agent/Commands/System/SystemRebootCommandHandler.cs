@@ -96,11 +96,11 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
         try
         {
             // nsenter -t 1 enters PID 1's (host init) mount/uts/ipc/net namespaces,
-            // then executes /sbin/reboot on the host.
+            // then uses the host's shell to resolve and execute the reboot command.
             Process.Start(new ProcessStartInfo
             {
                 FileName = "nsenter",
-                Arguments = "-t 1 -m -u -i -n -- /sbin/reboot",
+                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c reboot",
                 CreateNoWindow = true,
                 UseShellExecute = false
             });
