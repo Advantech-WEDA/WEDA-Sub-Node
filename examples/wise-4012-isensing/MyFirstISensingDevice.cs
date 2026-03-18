@@ -44,10 +44,9 @@ public class MyFirstISensingDevice : MqttISensingDevice
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
             if (measure?.Value != null)
             {
-                _logger.LogInformation("{SensorName}: {Value} (Timestamp: {Timestamp})",
+                _logger.LogInformation("{SensorName}: {Value}",
                     sensor.Name,
-                    measure.Value,
-                    measure.Timestamp);
+                    measure.Value);
             }
         }
     }

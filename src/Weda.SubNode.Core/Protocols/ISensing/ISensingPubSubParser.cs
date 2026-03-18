@@ -9,7 +9,6 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Protocols.ISensing.Commands;
 using Weda.SubNode.Core.Protocols.ISensing.Models;
 
 namespace Weda.SubNode.Core.Protocols.ISensing;
@@ -26,7 +25,7 @@ public class ISensingPubSubParser : IPubSubProtocolParser
     private readonly ILogger<ISensingPubSubParser> _logger;
     private readonly string _dataTopic;
     private readonly string _statusTopic;
-    private readonly string _commandTopic;
+    private readonly string _ctlTopicPrefix;
 
     private bool _isSubscribed;
 
@@ -56,7 +55,7 @@ public class ISensingPubSubParser : IPubSubProtocolParser
         // ISensing topic pattern: {Manufacturer}/{MacAddress}/{type}
         _dataTopic = $"{manufacturer}/{macAddress}/data";
         _statusTopic = $"{manufacturer}/{macAddress}/status";
-        _commandTopic = $"{manufacturer}/{macAddress}/cmd";
+        _ctlTopicPrefix = $"{manufacturer}/{macAddress}/ctl";
     }
 
     #region IProtocolParserCore Implementation
@@ -116,7 +115,8 @@ public class ISensingPubSubParser : IPubSubProtocolParser
     }
 
     /// <summary>
-    /// Execute command on device (publish to command topic).
+    /// Execute command on device (publish to appropriate topic).
+    /// For DO control, uses ISensing ctl topic format: {Manufacturer}/{MAC}/ctl/{do_key}
     /// </summary>
     public async Task<ErrorOr<object>> ExecuteCommandAsync(
         DeviceCommand command,
@@ -124,16 +124,11 @@ public class ISensingPubSubParser : IPubSubProtocolParser
     {
         try
         {
-            var json = EncodeCommandToJson(command);
-            var payload = Encoding.UTF8.GetBytes(json);
-
-            await _communication.PublishAsync(_commandTopic, payload, cancellationToken);
-
-            _logger.LogInformation(
-                "Published command {CommandName} to topic {Topic}",
-                command.DeviceCmd, _commandTopic);
-
-            return "Command published successfully";
+            return command.DeviceCmd is "SetDO" or "SetDigitalOutput"
+                ? await ExecuteDigitalOutputControlAsync(command, cancellationToken)
+                : Error.Failure(
+                    code: "Command.NotSupported",
+                    description: $"Command '{command.DeviceCmd}' is not supported by ISensing protocol");
         }
         catch (Exception ex)
         {
@@ -142,6 +137,46 @@ public class ISensingPubSubParser : IPubSubProtocolParser
                 code: "Command.PublishFailed",
                 description: ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Execute DO control using ISensing ctl topic format.
+    /// Topic: {Manufacturer}/{MAC}/ctl/{do_key}
+    /// Payload: {"v": true/false} for output state
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteDigitalOutputControlAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var outputName = ExtractStringParameter(command.Parameters, ["name", "outputName", "do"]);
+        if (string.IsNullOrEmpty(outputName))
+        {
+            return Error.Validation("SetDO.MissingName", "Missing 'name', 'outputName', or 'do' parameter");
+        }
+
+        var state = ExtractBooleanParameter(command.Parameters, "state");
+        if (state is null)
+        {
+            return Error.Validation("SetDO.MissingState", "Missing 'state' parameter");
+        }
+
+        // ISensing DO control topic: {Manufacturer}/{MAC}/ctl/{do_key}
+        // Convert DO name to lowercase for topic (e.g., "DO2" -> "do2")
+        var doKey = outputName.ToLowerInvariant();
+        var topic = $"{_ctlTopicPrefix}/{doKey}";
+
+        // ISensing DO control payload: {"v": true/false}
+        var payloadObj = new { v = state.Value };
+        var json = JsonSerializer.Serialize(payloadObj);
+        var payload = Encoding.UTF8.GetBytes(json);
+
+        await _communication.PublishAsync(topic, payload, cancellationToken);
+
+        _logger.LogInformation(
+            "Published DO control: {Topic} = {Payload}",
+            topic, json);
+
+        return new { success = true, name = outputName, state = state.Value };
     }
 
     #endregion
@@ -207,19 +242,20 @@ public class ISensingPubSubParser : IPubSubProtocolParser
                     continue;
                 }
 
-                if (!sensor.Report.Enabled)
+                if (!sensor.IsEffectivelyEnabled)
                 {
                     _logger.LogTrace("Sensor {SensorName} is disabled, skipping", sensor.Name);
                     continue;
                 }
 
-                // Extract numeric value
-                double value = fieldValue.ValueKind switch
+                // Extract value - preserve boolean type for DO sensors, numeric for others
+                object value = fieldValue.ValueKind switch
                 {
                     JsonValueKind.Number => fieldValue.GetDouble(),
                     JsonValueKind.String when double.TryParse(fieldValue.GetString(), out var d) => d,
-                    JsonValueKind.True => 1.0,
-                    JsonValueKind.False => 0.0,
+                    JsonValueKind.String => fieldValue.GetString()!,
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
                     _ => 0.0
                 };
 
@@ -287,58 +323,6 @@ public class ISensingPubSubParser : IPubSubProtocolParser
 
     #endregion
 
-    #region Command Encoding
-
-    private string EncodeCommandToJson(DeviceCommand command)
-    {
-        // Map DeviceCommand to ISensingCommand based on command name
-        ISensingCommand isensingCommand = command.DeviceCmd switch
-        {
-            "SetDigitalOutput" or "SetDO" => new DigitalOutputCommand
-            {
-                OutputName = ExtractStringParameter(command.Parameters, ["name", "outputName", "do"])
-                    ?? throw new ArgumentException("Missing 'name', 'outputName', or 'do' parameter"),
-                State = ExtractBooleanParameter(command.Parameters, "state")
-                    ?? throw new ArgumentException("Missing 'state' parameter")
-            },
-
-            "SetAnalogOutput" or "SetAO" => new AnalogOutputCommand
-            {
-                OutputName = ExtractStringParameter(command.Parameters, ["name", "outputName", "ao"])
-                    ?? throw new ArgumentException("Missing 'name', 'outputName', or 'ao' parameter"),
-                Value = ExtractDoubleParameter(command.Parameters, "value")
-                    ?? throw new ArgumentException("Missing 'value' parameter")
-            },
-
-            "GetConfig" or "GetConfiguration" => new ConfigurationRequestCommand
-            {
-                Index = ExtractUInt16Parameter(command.Parameters, "index") ?? 0
-            },
-
-            "SetConfig" or "SetConfiguration" => new ConfigurationUpdateCommand
-            {
-                Index = ExtractUInt16Parameter(command.Parameters, "index")
-                    ?? throw new ArgumentException("Missing 'index' parameter"),
-                ConfigData = command.Parameters.GetValueOrDefault("config") as Dictionary<string, object>
-                    ?? throw new ArgumentException("Missing or invalid 'config' parameter")
-            },
-
-            "SetSensorEnable" => new SensorEnableCommand
-            {
-                SensorName = ExtractStringParameter(command.Parameters, ["sensorName"])
-                    ?? throw new ArgumentException("Missing 'sensorName' parameter"),
-                Enabled = ExtractBooleanParameter(command.Parameters, "enabled")
-                    ?? throw new ArgumentException("Missing 'enabled' parameter")
-            },
-
-            _ => throw new NotSupportedException($"Command '{command.DeviceCmd}' is not supported by ISensing protocol")
-        };
-
-        return JsonSerializer.Serialize(isensingCommand);
-    }
-
-    #endregion
-
     #region Parameter Extraction Helpers (handles JsonElement from JSON deserialization)
 
     /// <summary>
@@ -381,48 +365,6 @@ public class ISensingPubSubParser : IPubSubProtocolParser
         }
 
         return Convert.ToBoolean(value);
-    }
-
-    /// <summary>
-    /// Extract double parameter from dictionary, handling JsonElement
-    /// </summary>
-    private static double? ExtractDoubleParameter(Dictionary<string, object> parameters, string key)
-    {
-        if (!parameters.TryGetValue(key, out var value) || value == null)
-            return null;
-
-        if (value is JsonElement jsonElement)
-        {
-            return jsonElement.ValueKind switch
-            {
-                JsonValueKind.Number => jsonElement.GetDouble(),
-                JsonValueKind.String => double.Parse(jsonElement.GetString()!),
-                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to double")
-            };
-        }
-
-        return Convert.ToDouble(value);
-    }
-
-    /// <summary>
-    /// Extract ushort parameter from dictionary, handling JsonElement
-    /// </summary>
-    private static ushort? ExtractUInt16Parameter(Dictionary<string, object> parameters, string key)
-    {
-        if (!parameters.TryGetValue(key, out var value) || value == null)
-            return null;
-
-        if (value is JsonElement jsonElement)
-        {
-            return jsonElement.ValueKind switch
-            {
-                JsonValueKind.Number => jsonElement.GetUInt16(),
-                JsonValueKind.String => ushort.Parse(jsonElement.GetString()!),
-                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to ushort")
-            };
-        }
-
-        return Convert.ToUInt16(value);
     }
 
     #endregion

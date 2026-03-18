@@ -20,7 +20,7 @@
           },
           "DeviceConfigs": {
             "MyFirstDeviceConfig": {
-              "Enabled": true,
+              "Enabled": false,
               "DeviceCommunication": {
                 "Host": "127.0.0.1",
                 "Port": 5020
@@ -48,11 +48,11 @@
                   },
                   "Report": {
                     "Enabled": true,
-                    "Interval": 5000
+                    "Interval": 2000
                   },
                   "Record": {
                     "Enabled": true,
-                    "Interval": 5000
+                    "Interval": 4000
                   }
                 }
               ]

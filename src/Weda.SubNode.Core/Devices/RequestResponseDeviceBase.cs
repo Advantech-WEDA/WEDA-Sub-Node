@@ -115,9 +115,14 @@ public class RequestResponseDeviceBase : DeviceBase
         // Group sensors by their interval (using helper from DeviceBase)
         var sensorGroups = GroupSensorsByInterval();
 
-        _logger.LogDebug(
-            "Starting request-response device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorGroups.Count, Configuration.Sensors.Count(s => s.Report.Enabled));
+        // Skip polling if no sensors are effectively enabled
+        if (sensorGroups.Count == 0)
+        {
+            _logger.LogInformation(
+                "No effectively enabled sensors, skipping polling for device {SubNodeId}",
+                SubNodeId);
+            return Task.CompletedTask;
+        }
 
         // Create interval loop tasks for each group (using helper from DeviceBase)
         foreach (var (intervalMs, sensors) in sensorGroups)
@@ -125,10 +130,6 @@ public class RequestResponseDeviceBase : DeviceBase
             // Use RunIntervalLoopAsync with initialDelay=false (immediate first read for polling)
             var pollingTask = RunIntervalLoopAsync(sensors, intervalMs, initialDelay: false, cancellationToken);
             _pollingTasks.Add(pollingTask);
-
-            _logger.LogDebug(
-                "Created polling task for interval {Interval}ms with {SensorCount} sensors: [{SensorNames}]",
-                intervalMs, sensors.Count, string.Join(", ", sensors.Select(s => s.Name)));
         }
 
         // Health task is now started by DeviceBase.StartAllBackgroundTasks()

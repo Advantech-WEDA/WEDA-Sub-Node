@@ -1,7 +1,7 @@
 {
   "protoVer": "eco1j",
   "groupId": "yyds",
-  "deviceId": "276580090500874240",
+  "deviceId": "287882802907578368",
   "cmd": "updateCmd",
   "seqId": 36,
   "reqSeqId": "1235",
@@ -33,7 +33,7 @@
               },
               "Sensors": [
                 {
-                  "Name": "temperature.sensor",
+                  "Name": "temperature_sensor",
                   "SensorGroup": "TEMP",
                   "Parameters": {
                     "RegisterType": "HoldingRegister",
@@ -48,7 +48,7 @@
                   },
                   "Report": {
                     "Enabled": true,
-                    "Interval": 2000
+                    "Interval": 1000
                   },
                   "Record": {
                     "Enabled": true,

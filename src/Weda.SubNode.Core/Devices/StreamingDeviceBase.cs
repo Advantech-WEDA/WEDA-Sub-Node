@@ -77,7 +77,7 @@ public class StreamingDeviceBase : DeviceBase
     {
         // Get enabled sensors from configuration
         var enabledSensors = Configuration.Sensors
-            .Where(s => s.Report.Enabled)
+            .Where(s => s.IsEffectivelyEnabled)
             .Select(s => s.ResourceId)
             .ToList();
 
@@ -170,9 +170,14 @@ public class StreamingDeviceBase : DeviceBase
         // Group sensors by their interval (using helper from DeviceBase)
         var sensorGroups = GroupSensorsByInterval();
 
-        _logger.LogDebug(
-            "Starting streaming device: Groups={GroupCount}, TotalSensors={SensorCount}",
-            sensorGroups.Count, Configuration.Sensors.Count(s => s.Report.Enabled));
+        // Skip stream and sampling if no sensors are effectively enabled
+        if (sensorGroups.Count == 0)
+        {
+            _logger.LogInformation(
+                "No effectively enabled sensors, skipping stream connection for device {SubNodeId}",
+                SubNodeId);
+            return Task.CompletedTask;
+        }
 
         // Subscribe to parser's events - pushes into SensorCache
         _parser.OnTelemetryReceived += OnTelemetryReceived;
