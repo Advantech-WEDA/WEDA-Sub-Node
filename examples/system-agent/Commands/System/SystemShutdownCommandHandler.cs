@@ -109,15 +109,24 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
         // Primary: nsenter (graceful shutdown via host's init/systemd)
         try
         {
-            var process = Process.Start(new ProcessStartInfo
+            var psi = new ProcessStartInfo("nsenter")
             {
-                FileName = "nsenter",
-                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c 'shutdown -h now'",
                 CreateNoWindow = true,
                 UseShellExecute = false,
                 RedirectStandardError = true
-            });
+            };
+            // Use ArgumentList to avoid shell quoting issues with multi-word commands
+            psi.ArgumentList.Add("-t"); psi.ArgumentList.Add("1");
+            psi.ArgumentList.Add("-m");
+            psi.ArgumentList.Add("-u");
+            psi.ArgumentList.Add("-i");
+            psi.ArgumentList.Add("-n");
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add("/bin/sh");
+            psi.ArgumentList.Add("-c");
+            psi.ArgumentList.Add("shutdown -h now"); // passed as a single token to /bin/sh -c
 
+            var process = Process.Start(psi);
             if (process is not null)
             {
                 process.WaitForExit(10_000);
