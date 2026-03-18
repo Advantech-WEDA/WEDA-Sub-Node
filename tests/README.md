@@ -75,8 +75,7 @@ After running tests with coverage, view the report:
 # Find the coverage file
 find TestResults -name "coverage.cobertura.xml"
 
-# Install reportgenerator (one-time)
-dotnet tool install -g dotnet-reportgenerator-globaltool
+# ReportGenerator is pre-installed in the Dev Container
 
 # Generate HTML report
 reportgenerator \
