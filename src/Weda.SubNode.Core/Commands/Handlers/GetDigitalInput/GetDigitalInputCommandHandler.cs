@@ -8,6 +8,8 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.GetDigitalInput.Models;
 
+using Weda.SubNode.Abstractions.Commands.Contracts;
+
 namespace Weda.SubNode.Core.Commands.Handlers.GetDigitalInput;
 
 /// <summary>
@@ -42,7 +44,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
         if (devices.Count == 0)
         {
             return GetDigitalInputResult.Error(
-                GetDigitalInputStatusCode.NotSupported,
+                CommandStatusCode.UnsupportedCommand,
                 "No devices support digital input reading",
                 executedAt);
         }
@@ -57,7 +59,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
             if (specificDevice is null)
             {
                 return GetDigitalInputResult.Error(
-                    GetDigitalInputStatusCode.DeviceNotFound,
+                    CommandStatusCode.NotFound,
                     $"Device '{command.Parameters.DeviceName}' not found or does not support digital input reading",
                     executedAt);
             }
@@ -115,7 +117,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
                 return GetDigitalInputResult.Error(
-                    GetDigitalInputStatusCode.Timeout,
+                    CommandStatusCode.Timeout,
                     $"Command execution timed out after {command.Timeout} seconds",
                     executedAt);
             }
@@ -140,13 +142,13 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetDigitalInputResult.Error(
-                GetDigitalInputStatusCode.ExecutionFailed,
+                CommandStatusCode.HardwareError,
                 $"Failed to read any inputs: {errors[0].Error}",
                 executedAt);
         }
 
         return GetDigitalInputResult.Error(
-            GetDigitalInputStatusCode.ExecutionFailed,
+            CommandStatusCode.HardwareError,
             "No inputs available to read",
             executedAt);
     }

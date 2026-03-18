@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.GetDigitalInput.Models;
 
@@ -24,7 +25,7 @@ public class GetDigitalInputResult : IResult
         GetDigitalInputResultData resultData,
         long executedAt) => new()
         {
-            Status = GetDigitalInputStatusCode.Success,
+            Status = CommandStatusCode.Success,
             Message = "Digital inputs read successfully",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -35,7 +36,7 @@ public class GetDigitalInputResult : IResult
         GetDigitalInputResultData resultData,
         long executedAt) => new()
         {
-            Status = GetDigitalInputStatusCode.PartialSuccess,
+            Status = CommandStatusCode.PartialSuccess,
             Message = "Some digital inputs could not be read",
             ResultData = resultData,
             ExecutedAt = executedAt,

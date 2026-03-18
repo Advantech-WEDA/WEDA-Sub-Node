@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.GetDigitalOutput.Models;
@@ -42,7 +43,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
         if (devices.Count == 0)
         {
             return GetDigitalOutputResult.Error(
-                GetDigitalOutputStatusCode.NotSupported,
+                CommandStatusCode.UnsupportedCommand,
                 "No devices support digital output reading",
                 executedAt);
         }
@@ -57,7 +58,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
             if (specificDevice is null)
             {
                 return GetDigitalOutputResult.Error(
-                    GetDigitalOutputStatusCode.DeviceNotFound,
+                    CommandStatusCode.NotFound,
                     $"Device '{command.Parameters.DeviceName}' not found or does not support digital output reading",
                     executedAt);
             }
@@ -115,7 +116,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
                 return GetDigitalOutputResult.Error(
-                    GetDigitalOutputStatusCode.Timeout,
+                    CommandStatusCode.Timeout,
                     $"Command execution timed out after {command.Timeout} seconds",
                     executedAt);
             }
@@ -140,13 +141,13 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetDigitalOutputResult.Error(
-                GetDigitalOutputStatusCode.ExecutionFailed,
+                CommandStatusCode.HardwareError,
                 $"Failed to read any outputs: {errors[0].Error}",
                 executedAt);
         }
 
         return GetDigitalOutputResult.Error(
-            GetDigitalOutputStatusCode.ExecutionFailed,
+            CommandStatusCode.HardwareError,
             "No outputs available to read",
             executedAt);
     }

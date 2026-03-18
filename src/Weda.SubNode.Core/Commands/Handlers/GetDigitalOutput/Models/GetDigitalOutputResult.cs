@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.GetDigitalOutput.Models;
 
@@ -24,7 +25,7 @@ public class GetDigitalOutputResult : IResult
         GetDigitalOutputResultData resultData,
         long executedAt) => new()
         {
-            Status = GetDigitalOutputStatusCode.Success,
+            Status = CommandStatusCode.Success,
             Message = "Digital outputs read successfully",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -35,7 +36,7 @@ public class GetDigitalOutputResult : IResult
         GetDigitalOutputResultData resultData,
         long executedAt) => new()
         {
-            Status = GetDigitalOutputStatusCode.PartialSuccess,
+            Status = CommandStatusCode.PartialSuccess,
             Message = "Some digital outputs could not be read",
             ResultData = resultData,
             ExecutedAt = executedAt,

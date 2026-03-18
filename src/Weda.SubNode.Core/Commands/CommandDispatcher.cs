@@ -91,7 +91,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                     var firstError = validationResult.FirstError;
                     await SendResponseAsync(metadata.RespTopic,
                         CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
-                            CommandResponseStatusCode.InvalidInputArguments,
+                            CommandStatusCode.ValidationFailed,
                             firstError.Description, message.ReqSeqId));
                 }
                 return validationResult.Errors;
@@ -123,8 +123,8 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
 
                     // Use "Rejected" for validation errors, "Failed" for execution errors
                     var response = firstError.Type == ErrorType.Validation
-                        ? CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, CommandResponseStatusCode.InvalidInputArguments, errorMessage, message.ReqSeqId)
-                        : CommandResponse.Failed(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, CommandResponseStatusCode.UnexptectedError, errorMessage, message.ReqSeqId);
+                        ? CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, CommandStatusCode.ValidationFailed, errorMessage, message.ReqSeqId)
+                        : CommandResponse.Failed(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, CommandStatusCode.HardwareError, errorMessage, message.ReqSeqId);
 
                     await SendResponseAsync(metadata.RespTopic, response);
                 }
@@ -156,7 +156,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
                         // Fallback for non-IResult responses
                         await SendResponseAsync(metadata.RespTopic,
                             CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
-                                CommandResponseStatusCode.Success, null, result.Value, message.ReqSeqId));
+                                CommandStatusCode.Success, null, result.Value, message.ReqSeqId));
                     }
                 }
             }
@@ -172,7 +172,7 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
             {
                 await SendResponseAsync(metadata.RespTopic,
                     CommandResponse.Failed(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
-                        CommandResponseStatusCode.UnexptectedError, ex.Message, message.ReqSeqId));
+                        CommandStatusCode.HardwareError, ex.Message, message.ReqSeqId));
             }
 
             return Errors.Command.ExecutionFailed(ex.Message);

@@ -3,6 +3,7 @@
   "seqId": 301,
   "reqSeqId": "b1c2d3e4-f5a6-7890-bcde-111111111111",
   "timestamp": 1737004691020,
+  "parentDeviceId": "74fe488d5d54",
   "data": {
     "deviceCmd": "ai.get",
     "respTopic": "eco1j.weda.270078643315671040.subnode.cmd.rsp",

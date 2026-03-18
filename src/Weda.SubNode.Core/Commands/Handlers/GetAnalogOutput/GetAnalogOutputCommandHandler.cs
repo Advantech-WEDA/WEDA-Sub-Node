@@ -8,6 +8,8 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.GetAnalogOutput.Models;
 
+using Weda.SubNode.Abstractions.Commands.Contracts;
+
 namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogOutput;
 
 /// <summary>
@@ -42,7 +44,7 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
         if (devices.Count == 0)
         {
             return GetAnalogOutputResult.Error(
-                GetAnalogOutputStatusCode.NotSupported,
+                CommandStatusCode.UnsupportedCommand,
                 "No devices support analog output reading",
                 executedAt);
         }
@@ -57,7 +59,7 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
             if (specificDevice is null)
             {
                 return GetAnalogOutputResult.Error(
-                    GetAnalogOutputStatusCode.DeviceNotFound,
+                    CommandStatusCode.NotFound,
                     $"Device '{command.Parameters.DeviceName}' not found or does not support analog output reading",
                     executedAt);
             }
@@ -115,7 +117,7 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
                 return GetAnalogOutputResult.Error(
-                    GetAnalogOutputStatusCode.Timeout,
+                    CommandStatusCode.Timeout,
                     $"Command execution timed out after {command.Timeout} seconds",
                     executedAt);
             }
@@ -140,13 +142,13 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetAnalogOutputResult.Error(
-                GetAnalogOutputStatusCode.ExecutionFailed,
+                CommandStatusCode.HardwareError,
                 $"Failed to read any outputs: {errors[0].Error}",
                 executedAt);
         }
 
         return GetAnalogOutputResult.Error(
-            GetAnalogOutputStatusCode.ExecutionFailed,
+            CommandStatusCode.HardwareError,
             "No outputs available to read",
             executedAt);
     }

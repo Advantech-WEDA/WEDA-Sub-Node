@@ -3,8 +3,9 @@
   "seqId": 100,
   "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "timestamp": 1737004691020,
+  "parentDeviceId": "74fe488d5d54",
   "data": {
-    "deviceCmd": "cmd.do",
+    "deviceCmd": "do.set",
     "respTopic": "eco1j.weda.266498530590326784.subnode.cmd.rsp",
     "timeout": 30,
     "parameters": {

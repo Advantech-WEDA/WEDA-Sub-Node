@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogInput.Models;
 
@@ -24,7 +25,7 @@ public class GetAnalogInputResult : IResult
         GetAnalogInputResultData resultData,
         long executedAt) => new()
         {
-            Status = GetAnalogInputStatusCode.Success,
+            Status = CommandStatusCode.Success,
             Message = "Analog inputs read successfully",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -35,7 +36,7 @@ public class GetAnalogInputResult : IResult
         GetAnalogInputResultData resultData,
         long executedAt) => new()
         {
-            Status = GetAnalogInputStatusCode.PartialSuccess,
+            Status = CommandStatusCode.PartialSuccess,
             Message = "Some analog inputs could not be read",
             ResultData = resultData,
             ExecutedAt = executedAt,

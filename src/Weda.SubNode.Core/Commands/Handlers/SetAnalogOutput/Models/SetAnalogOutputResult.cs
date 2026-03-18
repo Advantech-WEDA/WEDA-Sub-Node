@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.SetAnalogOutput.Models;
 
@@ -13,7 +14,7 @@ public class SetAnalogOutputResult : IResult
     /// <summary>
     /// Status code indicating the result of the operation.
     /// </summary>
-    /// <seealso cref="SetAnalogOutputStatusCode"/>
+    /// <seealso cref="CommandStatusCode"/>
     public int Status { get; init; }
 
     /// <summary>
@@ -53,7 +54,7 @@ public class SetAnalogOutputResult : IResult
         SetAnalogOutputResultData resultData,
         long executedAt) => new()
         {
-            Status = SetAnalogOutputStatusCode.Success,
+            Status = CommandStatusCode.Success,
             Message = "Analog output set successfully",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -67,7 +68,7 @@ public class SetAnalogOutputResult : IResult
         SetAnalogOutputResultData resultData,
         long executedAt) => new()
         {
-            Status = SetAnalogOutputStatusCode.PartialSuccess,
+            Status = CommandStatusCode.PartialSuccess,
             Message = "Some analog outputs failed to set",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -96,10 +97,10 @@ public class SetAnalogOutputResult : IResult
 
     private static string? GetRecommendation(int status) => status switch
     {
-        SetAnalogOutputStatusCode.DeviceNotFound => "Check device name matches configuration",
-        SetAnalogOutputStatusCode.NotSupported => "Ensure device implements IAnalogOutputControllable",
-        SetAnalogOutputStatusCode.ExecutionFailed => "Check device connectivity and Modbus configuration",
-        SetAnalogOutputStatusCode.Timeout => "Increase timeout or check device responsiveness",
+        CommandStatusCode.NotFound => "Check device name matches configuration",
+        CommandStatusCode.UnsupportedCommand => "Ensure device implements IAnalogOutputControllable",
+        CommandStatusCode.HardwareError => "Check device connectivity and Modbus configuration",
+        CommandStatusCode.Timeout => "Increase timeout or check device responsiveness",
         _ => null
     };
 }

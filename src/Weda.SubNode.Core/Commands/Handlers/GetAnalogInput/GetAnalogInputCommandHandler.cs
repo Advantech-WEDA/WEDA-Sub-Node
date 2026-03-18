@@ -8,6 +8,8 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.GetAnalogInput.Models;
 
+using Weda.SubNode.Abstractions.Commands.Contracts;
+
 namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogInput;
 
 /// <summary>
@@ -42,7 +44,7 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
         if (devices.Count == 0)
         {
             return GetAnalogInputResult.Error(
-                GetAnalogInputStatusCode.NotSupported,
+                CommandStatusCode.UnsupportedCommand,
                 "No devices support analog input reading",
                 executedAt);
         }
@@ -57,7 +59,7 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
             if (specificDevice is null)
             {
                 return GetAnalogInputResult.Error(
-                    GetAnalogInputStatusCode.DeviceNotFound,
+                    CommandStatusCode.NotFound,
                     $"Device '{command.Parameters.DeviceName}' not found or does not support analog input reading",
                     executedAt);
             }
@@ -115,7 +117,7 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
                 return GetAnalogInputResult.Error(
-                    GetAnalogInputStatusCode.Timeout,
+                    CommandStatusCode.Timeout,
                     $"Command execution timed out after {command.Timeout} seconds",
                     executedAt);
             }
@@ -140,13 +142,13 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetAnalogInputResult.Error(
-                GetAnalogInputStatusCode.ExecutionFailed,
+                CommandStatusCode.HardwareError,
                 $"Failed to read any inputs: {errors[0].Error}",
                 executedAt);
         }
 
         return GetAnalogInputResult.Error(
-            GetAnalogInputStatusCode.ExecutionFailed,
+            CommandStatusCode.HardwareError,
             "No inputs available to read",
             executedAt);
     }

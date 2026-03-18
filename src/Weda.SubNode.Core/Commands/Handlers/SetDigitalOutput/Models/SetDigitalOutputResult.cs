@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 
@@ -13,7 +14,7 @@ public class SetDigitalOutputResult : IResult
     /// <summary>
     /// Status code indicating the result of the operation.
     /// </summary>
-    /// <seealso cref="SetDigitalOutputStatusCode"/>
+    /// <seealso cref="CommandStatusCode"/>
     public int Status { get; init; }
 
     /// <summary>
@@ -53,7 +54,7 @@ public class SetDigitalOutputResult : IResult
         SetDigitalOutputResultData resultData,
         long executedAt) => new()
         {
-            Status = SetDigitalOutputStatusCode.Success,
+            Status = CommandStatusCode.Success,
             Message = "Digital output set successfully",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -67,7 +68,7 @@ public class SetDigitalOutputResult : IResult
         SetDigitalOutputResultData resultData,
         long executedAt) => new()
         {
-            Status = SetDigitalOutputStatusCode.PartialSuccess,
+            Status = CommandStatusCode.PartialSuccess,
             Message = "Some digital outputs failed to set",
             ResultData = resultData,
             ExecutedAt = executedAt,
@@ -96,10 +97,10 @@ public class SetDigitalOutputResult : IResult
 
     private static string? GetRecommendation(int status) => status switch
     {
-        SetDigitalOutputStatusCode.DeviceNotFound => "Check device name matches configuration",
-        SetDigitalOutputStatusCode.NotSupported => "Ensure device implements IDigitalOutputControllable",
-        SetDigitalOutputStatusCode.ExecutionFailed => "Check device connectivity and Modbus configuration",
-        SetDigitalOutputStatusCode.Timeout => "Increase timeout or check device responsiveness",
+        CommandStatusCode.NotFound => "Check device name matches configuration",
+        CommandStatusCode.UnsupportedCommand => "Ensure device implements IDigitalOutputControllable",
+        CommandStatusCode.HardwareError => "Check device connectivity and Modbus configuration",
+        CommandStatusCode.Timeout => "Increase timeout or check device responsiveness",
         _ => null
     };
 }

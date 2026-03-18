@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 
 namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 
@@ -17,7 +18,7 @@ public class BatchReportResult : IResult
     /// <summary>
     /// Status code indicating the result of the operation.
     /// </summary>
-    /// <seealso cref="BatchReportStatusCode"/>
+    /// <seealso cref="CommandStatusCode"/>
     public int Status { get; init; }
 
     /// <summary>
@@ -89,10 +90,10 @@ public class BatchReportResult : IResult
 
     private static string? GetRecommendation(int status) => status switch
     {
-        BatchReportStatusCode.InvalidTimeRange => "Adjust time range to available period",
-        BatchReportStatusCode.StorageError => "Check device storage health and retry",
-        BatchReportStatusCode.Timeout => "Reduce query scope or increase timeout",
-        BatchReportStatusCode.ResourceExhausted => "Reduce batch size or add rate limiting",
+        CommandStatusCode.ValidationFailed => "Adjust time range to available period",
+        CommandStatusCode.HardwareError => "Check device storage health and retry",
+        CommandStatusCode.Timeout => "Reduce query scope or increase timeout",
+        CommandStatusCode.ResourceExhausted => "Reduce batch size or add rate limiting",
         _ => null
     };
 }

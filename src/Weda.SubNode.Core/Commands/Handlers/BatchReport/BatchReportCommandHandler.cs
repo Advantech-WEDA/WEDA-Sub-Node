@@ -37,7 +37,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         if (recordingService is null)
         {
             return BatchReportResult.Error(
-                BatchReportStatusCode.StorageError,
+                CommandStatusCode.HardwareError,
                 "STORAGE_UNAVAILABLE",
                 "RecordingService is not configured",
                 executedAt);
@@ -47,7 +47,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         if (string.IsNullOrEmpty(subNodeId))
         {
             return BatchReportResult.Error(
-                BatchReportStatusCode.PermissionDenied,
+                CommandStatusCode.PermissionDenied,
                 "NOT_REGISTERED",
                 "SubNode is not registered",
                 executedAt);
@@ -60,7 +60,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         if (effectiveTimeRange.StartTime >= effectiveTimeRange.EndTime)
         {
             return BatchReportResult.Error(
-                BatchReportStatusCode.InvalidTimeRange,
+                CommandStatusCode.ValidationFailed,
                 "INVALID_TIME_RANGE",
                 "Start time must be before end time",
                 executedAt);
@@ -73,7 +73,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             if (effectiveTimeRange.EndTime - effectiveTimeRange.StartTime > maxRangeMs)
             {
                 return BatchReportResult.Error(
-                    BatchReportStatusCode.InvalidTimeRange,
+                    CommandStatusCode.ValidationFailed,
                     "TIME_RANGE_TOO_LARGE",
                     $"Time range exceeds maximum of {maxQueryDays} days",
                     executedAt);
@@ -92,7 +92,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         if (sensorIdsResult.IsError)
         {
             return BatchReportResult.Error(
-                BatchReportStatusCode.StorageError,
+                CommandStatusCode.HardwareError,
                 "STORAGE_ERROR",
                 sensorIdsResult.FirstError.Description,
                 executedAt);
@@ -103,7 +103,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             logger.LogInformation("No sensors match the filter criteria");
             return BatchReportResult.Success(
-                BatchReportStatusCode.NoDataAvailable,
+                CommandStatusCode.NotFound,
                 "No sensors match the filter criteria",
                 new BatchReportResultData
                 {
@@ -259,7 +259,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             logger.LogWarning("BatchReport timed out after {Timeout} seconds", command.Timeout);
             return BatchReportResult.Error(
-                BatchReportStatusCode.Timeout,
+                CommandStatusCode.Timeout,
                 "TIMEOUT",
                 $"Command execution exceeded {command.Timeout} seconds timeout",
                 executedAt);
@@ -268,7 +268,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             // Original cancellation token was triggered (not timeout)
             return BatchReportResult.Error(
-                BatchReportStatusCode.Timeout,
+                CommandStatusCode.Timeout,
                 "CANCELLED",
                 "Operation was cancelled",
                 executedAt);
@@ -277,7 +277,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         {
             logger.LogError(ex, "Out of memory while loading data from storage");
             return BatchReportResult.Error(
-                BatchReportStatusCode.ResourceExhausted,
+                CommandStatusCode.ResourceExhausted,
                 "RESOURCE_EXHAUSTED",
                 "Insufficient memory to load data. Reduce time range or batch size.",
                 executedAt);
@@ -291,15 +291,15 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         // Determine final status - include failed batches in consideration
         var statusCode = (failedBatches > 0 || failedSensors.Count > 0)
-            ? BatchReportStatusCode.PartialSuccess
-            : (messageCount == 0 ? BatchReportStatusCode.NoDataAvailable : BatchReportStatusCode.Success);
+            ? CommandStatusCode.PartialSuccess
+            : (messageCount == 0 ? CommandStatusCode.NotFound : CommandStatusCode.Success);
 
         var message = statusCode switch
         {
-            BatchReportStatusCode.Success => "Historical data retrieval complete",
-            BatchReportStatusCode.PartialSuccess => "Historical data retrieval complete with gaps",
-            BatchReportStatusCode.NoDataAvailable => "No data found for specified time range",
-            _ => BatchReportStatusCode.GetDescription(statusCode)
+            CommandStatusCode.Success => "Historical data retrieval complete",
+            CommandStatusCode.PartialSuccess => "Historical data retrieval complete with gaps",
+            CommandStatusCode.NotFound => "No data found for specified time range",
+            _ => "Unknown status"
         };
 
         var resultData = new BatchReportResultData
@@ -479,7 +479,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 {
                     DeviceCmd = progress.DeviceCmd,
                     MsgType = "progress",
-                    Status = BatchReportStatusCode.Success,
+                    Status = CommandStatusCode.Success,
                     Message = "Progress update",
                     ResultData = progress.Progress
                 }
@@ -522,7 +522,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 {
                     DeviceCmd = deviceCmd,
                     MsgType = "ack",
-                    Status = BatchReportStatusCode.Success,
+                    Status = CommandStatusCode.Success,
                     Message = "Historical data query started",
                     ResultData = new
                     {
