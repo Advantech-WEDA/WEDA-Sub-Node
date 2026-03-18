@@ -21,12 +21,23 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// 2. Publishes a result response indicating the reboot is commencing.
 /// 3. Initiates a system reboot after an optional delay.
 ///
+/// Primary: nsenter into host namespace (graceful, via host's init system).
+/// Fallback: libc reboot() syscall (hard reboot, does not notify host services).
+/// Both require docker-compose: privileged: true + pid: host.
+///
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
 [Logging(LogLevel.Information)]
 [AutoAck(false)]
 public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, SystemRebootResult>
 {
+    // glibc reboot() wrapper takes only 1 argument (cmd). Magic numbers are handled internally by glibc.
+    // See: https://man7.org/linux/man-pages/man2/reboot.2.html
+    [DllImport("libc.so.6", SetLastError = true)]
+    private static extern int reboot(int cmd);
+
+    private const int LINUX_REBOOT_CMD_RESTART = 0x01234567;
+
     public async Task<ErrorOr<SystemRebootResult>> HandleAsync(
         SystemRebootCommand command,
         IWedaApplicationContext context,
@@ -89,23 +100,56 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
 
     /// <summary>
     /// Executes the reboot command.
-    /// Requires docker-compose: privileged: true + pid: host to actually reboot the host.
-    /// Without pid: host, this will only restart the container's PID 1.
+    /// Primary: nsenter into host PID 1 namespace for graceful reboot via host's init system.
+    /// Fallback: libc reboot() syscall (hard reboot if nsenter is unavailable).
+    /// Requires docker-compose: privileged: true + pid: host.
     /// </summary>
     private static void ExecuteReboot(ILogger logger)
     {
+        // Primary: nsenter (graceful reboot via host's init/systemd)
         try
         {
-            Process.Start(new ProcessStartInfo
+            var process = Process.Start(new ProcessStartInfo
             {
-                FileName = "/sbin/reboot",
+                FileName = "nsenter",
+                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c reboot",
                 CreateNoWindow = true,
-                UseShellExecute = false
+                UseShellExecute = false,
+                RedirectStandardError = true
             });
+
+            if (process is not null)
+            {
+                process.WaitForExit(10_000);
+                if (process.ExitCode == 0)
+                {
+                    logger.LogInformation("Reboot initiated via nsenter (graceful)");
+                    return;
+                }
+
+                var stderr = process.StandardError.ReadToEnd();
+                logger.LogWarning("nsenter reboot failed (exit={ExitCode}): {Error}. Falling back to libc reboot() syscall",
+                    process.ExitCode, stderr.Trim());
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to execute reboot command");
+            logger.LogWarning(ex, "nsenter not available. Falling back to libc reboot() syscall");
+        }
+
+        // Fallback: libc reboot() syscall (hard reboot)
+        try
+        {
+            logger.LogWarning("Executing hard reboot via libc reboot() syscall");
+            int ret = reboot(LINUX_REBOOT_CMD_RESTART);
+            if (ret != 0)
+            {
+                logger.LogError("libc reboot() syscall failed, errno={Errno}", Marshal.GetLastWin32Error());
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to execute reboot via libc syscall");
         }
     }
 

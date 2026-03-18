@@ -51,7 +51,6 @@
   <ItemGroup Label="System Libraries">
     <PackageVersion Include="System.IO.Ports" Version="10.0.0" />
     <PackageVersion Include="System.IO.Hashing" Version="9.0.3" />
-    <PackageVersion Include="System.Management" Version="10.0.0" />
     <PackageVersion Include="System.Text.Json" Version="10.0.0" />
     <PackageVersion Include="NATS.Net" Version="2.6.10" />
     <PackageVersion Include="MQTTnet" Version="4.3.7.1207" />

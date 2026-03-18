@@ -29,7 +29,6 @@
     <PackageReference Include="Serilog.Settings.Configuration" />
     <PackageReference Include="Serilog.Enrichers.Thread" />
     <PackageReference Include="Serilog.Enrichers.Environment" />
-    <PackageReference Include="System.Management" />
   </ItemGroup>
 
   <ItemGroup>

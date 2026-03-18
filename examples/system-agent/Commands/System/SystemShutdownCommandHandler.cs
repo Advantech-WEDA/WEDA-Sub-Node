@@ -1,4 +1,4 @@
-using System.Management;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 using ErrorOr;
@@ -21,8 +21,9 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// 2. Publishes a result response indicating the shutdown is commencing.
 /// 3. Initiates a system shutdown after an optional delay.
 ///
-/// On Linux: uses libc reboot() syscall with POWER_OFF (requires privileged container + pid: host).
-/// On Windows: uses WMI Win32_OperatingSystem.Win32Shutdown.
+/// Primary: nsenter into host namespace (graceful, via host's init system).
+/// Fallback: libc reboot() syscall with POWER_OFF (hard shutdown, does not notify host services).
+/// Both require docker-compose: privileged: true + pid: host.
 ///
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
@@ -30,11 +31,11 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 [AutoAck(false)]
 public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownCommand, SystemShutdownResult>
 {
+    // glibc reboot() wrapper takes only 1 argument (cmd). Magic numbers are handled internally by glibc.
+    // See: https://man7.org/linux/man-pages/man2/reboot.2.html
     [DllImport("libc.so.6", SetLastError = true)]
-    private static extern int reboot(int magic, int magic2, int cmd, IntPtr arg);
+    private static extern int reboot(int cmd);
 
-    private const int LINUX_REBOOT_MAGIC1 = unchecked((int)0xfee1dead);
-    private const int LINUX_REBOOT_MAGIC2 = 672274793;
     private const int LINUX_REBOOT_CMD_POWER_OFF = unchecked((int)0x4321fedc);
 
     public async Task<ErrorOr<SystemShutdownResult>> HandleAsync(
@@ -61,7 +62,19 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
         await SendAckAsync(cloudService, deviceId ?? "", command.RespTopic, command.DeviceCmd,
             command.SeqId, command.ReqSeqId, resultData, logger, cancellationToken);
 
-        // 2. Initiate shutdown in the background so we can return the result response first
+        // 2. Verify platform support
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            logger.LogError(
+                "System shutdown via container is only supported on Linux. Current platform: {OS}",
+                RuntimeInformation.OSDescription);
+            return SystemShutdownResult.Error(
+                SystemCommandStatusCode.NotSupported,
+                $"System shutdown via container is only supported on Linux. Current platform: {RuntimeInformation.OSDescription}",
+                executedAt);
+        }
+
+        // 3. Initiate shutdown in the background so we can return the result response first
         _ = Task.Run(async () =>
         {
             try
@@ -81,47 +94,62 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
             }
         }, CancellationToken.None);
 
-        // 3. Return result indicating shutdown is commencing
+        // 4. Return result indicating shutdown is commencing
         return SystemShutdownResult.Success(resultData, executedAt);
     }
 
     /// <summary>
-    /// Executes the shutdown command using platform-native APIs.
-    /// Linux: libc reboot() syscall with POWER_OFF. Requires privileged container + pid: host.
-    /// Windows: WMI Win32Shutdown with Forced Shutdown flag.
+    /// Executes the shutdown command.
+    /// Primary: nsenter into host PID 1 namespace for graceful shutdown via host's init system.
+    /// Fallback: libc reboot() syscall with POWER_OFF (hard shutdown if nsenter is unavailable).
+    /// Requires docker-compose: privileged: true + pid: host.
     /// </summary>
     private static void ExecuteShutdown(ILogger logger)
     {
+        // Primary: nsenter (graceful shutdown via host's init/systemd)
         try
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            var process = Process.Start(new ProcessStartInfo
             {
-                int ret = reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_POWER_OFF, IntPtr.Zero);
-                if (ret != 0)
-                {
-                    logger.LogError("Linux shutdown syscall failed, errno={Errno}", Marshal.GetLastWin32Error());
-                }
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                using var mc = new ManagementClass("Win32_OperatingSystem");
-                mc.Get();
-                mc.Scope.Options.EnablePrivileges = true;
+                FileName = "nsenter",
+                Arguments = "-t 1 -m -u -i -n -- /bin/sh -c 'shutdown -h now'",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardError = true
+            });
 
-                foreach (ManagementObject mo in mc.GetInstances())
-                {
-                    // Flag 5 = Forced Shutdown
-                    mo.InvokeMethod("Win32Shutdown", new object[] { 5, 0 });
-                }
-            }
-            else
+            if (process is not null)
             {
-                logger.LogError("System shutdown is not supported on this platform: {OS}", RuntimeInformation.OSDescription);
+                process.WaitForExit(10_000);
+                if (process.ExitCode == 0)
+                {
+                    logger.LogInformation("Shutdown initiated via nsenter (graceful)");
+                    return;
+                }
+
+                var stderr = process.StandardError.ReadToEnd();
+                logger.LogWarning("nsenter shutdown failed (exit={ExitCode}): {Error}. Falling back to libc reboot() syscall",
+                    process.ExitCode, stderr.Trim());
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to execute shutdown command");
+            logger.LogWarning(ex, "nsenter not available. Falling back to libc reboot() syscall");
+        }
+
+        // Fallback: libc reboot() syscall with POWER_OFF (hard shutdown)
+        try
+        {
+            logger.LogWarning("Executing hard shutdown via libc reboot() syscall");
+            int ret = reboot(LINUX_REBOOT_CMD_POWER_OFF);
+            if (ret != 0)
+            {
+                logger.LogError("libc reboot() syscall (POWER_OFF) failed, errno={Errno}", Marshal.GetLastWin32Error());
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to execute shutdown via libc syscall");
         }
     }
 
