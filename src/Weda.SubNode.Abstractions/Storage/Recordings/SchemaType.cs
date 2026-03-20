@@ -37,5 +37,25 @@ public static class SchemaTypeExtensions
         };
     }
 
-    public static bool IsMimeType(this SchemaType schemaType) => (byte)schemaType >= 0x10;
+    public static bool IsMimeType(this SchemaType schemaType)
+        => (byte)schemaType >= 0x10;
+
+    public static bool IsNumericSchema(string? schema)
+    {
+        if (string.IsNullOrEmpty(schema))
+            return false;
+
+        return schema.Equals("double", StringComparison.OrdinalIgnoreCase)
+            || schema.Equals("integer", StringComparison.OrdinalIgnoreCase)
+            || schema.Equals("long", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsPrimitiveNonNumericSchema(string? schema)
+    {
+        if (string.IsNullOrEmpty(schema))
+            return false;
+
+        return schema.Equals("string", StringComparison.OrdinalIgnoreCase)
+            || schema.Equals("boolean", StringComparison.OrdinalIgnoreCase);
+    }
 }
