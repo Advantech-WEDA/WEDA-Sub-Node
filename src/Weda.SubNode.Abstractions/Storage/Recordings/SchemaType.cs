@@ -45,9 +45,13 @@ public static class SchemaTypeExtensions
         if (string.IsNullOrEmpty(schema))
             return false;
 
-        return schema.Equals("double", StringComparison.OrdinalIgnoreCase)
-            || schema.Equals("integer", StringComparison.OrdinalIgnoreCase)
-            || schema.Equals("long", StringComparison.OrdinalIgnoreCase);
+        return schema.ToLowerInvariant() switch
+        {
+            "double" => true,
+            "integer" => true,
+            "long" => true,
+            _ => false
+        };
     }
 
     public static bool IsPrimitiveNonNumericSchema(string? schema)
@@ -55,7 +59,11 @@ public static class SchemaTypeExtensions
         if (string.IsNullOrEmpty(schema))
             return false;
 
-        return schema.Equals("string", StringComparison.OrdinalIgnoreCase)
-            || schema.Equals("boolean", StringComparison.OrdinalIgnoreCase);
+        return schema.ToLowerInvariant() switch
+        {
+            "string" => true,
+            "boolean" => true,
+            _ => false
+        };
     }
 }
