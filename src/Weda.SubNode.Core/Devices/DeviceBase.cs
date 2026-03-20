@@ -256,7 +256,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public virtual Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken ct = default)
     {
         _lastTelemetryValues.TryGetValue(sensorResourceId, out var measure);
-        return Task.FromResult(measure ?? []);    
+        return Task.FromResult(measure ?? []);
     }
 
     public abstract Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken ct = default);
@@ -349,7 +349,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 var mimeSchemaType = SchemaTypeExtensions.ParseMimeSchema(sensor.Schema);
 
                 if ((mimeSchemaType != null && mimeSchemaType.Value.IsMimeType()) ||
-                    SchemaTypeExtensions.IsPrimitiveNonNumericSchema(sensor.Schema))
+                    sensor.Schema.IsPrimitiveNonNumericSchema())
                 {
                     var dynamicStorage = _context.DynamicRecordStorage;
                     if (dynamicStorage != null)
@@ -383,7 +383,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         }
                     }
                 }
-                else if (SchemaTypeExtensions.IsNumericSchema(sensor.Schema))
+                else if (sensor.Schema.IsPrimitiveNumericSchema())
                 {
                     var stringValue = processedMeasure.Value?.ToString();
                     if (double.TryParse(stringValue, out var doubleValue))
