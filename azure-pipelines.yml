@@ -76,7 +76,6 @@ stages:
                 --collect:"XPlat Code Coverage"
                 --logger trx
                 --settings tests/coverlet.runsettings
-                --results-directory $(testResultsDirectory)
               publishTestResults: true
 
           # Install ReportGenerator tool
