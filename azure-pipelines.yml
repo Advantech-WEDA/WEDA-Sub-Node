@@ -89,7 +89,7 @@ stages:
           # Generate code coverage HTML report
           - script: |
               reportgenerator \
-                -reports:$(testResultsDirectory)/**/coverage.cobertura.xml \
+                -reports:$(testResultsDirectory)/coverage.cobertura.xml \
                 -targetdir:$(testResultsDirectory)/coveragereport \
                 -reporttypes:"HtmlInline_AzurePipelines;Cobertura;Badges;MarkdownSummaryGithub" \
                 -sourcedirs:$(Build.SourcesDirectory)/src
