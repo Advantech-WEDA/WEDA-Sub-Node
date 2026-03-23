@@ -1,7 +1,11 @@
 using System.Collections.Concurrent;
+using System.Text;
 using System.Text.Json;
+
 using ErrorOr;
+
 using Microsoft.Extensions.Logging;
+
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
@@ -252,7 +256,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     public virtual Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken ct = default)
     {
         _lastTelemetryValues.TryGetValue(sensorResourceId, out var measure);
-        return Task.FromResult(measure ?? []);    
+        return Task.FromResult(measure ?? []);
     }
 
     public abstract Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken ct = default);
@@ -342,22 +346,29 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     ? sensor.Record.Interval
                     : (int)sensor.Report.Interval;
 
-                // Check if sensor uses MIME schema (JSON, images, etc.)
-                var schemaType = SchemaTypeExtensions.ParseMimeSchema(sensor.Schema);
-                if (schemaType != null && schemaType.Value.IsMimeType())
+                var schemaType = SchemaTypeExtensions.ParseSchema(sensor.Schema);
+
+                if (schemaType != null &&
+                    (schemaType.Value.IsMimeType() ||
+                    schemaType.Value.IsPrimitiveNonNumericSchema()))
                 {
-                    // Use DynamicRecordStorage for MIME types
                     var dynamicStorage = _context.DynamicRecordStorage;
                     if (dynamicStorage != null)
                     {
-                        // Convert value to byte[] - support byte[], string, and object (auto-serialize)
+                        SchemaType storageSchemaType =
+                            schemaType != null
+                                ? schemaType.Value
+                                : sensor.Schema.Equals("string", StringComparison.OrdinalIgnoreCase)
+                                    ? SchemaType.String
+                                    : SchemaType.Boolean;
+
                         byte[]? payload = processedMeasure.Value switch
                         {
                             null => null,
                             byte[] bytes => bytes,
-                            string str => System.Text.Encoding.UTF8.GetBytes(str),
-                            // Fallback: auto-serialize objects to JSON for application/json schema
-                            _ when schemaType.Value == SchemaType.ApplicationJson =>
+                            bool b => Encoding.UTF8.GetBytes(b ? "true" : "false"),
+                            string str => Encoding.UTF8.GetBytes(str),
+                            _ when storageSchemaType == SchemaType.ApplicationJson =>
                                 JsonSerializer.SerializeToUtf8Bytes(processedMeasure.Value),
                             _ => null
                         };
@@ -368,30 +379,20 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                                 sensor.ShortId,
                                 processedMeasure.Timestamp,
                                 payload,
-                                schemaType.Value,
+                                storageSchemaType,
                                 CancellationToken.None);
                         }
                     }
                 }
-                else if (processedMeasure.Value is IConvertible)
+                else if (schemaType?.IsSlotBasedSchema() == true)
                 {
-                    // Use RecordingService for primitive types
-                    // Use TryParse pattern to avoid exception overhead for invalid values
-                    var stringValue = processedMeasure.Value?.ToString();
-                    if (double.TryParse(stringValue, out var doubleValue))
-                    {
-                        RaiseTelemetryRecording(new TelemetryRecordingEvent(
-                            Sensor: sensor,
-                            Interval: interval,
-                            Timestamp: processedMeasure.Timestamp,
-                            Value: doubleValue));
-                    }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "Failed to convert value '{Value}' to double for sensor '{SensorName}' (ResourceId: {ResourceId})",
-                            stringValue, sensor.Name, sensor.ResourceId);
-                    }
+                    // Slot-based schemas: double, long, integer, boolean
+                    RaiseTelemetryRecording(new TelemetryRecordingEvent(
+                        Sensor: sensor,
+                        Interval: interval,
+                        SchemaType: schemaType.Value,
+                        Timestamp: processedMeasure.Timestamp,
+                        Value: processedMeasure.Value!));
                 }
             }
         }
@@ -1245,6 +1246,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _ = _context.RecordingService!.RecordAsync(
             @event.Sensor.ShortId,
             @event.Interval,
+            @event.SchemaType,
             @event.Timestamp,
             @event.Value);
     }

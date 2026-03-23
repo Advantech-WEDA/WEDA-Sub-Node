@@ -1,5 +1,6 @@
 using ErrorOr;
 using Weda.SubNode.Abstractions.Common;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Abstractions.Storage;
@@ -8,7 +9,16 @@ public interface IRecordingService
 {
     bool ShouldRecord(string sensorId, int interval, long timestamp);
 
-    Task RecordAsync(string sensorId, int interval, long timestamp, double value, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Records a data point for a sensor.
+    /// </summary>
+    /// <param name="sensorId">The sensor ID.</param>
+    /// <param name="interval">The recording interval in milliseconds.</param>
+    /// <param name="schemaType">The data type of the value.</param>
+    /// <param name="timestamp">The timestamp in Unix milliseconds.</param>
+    /// <param name="value">The value to record.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task RecordAsync(string sensorId, int interval, SchemaType schemaType, long timestamp, object value, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Flushes any buffered recording data to storage.
@@ -74,4 +84,5 @@ public record RecordingResult(
 public record RecordingMeasureResult(
     int Interval,
     long StartTimeStamp,
-    IReadOnlyList<double> Values);
+    SchemaType SchemaType,
+    IReadOnlyList<object> Values);
