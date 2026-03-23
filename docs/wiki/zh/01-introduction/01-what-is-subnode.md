@@ -47,17 +47,17 @@ SubNode 將這些底層細節抽象化，讓開發者專注於業務邏輯。
 ```
 ┌──────────────────┐        ┌──────────────────┐        ┌──────────────────┐
 │  Physical Device │        │     SubNode      │        │    WedaCore      │
-│                  │        │   Application    │        │     (Cloud)      │
-│  ┌────────────┐  │        │  ┌────────────┐  │        │                  │
-│  │    PLC     │  │ Modbus │  │   Device   │  │  NATS  │  Digital Twin    │
-│  └────────────┘  │<──────>│  └────────────┘  │<──────>│  Management      │
-│  ┌────────────┐  │        │  ┌────────────┐  │        │                  │
-│  │   Sensor   │  │  MQTT  │  │  Pipeline  │  │        │  Telemetry       │
-│  └────────────┘  │<──────>│  └────────────┘  │        │  Storage         │
-│  ┌────────────┐  │        │  ┌────────────┐  │        │                  │
-│  │  Custom    │  │ Custom │  │   Cloud    │  │        │  Remote          │
-│  │  Device    │  │<──────>│  │  Service   │  │        │  Commands        │
-│  └────────────┘  │        │  └────────────┘  │        │                  │
+│                  │        │   Application    │        │    (Cloud)       │
+│  ┌────────────┐  │        │  ┌────────────┐  │        │  ┌─────────────┐ │
+│  │    PLC     │  │ Modbus │  │   Device   │  │  NATS  │  │ Digital Twin│ │
+│  └────────────┘  │<──────>│  └────────────┘  │<──────>│  └─────────────┘ │
+│  ┌────────────┐  │        │  ┌────────────┐  │        │  ┌─────────────┐ │
+│  │   Sensor   │  │  MQTT  │  │  Pipeline  │  │        │  │  IoT DB     │ │
+│  └────────────┘  │<──────>│  └────────────┘  │        │  └─────────────┘ │
+│  ┌────────────┐  │        │  ┌────────────┐  │        │  ┌─────────────┐ │
+│  │  Custom    │  │ Custom │  │   Cloud    │  │        │  │   Remote    │ │
+│  │  Device    │  │<──────>│  │  Service   │  │        │  │  Commands   │ │
+│  └────────────┘  │        │  └────────────┘  │        │  └─────────────┘ │
 └──────────────────┘        └──────────────────┘        └──────────────────┘
 ```
 
@@ -104,7 +104,39 @@ SubNode 將這些底層細節抽象化，讓開發者專注於業務邏輯。
 
 ## 快速範例
 
-最小的 SubNode 應用程式：
+最小的 SubNode 應用程式（沙盒模式，使用內建 Modbus Simulator）：
+
+### Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) 已安裝
+- 驗證安裝：`dotnet --version` 應顯示 `10.x.x`
+
+### 建立並執行專案
+
+```bash
+# 複製專案
+git clone https://github.com/ADVANTECH-Corp/edge_subnode.git
+cd edge_subnode
+
+# 從本地安裝專案範本
+dotnet new install ./templates/wedabuilder
+
+# 建立應用程式子目錄
+mkdir apps && cd apps
+
+# 使用範本建立專案
+dotnet new wedabuilder -n MyFirstSubnode
+
+# 移到置專案
+cd MyFirstSubnode
+
+# 執行（預設使用 Modbus Simulator + MockCloudService）
+dotnet run
+```
+
+### 專案結構
+
+範本會產生以下檔案：
 
 **Program.cs**
 ```csharp
@@ -128,7 +160,7 @@ await app.RunAsync();
     "MyDevice": {
       "Enabled": true,
       "DeviceCommunication": {
-        "Host": "192.168.1.100",
+        "Host": "127.0.0.1",
         "Port": 502
       },
       "Sensors": [
@@ -152,10 +184,15 @@ await app.RunAsync();
 }
 ```
 
+### 預期結果
+
 執行後，SubNode 會：
-1. 連接到 `192.168.1.100:502` 的 Modbus TCP 裝置
-2. 每 3 秒讀取 `temperature` 感測器
-3. 將遙測資料上傳到 WedaCore
+1. 啟動內建 Modbus Simulator（沙盒模式）
+2. 連接到 `127.0.0.1:502`
+3. 每 3 秒讀取 `temperature` 感測器
+4. 透過 MockCloudService 模擬上傳遙測資料
+
+詳細步驟請參閱[使用範本開始](../02-getting-started/start-with-template.md)。
 
 ---
 
