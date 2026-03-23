@@ -19,7 +19,7 @@ SubNode 新手？從這裡開始：
 
 | 指南 | 說明 |
 |------|------|
-| [SubNode 是什麼？](./01-introduction/what-is-subnode.md) | 概述和功能 |
+| [SubNode 是什麼？](./01-introduction/01-what-is-subnode.md) | 概述和功能 |
 | [環境準備](./02-getting-started/prerequisites.md) | 開發環境設定 |
 | [使用範例開始](./02-getting-started/start-with-example.md) | 執行您的第一個 SubNode 應用程式 |
 | [使用範本開始](./02-getting-started/start-with-template.md) | 建立新專案 |
@@ -30,8 +30,8 @@ SubNode 新手？從這裡開始：
 
 | 主題 | 說明 |
 |------|------|
-| [架構概述](./01-introduction/architecture.md) | 系統設計和元件 |
-| [術語表](./01-introduction/terminology.md) | 關鍵術語和定義 |
+| [架構概述](./01-introduction/02-architecture.md) | 系統設計和元件 |
+| [術語表](./01-introduction/03-terminology.md) | 關鍵術語和定義 |
 | [專案結構](./03-architecture/project-structure.md) | SDK 組織 |
 
 ### 設定

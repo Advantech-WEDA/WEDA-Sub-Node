@@ -265,7 +265,7 @@ await app.RunAsync();
 
 ## 另請參閱
 
-- [架構概述](./architecture.md) - 系統設計和資料流程
+- [架構概述](./02-architecture.md) - 系統設計和資料流程
 - [感測器設定](../04-sensor-configuration/configuration-reference.md) - 詳細設定選項
 - [自訂裝置開發](../07-custom-device/device-base.md) - 建構自訂裝置
 

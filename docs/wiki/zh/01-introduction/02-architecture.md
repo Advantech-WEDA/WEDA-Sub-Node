@@ -61,9 +61,83 @@ SubNode 採用分層架構，將通訊、協定解析、資料處理和雲端整
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+## 聚合模型（Aggregation Model）
+
+SubNode 採用 Domain-Driven Design（DDD）的聚合模式。**SubNode 是 Aggregation Root**，管理其下的多個 Device 實體。
+
+### SubNode 與 Device 的關係
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        SubNode (Aggregation Root)                           │
+│                                                                             │
+│  SubNodeId: "subnode-001"                                                   │
+│  Name: "FactoryMonitor"                                                     │
+│  SubNodeType: "IndustrialIO"                                                │
+│                                                                             │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
+│  │    Device A     │  │    Device B     │  │    Device C     │              │
+│  │  (Modbus PLC)   │  │  (MQTT Sensor)  │  │  (HTTP API)     │              │
+│  │                 │  │                 │  │                 │              │
+│  │  ┌───────────┐  │  │  ┌───────────┐  │  │  ┌───────────┐  │              │
+│  │  │ Sensor 1  │  │  │  │ Sensor 1  │  │  │  │ Sensor 1  │  │              │
+│  │  │ Sensor 2  │  │  │  │ Sensor 2  │  │  │  │ Sensor 2  │  │              │
+│  │  │ Sensor 3  │  │  │  └───────────┘  │  │  └───────────┘  │              │
+│  │  └───────────┘  │  │                 │  │                 │              │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 階層關係
+
+| 層級 | 說明 | 數量關係 |
+|------|------|----------|
+| **SubNode** | 邊緣應用程式的根實體，向 WedaCore 註冊的單位 | 1 個應用程式 = 1 個 SubNode |
+| **Device** | 實體裝置或資料來源的抽象 | 1 個 SubNode 包含 1..N 個 Device |
+| **Sensor** | 裝置內的資料點 | 1 個 Device 包含 1..N 個 Sensor |
+
+### 設計原則
+
+1. **統一識別**：SubNode 擁有唯一的 `SubNodeId`，所有 Device 和 Sensor 透過此 ID 向雲端註冊
+2. **生命週期管理**：SubNode 負責協調所有 Device 的初始化、啟動、停止
+3. **共享服務**：所有 Device 共享同一個 Cloud Service 連線
+4. **獨立通訊**：每個 Device 可使用不同的協定連接不同的實體裝置
+
+### 程式碼對應
+
+```csharp
+// SubNode 層級設定
+var builder = WedaApplication.CreateDefaultBuilder(args);
+
+// 註冊多個 Device（1:N 關係）
+builder.AddDevice<TcpModbusDevice>("PlcDevice");      // Device A
+builder.AddDevice<MqttDevice>("EnvironmentSensor");   // Device B
+builder.AddDevice<HttpDevice>("WeatherApi");          // Device C
+
+var app = builder.Build();
+await app.RunAsync();
+```
+
+```json
+{
+  "SubNode": {
+    "Name": "FactoryMonitor",
+    "SubNodeType": "IndustrialIO"
+  },
+  "DeviceConfigs": {
+    "PlcDevice": { ... },           // Device A 設定
+    "EnvironmentSensor": { ... },   // Device B 設定
+    "WeatherApi": { ... }           // Device C 設定
+  }
+}
+```
+
+---
+
 ## 裝置架構
 
-SubNode 中的每個裝置都遵循一致的內部結構：
+SubNode 中的每個 Device 都遵循一致的內部結構：
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -222,7 +296,7 @@ SubNode 提供豐富的事件系統，用於監控和整合：
 
 ## 另請參閱
 
-- [術語表](./terminology.md) - 關鍵術語和定義
+- [術語表](./03-terminology.md) - 關鍵術語和定義
 - [專案結構](../03-project-structure.md) - 檔案和資料夾組織
 - [感測器設定](../04-sensor-configuration/configuration-reference.md) - 詳細設定選項
 
