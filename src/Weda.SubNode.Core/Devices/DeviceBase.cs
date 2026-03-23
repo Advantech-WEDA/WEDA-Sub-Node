@@ -346,17 +346,18 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     ? sensor.Record.Interval
                     : (int)sensor.Report.Interval;
 
-                var mimeSchemaType = SchemaTypeExtensions.ParseMimeSchema(sensor.Schema);
+                var schemaType = SchemaTypeExtensions.ParseSchema(sensor.Schema);
 
-                if ((mimeSchemaType != null && mimeSchemaType.Value.IsMimeType()) ||
-                    sensor.Schema.IsPrimitiveNonNumericSchema())
+                if (schemaType != null &&
+                    (schemaType.Value.IsMimeType() ||
+                    schemaType.Value.IsPrimitiveNonNumericSchema()))
                 {
                     var dynamicStorage = _context.DynamicRecordStorage;
                     if (dynamicStorage != null)
                     {
                         SchemaType storageSchemaType =
-                            mimeSchemaType != null
-                                ? mimeSchemaType.Value
+                            schemaType != null
+                                ? schemaType.Value
                                 : sensor.Schema.Equals("string", StringComparison.OrdinalIgnoreCase)
                                     ? SchemaType.String
                                     : SchemaType.Boolean;
@@ -383,7 +384,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         }
                     }
                 }
-                else if (sensor.Schema.IsPrimitiveNumericSchema())
+                else
                 {
                     var stringValue = processedMeasure.Value?.ToString();
                     if (double.TryParse(stringValue, out var doubleValue))
@@ -399,6 +400,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         _logger.LogWarning(
                             "Failed to convert value '{Value}' to double for sensor '{SensorName}' (ResourceId: {ResourceId})",
                             stringValue, sensor.Name, sensor.ResourceId);
+                        throw new NotSupportedException($"schemaType: {schemaType} not supported for conversion to double");
                     }
                 }
             }

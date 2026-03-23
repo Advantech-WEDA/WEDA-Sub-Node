@@ -24,36 +24,26 @@ public enum SchemaType : byte
 
 public static class SchemaTypeExtensions
 {
-    public static SchemaType? ParseMimeSchema(string? schema)
-    {
-        if (string.IsNullOrEmpty(schema))
-            return null;
-        
-        return schema.ToLowerInvariant() switch
-        {
-            "image/jpeg" or "image/jpg" => SchemaType.ImageJpeg,
-            "image/png" => SchemaType.ImagePng,
-            "application/json" => SchemaType.ApplicationJson,
-            "application/octet-stream" => SchemaType.ApplicationOctetStream,
-            _ => null
-        };
-    }
     public static SchemaType? ParseSchema(string? schema)
     {
         if (string.IsNullOrEmpty(schema))
             return null;
 
-        var mime = ParseMimeSchema(schema);
-        if (mime != null)
-            return mime.Value;
-
         return schema.ToLowerInvariant() switch
         {
+            // MIME schemas
+            "image/jpeg" or "image/jpg" => SchemaType.ImageJpeg,
+            "image/png" => SchemaType.ImagePng,
+            "application/json" => SchemaType.ApplicationJson,
+            "application/octet-stream" => SchemaType.ApplicationOctetStream,
+
+            // Primitive schemas
             "double" => SchemaType.Double,
             "integer" => SchemaType.Integer,
             "long" => SchemaType.Long,
             "boolean" => SchemaType.Boolean,
             "string" => SchemaType.String,
+
             _ => null
         };
     }
