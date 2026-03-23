@@ -771,8 +771,6 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             {
                 try
                 {
-                    await Task.Delay(minPeriod, ct);
-
                     if (string.IsNullOrEmpty(_subNodeId))
                         continue;
 
@@ -788,6 +786,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                         ct);
 
                     _logger.LogDebug("Configuration sync completed for SubNode {SubNodeId}", _subNodeId);
+
+                    await Task.Delay(minPeriod, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -797,6 +797,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in configuration sync task");
+                    await Task.Delay(minPeriod, ct);
                 }
             }
         }, ct);
