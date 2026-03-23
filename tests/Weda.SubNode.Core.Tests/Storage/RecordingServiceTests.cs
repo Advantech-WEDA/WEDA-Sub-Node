@@ -184,7 +184,7 @@ public class RecordingServiceTests : IDisposable
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         // Act
-        await _service.RecordAsync(sensorId, 1000, timestamp, 42.5);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, timestamp, 42.5);
 
         // Assert - File should be created in sensor directory
         var sensorDir = Path.Combine(_testDirectory, sensorId);
@@ -198,14 +198,14 @@ public class RecordingServiceTests : IDisposable
         // Arrange
         var sensorId = TestSensorId("sensor-1");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await _service.RecordAsync(sensorId, 1000, timestamp, 42.5);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, timestamp, 42.5);
 
         var sensorDir = Path.Combine(_testDirectory, sensorId);
         var files = Directory.GetFiles(sensorDir, "*.bin");
         var initialSize = new FileInfo(files[0]).Length;
 
         // Act - Same slot
-        await _service.RecordAsync(sensorId, 1000, timestamp + 500, 43.0);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, timestamp + 500, 43.0);
 
         // Assert - File size should not change
         var finalSize = new FileInfo(files[0]).Length;
@@ -221,10 +221,10 @@ public class RecordingServiceTests : IDisposable
         var startOfDayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
 
         // Write to slot 0
-        await _service.RecordAsync(sensorId, 1000, startOfDayTimestamp, 42.5);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, startOfDayTimestamp, 42.5);
 
         // Act - Write to slot 1 (1 second later)
-        await _service.RecordAsync(sensorId, 1000, startOfDayTimestamp + 1000, 43.0);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, startOfDayTimestamp + 1000, 43.0);
 
         // Assert - Both values should be recorded (slot-based storage writes to fixed positions)
         // File exists and has data
@@ -243,8 +243,8 @@ public class RecordingServiceTests : IDisposable
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         // Act
-        await _service.RecordAsync(sensorId1, 1000, timestamp, 42.5);
-        await _service.RecordAsync(sensorId2, 1000, timestamp, 43.5);
+        await _service.RecordAsync(sensorId1, 1000, SchemaType.Double, timestamp, 42.5);
+        await _service.RecordAsync(sensorId2, 1000, SchemaType.Double, timestamp, 43.5);
 
         // Assert - Both sensor directories should exist
         var sensor1Dir = Path.Combine(_testDirectory, sensorId1);
@@ -266,11 +266,11 @@ public class RecordingServiceTests : IDisposable
         var oldTimestamp = new DateTimeOffset(oldDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
 
         // Write old data through service (uses storage internally)
-        await _service.RecordAsync(sensorId, 1000, oldTimestamp, 42.5);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, oldTimestamp, 42.5);
 
         // Verify file exists before cleanup
         var sensorDir = Path.Combine(_testDirectory, sensorId);
-        var oldFileName = $"{oldDate:yyyy-MM-dd}_1000.bin";
+        var oldFileName = $"{oldDate:yyyy-MM-dd}_1000_double.bin";
         var oldFilePath = Path.Combine(sensorDir, oldFileName);
         File.Exists(oldFilePath).ShouldBeTrue();
 
@@ -290,11 +290,11 @@ public class RecordingServiceTests : IDisposable
         var recentTimestamp = new DateTimeOffset(recentDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
 
         // Write recent data through service
-        await _service.RecordAsync(sensorId, 1000, recentTimestamp, 42.5);
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, recentTimestamp, 42.5);
 
         // Verify file exists before cleanup
         var sensorDir = Path.Combine(_testDirectory, sensorId);
-        var recentFileName = $"{recentDate:yyyy-MM-dd}_1000.bin";
+        var recentFileName = $"{recentDate:yyyy-MM-dd}_1000_double.bin";
         var recentFilePath = Path.Combine(sensorDir, recentFileName);
         File.Exists(recentFilePath).ShouldBeTrue();
 

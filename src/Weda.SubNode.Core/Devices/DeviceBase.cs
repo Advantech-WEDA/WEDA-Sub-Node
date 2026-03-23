@@ -384,24 +384,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         }
                     }
                 }
-                else
+                else if (schemaType?.IsSlotBasedSchema() == true)
                 {
-                    var stringValue = processedMeasure.Value?.ToString();
-                    if (double.TryParse(stringValue, out var doubleValue))
-                    {
-                        RaiseTelemetryRecording(new TelemetryRecordingEvent(
-                            Sensor: sensor,
-                            Interval: interval,
-                            Timestamp: processedMeasure.Timestamp,
-                            Value: doubleValue));
-                    }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "Failed to convert value '{Value}' to double for sensor '{SensorName}' (ResourceId: {ResourceId})",
-                            stringValue, sensor.Name, sensor.ResourceId);
-                        throw new NotSupportedException($"schemaType: {schemaType} not supported for conversion to double");
-                    }
+                    // Slot-based schemas: double, long, integer, boolean
+                    RaiseTelemetryRecording(new TelemetryRecordingEvent(
+                        Sensor: sensor,
+                        Interval: interval,
+                        SchemaType: schemaType.Value,
+                        Timestamp: processedMeasure.Timestamp,
+                        Value: processedMeasure.Value!));
                 }
             }
         }
@@ -1255,6 +1246,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _ = _context.RecordingService!.RecordAsync(
             @event.Sensor.ShortId,
             @event.Interval,
+            @event.SchemaType,
             @event.Timestamp,
             @event.Value);
     }

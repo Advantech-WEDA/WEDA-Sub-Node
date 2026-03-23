@@ -89,7 +89,7 @@ public class RecordingsController(
         // Find the sensor to check its schema type
         var sensor = FindSensorByShortId(sensorId);
         var schemaType = sensor != null
-            ? SchemaTypeExtensions.ParseMimeSchema(sensor.Schema)
+            ? SchemaTypeExtensions.ParseSchema(sensor.Schema)
             : null;
 
         // If sensor has MIME schema, use DynamicRecordStorage

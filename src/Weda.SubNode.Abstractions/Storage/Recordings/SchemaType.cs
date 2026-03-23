@@ -24,6 +24,19 @@ public enum SchemaType : byte
 
 public static class SchemaTypeExtensions
 {
+    // Slot sizes lookup table: index by (byte)SchemaType, -1 means not slot-based
+    // [0]=Double:8, [1]=Integer:4, [2]=Long:8, [3]=Boolean:1
+    private static readonly int[] SlotSizes = [8, 4, 8, 1];
+
+    // Pre-computed empty slot bytes for each slot-based SchemaType
+    private static readonly byte[][] EmptySlotBytes =
+    [
+        BitConverter.GetBytes(double.NaN),      // Double
+        BitConverter.GetBytes(int.MinValue),    // Integer
+        BitConverter.GetBytes(long.MinValue),   // Long
+        [0xFF]                                  // Boolean
+    ];
+
     public static SchemaType? ParseSchema(string? schema)
     {
         if (string.IsNullOrEmpty(schema))
@@ -47,6 +60,7 @@ public static class SchemaTypeExtensions
             _ => null
         };
     }
+
     public static bool IsMimeType(this SchemaType schemaType)
         => (byte)schemaType >= 0x20;
 
@@ -56,6 +70,71 @@ public static class SchemaTypeExtensions
     public static bool IsPrimitiveNonNumericSchema(this SchemaType schemaType)
         => (byte)schemaType > 0x02
         && (byte)schemaType < 0x20;
+
+    /// <summary>
+    /// Checks if this SchemaType is supported by slot-based (fixed-size) storage.
+    /// Slot-based types are: Double (0x00), Integer (0x01), Long (0x02), Boolean (0x03).
+    /// </summary>
+    public static bool IsSlotBasedSchema(this SchemaType schemaType)
+        => (byte)schemaType <= 0x03;
+
+    /// <summary>
+    /// Gets the slot size in bytes for this SchemaType.
+    /// Only valid for slot-based schemas (Double, Long, Integer, Boolean).
+    /// </summary>
+    /// <exception cref="NotSupportedException">Thrown if SchemaType is not slot-based.</exception>
+    public static int GetSlotSize(this SchemaType schemaType)
+        => schemaType.IsSlotBasedSchema()
+            ? SlotSizes[(byte)schemaType]
+            : throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage");
+
+    /// <summary>
+    /// Gets the empty slot bytes for this SchemaType (used to initialize slots as "no data").
+    /// </summary>
+    /// <exception cref="NotSupportedException">Thrown if SchemaType is not slot-based.</exception>
+    public static byte[] GetEmptySlotBytes(this SchemaType schemaType)
+        => schemaType.IsSlotBasedSchema()
+            ? EmptySlotBytes[(byte)schemaType]
+            : throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage");
+
+    /// <summary>
+    /// Converts a value to bytes for this SchemaType.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Thrown if SchemaType is not slot-based.</exception>
+    public static byte[] ToBytes(this SchemaType schemaType, object value) => schemaType switch
+    {
+        SchemaType.Double => BitConverter.GetBytes(Convert.ToDouble(value)),
+        SchemaType.Long => BitConverter.GetBytes(Convert.ToInt64(value)),
+        SchemaType.Integer => BitConverter.GetBytes(Convert.ToInt32(value)),
+        SchemaType.Boolean => [(byte)(Convert.ToBoolean(value) ? 1 : 0)],
+        _ => throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage")
+    };
+
+    /// <summary>
+    /// Converts bytes to a value for this SchemaType.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Thrown if SchemaType is not slot-based.</exception>
+    public static object FromBytes(this SchemaType schemaType, ReadOnlySpan<byte> bytes) => schemaType switch
+    {
+        SchemaType.Double => BitConverter.ToDouble(bytes),
+        SchemaType.Long => BitConverter.ToInt64(bytes),
+        SchemaType.Integer => BitConverter.ToInt32(bytes),
+        SchemaType.Boolean => bytes[0] == 1,
+        _ => throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage")
+    };
+
+    /// <summary>
+    /// Checks if the given bytes represent an empty slot for this SchemaType.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Thrown if SchemaType is not slot-based.</exception>
+    public static bool IsEmptySlot(this SchemaType schemaType, ReadOnlySpan<byte> bytes) => schemaType switch
+    {
+        SchemaType.Double => double.IsNaN(BitConverter.ToDouble(bytes)),
+        SchemaType.Long => BitConverter.ToInt64(bytes) == long.MinValue,
+        SchemaType.Integer => BitConverter.ToInt32(bytes) == int.MinValue,
+        SchemaType.Boolean => bytes[0] == 0xFF,
+        _ => throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage")
+    };
 }
 
 public static class SchemaStringExtensions
