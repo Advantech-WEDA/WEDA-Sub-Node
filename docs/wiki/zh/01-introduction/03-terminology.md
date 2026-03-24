@@ -2,7 +2,7 @@
 sidebar_position: 3
 sidebar_label: '術語表'
 hide_title: true
-title: 'SubNode 術語與關鍵概念'
+title: '術語表 | SubNode SDK'
 keywords: ['SubNode', 'Terminology', 'Glossary', 'Concepts', 'IoT']
 description: 'SubNode SDK 文件中使用的關鍵術語和概念詞彙表'
 ---
@@ -10,6 +10,21 @@ description: 'SubNode SDK 文件中使用的關鍵術語和概念詞彙表'
 # 術語表
 
 > SubNode SDK 文件中使用的關鍵術語和概念。
+
+## Overview
+
+本文彙整 SubNode SDK 文件中使用的關鍵術語和概念。作為快速參考，協助開發者理解 SDK 的核心詞彙。
+
+## What You'll Learn
+
+閱讀本文後，你將能夠：
+
+- 理解 SubNode、WedaCore、WedaNode 之間的關係
+- 掌握 Device、Sensor、TelemetryMeasure 等核心資料結構
+- 了解通訊層和資料處理層的相關術語
+- 熟悉設定檔和應用程式託管的關鍵概念
+
+---
 
 ## 核心概念
 
@@ -222,9 +237,11 @@ NATS 連線和雲端設定的系統層級設定：
 
 ```json
 {
-  "SystemConfig": {
-    "NatsUrl": "nats://127.0.0.1:4224",
-    "CredentialsFile": "/path/to/creds.creds"
+  "WedaNode": {
+    "Url": "127.0.0.1:4224",
+    "AuthStrategy": "UserPassword",
+    "Username": "user",
+    "Password": "password"
   }
 }
 ```
@@ -263,12 +280,24 @@ await app.RunAsync();
 - Cloud Service
 - Logging
 
-## 另請參閱
+## Summary
+
+- SubNode 是邊緣應用程式的聚合根，管理多個 Device
+- WedaCore 是雲端平台，WedaNode 是本機 NATS 代理
+- Device 代表實體裝置抽象，Sensor 是裝置內的資料點
+- Data Pipeline 包含 Transform 和 DSP Filter 兩個處理階段
+- 三個設定檔：devicecfg.json（裝置）、systemcfg.json（系統）、appsettings.json（日誌）
+
+## See Also
 
 - [架構概述](./02-architecture.md) - 系統設計和資料流程
-- [感測器設定](../04-sensor-configuration/configuration-reference.md) - 詳細設定選項
-- [自訂裝置開發](../07-custom-device/device-base.md) - 建構自訂裝置
+- [設定範例](../04-configuration/03-configuration-examples.md) - 詳細設定選項
+- [自訂裝置](../09-customization/01-custom-device.md) - 建構自訂裝置
 
-import Revision from '@site/src/components/Revision';
+---
 
-<Revision date="Mar-06, 2026" version="v1.0.0" />
+## Change History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-23 | Rain Hu | Doc created. |

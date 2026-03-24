@@ -18,14 +18,16 @@ description: '了解 SubNode SDK 如何簡化工業設備的雲端整合。支�
 
 ## Overview
 
-SubNode SDK 是專為工業物聯網（IIoT）場景設計的邊緣裝置開發框架。它解決了將現場設備（PLC、感測器、工控機）連接到雲端平台時的常見挑戰：
+SubNode SDK 是專為工業物聯網（IIoT）場景設計的邊緣裝置開發框架。它解決了將現場設備（PLC、感測器、工控機）連接到雲端平台時的常見挑戰：協定整合複雜、資料處理重複開發、可靠性需求高、雲端通訊成本大。SubNode 將這些底層細節抽象化，讓開發者專注於業務邏輯。
 
-- 多種工業協定的整合複雜度
-- 資料採集、轉換、過濾的重複開發
-- 斷線重連、錯誤處理的可靠性需求
-- 雲端雙向通訊的實作成本
+## What You'll Learn
 
-SubNode 將這些底層細節抽象化，讓開發者專注於業務邏輯。
+閱讀本文後，你將能夠：
+
+- 理解 SubNode SDK 的定位與核心價值
+- 了解 SubNode 的聚合模型架構（SubNode → Device → Sensor）
+- 識別適合使用 SubNode 的應用場景
+- 執行第一個 SubNode 應用程式（沙盒模式）
 
 ---
 
@@ -50,13 +52,13 @@ SubNode 將這些底層細節抽象化，讓開發者專注於業務邏輯。
 │                  │        │   Application    │        │    (Cloud)       │
 │  ┌────────────┐  │        │  ┌────────────┐  │        │  ┌─────────────┐ │
 │  │    PLC     │  │ Modbus │  │   Device   │  │  NATS  │  │ Digital Twin│ │
-│  └────────────┘  │<──────>│  └────────────┘  │<──────>│  └─────────────┘ │
+│  └────────────┘  │◀──────▶│  └────────────┘  │◀──────▶│  └─────────────┘ │
 │  ┌────────────┐  │        │  ┌────────────┐  │        │  ┌─────────────┐ │
 │  │   Sensor   │  │  MQTT  │  │  Pipeline  │  │        │  │  IoT DB     │ │
-│  └────────────┘  │<──────>│  └────────────┘  │        │  └─────────────┘ │
+│  └────────────┘  │◀──────▶│  └────────────┘  │        │  └─────────────┘ │
 │  ┌────────────┐  │        │  ┌────────────┐  │        │  ┌─────────────┐ │
 │  │  Custom    │  │ Custom │  │   Cloud    │  │        │  │   Remote    │ │
-│  │  Device    │  │<──────>│  │  Service   │  │        │  │  Commands   │ │
+│  │  Device    │  │◀──────▶│  │  Service   │  │        │  │  Commands   │ │
 │  └────────────┘  │        │  └────────────┘  │        │  └─────────────┘ │
 └──────────────────┘        └──────────────────┘        └──────────────────┘
 ```
@@ -134,62 +136,12 @@ cd MyFirstSubnode
 dotnet run
 ```
 
-### 專案結構
-
-範本會產生以下檔案：
-
-**Program.cs**
-```csharp
-using Weda.SubNode.Host;
-
-var builder = WedaApplication.CreateDefaultBuilder(args);
-builder.AddDevice<TcpModbusDevice>("MyDevice");
-
-var app = builder.Build();
-await app.RunAsync();
-```
-
-**devicecfg.json**
-```json
-{
-  "SubNode": {
-    "Name": "MySubNode",
-    "SubNodeType": "ModbusDevice"
-  },
-  "DeviceConfigs": {
-    "MyDevice": {
-      "Enabled": true,
-      "DeviceCommunication": {
-        "Host": "127.0.0.1",
-        "Port": 502
-      },
-      "Sensors": [
-        {
-          "Name": "temperature",
-          "SensorGroup": "TEMP",
-          "Parameters": {
-            "RegisterType": "HoldingRegister",
-            "RegisterAddress": 0,
-            "RegisterCount": 2,
-            "DataType": "Float32"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 3000
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
 ### 預期結果
 
 執行後，SubNode 會：
 1. 啟動內建 Modbus Simulator（沙盒模式）
 2. 連接到 `127.0.0.1:502`
-3. 每 3 秒讀取 `temperature` 感測器
+3. 每 1 秒讀取 `temperature` 感測器
 4. 透過 MockCloudService 模擬上傳遙測資料
 
 詳細步驟請參閱[使用範本開始](../02-getting-started/start-with-template.md)。
@@ -214,6 +166,8 @@ await app.RunAsync();
 
 ---
 
-import Revision from '@site/src/components/Revision';
+## Change History
 
-<Revision date="Mar-18, 2026" version="v1.0.0" />
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-23 | Rain Hu | Doc created. |

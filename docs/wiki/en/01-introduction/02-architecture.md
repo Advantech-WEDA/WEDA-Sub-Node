@@ -1,34 +1,34 @@
 ---
 sidebar_position: 2
-sidebar_label: '架構概述'
+sidebar_label: 'Architecture Overview'
 hide_title: true
-title: '架構概述 | SubNode SDK'
+title: 'Architecture Overview | SubNode SDK'
 keywords: ['SubNode', 'Architecture', 'Device', 'Pipeline', 'Communication', 'Aggregation Model']
-description: 'SubNode SDK 核心元件與資料流程的技術架構概述，包含聚合模型、裝置架構和設定系統。'
+description: 'Technical architecture overview of SubNode SDK core components and data flow, including aggregation model, device architecture, and configuration system.'
 ---
 
-# 架構概述
+# Architecture Overview
 
-> 了解 SubNode SDK 的核心元件和資料流程。
+> Understand SubNode SDK's core components and data flow.
 
 ## Overview
 
-本文介紹 SubNode SDK 的技術架構，包含系統分層、聚合模型、裝置內部結構和資料流程。理解這些概念有助於正確設計和擴展 SubNode 應用程式。
+This article introduces the technical architecture of SubNode SDK, including system layering, aggregation model, device internal structure, and data flow. Understanding these concepts helps you correctly design and extend SubNode applications.
 
 ## What You'll Learn
 
-閱讀本文後，你將能夠：
+After reading this article, you will be able to:
 
-- 理解 SubNode 的分層系統架構
-- 掌握 SubNode → Device → Sensor 的聚合模型
-- 了解裝置內部的元件組成（Communication、Protocol Parser、Pipeline）
-- 理解遙測上行和命令下行的資料流程
+- Understand SubNode's layered system architecture
+- Master the SubNode → Device → Sensor aggregation model
+- Understand device internal components (Communication, Protocol Parser, Pipeline)
+- Understand telemetry uplink and command downlink data flows
 
 ---
 
-## 系統架構
+## System Architecture
 
-SubNode 採用分層架構，將通訊、協定解析、資料處理和雲端整合的關注點分離。
+SubNode adopts a layered architecture that separates concerns of communication, protocol parsing, data processing, and cloud integration.
 
 ```
 ┌─────────────────────┐    ┌─────────────────────────────────────────────────────────┐    ┌─────────────┐
@@ -57,22 +57,22 @@ SubNode 採用分層架構，將通訊、協定解析、資料處理和雲端整
         Edge                                     SubNode                                       Cloud
 ```
 
-**關鍵概念**：
+**Key Concepts**:
 
-- 每個 **Physical Device** 對應一個 **Device Instance**（1:1 映射）
-- **WedaApplication** 作為容器，管理多個 Device（1:N 關係）
-- **Host Services** 提供共享功能：
-  - **CloudService** - 遙測上傳與命令接收
-  - **DeviceOrchestrator** - 生命週期與排程管理
-  - **RecordingService** - 本地儲存與重播
-  - **ConfigurationManager** - 執行期設定更新
-- **CloudService** 透過 **NATS** 與 WedaCore 通訊
+- Each **Physical Device** corresponds to one **Device Instance** (1:1 mapping)
+- **WedaApplication** acts as a container, managing multiple Devices (1:N relationship)
+- **Host Services** provide shared functionality:
+  - **CloudService** - Telemetry upload and command reception
+  - **DeviceOrchestrator** - Lifecycle and scheduling management
+  - **RecordingService** - Local storage and replay
+  - **ConfigurationManager** - Runtime configuration updates
+- **CloudService** communicates with WedaCore via **NATS**
 
-## 聚合模型（Aggregation Model）
+## Aggregation Model
 
-SubNode 採用 Domain-Driven Design（DDD）的聚合模式。**SubNode 是 Aggregation Root**，管理其下的多個 Device 實體。
+SubNode adopts the Domain-Driven Design (DDD) aggregation pattern. **SubNode is the Aggregation Root**, managing multiple Device entities under it.
 
-### SubNode 與 Device 的關係
+### SubNode and Device Relationship
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -96,28 +96,28 @@ SubNode 採用 Domain-Driven Design（DDD）的聚合模式。**SubNode 是 Aggr
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 階層關係
+### Hierarchy
 
-| 層級 | 說明 | 數量關係 |
-|------|------|----------|
-| **SubNode** | 邊緣應用程式的根實體，向 WedaCore 註冊的單位 | 1 個應用程式 = 1 個 SubNode |
-| **Device** | 實體裝置或資料來源的抽象 | 1 個 SubNode 包含 1..N 個 Device |
-| **Sensor** | 裝置內的資料點 | 1 個 Device 包含 1..N 個 Sensor |
+| Level | Description | Cardinality |
+|-------|-------------|-------------|
+| **SubNode** | Root entity of the edge application, registration unit with WedaCore | 1 application = 1 SubNode |
+| **Device** | Abstraction of physical device or data source | 1 SubNode contains 1..N Devices |
+| **Sensor** | Data point within a device | 1 Device contains 1..N Sensors |
 
-### 設計原則
+### Design Principles
 
-1. **統一識別**：SubNode 擁有唯一的 `SubNodeId`，所有 Device 和 Sensor 透過此 ID 向雲端註冊
-2. **生命週期管理**：SubNode 負責協調所有 Device 的初始化、啟動、停止
-3. **共享服務**：所有 Device 共享同一個 Cloud Service 連線
-4. **獨立通訊**：每個 Device 可使用不同的協定連接不同的實體裝置
+1. **Unified Identity**: SubNode has a unique `SubNodeId`, all Devices and Sensors register with cloud through this ID
+2. **Lifecycle Management**: SubNode coordinates initialization, start, and stop of all Devices
+3. **Shared Services**: All Devices share the same Cloud Service connection
+4. **Independent Communication**: Each Device can use different protocols to connect to different physical devices
 
-### 程式碼對應
+### Code Mapping
 
 ```csharp
-// SubNode 層級設定
+// SubNode level configuration
 var builder = WedaApplication.CreateDefaultBuilder(args);
 
-// 註冊多個 Device（1:N 關係）
+// Register multiple Devices (1:N relationship)
 builder.AddDevice<TcpModbusDevice>("PlcDevice");      // Device A
 builder.AddDevice<MqttDevice>("EnvironmentSensor");   // Device B
 builder.AddDevice<HttpDevice>("WeatherApi");          // Device C
@@ -131,23 +131,23 @@ await app.RunAsync();
   "SubNode": {
     "Name": "FactoryMonitor",
     "SubNodeType": "AdamEthernet",
-    "Manufacturer": "YourCompany",  // 非必要
-    "Model": "SubNode-Template",    // 非必要
-    "SwVersion": "1.0.0"            // 非必要
+    "Manufacturer": "YourCompany",  // Optional
+    "Model": "SubNode-Template",    // Optional
+    "SwVersion": "1.0.0"            // Optional
   },
   "DeviceConfigs": {
-    "PlcDevice": { ... },           // Device A 設定
-    "EnvironmentSensor": { ... },   // Device B 設定
-    "WeatherApi": { ... }           // Device C 設定
+    "PlcDevice": { ... },           // Device A configuration
+    "EnvironmentSensor": { ... },   // Device B configuration
+    "WeatherApi": { ... }           // Device C configuration
   }
 }
 ```
 
 ---
 
-## 裝置架構
+## Device Architecture
 
-SubNode 中的每個 Device 都遵循一致的內部結構：
+Each Device in SubNode follows a consistent internal structure:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -186,55 +186,55 @@ SubNode 中的每個 Device 都遵循一致的內部結構：
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 核心元件
+## Core Components
 
-### 通訊層
+### Communication Layer
 
-通訊層處理傳輸層級的關注點：
+The communication layer handles transport-level concerns:
 
-| 介面 | 模式 | 使用場景 |
-|------|------|----------|
-| `IRequestResponseCommunication` | Request/Response | Modbus TCP、HTTP API |
-| `IPubSubCommunication` | Publish/Subscribe | MQTT、NATS |
-| `IStreamingCommunication` | Bidirectional Stream | WebSocket、gRPC |
+| Interface | Pattern | Use Cases |
+|-----------|---------|-----------|
+| `IRequestResponseCommunication` | Request/Response | Modbus TCP, HTTP API |
+| `IPubSubCommunication` | Publish/Subscribe | MQTT, NATS |
+| `IStreamingCommunication` | Bidirectional Stream | WebSocket, gRPC |
 
 ### Protocol Parser
 
-Protocol Parser 在原始協定資料和遙測量測之間進行轉換：
+Protocol Parser converts between raw protocol data and telemetry measures:
 
 ```
 Raw Data (bytes/registers) ◀──▶ Protocol Parser ◀──▶ TelemetryMeasure
 ```
 
-內建的 Parser 包括：
-- **ModbusProtocolParser** - Modbus 暫存器解譯
-- **ISensingProtocolParser** - Advantech ISensing 格式
-- **ImageProtocolParser** - 二進位影像資料
+Built-in Parsers include:
+- **ModbusProtocolParser** - Modbus register interpretation
+- **ISensingProtocolParser** - Advantech ISensing format
+- **ImageProtocolParser** - Binary image data
 
 ### Data Pipeline
 
-資料流經可設定的 Pipeline：
+Data flows through a configurable Pipeline:
 
 ```
 Raw Value ──▶ Transform ──▶ DSP Filter ──▶ Final Value
-              (Scale,       (Smooth,     
-               Offset)       Average)    
+              (Scale,       (Smooth,
+               Offset)       Average)
 ```
 
-每個階段都是可選的，且可針對每個感測器進行設定。
+Each stage is optional and can be configured per sensor.
 
 ### DeviceOrchestrator
 
-Orchestrator 協調裝置操作：
+The Orchestrator coordinates device operations:
 
-- **生命週期管理** - Initialize、Start、Stop 序列
-- **週期性任務** - 遙測讀取、健康報告
-- **事件分發** - DataReceived、ConnectionStateChanged 等
-- **設定更新** - 設定變更的兩階段提交
+- **Lifecycle Management** - Initialize, Start, Stop sequences
+- **Periodic Tasks** - Telemetry reading, health reporting
+- **Event Dispatch** - DataReceived, ConnectionStateChanged, etc.
+- **Configuration Updates** - Two-phase commit for configuration changes
 
-## 資料流程
+## Data Flow
 
-### 遙測流程（裝置到雲端）
+### Telemetry Flow (Device to Cloud)
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
@@ -247,7 +247,7 @@ Orchestrator 協調裝置操作：
      │               │   Value, Time)   │               │             │
 ```
 
-### 命令流程（雲端到裝置）
+### Command Flow (Cloud to Device)
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
@@ -259,9 +259,9 @@ Orchestrator 協調裝置操作：
      │  message      │  (Name, Params)│  logic        │  bytes       │
 ```
 
-## 設定架構
+## Configuration Architecture
 
-SubNode 使用 **Digital Twin Shadow** 概念管理設定。三個設定檔代表不同的關注範圍（Scope），各自獨立，**沒有優先順序**：
+SubNode uses the **Digital Twin Shadow** concept to manage configuration. Three configuration files represent different scopes, each independent with **no priority order**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -302,45 +302,46 @@ SubNode 使用 **Digital Twin Shadow** 概念管理設定。三個設定檔代�
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 設定檔用途
+### Configuration File Purposes
 
-| 檔案 | Scope | 用途 |
-|------|-------|------|
-| `systemcfg.json` | System | NATS 連線設定（URL、認證方式、憑證） |
-| `devicecfg.json` | Device | SubNode 身份、裝置定義、感測器設定 |
-| `customcfg.json` | Application | 應用程式自訂設定（商業邏輯、閾值等） |
-| `appsettings.json` | Logging | Serilog 日誌設定（不參與 Digital Twin 同步） |
+| File | Scope | Purpose |
+|------|-------|---------|
+| `systemcfg.json` | System | NATS connection settings (URL, authentication, credentials) |
+| `devicecfg.json` | Device | SubNode identity, device definitions, sensor configuration |
+| `customcfg.json` | Application | Application-specific custom settings (business logic, thresholds) |
+| `appsettings.json` | Logging | Serilog logging configuration (not synced with Digital Twin) |
 
-## 事件系統
+## Event System
 
-SubNode 提供豐富的事件系統，用於監控和整合：
+SubNode provides a rich event system for monitoring and integration:
 
-| 事件 | 說明 |
-|------|------|
-| `DataReceived` | 從裝置接收到原始資料 |
-| `DataProcessed` | Pipeline 處理後的資料 |
-| `ConnectionStateChanged` | 裝置連線狀態變更 |
-| `DeviceStatusChanged` | 狀態轉換 |
-| `TelemetrySent` | 遙測已傳送至雲端 |
-| `ValueChanged` | 感測器值變更 |
-| `ConfigurationUpdateReceived` | 從雲端收到設定更新 |
+| Event | Description |
+|-------|-------------|
+| `DataReceived` | Raw data received from device |
+| `DataProcessed` | Data after Pipeline processing |
+| `ConnectionStateChanged` | Device connection state changed |
+| `DeviceStatusChanged` | Status transitions |
+| `TelemetrySent` | Telemetry sent to cloud |
+| `ValueChanged` | Sensor value changed |
+| `ConfigurationUpdateReceived` | Configuration update received from cloud |
 
-事件預設為停用以提升效能。僅啟用您需要的事件。詳細說明請參閱[事件系統](../09-customization/02-event-system.md)。
+Events are disabled by default for performance. Enable only the events you need. For details, see [Event System](../09-customization/02-event-system.md).
 
 ## Summary
 
-- SubNode 採用分層架構，分離通訊、協定解析、資料處理和雲端整合
-- 聚合模型：SubNode（1）→ Device（N）→ Sensor（N），SubNode 作為 Aggregation Root
-- 每個 Device 包含 Communication、Protocol Parser、Data Pipeline 和 DeviceOrchestrator
-- 資料流程分為上行（遙測）和下行（命令）兩個方向
-- 設定系統採用 Digital Twin Shadow 概念，三個設定檔（system/device/custom）各管不同 scope
+- SubNode adopts a layered architecture separating communication, protocol parsing, data processing, and cloud integration
+- Aggregation model: SubNode (1) → Device (N) → Sensor (N), with SubNode as the Aggregation Root
+- Each Device contains Communication, Protocol Parser, Data Pipeline, and DeviceOrchestrator
+- Data flow is divided into uplink (telemetry) and downlink (command) directions
+- Configuration system uses Digital Twin Shadow concept, with three config files (system/device/custom) managing different scopes
 
 ## See Also
 
-- [術語表](./03-terminology.md) - 關鍵術語和定義
-- [專案結構](../03-hierarchy/01-project-structure.md) - 檔案和資料夾組織
-- [感測器設定](../04-configuration/03-configuration-examples.md) - 詳細設定選項
-- [事件系統](../09-customization/02-event-system.md) - 客製化事件處理
+- [Terminology](./03-terminology.md) - Key terms and definitions
+- [Project Structure](../03-hierarchy/01-project-structure.md) - File and folder organization
+- [Sensor Configuration](../04-configuration/03-configuration-examples.md) - Detailed configuration options
+- [Event System](../09-customization/02-event-system.md) - Custom event handling
+
 ---
 
 ## Change History
