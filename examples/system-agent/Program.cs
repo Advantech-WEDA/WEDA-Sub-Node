@@ -1,12 +1,8 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
-
 using Serilog;
 
 using SystemAgentExample;
 
 using Weda.SubNode.Host;
-using Weda.SubNode.Host.Configuration;
 
 Console.WriteLine("===========================================");
 Console.WriteLine("    System Agent");
