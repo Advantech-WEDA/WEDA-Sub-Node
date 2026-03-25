@@ -56,10 +56,10 @@ public class BinaryRecordStorageTests : IDisposable
         // Arrange
         var sensorId = TestSensorId("sensor-1");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(timestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(timestamp, 42.5, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
         // Assert
         var sensorDir = Path.Combine(_testDirectory, sensorId);
@@ -77,12 +77,12 @@ public class BinaryRecordStorageTests : IDisposable
         var today = DateTimeOffset.UtcNow.Date;
         var startOfDayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
 
-        var dataPoint1 = new RecordingDataPoint(startOfDayTimestamp, 42.5);        // slot 0
-        var dataPoint2 = new RecordingDataPoint(startOfDayTimestamp + 1000, 43.5); // slot 1
+        var dataPoint1 = new RecordingDataPoint(startOfDayTimestamp, 42.5, SchemaType.Double);        // slot 0
+        var dataPoint2 = new RecordingDataPoint(startOfDayTimestamp + 1000, 43.5, SchemaType.Double); // slot 1
 
         // Act - Write to two different slots in the same file
-        await _storage.WriteAsync(sensorId, 1000, dataPoint1);
-        await _storage.WriteAsync(sensorId, 1000, dataPoint2);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint1);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint2);
 
         // Assert - File should exist with pre-allocated size (slot-based storage)
         var files = Directory.GetFiles(Path.Combine(_testDirectory, sensorId), "*.bin");
@@ -99,11 +99,11 @@ public class BinaryRecordStorageTests : IDisposable
         // Arrange
         var sensorId = TestSensorId("sensor-1");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(timestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(timestamp, 42.5, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
-        await _storage.WriteAsync(sensorId, 5000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
+        await _storage.WriteAsync(sensorId, 5000, SchemaType.Double, dataPoint);
 
         // Assert
         var files = Directory.GetFiles(Path.Combine(_testDirectory, sensorId), "*.bin");
@@ -119,12 +119,12 @@ public class BinaryRecordStorageTests : IDisposable
         var todayTimestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
         var yesterdayTimestamp = todayTimestamp - 86400000;
 
-        var todayPoint = new RecordingDataPoint(todayTimestamp, 42.5);
-        var yesterdayPoint = new RecordingDataPoint(yesterdayTimestamp, 43.5);
+        var todayPoint = new RecordingDataPoint(todayTimestamp, 42.5, SchemaType.Double);
+        var yesterdayPoint = new RecordingDataPoint(yesterdayTimestamp, 43.5, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, todayPoint);
-        await _storage.WriteAsync(sensorId, 1000, yesterdayPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, todayPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, yesterdayPoint);
 
         // Assert
         var files = Directory.GetFiles(Path.Combine(_testDirectory, sensorId), "*.bin");
@@ -138,13 +138,13 @@ public class BinaryRecordStorageTests : IDisposable
         var sensorId = TestSensorId("sensor-1");
         var today = DateTimeOffset.UtcNow.Date;
         var timestamp = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(timestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(timestamp, 42.5, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
-        // Assert
-        var expectedFileName = $"{today:yyyy-MM-dd}_1000.bin";
+        // Assert - V2 file name format: {date}_{interval}_{schemaType}.bin
+        var expectedFileName = $"{today:yyyy-MM-dd}_1000_double.bin";
         var files = Directory.GetFiles(Path.Combine(_testDirectory, sensorId), "*.bin");
         Path.GetFileName(files[0]).ShouldBe(expectedFileName);
     }
@@ -160,14 +160,14 @@ public class BinaryRecordStorageTests : IDisposable
         var sensorId = TestSensorId("sensor-1");
         var oldDate = DateTime.UtcNow.AddDays(-10);
         var oldTimestamp = new DateTimeOffset(oldDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(oldTimestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(oldTimestamp, 42.5, SchemaType.Double);
 
         // Write old data through storage (creates proper directory structure)
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
         // Verify file exists before cleanup
         var sensorDir = Path.Combine(_testDirectory, sensorId);
-        var oldFileName = $"{oldDate:yyyy-MM-dd}_1000.bin";
+        var oldFileName = $"{oldDate:yyyy-MM-dd}_1000_double.bin";
         var oldFilePath = Path.Combine(sensorDir, oldFileName);
         File.Exists(oldFilePath).ShouldBeTrue();
 
@@ -185,14 +185,14 @@ public class BinaryRecordStorageTests : IDisposable
         var sensorId = TestSensorId("sensor-1");
         var recentDate = DateTime.UtcNow.AddDays(-3);
         var recentTimestamp = new DateTimeOffset(recentDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(recentTimestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(recentTimestamp, 42.5, SchemaType.Double);
 
         // Write recent data through storage
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
         // Verify file exists before cleanup
         var sensorDir = Path.Combine(_testDirectory, sensorId);
-        var recentFileName = $"{recentDate:yyyy-MM-dd}_1000.bin";
+        var recentFileName = $"{recentDate:yyyy-MM-dd}_1000_double.bin";
         var recentFilePath = Path.Combine(sensorDir, recentFileName);
         File.Exists(recentFilePath).ShouldBeTrue();
 
@@ -211,16 +211,16 @@ public class BinaryRecordStorageTests : IDisposable
         var sensorId2 = TestSensorId("sensor-2");
         var oldDate = DateTime.UtcNow.AddDays(-10);
         var oldTimestamp = new DateTimeOffset(oldDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(oldTimestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(oldTimestamp, 42.5, SchemaType.Double);
 
         // Write old data for both sensors through storage
-        await _storage.WriteAsync(sensorId1, 1000, dataPoint);
-        await _storage.WriteAsync(sensorId2, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId1, 1000, SchemaType.Double, dataPoint);
+        await _storage.WriteAsync(sensorId2, 1000, SchemaType.Double, dataPoint);
 
         // Verify files exist before cleanup
         var sensor1Dir = Path.Combine(_testDirectory, sensorId1);
         var sensor2Dir = Path.Combine(_testDirectory, sensorId2);
-        var oldFileName = $"{oldDate:yyyy-MM-dd}_1000.bin";
+        var oldFileName = $"{oldDate:yyyy-MM-dd}_1000_double.bin";
         var oldFile1 = Path.Combine(sensor1Dir, oldFileName);
         var oldFile2 = Path.Combine(sensor2Dir, oldFileName);
         File.Exists(oldFile1).ShouldBeTrue();
@@ -255,13 +255,13 @@ public class BinaryRecordStorageTests : IDisposable
         var recentTimestamp = new DateTimeOffset(recentDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
 
         // Write both old and recent data through storage
-        await _storage.WriteAsync(sensorId, 1000, new RecordingDataPoint(oldTimestamp, 42.5));
-        await _storage.WriteAsync(sensorId, 1000, new RecordingDataPoint(recentTimestamp, 43.5));
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(oldTimestamp, 42.5, SchemaType.Double));
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(recentTimestamp, 43.5, SchemaType.Double));
 
         // Verify files exist before cleanup
         var sensorDir = Path.Combine(_testDirectory, sensorId);
-        var oldFilePath = Path.Combine(sensorDir, $"{oldDate:yyyy-MM-dd}_1000.bin");
-        var recentFilePath = Path.Combine(sensorDir, $"{recentDate:yyyy-MM-dd}_1000.bin");
+        var oldFilePath = Path.Combine(sensorDir, $"{oldDate:yyyy-MM-dd}_1000_double.bin");
+        var recentFilePath = Path.Combine(sensorDir, $"{recentDate:yyyy-MM-dd}_1000_double.bin");
         File.Exists(oldFilePath).ShouldBeTrue();
         File.Exists(recentFilePath).ShouldBeTrue();
 
@@ -283,10 +283,10 @@ public class BinaryRecordStorageTests : IDisposable
         // Arrange - Use a sensor ID that might be URL-encoded or have special chars
         var sensorId = TestSensorId("sensor_abc-123");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(timestamp, 42.5);
+        var dataPoint = new RecordingDataPoint(timestamp, 42.5, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
         // Assert
         var sensorDir = Path.Combine(_testDirectory, sensorId);
@@ -299,10 +299,10 @@ public class BinaryRecordStorageTests : IDisposable
         // Arrange
         var sensorId = TestSensorId("sensor-1");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(timestamp, double.MaxValue);
+        var dataPoint = new RecordingDataPoint(timestamp, double.MaxValue, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
         // Assert
         var files = Directory.GetFiles(Path.Combine(_testDirectory, sensorId), "*.bin");
@@ -316,10 +316,10 @@ public class BinaryRecordStorageTests : IDisposable
         // Arrange
         var sensorId = TestSensorId("sensor-1");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var dataPoint = new RecordingDataPoint(timestamp, -273.15);
+        var dataPoint = new RecordingDataPoint(timestamp, -273.15, SchemaType.Double);
 
         // Act
-        await _storage.WriteAsync(sensorId, 1000, dataPoint);
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, dataPoint);
 
         // Assert
         var files = Directory.GetFiles(Path.Combine(_testDirectory, sensorId), "*.bin");

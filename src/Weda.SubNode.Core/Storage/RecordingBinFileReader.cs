@@ -1,3 +1,4 @@
+using System.IO.Hashing;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Core.Storage;
@@ -7,27 +8,43 @@ namespace Weda.SubNode.Core.Storage;
 /// </summary>
 /// <remarks>
 /// Supported file format versions:
-/// - Version 1: 24-byte header (current)
+/// - Version 1: 24-byte header, double-only (legacy)
+/// - Version 2: 32-byte header, multi-type support
 ///
-/// Header Layout (24 bytes):
+/// V1 Header Layout (24 bytes):
 /// <code>
 /// ┌────────┬──────┬─────────┬─────────────────────────────────┐
 /// │ Offset │ Size │ Type    │ Field                           │
 /// ├────────┼──────┼─────────┼─────────────────────────────────┤
 /// │ 0      │ 4    │ uint32  │ Prefix (0x57454441 "WEDA")      │
-/// │ 4      │ 2    │ uint16  │ Version                         │
-/// │ 6      │ 1    │ byte    │ Flags (bit 0: Endianness)       │
+/// │ 4      │ 2    │ uint16  │ Version (= 1)                   │
+/// │ 6      │ 1    │ byte    │ Flags                           │
 /// │ 7      │ 1    │ byte    │ CheckSumType                    │
 /// │ 8      │ 4    │ uint32  │ Interval (ms)                   │
 /// │ 12     │ 8    │ ulong   │ StartTimestamp (Unix ms)        │
 /// │ 20     │ 4    │ uint32  │ SlotCount                       │
 /// └────────┴──────┴─────────┴─────────────────────────────────┘
 /// </code>
+///
+/// V2 Header Layout (32 bytes):
+/// <code>
+/// ┌────────┬──────┬─────────┬─────────────────────────────────┐
+/// │ Offset │ Size │ Type    │ Field                           │
+/// ├────────┼──────┼─────────┼─────────────────────────────────┤
+/// │ 0      │ 4    │ uint32  │ Prefix (0x57454441 "WEDA")      │
+/// │ 4      │ 2    │ uint16  │ Version (= 2)                   │
+/// │ 6      │ 1    │ byte    │ Flags                           │
+/// │ 7      │ 1    │ byte    │ SchemaType                      │
+/// │ 8      │ 4    │ uint32  │ Interval (ms)                   │
+/// │ 12     │ 4    │ uint32  │ SlotSize (bytes)                │
+/// │ 16     │ 8    │ ulong   │ StartTimestamp (Unix ms)        │
+/// │ 24     │ 4    │ uint32  │ SlotCount                       │
+/// │ 28     │ 4    │ uint32  │ HeaderChecksum (CRC32)          │
+/// └────────┴──────┴─────────┴─────────────────────────────────┘
+/// </code>
 /// </remarks>
 public static class RecordingBinFileReader
 {
-    private const ushort CurrentVersion = 1;
-
     /// <summary>
     /// Reads the header from a recording file.
     /// Returns null if the file format is invalid or unsupported.
@@ -47,56 +64,96 @@ public static class RecordingBinFileReader
     /// </summary>
     public static async Task<RecordingFileHeader?> ReadHeaderAsync(FileStream fs, CancellationToken cancellationToken = default)
     {
-        // Check minimum file size for header
-        if (fs.Length < RecordingFileHeader.HeaderSize)
+        // Read minimum bytes to determine version (first 6 bytes: prefix + version)
+        if (fs.Length < 6)
             return null;
 
-        var headerBytes = new byte[RecordingFileHeader.HeaderSize];
+        var prefixAndVersion = new byte[6];
+        await fs.ReadExactlyAsync(prefixAndVersion, cancellationToken);
+
+        // Validate magic prefix
+        var prefix = BitConverter.ToUInt32(prefixAndVersion, 0);
+        if (prefix != RecordingFileHeader.Prefix)
+            return null;
+
+        var version = BitConverter.ToUInt16(prefixAndVersion, 4);
+
+        // Determine header size based on version
+        var headerSize = version switch
+        {
+            1 => RecordingFileHeader.HeaderSizeV1,
+            2 => RecordingFileHeader.HeaderSizeV2,
+            _ => 0
+        };
+
+        if (headerSize == 0 || fs.Length < headerSize)
+            return null;
+
+        // Read remaining header bytes
+        fs.Seek(0, SeekOrigin.Begin);
+        var headerBytes = new byte[headerSize];
         await fs.ReadExactlyAsync(headerBytes, cancellationToken);
 
-        return ParseHeader(headerBytes);
+        return ParseHeader(headerBytes, version);
     }
 
     /// <summary>
     /// Parses header bytes into a RecordingFileHeader.
     /// Returns null if validation fails.
     /// </summary>
-    private static RecordingFileHeader? ParseHeader(byte[] headerBytes)
+    private static RecordingFileHeader? ParseHeader(byte[] headerBytes, ushort version)
     {
-        // Validate magic prefix "WEDA" (0x57454441)
-        var prefix = BitConverter.ToUInt32(headerBytes, 0);
-        if (prefix != RecordingFileHeader.Prefix)
-            return null;
-
-        var version = BitConverter.ToUInt16(headerBytes, 4);
-
-        // Version-specific parsing
-        // Future versions can be handled here
         return version switch
         {
             1 => ParseHeaderV1(headerBytes),
-            _ => null // Unsupported version
+            2 => ParseHeaderV2(headerBytes),
+            _ => null
         };
     }
 
     /// <summary>
-    /// Parses Version 1 header format.
+    /// Parses Version 1 header format (legacy, double-only).
     /// </summary>
-    private static RecordingFileHeader ParseHeaderV1(byte[] headerBytes)
+    private static RecordingFileHeader ParseHeaderV1(byte[] bytes) => new()
     {
+        Version = 1,
+        Flags = bytes[6],
+        SchemaType = SchemaType.Double, // V1 is always double
+        Interval = BitConverter.ToUInt32(bytes, 8),
+        SlotSize = RecordingFileHeader.DefaultSlotSizeV1, // V1 is always 8 bytes
+        StartTimestamp = BitConverter.ToUInt64(bytes, 12),
+        SlotCount = BitConverter.ToUInt32(bytes, 20)
+    };
+
+    /// <summary>
+    /// Parses Version 2 header format (multi-type support).
+    /// Returns null if checksum validation fails.
+    /// </summary>
+    private static RecordingFileHeader? ParseHeaderV2(byte[] bytes)
+    {
+        // Validate checksum (CRC32 of bytes 0-27)
+        var storedChecksum = BitConverter.ToUInt32(bytes, 28);
+        var calculatedChecksum = Crc32.HashToUInt32(bytes.AsSpan(0, 28));
+
+        if (storedChecksum != calculatedChecksum)
+            return null; // Checksum mismatch, header corrupted
+
         return new RecordingFileHeader
         {
-            Version = BitConverter.ToUInt16(headerBytes, 4),
-            Flags = headerBytes[6],
-            CheckSumType = headerBytes[7],
-            Interval = BitConverter.ToUInt32(headerBytes, 8),
-            StartTimestamp = BitConverter.ToUInt64(headerBytes, 12),
-            SlotCount = BitConverter.ToUInt32(headerBytes, 20)
+            Version = 2,
+            Flags = bytes[6],
+            SchemaType = (SchemaType)bytes[7],
+            Interval = BitConverter.ToUInt32(bytes, 8),
+            SlotSize = BitConverter.ToUInt32(bytes, 12),
+            StartTimestamp = BitConverter.ToUInt64(bytes, 16),
+            SlotCount = BitConverter.ToUInt32(bytes, 24),
+            HeaderChecksum = storedChecksum
         };
     }
 
     /// <summary>
     /// Reads data points from a recording file within the specified time range.
+    /// Supports both V1 and V2 file formats.
     /// </summary>
     /// <param name="filePath">Path to the recording file</param>
     /// <param name="interval">Expected recording interval in milliseconds</param>
@@ -138,6 +195,8 @@ public static class RecordingBinFileReader
         var result = new List<RecordingDataPoint>();
         var startOfDay = (long)header.StartTimestamp;
         var slotCount = (int)header.SlotCount;
+        var slotSize = (int)header.SlotSize;
+        var schemaType = header.SchemaType;
 
         // Calculate slot range to read
         var startSlot = Math.Max(0, (int)((startMs - startOfDay) / interval));
@@ -147,19 +206,24 @@ public static class RecordingBinFileReader
             return result;
 
         // Seek to start slot (header size + slot offset)
-        var startPosition = RecordingFileHeader.HeaderSize + startSlot * sizeof(double);
+        var startPosition = header.HeaderSize + startSlot * slotSize;
         fs.Seek(startPosition, SeekOrigin.Begin);
 
         // Read slots
-        var buffer = new byte[sizeof(double)];
+        var buffer = new byte[slotSize];
         for (var slot = startSlot; slot <= endSlot; slot++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             await fs.ReadExactlyAsync(buffer, cancellationToken);
-            var value = BitConverter.ToDouble(buffer);
+
+            // Skip empty slots
+            if (schemaType.IsEmptySlot(buffer))
+                continue;
+
+            var value = schemaType.FromBytes(buffer);
             var timestamp = startOfDay + (long)slot * interval;
-            result.Add(new RecordingDataPoint(timestamp, value));
+            result.Add(new RecordingDataPoint(timestamp, value, schemaType));
         }
 
         return result;

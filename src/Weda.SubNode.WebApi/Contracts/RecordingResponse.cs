@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.WebApi.Contracts;
 
@@ -11,26 +12,27 @@ public record RecordingResponse
     public static RecordingResponse FromResult(RecordingResult result) => new()
     {
         Measures = result.Measures
-            .Select(m => TrimNaNValues(result.SensorId, m))
+            .Select(m => TrimEmptyValues(result.SensorId, m))
             .Where(m => m.Values.Count > 0)
             .ToList()
     };
 
-    private static RecordingMeasure TrimNaNValues(string sensorId, RecordingMeasureResult m)
+    private static RecordingMeasure TrimEmptyValues(string sensorId, RecordingMeasureResult m)
     {
         var values = m.Values;
+        var schemaType = m.SchemaType;
 
-        // Find first non-NaN index (prefix trim)
+        // Find first valid index (prefix trim)
         var firstValidIndex = 0;
-        while (firstValidIndex < values.Count && double.IsNaN(values[firstValidIndex]))
+        while (firstValidIndex < values.Count && IsEmptyValue(values[firstValidIndex], schemaType))
             firstValidIndex++;
 
-        // Find last non-NaN index (postfix trim)
+        // Find last valid index (postfix trim)
         var lastValidIndex = values.Count - 1;
-        while (lastValidIndex >= 0 && double.IsNaN(values[lastValidIndex]))
+        while (lastValidIndex >= 0 && IsEmptyValue(values[lastValidIndex], schemaType))
             lastValidIndex--;
 
-        // All values are NaN
+        // All values are empty
         if (firstValidIndex > lastValidIndex)
         {
             return new RecordingMeasure
@@ -38,6 +40,7 @@ public record RecordingResponse
                 Id = sensorId,
                 Interval = m.Interval,
                 StartTimeStamp = m.StartTimeStamp,
+                SchemaType = schemaType.ToString().ToLowerInvariant(),
                 Values = []
             };
         }
@@ -51,9 +54,19 @@ public record RecordingResponse
             Id = sensorId,
             Interval = m.Interval,
             StartTimeStamp = newStartTimeStamp,
+            SchemaType = schemaType.ToString().ToLowerInvariant(),
             Values = trimmedValues
         };
     }
+
+    private static bool IsEmptyValue(object value, SchemaType schemaType) => schemaType switch
+    {
+        SchemaType.Double => value is double d && double.IsNaN(d),
+        SchemaType.Long => value is long l && l == long.MinValue,
+        SchemaType.Integer => value is int i && i == int.MinValue,
+        SchemaType.Boolean => value is bool b && b == false && value.Equals(0xFF), // 0xFF is the empty marker
+        _ => false
+    };
 }
 
 public record RecordingMeasure
@@ -67,9 +80,12 @@ public record RecordingMeasure
     [JsonPropertyName("startTimeStamp")]
     public required long StartTimeStamp { get; init; }
 
+    [JsonPropertyName("schemaType")]
+    public required string SchemaType { get; init; }
+
     [JsonPropertyName("values")]
     [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
-    public required List<double> Values { get; init; }
+    public required List<object> Values { get; init; }
 }
 
 /// <summary>

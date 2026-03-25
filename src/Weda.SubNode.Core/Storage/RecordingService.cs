@@ -4,15 +4,11 @@ using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using Polly;
-
-
 using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core.Storage;
 
@@ -79,22 +75,22 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
         return false;
     }
 
-    public async Task RecordAsync(string sensorId, int interval, long timestamp, double value, CancellationToken cancellationToken = default)
+    public async Task RecordAsync(string sensorId, int interval, SchemaType schemaType, long timestamp, object value, CancellationToken cancellationToken = default)
     {
         if (!_enabled || !ShouldRecord(sensorId, interval, timestamp))
             return;
 
         try
         {
-            var dataPoint = new RecordingDataPoint(timestamp, value);
+            var dataPoint = new RecordingDataPoint(timestamp, value, schemaType);
 
             if (!_batchEnabled)
             {
-                await _storage.WriteAsync(sensorId, interval, dataPoint, cancellationToken);
+                await _storage.WriteAsync(sensorId, interval, schemaType, dataPoint, cancellationToken);
                 return;
             }
 
-            var bufferKey = $"{sensorId}:{interval}";
+            var bufferKey = $"{sensorId}:{interval}:{schemaType}";
             List<RecordingDataPoint>? batchToWrite = null;
 
             lock (_batchLock)
@@ -115,18 +111,18 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
 
             if (batchToWrite != null)
             {
-                await _storage.WriteBatchAsync(sensorId, interval, batchToWrite, cancellationToken);
+                await _storage.WriteBatchAsync(sensorId, interval, schemaType, batchToWrite, cancellationToken);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to record data for sensor {SensorId} at timestamp {Timestamp", sensorId, timestamp);
+            _logger.LogError(ex, "Failed to record data for sensor {SensorId} at timestamp {Timestamp}", sensorId, timestamp);
         }
     }
 
     public async Task FlushAsync(CancellationToken cancellationToken = default)
     {
-        List<(string sensorId, int interval, List<RecordingDataPoint> dataPoints)> buffersToFlush;
+        List<(string sensorId, int interval, SchemaType schemaType, List<RecordingDataPoint> dataPoints)> buffersToFlush;
 
         lock (_batchLock)
         {
@@ -137,22 +133,23 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
                     var parts = kvp.Key.Split(':');
                     var sensorId = parts[0];
                     var interval = int.Parse(parts[1]);
+                    var schemaType = Enum.Parse<SchemaType>(parts[2]);
                     var dataPoints = new List<RecordingDataPoint>(kvp.Value);
                     kvp.Value.Clear();
-                    return (sensorId, interval, dataPoints);
+                    return (sensorId, interval, schemaType, dataPoints);
                 })
                 .ToList();
         }
 
-        foreach (var (sensorId, interval, dataPoints) in buffersToFlush)
+        foreach (var (sensorId, interval, schemaType, dataPoints) in buffersToFlush)
         {
-            await _storage.WriteBatchAsync(sensorId, interval, dataPoints, cancellationToken);
+            await _storage.WriteBatchAsync(sensorId, interval, schemaType, dataPoints, cancellationToken);
         }
     }
 
     public async Task FlushSensorAsync(string sensorId, CancellationToken cancellationToken = default)
     {
-        List<(int interval, List<RecordingDataPoint> dataPoints)> buffersToFlush;
+        List<(int interval, SchemaType schemaType, List<RecordingDataPoint> dataPoints)> buffersToFlush;
 
         lock (_batchLock)
         {
@@ -162,16 +159,17 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
                 {
                     var parts = kvp.Key.Split(':');
                     var interval = int.Parse(parts[1]);
+                    var schemaType = Enum.Parse<SchemaType>(parts[2]);
                     var dataPoints = new List<RecordingDataPoint>(kvp.Value);
                     kvp.Value.Clear();
-                    return (interval, dataPoints);
+                    return (interval, schemaType, dataPoints);
                 })
                 .ToList();
         }
 
-        foreach (var (interval, dataPoints) in buffersToFlush)
+        foreach (var (interval, schemaType, dataPoints) in buffersToFlush)
         {
-            await _storage.WriteBatchAsync(sensorId, interval, dataPoints, cancellationToken);
+            await _storage.WriteBatchAsync(sensorId, interval, schemaType, dataPoints, cancellationToken);
         }
     }
 
@@ -250,6 +248,7 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
                 measures.Add(new RecordingMeasureResult(
                     Interval: interval,
                     StartTimeStamp: data[0].Timestamp,
+                    SchemaType: data[0].SchemaType,
                     Values: data.Select(d => d.Value).ToList()));
             }
 
