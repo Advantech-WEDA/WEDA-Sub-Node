@@ -1,5 +1,5 @@
 # Azure DevOps Pipeline for Weda SubDevice
-# Automated build, test, and code coverage
+# Automated build, test, and optional code coverage
 
 trigger:
   branches:
@@ -31,7 +31,6 @@ variables:
   buildConfiguration: 'Release'
   dotnetVersion: '10.0.x'
   testResultsDirectory: '$(Build.ArtifactStagingDirectory)/TestResults'
-  coverageThreshold: 60
 
 stages:
   - stage: Build
@@ -41,13 +40,14 @@ stages:
         displayName: 'Build, Test, and Coverage'
         pool:
           name: 'CI Agent Pool'
+
         steps:
           # Install .NET SDK
           - task: UseDotNet@2
             displayName: 'Install .NET SDK $(dotnetVersion)'
             inputs:
               version: $(dotnetVersion)
-              includePreviewVersions: false
+              includePreviewVersions: true
 
           # Restore NuGet packages
           - task: DotNetCoreCLI@2
@@ -66,7 +66,7 @@ stages:
               projects: '**/*.csproj'
               arguments: '--configuration $(buildConfiguration) --no-restore'
 
-          # Run tests with code coverage
+          # Run tests with (optional) coverage
           - task: DotNetCoreCLI@2
             displayName: 'Run tests with coverage'
             inputs:
@@ -78,9 +78,10 @@ stages:
                 --collect:"XPlat Code Coverage"
                 --logger trx
                 --settings tests/coverlet.runsettings
+                --results-directory $(testResultsDirectory)
               publishTestResults: true
 
-          # Install ReportGenerator tool
+          # Install ReportGenerator
           - task: DotNetCoreCLI@2
             displayName: 'Install ReportGenerator'
             inputs:
@@ -88,7 +89,7 @@ stages:
               custom: 'tool'
               arguments: 'install --global dotnet-reportgenerator-globaltool'
 
-          # Generate code coverage HTML report
+          # Generate coverage report (optional)
           - script: |
               echo "Checking coverage files..."
 
@@ -101,19 +102,32 @@ stages:
 
               echo "Coverage files found:"
               echo "$FILES"
+
+              export PATH="$PATH:$HOME/.dotnet/tools"
+
               reportgenerator \
-                -reports:$(testResultsDirectory)/coverage.cobertura.xml \
+                -reports:$(testResultsDirectory)/**/coverage.cobertura.xml \
                 -targetdir:$(testResultsDirectory)/coveragereport \
                 -reporttypes:"HtmlInline_AzurePipelines;Cobertura;Badges;MarkdownSummaryGithub" \
                 -sourcedirs:$(Build.SourcesDirectory)/src
-            displayName: 'Generate coverage report'
+            displayName: 'Generate coverage report (optional)'
 
-          # Publish coverage report as pipeline artifact
+          # Check coverage report exists
+          - script: |
+              if [ -d "$(testResultsDirectory)/coveragereport" ]; then
+                echo "##vso[task.setvariable variable=hasCoverageReport]true"
+              else
+                echo "No coverage report found."
+                echo "##vso[task.setvariable variable=hasCoverageReport]false"
+              fi
+            displayName: 'Check coverage report exists'
+
+          # Publish coverage report (only if exists)
           - publish: $(testResultsDirectory)/coveragereport
             artifact: CodeCoverageReport
             displayName: 'Publish coverage report'
-            condition: exists('$(testResultsDirectory)/coveragereport')
-          
+            condition: and(succeededOrFailed(), eq(variables.hasCoverageReport, 'true'))
+
           # Publish test results
           - task: PublishTestResults@2
             displayName: 'Publish test results'
