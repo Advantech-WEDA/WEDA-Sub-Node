@@ -48,21 +48,19 @@ After reading this article, you will be able to:
 
 ### WedaNode
 
-**WedaNode** is a local NATS broker service installed by Device Activator. It runs on `127.0.0.1:4224` and serves as a bridge between SubNode applications and WedaCore.
+**WedaNode** is a local NATS broker service installed by Device Activator. It runs on `127.0.0.1:4224` by default and serves as a bridge between SubNode applications and WedaCore.
 
 ```
-┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│   SubNode    │──NATS──>│   WedaNode   │──NATS──>│   WedaCore   │
-│ Application  │         │ (127.0.0.1:  │         │   (Cloud)    │
-│              │         │     4224)    │         │              │
-└──────────────┘         └──────────────┘         └──────────────┘
+┌──────────────┐          ┌───────────────────┐          ┌──────────────┐
+│   SubNode    │◀──NATS──▶│      WedaNode     │◀──NATS──▶│   WedaCore   │
+│ Application  │          │ (127.0.0.1:4224)  │          │   (Cloud)    │
+└──────────────┘          └───────────────────┘          └──────────────┘
 ```
 
 ### Device Activator
 
 **Device Activator** is a GUI installation wizard that:
 
-- Deploys SubNode applications to edge devices
 - Installs and configures WedaNode
 - Manages device credentials and certificates
 - Handles system service registration
@@ -153,7 +151,7 @@ Built-in Parsers:
 **Data Pipeline** is a sequence of processing stages that telemetry data flows through:
 
 ```
-Raw Value ──> Transforms ──> DSP Filters ──> Final Value
+Raw Value ──▶ Transforms ──▶ DSP Filters ──▶ Final Value
 ```
 
 ### Transform
@@ -164,7 +162,7 @@ Raw Value ──> Transforms ──> DSP Filters ──> Final Value
 |-----------|-----------|---------|
 | Calibration | `calibration` | Apply Scale and Offset |
 | Unit Conversion | `unitconversion` | Convert units |
-| Chunking | `chunking` | Batch data points |
+| Chunking | `chunking` | Batch data points, used in low-bandwidth scenarios to split data points |
 
 Configuration example:
 ```json
@@ -184,7 +182,15 @@ Configuration example:
 
 ### DSP Filter
 
-**DSP (Digital Signal Processing) Filter** performs signal processing on telemetry data. Common uses include smoothing, averaging, and noise reduction.
+**DSP (Digital Signal Processing) Filter** performs signal processing on telemetry data.
+
+Built-in DSP Filters:
+
+| Filter | Type Name | Purpose | Use Cases |
+|--------|-----------|---------|-----------|
+| Kalman Filter | `kalman` | Noise reduction, true value estimation | Temperature/humidity sensor jitter, analog signal noise |
+| Moving Average | `movingaverage` | Sliding average smoothing | Voltage/current fluctuations, short-term trend analysis |
+| ReLU | `relu` | Clamp negative values to zero | Force zero when power calculations yield negative values |
 
 ## Commands and Configuration
 

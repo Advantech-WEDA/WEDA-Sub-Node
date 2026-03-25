@@ -1,0 +1,12 @@
+services:
+  testdevice:
+    build:
+      context: ../..
+      dockerfile: examples/testdevice/Dockerfile
+    volumes:
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./appsettings.json:/app/appsettings.json:ro
+    network_mode: host
+    restart: unless-stopped

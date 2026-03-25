@@ -252,7 +252,7 @@ The Orchestrator coordinates device operations:
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
 │ WedaCore │    │  Cloud   │    │ Command  │    │ Protocol │    │ Physical │
-│          │───>│ Service  │───>│ Handler  │───>│  Parser  │───>│  Device  │
+│          │───▶│ Service  │───▶│ Handler  │───▶│  Parser  │───▶│  Device  │
 └──────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘
      │               │                │               │              │
      │  NATS         │  DeviceCommand │  Execute      │  Encoded     │

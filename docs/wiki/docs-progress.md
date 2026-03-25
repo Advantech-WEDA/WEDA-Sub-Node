@@ -21,14 +21,14 @@
 | 2 | 02-architecture.md | ✅ Complete | ✅ Complete |
 | 3 | 03-terminology.md | ✅ Complete | ✅ Complete |
 
-### 02-quick-start
+### 02-getting-started
 
 | # | Article | zh Review | en Translate |
 |---|---------|-----------|--------------|
 | 1 | 01-prerequisites.md | ⬜ Pending | ⬜ Pending |
-| 2 | 02-example-wise-4012.md | ⬜ Pending | ⬜ Pending |
-| 3 | 03-subnode-templates.md | ⬜ Pending | ⬜ Pending |
-| 4 | 04-connect-to-weda-node.md | ⬜ Pending | ⬜ Pending |
+| 2 | 02-start-with-example.md | ⬜ Pending | ⬜ Pending |
+| 3 | 03-start-with-template.md | ⬜ Pending | ⬜ Pending |
+| 4 | 04-connect-to-wedacore.md | ⬜ Pending | ⬜ Pending |
 
 ### 03-hierarchy
 
@@ -123,7 +123,7 @@
 | Section | Total | zh Done | en Done |
 |---------|-------|---------|---------|
 | 01-introduction | 3 | 3 | 3 |
-| 02-quick-start | 4 | 0 | 0 |
+| 02-getting-started | 4 | 0 | 0 |
 | 03-hierarchy | 2 | 0 | 0 |
 | 04-configuration | 3 | 0 | 0 |
 | 05-data-pipeline | 8 | 0 | 0 |

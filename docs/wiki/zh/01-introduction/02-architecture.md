@@ -252,7 +252,7 @@ Orchestrator 協調裝置操作：
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
 │ WedaCore │    │  Cloud   │    │ Command  │    │ Protocol │    │ Physical │
-│          │───>│ Service  │───>│ Handler  │───>│  Parser  │───>│  Device  │
+│          │───▶│ Service  │───▶│ Handler  │───▶│  Parser  │───▶│  Device  │
 └──────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘
      │               │                │               │              │
      │  NATS         │  DeviceCommand │  Execute      │  Encoded     │

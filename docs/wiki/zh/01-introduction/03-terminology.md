@@ -48,21 +48,19 @@ description: 'SubNode SDK 文件中使用的關鍵術語和概念詞彙表'
 
 ### WedaNode
 
-**WedaNode** 是由 Device Activator 安裝的本機 NATS 代理服務。它運行於 `127.0.0.1:4224`，作為 SubNode 應用程式與 WedaCore 之間的橋接。
+**WedaNode** 是由 Device Activator 安裝的本機 NATS 代理服務。它預設運行於 `127.0.0.1:4224`，作為 SubNode 應用程式與 WedaCore 之間的橋接。
 
 ```
-┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│   SubNode    │──NATS──>│   WedaNode   │──NATS──>│   WedaCore   │
-│ Application  │         │ (127.0.0.1:  │         │   (Cloud)    │
-│              │         │     4224)    │         │              │
-└──────────────┘         └──────────────┘         └──────────────┘
+┌──────────────┐          ┌───────────────────┐          ┌──────────────┐
+│   SubNode    │◀──NATS──▶│      WedaNode     │◀──NATS──▶│   WedaCore   │
+│ Application  │          │ (127.0.0.1:4224)  │          │   (Cloud)    │
+└──────────────┘          └───────────────────┘          └──────────────┘
 ```
 
 ### Device Activator
 
 **Device Activator** 是一個 GUI 安裝精靈，功能包括：
 
-- 將 SubNode 應用程式部署到邊緣裝置
 - 安裝和設定 WedaNode
 - 管理裝置憑證和證書
 - 處理系統服務註冊
@@ -100,7 +98,7 @@ description: 'SubNode SDK 文件中使用的關鍵術語和概念詞彙表'
 ```csharp
 public record TelemetryMeasure
 {
-    public string ResourceId { get; }    // 感測器識別碼
+    public string ResourceId { get; }     // 感測器識別碼
     public object Value { get; }          // 量測值
     public long Timestamp { get; }        // Unix 時間戳記（毫秒）
     public IReadOnlyDictionary<string, object>? Metadata { get; }
@@ -153,7 +151,7 @@ public record TelemetryMeasure
 **Data Pipeline** 是遙測資料流經的處理階段序列：
 
 ```
-Raw Value ──> Transforms ──> DSP Filters ──> Final Value
+Raw Value ──▶ Transforms ──▶ DSP Filters ──▶ Final Value
 ```
 
 ### Transform
@@ -164,7 +162,7 @@ Raw Value ──> Transforms ──> DSP Filters ──> Final Value
 |-----------|-----------|------|
 | Calibration | `calibration` | 套用 Scale 和 Offset |
 | Unit Conversion | `unitconversion` | 單位轉換 |
-| Chunking | `chunking` | 批次資料點 |
+| Chunking | `chunking` | 批次資料點，用於低網速情景，用於切割資料點 |
 
 設定範例：
 ```json
@@ -184,7 +182,15 @@ Raw Value ──> Transforms ──> DSP Filters ──> Final Value
 
 ### DSP Filter
 
-**DSP (Digital Signal Processing) Filter** 對遙測資料執行訊號處理。常見用途包括平滑、平均和降噪。
+**DSP (Digital Signal Processing) Filter** 對遙測資料執行訊號處理。
+
+內建 DSP Filter：
+
+| Filter | Type Name | 用途 | 使用場景 |
+|--------|-----------|------|----------|
+| Kalman Filter | `kalman` | 降噪，估計真實值 | 溫濕度感測器跳動、類比訊號雜訊 |
+| Moving Average | `movingaverage` | 滑動平均平滑 | 電壓/電流波動、短期趨勢分析 |
+| ReLU | `relu` | 將負值歸零 | 功率計算結果為負時強制歸零 |
 
 ## 命令與設定
 
