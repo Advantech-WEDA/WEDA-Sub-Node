@@ -39,6 +39,8 @@ stages:
     jobs:
       - job: BuildAndTest
         displayName: 'Build, Test, and Coverage'
+        pool:
+          name: 'CI Agent Pool'
         steps:
           # Install .NET SDK
           - task: UseDotNet@2
