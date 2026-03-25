@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+
 using SystemAgentExample.Models;
+
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Core.Communication.Common;
 
@@ -81,8 +83,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     {
         try
         {
-            _logger.LogInformation("Collect system metrics for types: {Types}",
-               string.Join(", ", request.MetricTypes));
+            _logger.LogDebug("Collect system metrics for types: {Types}", string.Join(", ", request.MetricTypes));
             return await _collector.CollectMetricsAsync(request.MetricTypes, cancellationToken);
         }
         catch (Exception ex)
