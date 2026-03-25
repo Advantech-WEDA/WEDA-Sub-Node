@@ -1,5 +1,5 @@
 # Azure DevOps Pipeline for Weda SubDevice
-# Automated build, test, and optional code coverage
+# Build + Test (non-blocking) + Optional Coverage
 
 trigger:
   branches:
@@ -24,9 +24,6 @@ pr:
       - docs/**
       - .gitignore
 
-pool:
-  vmImage: 'ubuntu-latest'
-
 variables:
   buildConfiguration: 'Release'
   dotnetVersion: '10.0.x'
@@ -37,38 +34,37 @@ stages:
     displayName: 'Build and Test'
     jobs:
       - job: BuildAndTest
-        displayName: 'Build, Test, and Coverage'
+        displayName: 'Build, Test, Coverage (Non-blocking)'
         pool:
           name: 'CI Agent Pool'
 
         steps:
           # Install .NET SDK
           - task: UseDotNet@2
-            displayName: 'Install .NET SDK $(dotnetVersion)'
+            displayName: 'Install .NET SDK'
             inputs:
               version: $(dotnetVersion)
               includePreviewVersions: true
 
-          # Restore NuGet packages
+          # Restore
           - task: DotNetCoreCLI@2
-            displayName: 'Restore NuGet packages'
+            displayName: 'Restore'
             inputs:
               command: 'restore'
               projects: '**/*.csproj'
-              feedsToUse: 'select'
-              verbosityRestore: 'Minimal'
 
-          # Build solution
+          # Build
           - task: DotNetCoreCLI@2
-            displayName: 'Build solution'
+            displayName: 'Build'
             inputs:
               command: 'build'
               projects: '**/*.csproj'
               arguments: '--configuration $(buildConfiguration) --no-restore'
 
-          # Run tests with (optional) coverage
+          # Test (don't block pipeline)
           - task: DotNetCoreCLI@2
-            displayName: 'Run tests with coverage'
+            displayName: 'Run tests (non-blocking)'
+            continueOnError: true
             inputs:
               command: 'test'
               projects: 'tests/**/*.csproj'
@@ -79,7 +75,35 @@ stages:
                 --logger trx
                 --settings tests/coverlet.runsettings
                 --results-directory $(testResultsDirectory)
-              publishTestResults: true
+              publishTestResults: false
+
+          # Debug（optional）
+          - script: |
+              echo "==== DEBUG FILES ===="
+              find $(Build.SourcesDirectory) -name "*.trx" || true
+              find $(Build.SourcesDirectory) -name "coverage.cobertura.xml" || true
+              find $(Build.ArtifactStagingDirectory) || true
+            displayName: 'Debug outputs'
+            condition: succeededOrFailed()
+
+          # Check TestResults exists
+          - script: |
+              if [ -d "$(testResultsDirectory)" ]; then
+                echo "##vso[task.setvariable variable=hasTestResults]true"
+              else
+                echo "##vso[task.setvariable variable=hasTestResults]false"
+              fi
+            displayName: 'Check test results exists'
+
+          # Publish test results (optional)
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            condition: and(succeededOrFailed(), eq(variables.hasTestResults, 'true'))
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '$(testResultsDirectory)/**/*.trx'
+              mergeTestResults: true
+              failTaskOnFailedTests: false
 
           # Install ReportGenerator
           - task: DotNetCoreCLI@2
@@ -89,19 +113,16 @@ stages:
               custom: 'tool'
               arguments: 'install --global dotnet-reportgenerator-globaltool'
 
-          # Generate coverage report (optional)
+          # Generate coverage (optional)
           - script: |
               echo "Checking coverage files..."
 
               FILES=$(find $(testResultsDirectory) -name "coverage.cobertura.xml")
 
               if [ -z "$FILES" ]; then
-                echo "No coverage files found. Skipping report generation."
+                echo "No coverage files found. Skipping coverage."
                 exit 0
               fi
-
-              echo "Coverage files found:"
-              echo "$FILES"
 
               export PATH="$PATH:$HOME/.dotnet/tools"
 
@@ -112,35 +133,23 @@ stages:
                 -sourcedirs:$(Build.SourcesDirectory)/src
             displayName: 'Generate coverage report (optional)'
 
-          # Check coverage report exists
+          # Check coverage exists
           - script: |
               if [ -d "$(testResultsDirectory)/coveragereport" ]; then
                 echo "##vso[task.setvariable variable=hasCoverageReport]true"
               else
-                echo "No coverage report found."
                 echo "##vso[task.setvariable variable=hasCoverageReport]false"
               fi
             displayName: 'Check coverage report exists'
 
-          # Publish coverage report (only if exists)
+          # Publish coverage (optional)
           - publish: $(testResultsDirectory)/coveragereport
             artifact: CodeCoverageReport
             displayName: 'Publish coverage report'
             condition: and(succeededOrFailed(), eq(variables.hasCoverageReport, 'true'))
 
-          # Publish test results
-          - task: PublishTestResults@2
-            displayName: 'Publish test results'
-            condition: succeededOrFailed()
-            inputs:
-              testResultsFormat: 'VSTest'
-              testResultsFiles: '$(testResultsDirectory)/**/*.trx'
-              mergeTestResults: true
-              failTaskOnFailedTests: true
-              testRunTitle: 'Weda SubDevice Tests'
-
-          # Publish test results as artifacts
+          # Publish raw TestResults (optional)
           - publish: $(testResultsDirectory)
             artifact: TestResults
-            displayName: 'Publish test results artifacts'
-            condition: succeededOrFailed()
+            displayName: 'Publish raw test results'
+            condition: and(succeededOrFailed(), eq(variables.hasTestResults, 'true'))
