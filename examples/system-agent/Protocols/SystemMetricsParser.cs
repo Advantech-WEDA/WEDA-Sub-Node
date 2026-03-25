@@ -475,7 +475,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         DeviceCommand command,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation(
+        _logger.LogWarning(
             "Command execution not supported for system monitor. Command: {Command}",
             command.DeviceCmd);
 

@@ -45,6 +45,7 @@ public class LocalSystemResourceCollector
 
         try
         {
+            _logger.LogInformation("Hardware platform device starting...");
             advantechEdgeDevice = new Device();
             _logger.LogInformation("Hardware platform device initialized successfully");
         }

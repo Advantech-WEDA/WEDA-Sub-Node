@@ -23,12 +23,11 @@ public class NetworkCollector
         try
         {
             var interfaces = NetworkInterface.GetAllNetworkInterfaces();
-            _logger.LogInformation("Found {Count} network interfaces", interfaces.Length);
+            _logger.LogDebug("Found {Count} network interfaces", interfaces.Length);
 
             foreach (var iface in interfaces.Where(i => i.OperationalStatus == OperationalStatus.Up))
             {
-                _logger.LogInformation("Processing interface: {Name}, Status: {Status}", iface.Name, iface.OperationalStatus);
-
+                _logger.LogDebug("Processing interface: {Name}, Status: {Status}", iface.Name, iface.OperationalStatus);
                 var stats = iface.GetIPv4Statistics();
 
                 long nonUnicastPacketsSent = 0;
@@ -40,7 +39,7 @@ public class NetworkCollector
                 }
                 catch (PlatformNotSupportedException)
                 {
-                    _logger.LogInformation("NonUnicastPackets not supported for {Name}, using 0", iface.Name);
+                    _logger.LogWarning("NonUnicastPackets not supported for {Name}, using 0", iface.Name);
                 }
 
                 var networkMetric = new NetworkMetrics
@@ -54,7 +53,7 @@ public class NetworkCollector
                     TransmitErrsTotal = stats.OutgoingPacketsWithErrors
                 };
 
-                _logger.LogInformation("Network {Name}: RX={RxBytes}, TX={TxBytes}, RxPkts={RxPkts}, TxPkts={TxPkts}, RxErrs={RxErrs}, TxErrs={TxErrs}",
+                _logger.LogDebug("Network {Name}: RX={RxBytes}, TX={TxBytes}, RxPkts={RxPkts}, TxPkts={TxPkts}, RxErrs={RxErrs}, TxErrs={TxErrs}",
                     networkMetric.InterfaceName,
                     networkMetric.ReceiveBytesTotal,
                     networkMetric.TransmitBytesTotal,
