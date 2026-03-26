@@ -459,16 +459,24 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
 
     private object? GetWatchdogMetric(WatchdogMetrics? metrics, string metricName)
     {
-        // Return full Watchdog metrics object
-        // Collector already fetched IsSupported + TimerIds + TimerDetails together
-        return metrics;
+        if (metrics == null) return null;
+
+        return metricName?.ToLowerInvariant() switch
+        {
+            "issupported" => metrics.IsSupported,
+            _ => metrics
+        };
     }
 
     private object? GetThermalProtectionMetric(ThermalProtectionMetrics? metrics, string metricName)
     {
-        // Return full ThermalProtection metrics object
-        // Collector already fetched IsSupported + ZoneIds + ZoneDetails together
-        return metrics;
+        if (metrics == null) return null;
+
+        return metricName?.ToLowerInvariant() switch
+        {
+            "issupported" => metrics.IsSupported,
+            _ => metrics
+        };
     }
 
     public Task<ErrorOr<object>> ExecuteCommandAsync(
