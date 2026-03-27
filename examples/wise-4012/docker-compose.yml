@@ -1,8 +1,8 @@
 services:
-  testdevice:
+  wise-4012:
     build:
       context: ../..
-      dockerfile: examples/testdevice/Dockerfile
+      dockerfile: examples/wise-4012/Dockerfile
     volumes:
       - ./devicecfg.json:/app/devicecfg.json:ro
       - ./systemcfg.json:/app/systemcfg.json:ro

@@ -7,7 +7,7 @@ ARG TARGETARCH
 WORKDIR /src
 COPY . .
 
-WORKDIR /src/examples/image-sensor
+WORKDIR /src/examples/air-quality-monitor
 RUN dotnet restore
 
 RUN set -e; \
@@ -19,7 +19,7 @@ RUN set -e; \
     esac
 
 RUN RID=$(cat /rid.txt) && \
-    dotnet publish ImageSensor.csproj \
+    dotnet publish AirQualityMonitor.csproj \
       -c Release \
       -r "$RID" \
       --self-contained true \
@@ -35,4 +35,4 @@ COPY --from=build /app/publish/ ./
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["/app/ImageSensor"]
+ENTRYPOINT ["/app/AirQualityMonitor"]

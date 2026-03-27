@@ -1,13 +1,12 @@
 services:
-  testdevice:
+  stock-monitor:
     build:
       context: ../..
-      dockerfile: examples/testdevice/Dockerfile
+      dockerfile: examples/stock-monitor/Dockerfile
     volumes:
       - ./devicecfg.json:/app/devicecfg.json:ro
       - ./systemcfg.json:/app/systemcfg.json:ro
       - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
       - ./weda-data:/app/.weda
     network_mode: host
     restart: unless-stopped

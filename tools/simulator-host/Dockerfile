@@ -7,8 +7,7 @@ ARG TARGETARCH
 WORKDIR /src
 COPY . .
 
-WORKDIR /src/examples/image-sensor
-RUN dotnet restore
+RUN dotnet restore tools/simulator-host/Weda.SubNode.SimulatorHost.csproj
 
 RUN set -e; \
     case "${TARGETARCH}" in \
@@ -19,7 +18,7 @@ RUN set -e; \
     esac
 
 RUN RID=$(cat /rid.txt) && \
-    dotnet publish ImageSensor.csproj \
+    dotnet publish tools/simulator-host/Weda.SubNode.SimulatorHost.csproj \
       -c Release \
       -r "$RID" \
       --self-contained true \
@@ -35,4 +34,4 @@ COPY --from=build /app/publish/ ./
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["/app/ImageSensor"]
+ENTRYPOINT ["/app/Weda.SubNode.SimulatorHost"]

@@ -46,7 +46,7 @@ Complete configuration examples for each device type.
         "Interval": 5000,
         "Transforms": [
           {
-            "Type": "linear",
+            "Type": "calibration",
             "Parameters": {
               "Scale": 0.1,
               "Offset": -40
@@ -57,7 +57,7 @@ Complete configuration examples for each device type.
           {
             "Type": "movingaverage",
             "Parameters": {
-              "WindowSize": 5
+              "Window": 5
             }
           }
         ]
@@ -79,7 +79,7 @@ Complete configuration examples for each device type.
         "Interval": 5000,
         "Transforms": [
           {
-            "Type": "linear",
+            "Type": "calibration",
             "Parameters": {
               "Scale": 0.01,
               "Offset": 0
@@ -145,7 +145,7 @@ Complete configuration examples for each device type.
       "Parameters": {
         "SubscribeTopic": "sensors/building-a/room-101/temperature",
         "JsonPath": "$.value",
-        "Unit": "°C"
+        "Unit": "C"
       },
       "Report": {
         "Enabled": true,
@@ -176,9 +176,9 @@ Complete configuration examples for each device type.
         "Interval": 10000,
         "DspFilters": [
           {
-            "Type": "deadband",
+            "Type": "movingaverage",
             "Parameters": {
-              "Threshold": 10
+              "Window": 5
             }
           }
         ]
@@ -228,7 +228,7 @@ Complete configuration examples for each device type.
         "Interval": 1000,
         "Transforms": [
           {
-            "Type": "linear",
+            "Type": "calibration",
             "Parameters": {
               "Scale": 0.001,
               "Offset": 0
@@ -237,10 +237,10 @@ Complete configuration examples for each device type.
         ],
         "DspFilters": [
           {
-            "Type": "lowpass",
+            "Type": "kalman",
             "Parameters": {
-              "CutoffFrequency": 1.0,
-              "SampleRate": 10.0
+              "ProcessNoise": 0.01,
+              "MeasurementNoise": 0.1
             }
           }
         ]
