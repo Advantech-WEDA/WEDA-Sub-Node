@@ -43,7 +43,7 @@ var modbusConfig = new TcpModbusDeviceConfiguration
 // 建立溫度感測器
 var tempSensor = new ModbusSensorReporturation
 {
-    Name = "temperature.sensor",
+    Name = "temperature_sensor",
     RegisterAddress = 0,
     RegisterCount = 2,
     DataType = ModbusDataType.Float32,

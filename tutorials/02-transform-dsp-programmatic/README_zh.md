@@ -42,7 +42,7 @@ lang: "zh"
 ```csharp
 private void ConfigureTransformsAndFilters()
 {
-    var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor");
+    var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor");
     if (tempSensor != null)
     {
         // Configure Transform Pipeline (executed first)
@@ -82,9 +82,9 @@ dotnet run
 
 **預期輸出:**
 ```
-[12:34:56 INF] Configuring Transform and DSP Filter for temperature.sensor
+[12:34:56 INF] Configuring Transform and DSP Filter for temperature_sensor
 [12:34:56 INF] Applied: Calibration → UnitConversion (°C→°F) → MovingAverage(5)
-[12:34:57 INF] temperature.sensor: 77.23°F (after programmatic pipeline)
+[12:34:57 INF] temperature_sensor: 77.23°F (after programmatic pipeline)
 ```
 
 ## 程式化方式的優勢

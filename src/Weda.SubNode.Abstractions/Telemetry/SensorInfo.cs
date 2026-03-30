@@ -16,7 +16,7 @@ public class SensorInfo
 
     /// <summary>
     /// Human-readable display name for DTDL generation.
-    /// If not specified, derived from sensor Name (e.g., "temperature.sensor" → "Temperature Sensor")
+    /// If not specified, derived from sensor Name (e.g., "temperature_sensor" → "Temperature Sensor")
     /// </summary>
     public string? DisplayName { get; set; }
 
@@ -36,7 +36,7 @@ public class SensorInfo
         if (!string.IsNullOrEmpty(DisplayName))
             return DisplayName;
 
-        // Convert "temperature.sensor" or "temperature_sensor" to "Temperature Sensor"
+        // Convert "temperature_sensor" to "Temperature Sensor"
         return string.Join(" ",
             sensorName.Replace('.', ' ')
                 .Replace('_', ' ')

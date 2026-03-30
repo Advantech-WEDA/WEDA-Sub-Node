@@ -42,30 +42,55 @@ SubNode SDK 提供兩種專案範本，讓你快速建立可執行的邊緣裝�
 
 `wedabuilder` 範本使用現代 Builder 模式，具有自動生命週期管理。
 
-### 步驟 1：建立新專案
+### 步驟 1：安裝範本
+
+先將 SubNode 範本安裝到 `dotnet new` 範本清單中：
 
 ```bash
-# Copy template to new location
-cp -r templates/wedabuilder ~/projects/my-subnode
-cd ~/projects/my-subnode
+# In repository root
+dotnet new install templates/wedabuilder
 ```
 
-### 步驟 2：還原相依性
+驗證安裝成功：
 
 ```bash
-dotnet restore
+dotnet new list weda
 ```
+
+```text
+Template Name                          Short Name     Language
+-------------------------------------  -------------  --------
+Weda SubNode Builder Application       wedabuilder    [C#]
+```
+
+### 步驟 2：建立新專案
+
+在 `apps/` 目錄下建立新專案：
+
+```bash
+mkdir -p apps && cd apps
+dotnet new wedabuilder -n MySubNode
+cd MySubNode
+```
+
+> **Note**: 範本透過 `ProjectReference` 參考 SDK 原始碼（如 `../../src/Weda.SubNode.Host`），因此新專案須建立在儲存庫的 `apps/` 目錄下。
 
 ### 步驟 3：檢視專案結構
 
 ```text
-my-subnode/
-├── Program.cs           # Application entry point (builder pattern)
-├── MyFirstDevice.cs     # Custom device class
-├── devicecfg.json       # Device configuration
-├── appsettings.json     # Logging and simulator configuration
-└── WedaBuilder.csproj   # Project file
+MySubNode/
+├── Program.cs                # Application entry point (*)
+├── MyFirstDevice.cs          # Custom device implementation (*)
+├── devicecfg.json            # Device and sensor configuration (*)
+├── systemcfg.json            # WedaNode connection settings
+├── customcfg.json            # Custom application settings (reserved)
+├── appsettings.json          # Logging (Serilog) and simulator configuration
+├── Dockerfile                # Container image build
+├── docker-compose.yml        # One-command container deployment
+└── MySubNode.csproj          # Project file and NuGet/ProjectReference
 ```
+
+> **Quick-start 重點**：標示 `(*)` 的三個檔案是核心，與 [wise-4012 範例](./02-start-with-example.md) 的結構一致。`appsettings.json` 額外包含 Simulator 設定。
 
 ### 步驟 4：理解程式碼
 
@@ -214,7 +239,7 @@ TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 
     var tempSensor = new ModbusSensorReporturation
     {
-        Name = "temperature.sensor",
+        Name = "temperature_sensor",
         RegisterAddress = 0,
         RegisterCount = 2,
         DataType = ModbusDataType.Float32,
@@ -231,12 +256,13 @@ TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 
 ### 兩種範本的差異
 
-| 面向 | WedaBuilder | SubNode |
-|------|-------------|---------|
-| 設定方式 | JSON 為主 | 程式碼為主 |
-| 生命週期 | 自動 | 手動 |
-| 彈性 | 固定模式 | 完全控制 |
-| 適用於 | 大多數使用案例 | 自訂場景 |
+| 面向 | WedaBuilder (recommended) | SubNode |
+|------|---------------------------|---------|
+| 設定方式 | JSON + programmatic 皆可 | JSON + programmatic 皆可 |
+| 生命週期 | 全自動（Host 管理） | 半自動（`StartAsync` 後自動，但可手動呼叫單次操作）|
+| Host 功能 | 完整（Telemetry + Command + Config Sync）| Telemetry 為主 |
+| 裝置存取 | 透過事件和 DI | 可直接操作 `subNode.Devices[0].ReadTelemetryAsync()` |
+| 適用於 | 大多數使用案例 | 需要精細控制或單次操作的場景 |
 
 ---
 
@@ -301,10 +327,10 @@ TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 
 ## Summary
 
-- **WedaBuilder 範本**（建議）：Builder 模式 + JSON 設定，自動管理生命週期
-- **SubNode 範本**：程式碼設定 + 手動生命週期控制，適合需要完全客製化的場景
+- **WedaBuilder 範本**（建議）：全自動生命週期，完整 Host 功能（Telemetry + Command + Config Sync）
+- **SubNode 範本**：半自動生命週期，可直接操作裝置執行單次動作，以 Telemetry 為主
+- 兩者都支援 JSON 和 programmatic 設定方式
 - 兩者都包含內建 Modbus Simulator，無需實體裝置即可開發
-- 透過 `devicecfg.json` 的 `Sensors` 和 `TransformPipeline` 即可擴展功能
 
 ## See Also
 
@@ -318,5 +344,4 @@ TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0.0 | 2026-03-06 | Rain Hu | Doc created. |
-| 1.1.0 | 2026-03-30 | Rain Hu | Added Overview, What You'll Learn, Summary. Updated code examples and links. |
+| 1.0.0 | 2026-03-30 | Rain Hu | Doc created. |

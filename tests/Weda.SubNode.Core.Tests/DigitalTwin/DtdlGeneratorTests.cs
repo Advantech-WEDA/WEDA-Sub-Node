@@ -16,7 +16,7 @@ public class DtdlGeneratorTests
     public void GenerateShortId_Should_Return8CharHex()
     {
         // Arrange
-        var name = "temperature.sensor";
+        var name = "temperature_sensor";
 
         // Act
         var shortId = DtdlGenerator.GenerateShortId(name);
@@ -73,7 +73,7 @@ public class DtdlGeneratorTests
     public void GenerateDtmi_Should_FollowDtmiFormat()
     {
         // Arrange
-        var name = "temperature.sensor";
+        var name = "temperature_sensor";
 
         // Act
         var dtmi = DtdlGenerator.GenerateDtmi(name);
@@ -136,7 +136,7 @@ public class DtdlGeneratorTests
         // Arrange
         var sensor = new Sensor
         {
-            Name = "temperature.sensor",
+            Name = "temperature_sensor",
             SensorGroup = SensorGroup.TEMP,
             SensorInfo = new SensorInfo { Description = "Main temperature reading" }
         };
@@ -225,7 +225,7 @@ public class DtdlGeneratorTests
         // Arrange - Sensor without DisplayName should derive from Name
         var sensorWithoutDisplayName = new Sensor
         {
-            Name = "temperature.sensor",
+            Name = "temperature_sensor",
             SensorGroup = SensorGroup.TEMP,
             SensorInfo = new SensorInfo { Schema = "double" }
         };

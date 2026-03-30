@@ -33,7 +33,7 @@ public class MyFirstDevice : TcpModbusDevice
     private void ConfigureTransformsAndFilters()
     {
         // Find the temperature sensor
-        var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor");
+        var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor");
         if (tempSensor != null)
         {
             _logger.LogInformation("Configuring Transform and DSP Filter for {SensorName}", tempSensor.Name);

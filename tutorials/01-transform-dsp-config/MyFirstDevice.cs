@@ -32,7 +32,7 @@ public class MyFirstDevice : TcpModbusDevice
     /// </summary>
     private void LogPipelineConfiguration()
     {
-        var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor");
+        var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor");
         if (tempSensor != null)
         {
             _logger.LogInformation("Transform and DSP Filter loaded from appsettings.json for {SensorName}", tempSensor.Name);

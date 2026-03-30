@@ -34,13 +34,14 @@ After reading this article, you will be able to:
 
 The `examples/` directory contains ready-to-run examples:
 
-| Example | Description | Protocol | Best For |
-|---------|-------------|----------|----------|
-| **wise-4012** | Industrial I/O module | Modbus TCP | Learning basics |
-| **power-aggregation** | Multi-device aggregation | Multi-source | Data aggregation |
-| **stock-monitor** | HTTP API integration | HTTP | Custom protocols |
-| **image-sensor** | Image streaming | MQTT | Binary data |
-| **air-quality-monitor** | Environmental sensing | Mixed | Sensor fusion |
+| Example | Description | Data Type | Protocol | Best For |
+|---------|-------------|-----------|----------|----------|
+| **wise-4012** | Industrial I/O module | double + boolean | Modbus TCP | Learning basics |
+| **wise-4012-isensing** | Advantech proprietary protocol | double + boolean | ISensing MQTT | Learning basics |
+| **stock-monitor** | HTTP API integration | double | HTTP | Custom protocols |
+| **image-sensor** | Image streaming | image/png | MQTT | Binary data |
+| **air-quality-monitor** | Environmental sensing | application/json | HTTP | Sensor fusion |
+| **power-aggregation** | Multi-device aggregation | double | Multi-source | Data aggregation |
 
 ---
 
@@ -70,12 +71,20 @@ cd examples/wise-4012
 
 ```text
 wise-4012/
-├── Program.cs           # Application entry point
-├── MyFirstDevice.cs     # Custom device implementation
-├── devicecfg.json       # Device and sensor configuration
-├── appsettings.json     # Logging configuration
-└── wise-4012.csproj     # Project file
+├── .weda/                    # Runtime data (registration cache, local storage)
+├── payloads/                 # Sample command payloads for testing
+├── Program.cs                # Application entry point (*)
+├── MyFirstDevice.cs          # Custom device implementation (*)
+├── devicecfg.json            # Device and sensor configuration (*)
+├── systemcfg.json            # WedaNode connection settings
+├── customcfg.json            # Custom application settings (reserved)
+├── appsettings.json          # Logging (Serilog) configuration
+├── Dockerfile                # Container image build
+├── docker-compose.yml        # One-command container deployment
+└── Wise4012Example.csproj    # Project file and NuGet references
 ```
+
+> **Quick-start focus**: The three files marked `(*)` are the core. `Program.cs` handles startup, `MyFirstDevice.cs` defines device behavior, and `devicecfg.json` defines connections and sensors. The remaining files only need adjustment in advanced scenarios.
 
 ### Step 4: Configure the Device
 
@@ -170,6 +179,15 @@ Key points:
 - `AddDevice<T>("key")` registers a device type with a configuration key
 - The configuration key (`"MyFirstDevice"`) maps to `DeviceConfigs.MyFirstDevice` in the JSON
 
+```json
+{
+  "SubNode": { ... },
+  "DeviceConfigs": {
+    "MyFirstDevice": { ... }
+  }
+}
+```
+
 ### MyFirstDevice.cs
 
 ```csharp
@@ -209,21 +227,123 @@ Key points:
 
 ## Running Without Hardware
 
-If you do not have a physical device, use the built-in simulator:
+If you do not have a physical device, you can use the SDK's built-in Modbus TCP Simulator.
 
-1. Navigate to the template with the simulator:
+### Option 1: Using Docker (Recommended)
 
-   ```bash
-   cd templates/wedabuilder
-   ```
+The example directory provides `docker-compose-sim.yml` which starts both the Simulator and wise-4012 together:
 
-2. Run the template (includes Modbus Simulator):
+```bash
+# In examples/wise-4012/ directory
+docker compose -f docker-compose-sim.yml up -d
+```
 
-   ```bash
-   dotnet run
-   ```
+> Remember to change `Host` to `"127.0.0.1"` and `Port` to `5020` in `devicecfg.json`.
 
-The simulator creates a virtual Modbus device at `127.0.0.1:5020`.
+View logs:
+
+```bash
+docker compose -f docker-compose-sim.yml logs -f wise-4012
+```
+
+Stop:
+
+```bash
+docker compose -f docker-compose-sim.yml down
+```
+
+### Option 2: Run Simulator with dotnet run
+
+The SDK provides a standalone Simulator Host project at `tools/simulator-host/`. Start the Simulator in one terminal, then run the example in another:
+
+**Terminal 1 - Start Simulator:**
+
+```bash
+cd tools/simulator-host
+dotnet run
+```
+
+**Terminal 2 - Run the example:**
+
+```bash
+cd examples/wise-4012
+dotnet run
+```
+
+> Remember to change `Host` to `"127.0.0.1"` and `Port` to `5020` in `devicecfg.json`.
+
+The Simulator listens on `0.0.0.0:5020` by default and simulates temperature and humidity sensors. Simulation parameters can be adjusted in `tools/simulator-host/appsettings.json`.
+
+### Option 3: Register Simulator in Program.cs
+
+Register the Simulator as a HostedService directly in your application, so it starts and stops together with your app:
+
+```csharp
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Weda.SubNode.Host;
+using Weda.SubNode.Simulators.Modbus;
+
+var builder = WedaApplication.CreateDefaultBuilder(args)
+    .UseMockCloud();
+
+// Register Modbus simulator as hosted service
+builder.Services.AddHostedService(sp =>
+{
+    var config = builder.Configuration
+        .GetSection(TcpModbusSimulatorConfiguration.SectionName)
+        .Get<TcpModbusSimulatorConfiguration>()
+        ?? throw new InvalidOperationException(
+            $"Missing '{TcpModbusSimulatorConfiguration.SectionName}' section");
+
+    var logger = sp.GetRequiredService<ILogger<TcpModbusSimulator>>();
+    return new TcpModbusSimulatorHostedService(config, logger);
+});
+
+builder.AddDevice<MyFirstDevice>("MyFirstDevice");
+
+var app = builder.Build();
+await app.RunAsync();
+```
+
+Add the `TcpModbusSimulatorConfiguration` section to `appsettings.json`:
+
+```json
+{
+  "TcpModbusSimulatorConfiguration": {
+    "TcpConnection": {
+      "IpAddress": "0.0.0.0",
+      "Port": 5020
+    },
+    "ModbusProtocol": {
+      "SlaveId": 1
+    },
+    "Simulation": {
+      "GlobalUpdateIntervalSeconds": 1,
+      "EnableValueChanges": true
+    },
+    "Sensors": [
+      {
+        "Name": "TemperatureSensor",
+        "Type": "Temperature",
+        "StartAddress": 0,
+        "RegisterCount": 2,
+        "DataType": "Float32",
+        "SimulationParams": {
+          "MinValue": 18.0,
+          "MaxValue": 32.0,
+          "InitialValue": 25.0,
+          "ChangeRate": 0.2,
+          "NoiseLevel": 0.1
+        }
+      }
+    ]
+  }
+}
+```
+
+> This approach is ideal for rapid iteration during development, with no Docker dependency.
 
 ---
 
@@ -267,7 +387,6 @@ Error: Connection refused to 172.16.8.122:502
 - The `examples/` directory provides several ready-to-run example projects
 - `devicecfg.json` defines device connections and sensor settings; `Program.cs` wires them together via `AddDevice<T>("key")`
 - Custom device classes inherit from `TcpModbusDevice` and handle telemetry through the `DataReceived` event
-- Without physical hardware, use the built-in simulator in `templates/wedabuilder`
 
 ## See Also
 
@@ -281,5 +400,4 @@ Error: Connection refused to 172.16.8.122:502
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0.0 | 2026-03-06 | Rain Hu | Doc created. |
-| 1.1.0 | 2026-03-30 | Rain Hu | Rewritten to match zh version with Overview, What You'll Learn, Summary. |
+| 1.0.0 | 2026-03-30 | Rain Hu | Doc created. |

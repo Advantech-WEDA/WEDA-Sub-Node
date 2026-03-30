@@ -40,7 +40,7 @@ The configuration is done in `MyFirstDevice.cs`:
 ```csharp
 private void ConfigureTransformsAndFilters()
 {
-    var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor");
+    var tempSensor = Configuration.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor");
     if (tempSensor != null)
     {
         // Transform Pipeline
@@ -73,11 +73,11 @@ dotnet run
 
 **Expected Output:**
 ```
-[12:34:56 INF] Configuring Transform and DSP Filter for temperature.sensor
+[12:34:56 INF] Configuring Transform and DSP Filter for temperature_sensor
 [12:34:56 INF] Applied: Calibration → UnitConversion (°C→°F) → MovingAverage(5)
-[12:34:57 INF] temperature.sensor: 77.23°F (after calibration, unit conversion, and moving average)
-[12:34:58 INF] temperature.sensor: 77.45°F (after calibration, unit conversion, and moving average)
-[12:34:59 INF] temperature.sensor: 77.68°F (after calibration, unit conversion, and moving average)
+[12:34:57 INF] temperature_sensor: 77.23°F (after calibration, unit conversion, and moving average)
+[12:34:58 INF] temperature_sensor: 77.45°F (after calibration, unit conversion, and moving average)
+[12:34:59 INF] temperature_sensor: 77.68°F (after calibration, unit conversion, and moving average)
 ```
 
 ### 2. Connect to Real Modbus Device

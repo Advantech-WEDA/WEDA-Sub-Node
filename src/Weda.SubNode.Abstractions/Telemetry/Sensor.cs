@@ -21,7 +21,7 @@ public class Sensor
     public string ShortId => ResourceId.Length >= 5 ? ResourceId[^5..] : ResourceId;
 
     /// <summary>
-    /// Sensor name or channel identifier (e.g., "ai.channel[0]", "temperature.sensor")
+    /// Sensor name or channel identifier (e.g., "channel_0", "temperature_sensor")
     /// Required field.
     /// </summary>
     public string Name { get; set; } = string.Empty;

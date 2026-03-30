@@ -42,7 +42,7 @@ lang: "zh"
 {
   "Sensors": [
     {
-      "Name": "temperature.sensor",
+      "Name": "temperature_sensor",
       "Config": {
         "TransformPipeline": [
           {
@@ -98,14 +98,14 @@ dotnet run
 
 **預期輸出:**
 ```
-[12:34:56 INF] Transform and DSP Filter loaded from appsettings.json for temperature.sensor
+[12:34:56 INF] Transform and DSP Filter loaded from appsettings.json for temperature_sensor
 [12:34:56 INF] TransformPipeline: 2 transforms configured
 [12:34:56 INF]   - [Index=0] Calibration (Enabled=True)
 [12:34:56 INF]   - [Index=1] UnitConversion (Enabled=True)
 [12:34:56 INF] DspPipeline: 1 filters configured
 [12:34:56 INF]   - [Index=0] MovingAverage (Enabled=True)
 [12:34:56 INF] Pipeline: Calibration → UnitConversion (°C→°F) → MovingAverage(5)
-[12:34:57 INF] temperature.sensor: 77.23°F (after config-based pipeline)
+[12:34:57 INF] temperature_sensor: 77.23°F (after config-based pipeline)
 ```
 
 ## 配置方式的優勢

@@ -179,6 +179,15 @@ await app.RunAsync();
 - `AddDevice<T>("key")` 使用設定金鑰註冊裝置類型
 - 設定金鑰（`"MyFirstDevice"`）對應到 JSON 中的 `DeviceConfigs.MyFirstDevice`
 
+```json
+{
+  "SubNode": { ... },
+  "DeviceConfigs": {
+    "MyFirstDevice": { ... }
+  }
+}
+```
+
 ### MyFirstDevice.cs
 
 ```csharp
@@ -218,21 +227,123 @@ public class MyFirstDevice : TcpModbusDevice
 
 ## 無硬體執行
 
-如果你沒有實體裝置，請使用內建模擬器：
+如果你沒有實體裝置，可以使用 SDK 內建的 Modbus TCP Simulator 來模擬裝置。
 
-1. 導覽至包含模擬器的範本：
+### 方式一：使用 Docker（建議）
 
-   ```bash
-   cd templates/wedabuilder
-   ```
+範例目錄已提供 `docker-compose-sim.yml`，同時啟動 Simulator 和 wise-4012：
 
-2. 執行範本（包含 Modbus Simulator）：
+```bash
+# 在 examples/wise-4012/ 目錄下
+docker compose -f docker-compose-sim.yml up -d
+```
 
-   ```bash
-   dotnet run
-   ```
+> 記得將 `devicecfg.json` 中的 `Host` 改為 `"127.0.0.1"`，`Port` 改為 `5020`。
 
-Simulator 會在 `127.0.0.1:5020` 建立虛擬 Modbus 裝置。
+查看日誌：
+
+```bash
+docker compose -f docker-compose-sim.yml logs -f wise-4012
+```
+
+停止：
+
+```bash
+docker compose -f docker-compose-sim.yml down
+```
+
+### 方式二：使用 dotnet run 啟動 Simulator
+
+SDK 提供獨立的 Simulator Host 專案，位於 `tools/simulator-host/`。先在另一個終端機啟動 Simulator，再執行範例：
+
+**終端機 1 - 啟動 Simulator：**
+
+```bash
+cd tools/simulator-host
+dotnet run
+```
+
+**終端機 2 - 執行範例：**
+
+```bash
+cd examples/wise-4012
+dotnet run
+```
+
+> 記得將 `devicecfg.json` 中的 `Host` 改為 `"127.0.0.1"`，`Port` 改為 `5020`。
+
+Simulator 預設監聽 `0.0.0.0:5020`，模擬溫度和濕度兩個感測器。可透過 `tools/simulator-host/appsettings.json` 調整模擬參數。
+
+### 方式三：在 Program.cs 註冊 Simulator
+
+將 Simulator 作為 HostedService 直接註冊到你的應用程式中，隨應用程式一起啟動和停止：
+
+```csharp
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Weda.SubNode.Host;
+using Weda.SubNode.Simulators.Modbus;
+
+var builder = WedaApplication.CreateDefaultBuilder(args)
+    .UseMockCloud();
+
+// Register Modbus simulator as hosted service
+builder.Services.AddHostedService(sp =>
+{
+    var config = builder.Configuration
+        .GetSection(TcpModbusSimulatorConfiguration.SectionName)
+        .Get<TcpModbusSimulatorConfiguration>()
+        ?? throw new InvalidOperationException(
+            $"Missing '{TcpModbusSimulatorConfiguration.SectionName}' section");
+
+    var logger = sp.GetRequiredService<ILogger<TcpModbusSimulator>>();
+    return new TcpModbusSimulatorHostedService(config, logger);
+});
+
+builder.AddDevice<MyFirstDevice>("MyFirstDevice");
+
+var app = builder.Build();
+await app.RunAsync();
+```
+
+Simulator 設定在 `appsettings.json` 中加入 `TcpModbusSimulatorConfiguration` 區段：
+
+```json
+{
+  "TcpModbusSimulatorConfiguration": {
+    "TcpConnection": {
+      "IpAddress": "0.0.0.0",
+      "Port": 5020
+    },
+    "ModbusProtocol": {
+      "SlaveId": 1
+    },
+    "Simulation": {
+      "GlobalUpdateIntervalSeconds": 1,
+      "EnableValueChanges": true
+    },
+    "Sensors": [
+      {
+        "Name": "TemperatureSensor",
+        "Type": "Temperature",
+        "StartAddress": 0,
+        "RegisterCount": 2,
+        "DataType": "Float32",
+        "SimulationParams": {
+          "MinValue": 18.0,
+          "MaxValue": 32.0,
+          "InitialValue": 25.0,
+          "ChangeRate": 0.2,
+          "NoiseLevel": 0.1
+        }
+      }
+    ]
+  }
+}
+```
+
+> 這種方式適合開發階段快速迭代，不需要 Docker 環境。
 
 ---
 
@@ -276,7 +387,6 @@ Error: Connection refused to 172.16.8.122:502
 - `examples/` 目錄提供多個可直接執行的範例專案
 - `devicecfg.json` 定義裝置連線和感測器設定，`Program.cs` 透過 `AddDevice<T>("key")` 將兩者串接
 - 自訂裝置類別繼承 `TcpModbusDevice`，透過 `DataReceived` 事件處理遙測資料
-- 沒有實體裝置時，可使用 `templates/wedabuilder` 的內建 Simulator
 
 ## See Also
 
@@ -290,5 +400,4 @@ Error: Connection refused to 172.16.8.122:502
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0.0 | 2026-03-06 | Rain Hu | Doc created. |
-| 1.1.0 | 2026-03-30 | Rain Hu | Added Overview, What You'll Learn, Summary. Fixed links and formatting. |
+| 1.0.0 | 2026-03-30 | Rain Hu | Doc created. |

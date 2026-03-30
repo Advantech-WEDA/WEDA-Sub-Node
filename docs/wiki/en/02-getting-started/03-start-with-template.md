@@ -42,30 +42,56 @@ After reading this article, you will be able to:
 
 The `wedabuilder` template uses the modern builder pattern with automatic lifecycle management.
 
-### Step 1: Create a New Project
+### Step 1: Install the Template
+
+Install the SubNode template into the `dotnet new` template list:
 
 ```bash
-# Copy template to new location
-cp -r templates/wedabuilder ~/projects/my-subnode
-cd ~/projects/my-subnode
+# In repository root
+dotnet new install templates/wedabuilder
 ```
 
-### Step 2: Restore Dependencies
+Verify the installation:
 
 ```bash
-dotnet restore
+dotnet new list weda
 ```
+
+```text
+Template Name                          Short Name     Language
+-------------------------------------  -------------  --------
+Weda SubNode Builder Application       wedabuilder    [C#]
+```
+
+### Step 2: Create a New Project
+
+Create a new project under the `apps/` directory:
+
+```bash
+mkdir -p apps && cd apps
+dotnet new wedabuilder -n MySubNode
+cd MySubNode
+```
+
+> **Note**: The template uses `ProjectReference` to reference the SDK source (e.g., `../../src/Weda.SubNode.Host`), so new projects should be created under the `apps/` directory within the repository.
 
 ### Step 3: Review the Project Structure
 
 ```text
-my-subnode/
-├── Program.cs           # Application entry point (builder pattern)
-├── MyFirstDevice.cs     # Custom device class
-├── devicecfg.json       # Device configuration
-├── appsettings.json     # Logging and simulator configuration
-└── WedaBuilder.csproj   # Project file
+MySubNode/
+├── .template.config/         # dotnet new template metadata (can be deleted)
+├── Program.cs                # Application entry point (*)
+├── MyFirstDevice.cs          # Custom device implementation (*)
+├── devicecfg.json            # Device and sensor configuration (*)
+├── systemcfg.json            # WedaNode connection settings
+├── customcfg.json            # Custom application settings (reserved)
+├── appsettings.json          # Logging (Serilog) and simulator configuration
+├── Dockerfile                # Container image build
+├── docker-compose.yml        # One-command container deployment
+└── MySubNode.csproj          # Project file and NuGet/ProjectReference
 ```
+
+> **Quick-start focus**: The three files marked `(*)` are the core, matching the structure of the [wise-4012 example](./02-start-with-example.md). `appsettings.json` additionally contains the Simulator configuration.
 
 ### Step 4: Understand the Code
 
@@ -214,7 +240,7 @@ TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 
     var tempSensor = new ModbusSensorReporturation
     {
-        Name = "temperature.sensor",
+        Name = "temperature_sensor",
         RegisterAddress = 0,
         RegisterCount = 2,
         DataType = ModbusDataType.Float32,
@@ -231,12 +257,13 @@ TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 
 ### Differences Between the Two Templates
 
-| Aspect | WedaBuilder | SubNode |
-|--------|-------------|---------|
-| Configuration | JSON-based | Code-based |
-| Lifecycle | Automatic | Manual |
-| Flexibility | Opinionated | Full control |
-| Best for | Most use cases | Custom scenarios |
+| Aspect | WedaBuilder (recommended) | SubNode |
+|--------|---------------------------|---------|
+| Configuration | JSON + programmatic | JSON + programmatic |
+| Lifecycle | Fully automatic (Host-managed) | Semi-automatic (`StartAsync` enables automation, but allows manual single-shot operations) |
+| Host features | Full (Telemetry + Command + Config Sync) | Telemetry-focused |
+| Device access | Via events and DI | Direct access via `subNode.Devices[0].ReadTelemetryAsync()` |
+| Best for | Most use cases | Scenarios requiring fine-grained control or single-shot operations |
 
 ---
 
@@ -301,10 +328,10 @@ Add `TransformPipeline` inside `Report`:
 
 ## Summary
 
-- **WedaBuilder template** (recommended): Builder pattern + JSON configuration with automatic lifecycle management
-- **SubNode template**: Code-based configuration + manual lifecycle control for fully custom scenarios
+- **WedaBuilder template** (recommended): Fully automatic lifecycle with full Host features (Telemetry + Command + Config Sync)
+- **SubNode template**: Semi-automatic lifecycle, allows direct device operations for single-shot actions, Telemetry-focused
+- Both support JSON and programmatic configuration
 - Both include a built-in Modbus Simulator -- no physical hardware required for development
-- Extend functionality through the `Sensors` array and `TransformPipeline` in `devicecfg.json`
 
 ## See Also
 

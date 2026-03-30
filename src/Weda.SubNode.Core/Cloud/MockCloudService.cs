@@ -174,7 +174,7 @@ public class MockCloudService : IWedaCloudService
     private static string GetDisplayName(string? sensorName, SensorGroup sensorGroup)
     {
         // If we have a sensor name, convert it to PascalCase display name
-        // Example: "temperature.sensor" -> "TemperatureSensor"
+        // Example: "temperature_sensor" -> "TemperatureSensor"
         if (!string.IsNullOrEmpty(sensorName))
         {
             var parts = sensorName.Split('.');
