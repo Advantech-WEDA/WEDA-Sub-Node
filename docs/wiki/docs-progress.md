@@ -34,16 +34,16 @@
 
 | # | Article | zh Review | en Translate |
 |---|---------|-----------|--------------|
-| 1 | 01-project-structure.md | ⬜ Pending | ⬜ Pending |
-| 2 | 02-aggregation-overview.md | ⬜ Pending | ⬜ Pending |
+| 1 | 01-project-structure.md | ✅ Complete | ✅ Complete |
+| 2 | 02-aggregation-overview.md | ✅ Complete | ✅ Complete |
 
 ### 04-configuration
 
 | # | Article | zh Review | en Translate |
 |---|---------|-----------|--------------|
-| 1 | 01-configuration-via-code.md | ⬜ Pending | ⬜ Pending |
-| 2 | 02-configuration-via-json.md | ⬜ Pending | ⬜ Pending |
-| 3 | 03-configuration-examples.md | ⬜ Pending | ⬜ Pending |
+| 1 | 01-configuration-via-code.md | ✅ Complete | ✅ Complete |
+| 2 | 02-configuration-via-json.md | ✅ Complete | ✅ Complete |
+| 3 | 03-configuration-examples.md | ✅ Complete | ✅ Complete |
 
 ### 05-data-pipeline
 
@@ -124,15 +124,15 @@
 |---------|-------|---------|---------|
 | 01-introduction | 3 | 3 | 3 |
 | 02-getting-started | 4 | 4 | 4 |
-| 03-hierarchy | 2 | 0 | 0 |
-| 04-configuration | 3 | 0 | 0 |
+| 03-hierarchy | 2 | 2 | 2 |
+| 04-configuration | 3 | 3 | 3 |
 | 05-data-pipeline | 8 | 0 | 0 |
 | 06-remote-control | 2 | 0 | 0 |
 | 07-use-cases | 7 | 0 | 0 |
 | 08-examples | 6 | 0 | 0 |
 | 09-customization | 14 | 0 | 0 |
 | 10-faq | 3 | 0 | 0 |
-| **Total** | **52** | **7** | **7** |
+| **Total** | **52** | **12** | **12** |
 
 ---
 
