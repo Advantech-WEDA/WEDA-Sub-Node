@@ -28,7 +28,7 @@
 | 1 | 01-prerequisites.md | ✅ Complete | ✅ Complete |
 | 2 | 02-start-with-example.md | ✅ Complete | ✅ Complete |
 | 3 | 03-start-with-template.md | ✅ Complete | ✅ Complete |
-| 4 | 04-connect-to-wedacore.md | ⬜ Pending | ⬜ Pending |
+| 4 | 04-connect-to-wedacore.md | ✅ Complete | ✅ Complete |
 
 ### 03-hierarchy
 
@@ -123,7 +123,7 @@
 | Section | Total | zh Done | en Done |
 |---------|-------|---------|---------|
 | 01-introduction | 3 | 3 | 3 |
-| 02-getting-started | 4 | 3 | 3 |
+| 02-getting-started | 4 | 4 | 4 |
 | 03-hierarchy | 2 | 0 | 0 |
 | 04-configuration | 3 | 0 | 0 |
 | 05-data-pipeline | 8 | 0 | 0 |
@@ -132,7 +132,7 @@
 | 08-examples | 6 | 0 | 0 |
 | 09-customization | 14 | 0 | 0 |
 | 10-faq | 3 | 0 | 0 |
-| **Total** | **52** | **6** | **6** |
+| **Total** | **52** | **7** | **7** |
 
 ---
 

@@ -2,20 +2,38 @@
 sidebar_position: 4
 sidebar_label: '連接到 WedaCore'
 hide_title: true
-title: '連接到 WedaCore - 雲端整合設定'
-keywords: ['SubNode', 'WedaCore', 'WedaNode', 'NATS', 'Cloud']
-description: '設定 SubNode 透過 WedaNode 連接到 WedaCore 雲端平台'
+title: '連接到 WedaCore | SubNode SDK'
+keywords: ['SubNode', 'WedaCore', 'WedaNode', 'NATS', 'Cloud', 'Authentication']
+description: '設定 SubNode 透過 WedaNode 連接到 WedaCore 雲端平台。'
 ---
 
 # 連接到 WedaCore
 
 > 設定 SubNode 透過 WedaNode 連接到 WedaCore 雲端平台。
 
+## Overview
+
+SubNode 應用程式不直接連接 WedaCore，而是透過本機的 WedaNode（NATS Proxy）進行通訊。WedaNode 由 Device Activator 安裝，負責安全連接、憑證管理和訊息路由。本文說明開發與正式環境的差異，以及 `systemcfg.json` 中各種認證策略的設定方式。
+
+## What You'll Learn
+
+閱讀本文後，你將能夠：
+
+- 理解 SubNode、WedaNode、WedaCore 三者的關係
+- 區分開發模式（MockCloud）與正式模式的差異
+- 在 `systemcfg.json` 中設定不同的認證策略
+- 排解常見的連線問題
+
+## Prerequisites
+
+- 完成[環境準備](./01-prerequisites.md)
+- 完成[使用範例開始](./02-start-with-example.md)或[使用範本開始](./03-start-with-template.md)
+
+---
+
 ## 架構概述
 
-SubNode 透過 WedaNode（本機 NATS 代理）連接到 WedaCore：
-
-```
+```text
 ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
 │   SubNode    │──NATS──>│   WedaNode   │──NATS──>│   WedaCore   │
 │ Application  │         │ (127.0.0.1:  │         │   (Cloud)    │
@@ -23,42 +41,46 @@ SubNode 透過 WedaNode（本機 NATS 代理）連接到 WedaCore：
 └──────────────┘         └──────────────┘         └──────────────┘
 ```
 
-WedaNode 由 **Device Activator** 安裝，負責處理：
-- 安全連接到 WedaCore
-- 憑證管理
-- 訊息路由和緩衝
+- **SubNode** - 你的邊緣裝置應用程式
+- **WedaNode** - 本機 NATS Proxy，由 Device Activator 安裝，預設監聽 `127.0.0.1:4224`
+- **WedaCore** - 雲端平台，提供數位分身、遙測儲存、遠端控制等功能
 
-## 開發 vs 正式環境
+---
 
-### 開發模式（Mock Cloud）
+## 開發模式 vs 正式模式
 
-開發期間，使用 `UseMockCloud()` 在無 WedaCore 的情況下測試：
+### 開發模式（MockCloud）
+
+開發期間使用 `UseMockCloud()`，無需 WedaNode 和網路連線：
 
 ```csharp
 var builder = WedaApplication.CreateDefaultBuilder(args)
-    .UseMockCloud();  // 無實際雲端連接
+    .UseMockCloud();
 ```
 
-這讓您可以：
-- 測試裝置通訊
-- 驗證感測器設定
+MockCloud 模擬雲端行為，讓你可以：
+
+- 測試裝置通訊和感測器設定
 - 除錯 Data Pipeline
-- 在無網路依賴的情況下開發
+- 開發 Command Handler
+- 完全離線開發
 
-### 正式模式（WedaNode）
+### 正式模式
 
-正式環境中，連接到 WedaNode：
+正式環境中，移除 `UseMockCloud()`。`CreateDefaultBuilder` 會自動從 `systemcfg.json` 讀取 WedaNode 連線設定：
 
 ```csharp
-var builder = WedaApplication.CreateDefaultBuilder(args)
-    .UseCloud();  // 連接到 WedaNode
+// CreateDefaultBuilder automatically reads systemcfg.json for WedaNode settings
+var builder = WedaApplication.CreateDefaultBuilder(args);
 ```
 
-## 設定選項
+---
+
+## 設定 WedaNode 連線
 
 ### systemcfg.json
 
-在 `systemcfg.json` 中設定 WedaNode 連接：
+WedaNode 連線設定在 `systemcfg.json` 中定義：
 
 ```json
 {
@@ -69,11 +91,17 @@ var builder = WedaApplication.CreateDefaultBuilder(args)
 }
 ```
 
-### 認證策略
+> `systemcfg.json` 在框架內部會被載入到 `SystemConfig` section（即 `SystemConfig:WedaNode`）。
 
-WedaNode 支援多種認證方式：
+---
 
-#### 無認證（預設）
+## 認證策略
+
+SDK 支援以下認證策略（對應 `NatsAuthStrategy` enum）：
+
+### None（預設）
+
+匿名連線，無需認證：
 
 ```json
 {
@@ -84,98 +112,163 @@ WedaNode 支援多種認證方式：
 }
 ```
 
-#### 使用者名稱/密碼
+### UserPassword
+
+使用者名稱與密碼認證（Device Activator 預設使用此策略）：
 
 ```json
 {
   "WedaNode": {
     "Url": "127.0.0.1:4224",
     "AuthStrategy": "UserPassword",
-    "Username": "your_username",
+    "Username": "advantech_nats",
     "Password": "your_password_hash"
   }
 }
 ```
 
-#### 憑證檔案
+### Token
+
+Token 認證：
 
 ```json
 {
   "WedaNode": {
     "Url": "127.0.0.1:4224",
-    "AuthStrategy": "CredentialsFile",
-    "CredentialsFile": "/path/to/credentials.creds"
+    "AuthStrategy": "Token",
+    "Token": "your_auth_token"
   }
 }
 ```
 
-憑證檔案是標準 NATS 憑證檔案，包含：
-- User JWT
-- Private NKey
+### CredFile
 
-#### NKey 認證
+使用 NATS Credential File（包含 JWT + NKey Seed）：
 
 ```json
 {
   "WedaNode": {
     "Url": "127.0.0.1:4224",
-    "AuthStrategy": "NKey",
-    "NKeyFile": "/path/to/nkey.seed"
+    "AuthStrategy": "CredFile",
+    "CredFile": "/path/to/credentials.creds"
   }
 }
 ```
 
-## 透過程式碼設定
+### TlsCert
 
-您也可以以程式方式設定連接：
+TLS 用戶端憑證認證：
+
+```json
+{
+  "WedaNode": {
+    "Url": "127.0.0.1:4224",
+    "AuthStrategy": "TlsCert",
+    "TlsCertPath": "/path/to/client.crt",
+    "TlsKeyPath": "/path/to/client.key",
+    "TlsCaPath": "/path/to/ca.crt"
+  }
+}
+```
+
+| 欄位 | 必要 | 說明 |
+|------|------|------|
+| `TlsCertPath` | 是 | TLS 用戶端憑證（PEM 或 PFX）|
+| `TlsKeyPath` | 是 | TLS 用戶端私鑰（PEM）|
+| `TlsCaPath` | 否 | CA 憑證，用於驗證伺服器 |
+
+### 認證策略總覽
+
+| AuthStrategy | 必要欄位 | 適用場景 |
+|--------------|----------|----------|
+| `None` | - | 開發、測試 |
+| `UserPassword` | `Username`, `Password` | Device Activator 預設 |
+| `Token` | `Token` | 簡易 Token 驗證 |
+| `CredFile` | `CredFile` | NATS JWT + NKey 認證 |
+| `TlsCert` | `TlsCertPath`, `TlsKeyPath` | 企業級 TLS 雙向認證 |
+
+---
+
+## 覆寫設定
+
+除了 `systemcfg.json`，也可以透過環境變數或命令列參數覆寫 WedaNode 連線設定。設定路徑為 `SystemConfig:WedaNode:<Property>`。
+
+### 環境變數
+
+```bash
+# Connection URL
+export SystemConfig__WedaNode__Url="127.0.0.1:4224"
+
+# UserPassword authentication
+export SystemConfig__WedaNode__AuthStrategy="UserPassword"
+export SystemConfig__WedaNode__Username="your_username"
+export SystemConfig__WedaNode__Password="your_password_hash"
+
+# Or CredFile authentication
+export SystemConfig__WedaNode__AuthStrategy="CredFile"
+export SystemConfig__WedaNode__CredFile="/path/to/credentials.creds"
+```
+
+> 環境變數使用 `__`（雙底線）作為階層分隔符。
+
+### 命令列參數
+
+```bash
+# Override URL
+dotnet run -- --SystemConfig:WedaNode:Url=172.22.160.197:4224
+
+# Override authentication
+dotnet run -- \
+  --SystemConfig:WedaNode:AuthStrategy=UserPassword \
+  --SystemConfig:WedaNode:Username=admin \
+  --SystemConfig:WedaNode:Password=secret
+```
+
+> 命令列參數優先權最高，會覆蓋 `systemcfg.json` 和環境變數的設定。適合用於快速測試不同的 WedaNode 連線。
+
+---
+
+## 雲端功能
+
+連接到 WedaCore 後，以下功能可用：
+
+| 功能 | 方向 | 說明 |
+|------|------|------|
+| Telemetry | Uplink | 傳送感測器資料到雲端 |
+| Health Reporting | Uplink | 報告裝置健康狀態 |
+| Commands | Downlink | 接收並執行遠端命令 |
+| Config Updates | Downlink | 接收並套用設定變更 |
+| Recording | Local | 本機歷史資料儲存 |
+
+使用 `CreateBuilder` 時，可個別選擇啟用的功能：
 
 ```csharp
 var builder = WedaApplication.CreateBuilder(args)
-    .UseCloud(options =>
-    {
-        options.Url = "127.0.0.1:4224";
-        options.AuthStrategy = AuthStrategy.UserPassword;
-        options.Username = "your_username";
-        options.Password = "your_password_hash";
-    });
+    .AddTelemetry()        // Uplink: telemetry reporting
+    .AddHealthReporting()  // Uplink: health status
+    .AddCommands()         // Downlink: remote commands
+    .AddConfigUpdates()    // Downlink: configuration sync
+    .AddRecording();       // Local: historical data storage
 ```
 
-## 環境變數
+> `CreateDefaultBuilder` 預設啟用所有功能。
 
-使用環境變數覆寫設定：
+---
 
-```bash
-# 連接 URL
-export WEDANODE__URL="127.0.0.1:4224"
-
-# 認證
-export WEDANODE__AUTHSTRATEGY="UserPassword"
-export WEDANODE__USERNAME="your_username"
-export WEDANODE__PASSWORD="your_password_hash"
-
-# 或使用憑證檔案
-export WEDANODE__AUTHSTRATEGY="CredentialsFile"
-export WEDANODE__CREDENTIALSFILE="/path/to/credentials.creds"
-```
-
-## 驗證連接
+## 驗證連線
 
 ### 檢查 WedaNode 狀態
 
-驗證 WedaNode 是否正在執行：
-
 ```bash
-# 檢查 WedaNode 是否正在監聽
+# Check if WedaNode is listening
 netstat -an | grep 4224
-# 或
+# or
 ss -tlnp | grep 4224
 ```
 
-### 啟用連接日誌
+### 啟用連線日誌
 
-啟用詳細日誌以排解連接問題：
-
-**appsettings.json：**
+在 `appsettings.json` 中啟用詳細日誌：
 
 ```json
 {
@@ -190,100 +283,55 @@ ss -tlnp | grep 4224
 }
 ```
 
-### 預期日誌輸出
-
-連接成功：
-
-```
-[12:00:00 INF] Connecting to WedaNode at 127.0.0.1:4224
-[12:00:00 INF] Connected to WedaNode successfully
-[12:00:00 INF] Registering SubNode: MySubNode
-[12:00:00 INF] SubNode registered with ID: abc-123-def
-```
-
-連接失敗：
-
-```
-[12:00:00 ERR] Failed to connect to WedaNode at 127.0.0.1:4224
-[12:00:00 ERR] Error: Connection refused
-[12:00:05 INF] Retrying connection (attempt 2/5)...
-```
-
-## 雲端功能
-
-透過 WedaNode 連接到 WedaCore 後，將啟用以下功能：
-
-| 功能 | 方向 | 說明 |
-|------|------|------|
-| Telemetry | 上行 | 傳送感測器資料到雲端 |
-| Health | 上行 | 報告裝置健康狀態 |
-| Commands | 下行 | 接收遠端命令 |
-| Config Updates | 下行 | 接收設定變更 |
-| Alerts | 上行 | 傳送閾值警示 |
-
-### 啟用/停用功能
-
-控制哪些功能處於活動狀態：
-
-```csharp
-var builder = WedaApplication.CreateBuilder(args)
-    .AddTelemetry()        // 啟用遙測上傳
-    .AddHealthReporting()  // 啟用健康報告
-    .AddCommands()         // 啟用命令接收
-    .AddConfigUpdates()    // 啟用設定同步
-    .UseCloud();
-```
+---
 
 ## 疑難排解
 
 ### 連線被拒絕
 
-```
+```text
 Error: Connection refused to 127.0.0.1:4224
 ```
 
 **解決方案：**
-1. 驗證 WedaNode 是否正在執行
+
+1. 確認 WedaNode 是否正在執行
 2. 檢查 WedaNode 日誌是否有錯誤
 3. 確保防火牆允許本機連線
 4. 聯繫 WedaNode 管理員
 
 ### 認證失敗
 
-```
+```text
 Error: Authentication failed - invalid credentials
 ```
 
 **解決方案：**
-1. 驗證使用者名稱/密碼是否正確
-2. 檢查憑證檔案路徑是否存在
+
+1. 確認 `AuthStrategy` 與 WedaNode 管理員提供的認證方式一致
+2. 驗證 `Username` / `Password` 或憑證檔案路徑是否正確
 3. 確保憑證未過期
 4. 聯繫 WedaNode 管理員取得有效憑證
 
-### 逾時
+---
 
-```
-Error: Connection timeout after 30s
-```
+## Summary
 
-**解決方案：**
-1. 檢查網路連線
-2. 驗證 WedaNode URL 是否正確
-3. 在設定中增加逾時時間：
-   ```json
-   {
-     "WedaNode": {
-       "ConnectTimeout": 60000
-     }
-   }
-   ```
+- SubNode 透過 WedaNode（本機 NATS Proxy）連接 WedaCore，不直接連雲端
+- 開發時使用 `UseMockCloud()`，正式環境移除即可自動讀取 `systemcfg.json`
+- SDK 支援 5 種認證策略：`None`、`UserPassword`、`Token`、`CredFile`、`TlsCert`
+- Device Activator 預設使用 `UserPassword` 策略，`systemcfg.json` 會自動設定好
 
-## 下一步
+## See Also
 
-- [專案結構](../03-project-structure.md) - 了解程式碼庫
-- [感測器設定](../04-sensor-configuration/configuration-reference.md) - 設定感測器
-- [遠端控制](../06-remote-control/built-in-commands.md) - 處理雲端命令
+- [專案結構](../03-architecture/01-project-structure.md) - 了解設定檔的載入順序
+- [感測器設定](../04-configuration/02-configuration-via-json.md) - 設定裝置與感測器
+- [術語表](../01-introduction/03-terminology.md) - WedaNode、WedaCore 的定義
 
-import Revision from '@site/src/components/Revision';
+---
 
-<Revision date="Mar-06, 2026" version="v1.0.0" />
+## Change History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-30 | Rain Hu | Doc created. |
