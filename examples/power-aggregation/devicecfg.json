@@ -31,6 +31,11 @@
             "RegisterCount": 2,
             "DataType": "Float32"
           },
+          "SensorInfo": {
+            "DisplayName": "Current Sensor",
+            "Description": "Current measurement sensor",
+            "Schema": "double"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 3000
@@ -61,6 +66,11 @@
             "RegisterAddress": 40001,
             "RegisterCount": 2,
             "DataType": "Float32"
+          },
+          "SensorInfo": {
+            "DisplayName": "Voltage Sensor",
+            "Description": "Voltage measurement sensor",
+            "Schema": "double"
           },
           "Report": {
             "Enabled": true,
@@ -97,6 +107,11 @@
             "DataType": "Float64",
             "VoltageSource": "VoltageSensor/voltage001",
             "CurrentSource": "CurrentSensor/current001"
+          },
+          "SensorInfo": {
+            "DisplayName": "Power Aggregator",
+            "Description": "Calculated power from voltage and current",
+            "Schema": "double"
           },
           "Report": {
             "Enabled": true,

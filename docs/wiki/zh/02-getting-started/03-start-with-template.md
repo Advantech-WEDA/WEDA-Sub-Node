@@ -2,23 +2,41 @@
 sidebar_position: 3
 sidebar_label: '使用範本開始'
 hide_title: true
-title: '使用範本開始 - 建立新的 SubNode 專案'
-keywords: ['SubNode', 'Template', 'dotnet new', 'Project Creation']
-description: '使用 dotnet 範本建立新的 SubNode 專案'
+title: '使用範本開始 | SubNode SDK'
+keywords: ['SubNode', 'Template', 'WedaBuilder', 'Project Creation']
+description: '使用專案範本從頭建立新的 SubNode 專案。'
 ---
 
 # 使用範本開始
 
-> 使用範本從頭建立新的 SubNode 專案。
+> 使用專案範本從頭建立新的 SubNode 專案。
+
+## Overview
+
+SubNode SDK 提供兩種專案範本，讓你快速建立可執行的邊緣裝置應用程式。本文介紹兩者的差異、操作步驟，以及如何在範本基礎上自訂感測器和資料轉換。
+
+## What You'll Learn
+
+閱讀本文後，你將能夠：
+
+- 使用 WedaBuilder 範本建立新專案並執行
+- 理解 WedaBuilder 和 SubNode 兩種範本的差異
+- 透過 JSON 或程式碼新增感測器和資料轉換
+
+## Prerequisites
+
+- 完成[環境準備](./01-prerequisites.md)
+
+---
 
 ## 可用範本
 
-SubNode 提供兩種專案範本：
-
 | 範本 | 名稱 | 說明 |
 |------|------|------|
-| **subnode** | WedaSubNode | 傳統 SubNode 模式，具有明確的生命週期控制 |
 | **wedabuilder** | WedaBuilder | Builder 模式，使用 Fluent API（建議使用）|
+| **subnode** | WedaSubNode | 傳統 SubNode 模式，具有明確的生命週期控制 |
+
+---
 
 ## 使用 WedaBuilder 範本（建議）
 
@@ -27,10 +45,7 @@ SubNode 提供兩種專案範本：
 ### 步驟 1：建立新專案
 
 ```bash
-# 從儲存庫根目錄
-cd templates/wedabuilder
-
-# 或複製到新位置
+# Copy template to new location
 cp -r templates/wedabuilder ~/projects/my-subnode
 cd ~/projects/my-subnode
 ```
@@ -43,13 +58,13 @@ dotnet restore
 
 ### 步驟 3：檢視專案結構
 
-```
+```text
 my-subnode/
-├── Program.cs           # 使用 builder 模式的應用程式進入點
-├── MyFirstDevice.cs     # 自訂裝置類別
-├── devicecfg.json       # 裝置設定
-├── appsettings.json     # 日誌設定
-└── WedaBuilder.csproj   # 專案檔
+├── Program.cs           # Application entry point (builder pattern)
+├── MyFirstDevice.cs     # Custom device class
+├── devicecfg.json       # Device configuration
+├── appsettings.json     # Logging and simulator configuration
+└── WedaBuilder.csproj   # Project file
 ```
 
 ### 步驟 4：理解程式碼
@@ -60,16 +75,10 @@ my-subnode/
 using Weda.SubNode.Host;
 using WedaBuilder;
 
-var builder = WedaApplication.CreateBuilder(args)
-    .AddLogging()           // 主控台和檔案日誌
-    .AddTelemetry()         // 上行：遙測報告
-    .AddHealthReporting()   // 上行：健康狀態
-    .AddCommands()          // 下行：遠端命令
-    .AddConfigUpdates()     // 下行：設定同步
-    .AddRecording()         // 本機：歷史資料儲存
-    .UseMockCloud();        // 使用模擬伺服器（正式環境請更改）
+var builder = WedaApplication.CreateDefaultBuilder(args)
+    .UseMockCloud();       // Use mock server (change for production)
 
-builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");
+builder.AddDevice<MyFirstDevice>("MyFirstDevice");
 
 var app = builder.Build();
 await app.RunAsync();
@@ -89,7 +98,6 @@ public class MyFirstDevice : TcpModbusDevice
 
     private void OnDataReceived(object? sender, DataReceivedEvent e)
     {
-        // 處理接收到的遙測資料
         foreach (var measure in e.Data)
         {
             _logger.LogInformation("Received: {ResourceId} = {Value}",
@@ -99,7 +107,7 @@ public class MyFirstDevice : TcpModbusDevice
 }
 ```
 
-### 步驟 5：設定您的裝置
+### 步驟 5：設定裝置
 
 編輯 `devicecfg.json`：
 
@@ -113,7 +121,7 @@ public class MyFirstDevice : TcpModbusDevice
     "SwVersion": "1.0.0"
   },
   "DeviceConfigs": {
-    "MyFirstDeviceConfig": {
+    "MyFirstDevice": {
       "Enabled": true,
       "DeviceCommunication": {
         "Host": "127.0.0.1",
@@ -143,9 +151,9 @@ public class MyFirstDevice : TcpModbusDevice
 }
 ```
 
-### 步驟 6：使用模擬器執行
+### 步驟 6：使用 Simulator 執行
 
-範本包含會自動啟動的 Modbus 模擬器：
+範本包含會自動啟動的 Modbus Simulator（設定在 `appsettings.json`）：
 
 ```bash
 dotnet run
@@ -153,7 +161,7 @@ dotnet run
 
 **預期輸出：**
 
-```
+```text
 [12:00:00 INF] Modbus simulator started on 127.0.0.1:5020
 [12:00:01 INF] SubNode started. Press Ctrl+C to stop...
 [12:00:06 INF] Received: abc12 = 25.3
@@ -161,36 +169,27 @@ dotnet run
 ...
 ```
 
+---
+
 ## 使用 SubNode 範本
 
-`subnode` 範本提供明確的生命週期控制。
+`subnode` 範本提供明確的生命週期控制，以程式碼定義裝置設定。
 
-### 步驟 1：建立新專案
-
-```bash
-cd templates/subnode
-```
-
-### 步驟 2：檢視程式碼
-
-**Program.cs：**
+### 程式碼概覽
 
 ```csharp
 using Weda.SubNode.Host;
 using Weda.SubNode.Host.Context;
+using Weda.SubNode.Cloud;
 
-// 使用模擬雲端建立 context
+// Create context with mock cloud
 using var context = new WedaApplicationContext(
-    options => options.CloudService = WedaFactory.Cloud.Mock);
+    options => options.CloudService = Cloud.Mock());
 
-// 設定並啟動模擬器
-var simulator = await ConfigureTcpModbusSimulator(context);
-
-// 使用明確生命週期建立 SubNode
+// Create SubNode with explicit lifecycle
 await using var subNode = new SubNode(context);
 subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
 
-// 手動生命週期控制
 await subNode.InitializeAsync();
 await subNode.StartAsync();
 
@@ -198,21 +197,10 @@ Console.WriteLine("SubNode started. Press Ctrl+C to stop...");
 await Task.Delay(Timeout.Infinite);
 ```
 
-### 與 WedaBuilder 的差異
-
-| 面向 | WedaBuilder | SubNode |
-|------|-------------|---------|
-| 設定 | JSON 為主 | 程式碼為主 |
-| 生命週期 | 自動 | 手動 |
-| 彈性 | 固定模式 | 完全控制 |
-| 適用於 | 大多數使用案例 | 自訂場景 |
-
-## 透過程式碼新增設定
-
-對於 SubNode 範本，以程式方式設定感測器：
+### 透過程式碼設定感測器
 
 ```csharp
-DeviceConfiguration ConfigureDeviceConfiguration()
+TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 {
     var modbusConfig = new TcpModbusDeviceConfiguration
     {
@@ -224,7 +212,6 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         SlaveId = 1
     };
 
-    // 新增溫度感測器
     var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
@@ -234,20 +221,30 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
-    tempSensor.Config.Interval = 5000;
+    tempSensor.Config.Interval = 1000;
 
     modbusConfig.AddSensor(tempSensor);
 
-    var deviceConfig = modbusConfig.ToDeviceConfiguration();
-    deviceConfig.InitializeDtdl();
-
-    return deviceConfig;
+    return modbusConfig;
 }
 ```
 
-## 自訂您的裝置
+### 兩種範本的差異
+
+| 面向 | WedaBuilder | SubNode |
+|------|-------------|---------|
+| 設定方式 | JSON 為主 | 程式碼為主 |
+| 生命週期 | 自動 | 手動 |
+| 彈性 | 固定模式 | 完全控制 |
+| 適用於 | 大多數使用案例 | 自訂場景 |
+
+---
+
+## 自訂範本
 
 ### 新增更多感測器
+
+在 `devicecfg.json` 的 `Sensors` 陣列中新增項目：
 
 ```json
 {
@@ -276,38 +273,50 @@ DeviceConfiguration ConfigureDeviceConfiguration()
 }
 ```
 
-### 新增資料轉換
+### 新增 Data Transform
+
+在 `Report` 中加入 `TransformPipeline`：
 
 ```json
 {
-  "Sensors": [
-    {
-      "Name": "temperature",
-      "Report": {
+  "Name": "temperature",
+  "Report": {
+    "Enabled": true,
+    "Interval": 5000,
+    "TransformPipeline": [
+      {
+        "Type": "calibration",
         "Enabled": true,
-        "Interval": 5000,
-        "Transforms": [
-          {
-            "Type": "calibration",
-            "Enabled": true,
-            "Parameters": {
-              "Scale": 0.1,
-              "Offset": -10.0
-            }
-          }
-        ]
+        "Parameters": {
+          "Scale": 0.1,
+          "Offset": -10.0
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
-## 下一步
+---
 
-- [連接到 WedaCore](./connect-to-wedacore.md) - 設定雲端連線
-- [感測器設定](../04-sensor-configuration/configuration-reference.md) - 完整設定參考
-- [Data Pipeline](../05-data-pipeline/pipeline-overview.md) - 資料轉換指南
+## Summary
 
-import Revision from '@site/src/components/Revision';
+- **WedaBuilder 範本**（建議）：Builder 模式 + JSON 設定，自動管理生命週期
+- **SubNode 範本**：程式碼設定 + 手動生命週期控制，適合需要完全客製化的場景
+- 兩者都包含內建 Modbus Simulator，無需實體裝置即可開發
+- 透過 `devicecfg.json` 的 `Sensors` 和 `TransformPipeline` 即可擴展功能
 
-<Revision date="Mar-06, 2026" version="v1.0.0" />
+## See Also
+
+- [連接到 WedaCore](./04-connect-to-wedacore.md) - 設定雲端連線
+- [感測器設定](../04-configuration/02-configuration-via-json.md) - 完整 JSON 設定參考
+- [Data Pipeline](../05-data-pipeline/01-overview.md) - 資料轉換指南
+
+---
+
+## Change History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-06 | Rain Hu | Doc created. |
+| 1.1.0 | 2026-03-30 | Rain Hu | Added Overview, What You'll Learn, Summary. Updated code examples and links. |

@@ -126,8 +126,8 @@ Docker 會自動下載所需映像檔並啟動 SubNode 應用程式，無需本�
 ### C.4 開啟專案
 
 ```bash
-git clone https://github.com/Advantech-Containers/WEDA-Sub-Nodet
-code WEDA-Sub-Nodet
+git clone https://github.com/Advantech-Containers/WEDA-Sub-Node
+code WEDA-Sub-Node
 ```
 
 VS Code 偵測到 `.devcontainer/` 設定後會提示 **Reopen in Container**，點擊即可。Container 內已預裝：

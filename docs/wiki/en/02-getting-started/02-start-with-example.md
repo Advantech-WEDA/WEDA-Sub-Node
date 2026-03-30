@@ -2,18 +2,37 @@
 sidebar_position: 2
 sidebar_label: 'Start with Example'
 hide_title: true
-title: 'Start with Example - Running Pre-built SubNode Examples'
+title: 'Start with Example | SubNode SDK'
 keywords: ['SubNode', 'Example', 'WISE-4012', 'Modbus', 'Quick Start']
-description: 'Learn SubNode by running and exploring pre-built examples'
+description: 'Learn SubNode SDK by running and exploring pre-built examples.'
 ---
 
 # Start with Example
 
 > Learn SubNode by running and exploring pre-built examples.
 
+## Overview
+
+SubNode SDK ships with several ready-to-run example projects covering different protocols and use cases. This article walks you through the WISE-4012 example -- from running it, to configuring it, to understanding the code -- so you can quickly grasp the core SubNode workflow.
+
+## What You'll Learn
+
+After reading this article, you will be able to:
+
+- Run a pre-built SubNode example project
+- Understand the relationship between `devicecfg.json` and the `Program.cs` entry point
+- Understand the basic structure of a custom device class
+- Develop without physical hardware using the built-in simulator
+
+## Prerequisites
+
+- Completed [Prerequisites](./01-prerequisites.md)
+
+---
+
 ## Available Examples
 
-The `examples/` directory contains production-ready examples:
+The `examples/` directory contains ready-to-run examples:
 
 | Example | Description | Protocol | Best For |
 |---------|-------------|----------|----------|
@@ -23,9 +42,12 @@ The `examples/` directory contains production-ready examples:
 | **image-sensor** | Image streaming | MQTT | Binary data |
 | **air-quality-monitor** | Environmental sensing | Mixed | Sensor fusion |
 
+---
+
 ## Running the WISE-4012 Example
 
 The `wise-4012` example is recommended for beginners. It demonstrates:
+
 - Basic device configuration
 - Modbus TCP communication
 - Sensor telemetry collection
@@ -34,8 +56,8 @@ The `wise-4012` example is recommended for beginners. It demonstrates:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://your-repo/edge_subnode.git
-cd edge_subnode
+git clone https://github.com/Advantech-Containers/WEDA-Sub-Node
+cd WEDA-Sub-Node
 ```
 
 ### Step 2: Navigate to the Example
@@ -46,7 +68,7 @@ cd examples/wise-4012
 
 ### Step 3: Review the Project Structure
 
-```
+```text
 wise-4012/
 ├── Program.cs           # Application entry point
 ├── MyFirstDevice.cs     # Custom device implementation
@@ -57,7 +79,7 @@ wise-4012/
 
 ### Step 4: Configure the Device
 
-Edit `devicecfg.json` to match your device:
+Edit the `Host` field in `devicecfg.json` to match your device IP:
 
 ```json
 {
@@ -72,7 +94,7 @@ Edit `devicecfg.json` to match your device:
     "MyFirstDevice": {
       "Enabled": true,
       "DeviceCommunication": {
-        "Host": "172.16.8.122",   // <-- Change to your device IP
+        "Host": "172.16.8.122",
         "Port": 502
       },
       "Properties": {
@@ -93,12 +115,13 @@ Edit `devicecfg.json` to match your device:
             "Interval": 3000
           }
         }
-        // ... more sensors
       ]
     }
   }
 }
 ```
+
+> **Note**: Change `"Host": "172.16.8.122"` to your device's actual IP address.
 
 ### Step 5: Run the Example
 
@@ -108,7 +131,7 @@ dotnet run
 
 **Expected output:**
 
-```
+```text
 [12:34:56 INF] SubNode started. Press Ctrl+C to stop...
 [12:34:57 INF] channel_0: 1234
 [12:34:57 INF] channel_1: 5678
@@ -119,6 +142,8 @@ dotnet run
 ```
 
 Press `Ctrl+C` to stop.
+
+---
 
 ## Understanding the Code
 
@@ -140,9 +165,10 @@ await app.RunAsync();
 ```
 
 Key points:
+
 - `CreateDefaultBuilder` loads configuration from `devicecfg.json` and `appsettings.json`
 - `AddDevice<T>("key")` registers a device type with a configuration key
-- The configuration key (`"MyFirstDevice"`) maps to `DeviceConfigs.MyFirstDevice` in JSON
+- The configuration key (`"MyFirstDevice"`) maps to `DeviceConfigs.MyFirstDevice` in the JSON
 
 ### MyFirstDevice.cs
 
@@ -173,53 +199,57 @@ public class MyFirstDevice : TcpModbusDevice
 ```
 
 Key points:
+
 - Inherits from `TcpModbusDevice` for Modbus TCP support
 - Constructor receives context and configuration key
-- `DataReceived` event fires when telemetry is collected
+- The `DataReceived` event fires when telemetry is collected
 - Access sensor configuration via `Configuration.Sensors`
+
+---
 
 ## Running Without Hardware
 
-If you don't have a physical device, use the built-in simulator:
+If you do not have a physical device, use the built-in simulator:
 
-1. Navigate to the template with simulator:
+1. Navigate to the template with the simulator:
+
    ```bash
    cd templates/wedabuilder
    ```
 
-2. Run the template (includes Modbus simulator):
+2. Run the template (includes Modbus Simulator):
+
    ```bash
    dotnet run
    ```
 
 The simulator creates a virtual Modbus device at `127.0.0.1:5020`.
 
-## Next Steps
-
-- [Start with Template](./start-with-template.md) - Create your own project
-- [Sensor Configuration](../04-sensor-configuration/configuration-via-json.md) - Configure sensors in detail
-- [Project Structure](../03-project-structure.md) - Understand the codebase
+---
 
 ## Troubleshooting
 
 ### Connection Refused
 
-```
+```text
 Error: Connection refused to 172.16.8.122:502
 ```
 
 **Solutions:**
-- Verify device IP address is correct
+
+- Verify the device IP address is correct
 - Check network connectivity (`ping 172.16.8.122`)
 - Ensure Modbus TCP port (502) is open
-- Verify device is powered on
+- Verify the device is powered on
 
 ### No Data Received
 
 **Solutions:**
-- Check `SlaveId` matches your device configuration
-- Verify register addresses are correct for your device
+
+- Check that `SlaveId` matches your device configuration
+- Verify the register addresses are correct for your device
 - Enable debug logging in `appsettings.json`:
+
   ```json
   {
     "Serilog": {
@@ -230,6 +260,26 @@ Error: Connection refused to 172.16.8.122:502
   }
   ```
 
-import Revision from '@site/src/components/Revision';
+---
 
-<Revision date="Mar-06, 2026" version="v1.0.0" />
+## Summary
+
+- The `examples/` directory provides several ready-to-run example projects
+- `devicecfg.json` defines device connections and sensor settings; `Program.cs` wires them together via `AddDevice<T>("key")`
+- Custom device classes inherit from `TcpModbusDevice` and handle telemetry through the `DataReceived` event
+- Without physical hardware, use the built-in simulator in `templates/wedabuilder`
+
+## See Also
+
+- [Start with Template](./03-start-with-template.md) - Create your own project from a template
+- [Sensor Configuration](../04-configuration/02-configuration-via-json.md) - Configure sensors in detail
+- [Project Structure](../03-hierarchy/01-project-structure.md) - Understand the codebase
+
+---
+
+## Change History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-06 | Rain Hu | Doc created. |
+| 1.1.0 | 2026-03-30 | Rain Hu | Rewritten to match zh version with Overview, What You'll Learn, Summary. |

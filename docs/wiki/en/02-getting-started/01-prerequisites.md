@@ -2,132 +2,182 @@
 sidebar_position: 1
 sidebar_label: 'Prerequisites'
 hide_title: true
-title: 'Prerequisites - SubNode Development Environment Setup'
-keywords: ['SubNode', 'Prerequisites', '.NET', 'Development', 'Setup']
-description: 'Required tools and environment setup for SubNode SDK development'
+title: 'Prerequisites | SubNode SDK'
+keywords: ['SubNode', 'Prerequisites', '.NET', 'Development', 'Setup', 'Docker', 'Dev Container']
+description: 'Tools and environment setup for SubNode SDK development, with three installation options.'
 ---
 
 # Prerequisites
 
-> Set up your development environment for SubNode SDK.
+> Choose an installation option that fits your background and set up your SubNode SDK development environment.
 
-## Required Software
+## Overview
 
-### .NET SDK
+SubNode SDK offers three installation options designed for different user profiles. Pick the one that best matches your needs, follow the steps, and you are ready to start developing.
 
-SubNode requires .NET 9.0 or later.
+## What You'll Learn
 
-**Installation:**
+After reading this article, you will be able to:
+
+- Choose the installation option that fits your background
+- Complete the development environment setup
+- Verify that your environment is configured correctly
+
+---
+
+## Choose an Installation Option
+
+| Option | Requirements | Best For |
+|--------|-------------|----------|
+| [A. .NET SDK + Editor](#a-net-sdk--editor) | .NET SDK + any editor | .NET developers |
+| [B. Docker](#b-docker) | Docker | System integrators (SI) |
+| [C. VS Code + Dev Container](#c-vs-code--dev-container) | Docker + VS Code + Dev Containers extension | Developers without .NET experience |
+
+---
+
+## A. .NET SDK + Editor
+
+For developers who already have .NET experience. Install the SDK locally and use your preferred editor or IDE.
+
+### A.1 Install .NET SDK
+
+SubNode requires .NET 10.0 or later.
 
 - **Windows/macOS/Linux**: Download from [dotnet.microsoft.com](https://dotnet.microsoft.com/download)
 - **macOS (Homebrew)**: `brew install dotnet`
 - **Ubuntu/Debian**: Follow [Microsoft's Linux instructions](https://learn.microsoft.com/dotnet/core/install/linux)
 
-**Verify installation:**
+### A.2 Verify Installation
 
 ```bash
 dotnet --version
-# Expected output: 9.0.x or higher
+# Expected output: 10.0.x or higher
 ```
 
-### IDE (Recommended)
+### A.3 Choose an Editor
 
-Choose one of the following:
+| IDE | Platform | Description | Notes |
+|-----|----------|-------------|-------|
+| **Visual Studio Code** | Cross-platform | Lightweight; install the C# Dev Kit extension | Recommended |
+| **Visual Studio** | Windows | Full-featured IDE with debugging tools | |
+| **JetBrains Rider** | Cross-platform | Commercial; excellent .NET support | |
 
-| IDE | Platform | Notes |
-|-----|----------|-------|
-| **Visual Studio 2022** | Windows | Full-featured IDE with debugging |
-| **Visual Studio Code** | Cross-platform | Lightweight, requires C# extension |
-| **JetBrains Rider** | Cross-platform | Commercial, excellent .NET support |
-
-For VS Code, install these extensions:
-- C# Dev Kit (Microsoft)
-- C# (Microsoft)
-
-## Optional Tools
-
-### Git
-
-For cloning examples and version control.
+### A.4 Verify Environment
 
 ```bash
-# Verify installation
-git --version
+dotnet new console -o TestProject && cd TestProject && dotnet run
+# Expected output: Hello, World!
+
+# Clean up
+cd .. && rm -rf TestProject
 ```
 
-### Docker
+---
 
-For running simulators and containerized deployments.
+## B. Docker
+
+For system integrators (SI). No .NET SDK installation required -- run SubNode applications directly with `docker compose up`.
+
+### B.1 Install Docker
+
+- **Windows/macOS**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- **Linux**: Follow [Docker's official instructions](https://docs.docker.com/engine/install/)
+
+### B.2 Verify Installation
 
 ```bash
-# Verify installation
 docker --version
+# Expected output: Docker version 28.x or higher
+
+docker compose version
+# Expected output: Docker Compose version v2.x
 ```
 
-## NuGet Package Sources
+### B.3 Run an Example
 
-SubNode packages are distributed via Azure DevOps private feed. Configure NuGet to access the feed:
+```bash
+git clone https://github.com/Advantech-Containers/WEDA-Sub-Node
+cd WEDA-Sub-Node/examples/testdevice
 
-**Option 1: Global NuGet Configuration**
-
-Create or edit `~/.nuget/NuGet/NuGet.Config`:
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-    <add key="EdgeSync" value="https://pkgs.dev.azure.com/YourOrg/_packaging/EdgeSync/nuget/v3/index.json" />
-  </packageSources>
-  <packageSourceCredentials>
-    <EdgeSync>
-      <add key="Username" value="YOUR_USERNAME" />
-      <add key="ClearTextPassword" value="YOUR_PAT" />
-    </EdgeSync>
-  </packageSourceCredentials>
-</configuration>
+# Start the example with Docker Compose
+docker compose up
 ```
 
-**Option 2: Project-level Configuration**
+Docker automatically pulls the required images and starts the SubNode application -- no local .NET SDK installation needed.
 
-Include `NuGet.Config` in your project root (provided in templates).
+---
+
+## C. VS Code + Dev Container
+
+For developers without .NET experience. All development tools (.NET SDK, NuGet feeds, extensions) come pre-installed inside the container -- ready to use out of the box.
+
+### C.1 Install Docker
+
+Same as [B.1](#b1-install-docker).
+
+### C.2 Install VS Code
+
+Download and install from [code.visualstudio.com](https://code.visualstudio.com/).
+
+### C.3 Install Dev Containers Extension
+
+Install the **Dev Containers** extension (published by Microsoft) in VS Code.
+
+### C.4 Open the Project
+
+```bash
+git clone https://github.com/Advantech-Containers/WEDA-Sub-Node
+code WEDA-Sub-Node
+```
+
+When VS Code detects the `.devcontainer/` configuration, it will prompt you to **Reopen in Container**. Click to proceed. The container comes pre-installed with:
+
+- .NET 10.0 SDK
+- NuGet package source configuration
+- C# Dev Kit extension
+- Git
+
+### C.5 Verify Environment
+
+In the VS Code terminal:
+
+```bash
+dotnet --version
+# Expected output: 10.0.x
+```
+
+---
 
 ## Hardware (Optional)
 
-For real device testing:
+For testing with physical devices:
 
 | Device Type | Example | Protocol |
 |-------------|---------|----------|
-| Modbus TCP Device | WISE-4012, ADAM-6017 | Modbus TCP |
-| Modbus RTU Device | ADAM-4017, ADAM-4055 | RS-485 |
-| MQTT Device | Any MQTT-capable sensor | MQTT |
+| Modbus TCP device | WISE-4012, ADAM-6017 | Modbus TCP |
+| MQTT device | Any MQTT-capable sensor | MQTT |
 
-For development without hardware, use the built-in **Modbus Simulator** (see [Start with Template](./start-with-template.md)).
+For development without hardware, use the built-in **Modbus Simulator** (see [Start with Template](./03-start-with-template.md)).
 
-## Verify Environment
+## Summary
 
-Run this command to verify your environment:
+| Option | Requirements | Best For | Experience |
+|--------|-------------|----------|------------|
+| A. .NET SDK + Editor | .NET SDK | .NET developers | Local build and debug |
+| B. Docker | Docker | System integrators | `docker compose up` to run |
+| C. VS Code + Dev Container | Docker + VS Code + Dev Containers extension | No .NET experience | Develop inside container, zero setup |
 
-```bash
-# Create a new console project to verify .NET is working
-dotnet new console -o TestProject
-cd TestProject
-dotnet run
-# Should print "Hello, World!"
+## See Also
 
-# Clean up
-cd ..
-rm -rf TestProject
-```
+- [Start with Example](./02-start-with-example.md) - Run a pre-built example
+- [Start with Template](./03-start-with-template.md) - Create a new project from a template
+- [Connect to WedaCore](./04-connect-to-wedacore.md) - Set up cloud connectivity
 
-## Next Steps
+---
 
-Once your environment is ready:
+## Change History
 
-1. [Start with Example](./start-with-example.md) - Run a pre-built example
-2. [Start with Template](./start-with-template.md) - Create a new project from template
-3. [Connect to WedaCore](./connect-to-wedacore.md) - Configure cloud connectivity
-
-import Revision from '@site/src/components/Revision';
-
-<Revision date="Mar-06, 2026" version="v1.0.0" />
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-25 | Rain Hu | Doc created. |
+| 1.1.0 | 2026-03-30 | Rain Hu | Rewritten to match zh version with three installation options. |

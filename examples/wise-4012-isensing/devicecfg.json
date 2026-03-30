@@ -27,6 +27,11 @@
           "Parameters": {
             "FieldName": "ai1"
           },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 1",
+            "Description": "Analog input channel 1",
+            "Schema": "double"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 3000
@@ -38,6 +43,11 @@
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "FieldName": "ai2"
+          },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 2",
+            "Description": "Analog input channel 2",
+            "Schema": "double"
           },
           "Report": {
             "Enabled": true,
@@ -51,6 +61,11 @@
           "Parameters": {
             "FieldName": "ai3"
           },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 3",
+            "Description": "Analog input channel 3",
+            "Schema": "double"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 3000
@@ -62,6 +77,11 @@
           "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "FieldName": "ai4"
+          },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 4",
+            "Description": "Analog input channel 4",
+            "Schema": "double"
           },
           "Report": {
             "Enabled": true,
@@ -75,6 +95,11 @@
           "Parameters": {
             "FieldName": "do1"
           },
+          "SensorInfo": {
+            "DisplayName": "DO Channel 1",
+            "Description": "Digital output channel 1",
+            "Schema": "boolean"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 3000
@@ -86,6 +111,11 @@
           "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
           "Parameters": {
             "FieldName": "do2"
+          },
+          "SensorInfo": {
+            "DisplayName": "DO Channel 2",
+            "Description": "Digital output channel 2",
+            "Schema": "boolean"
           },
           "Report": {
             "Enabled": true,

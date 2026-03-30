@@ -2,35 +2,50 @@
 sidebar_position: 3
 sidebar_label: 'Start with Template'
 hide_title: true
-title: 'Start with Template - Creating a New SubNode Project'
-keywords: ['SubNode', 'Template', 'dotnet new', 'Project Creation']
-description: 'Create a new SubNode project using dotnet templates'
+title: 'Start with Template | SubNode SDK'
+keywords: ['SubNode', 'Template', 'WedaBuilder', 'Project Creation']
+description: 'Create a new SubNode project from scratch using project templates.'
 ---
 
 # Start with Template
 
-> Create a new SubNode project from scratch using templates.
+> Create a new SubNode project from scratch using project templates.
+
+## Overview
+
+SubNode SDK provides two project templates that let you quickly scaffold a runnable edge device application. This article covers the differences between them, the step-by-step setup, and how to customize sensors and data transforms on top of the template.
+
+## What You'll Learn
+
+After reading this article, you will be able to:
+
+- Create a new project using the WedaBuilder template and run it
+- Understand the differences between the WedaBuilder and SubNode templates
+- Add sensors and data transforms via JSON or code
+
+## Prerequisites
+
+- Completed [Prerequisites](./01-prerequisites.md)
+
+---
 
 ## Available Templates
 
-SubNode provides two project templates:
-
 | Template | Name | Description |
 |----------|------|-------------|
-| **subnode** | WedaSubNode | Traditional SubNode pattern with explicit lifecycle control |
 | **wedabuilder** | WedaBuilder | Builder pattern with fluent API (recommended) |
+| **subnode** | WedaSubNode | Traditional SubNode pattern with explicit lifecycle control |
+
+---
 
 ## Using the WedaBuilder Template (Recommended)
 
 The `wedabuilder` template uses the modern builder pattern with automatic lifecycle management.
 
-### Step 1: Create New Project
+### Step 1: Create a New Project
 
 ```bash
-# From repository root
-cd templates/wedabuilder
-
-# Or copy to new location
+# Copy template to new location
 cp -r templates/wedabuilder ~/projects/my-subnode
 cd ~/projects/my-subnode
 ```
@@ -41,14 +56,14 @@ cd ~/projects/my-subnode
 dotnet restore
 ```
 
-### Step 3: Review Project Structure
+### Step 3: Review the Project Structure
 
-```
+```text
 my-subnode/
-├── Program.cs           # Application entry with builder pattern
+├── Program.cs           # Application entry point (builder pattern)
 ├── MyFirstDevice.cs     # Custom device class
 ├── devicecfg.json       # Device configuration
-├── appsettings.json     # Logging configuration
+├── appsettings.json     # Logging and simulator configuration
 └── WedaBuilder.csproj   # Project file
 ```
 
@@ -60,16 +75,10 @@ my-subnode/
 using Weda.SubNode.Host;
 using WedaBuilder;
 
-var builder = WedaApplication.CreateBuilder(args)
-    .AddLogging()           // Console and file logging
-    .AddTelemetry()         // Uplink: telemetry reporting
-    .AddHealthReporting()   // Uplink: health status
-    .AddCommands()          // Downlink: remote commands
-    .AddConfigUpdates()     // Downlink: configuration sync
-    .AddRecording()         // Local: historical data storage
-    .UseMockCloud();        // Use mock server (change for production)
+var builder = WedaApplication.CreateDefaultBuilder(args)
+    .UseMockCloud();       // Use mock server (change for production)
 
-builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");
+builder.AddDevice<MyFirstDevice>("MyFirstDevice");
 
 var app = builder.Build();
 await app.RunAsync();
@@ -89,7 +98,6 @@ public class MyFirstDevice : TcpModbusDevice
 
     private void OnDataReceived(object? sender, DataReceivedEvent e)
     {
-        // Process received telemetry
         foreach (var measure in e.Data)
         {
             _logger.LogInformation("Received: {ResourceId} = {Value}",
@@ -99,7 +107,7 @@ public class MyFirstDevice : TcpModbusDevice
 }
 ```
 
-### Step 5: Configure Your Device
+### Step 5: Configure the Device
 
 Edit `devicecfg.json`:
 
@@ -113,7 +121,7 @@ Edit `devicecfg.json`:
     "SwVersion": "1.0.0"
   },
   "DeviceConfigs": {
-    "MyFirstDeviceConfig": {
+    "MyFirstDevice": {
       "Enabled": true,
       "DeviceCommunication": {
         "Host": "127.0.0.1",
@@ -143,9 +151,9 @@ Edit `devicecfg.json`:
 }
 ```
 
-### Step 6: Run with Simulator
+### Step 6: Run with the Simulator
 
-The template includes a Modbus simulator that starts automatically:
+The template includes a Modbus Simulator that starts automatically (configured in `appsettings.json`):
 
 ```bash
 dotnet run
@@ -153,7 +161,7 @@ dotnet run
 
 **Expected output:**
 
-```
+```text
 [12:00:00 INF] Modbus simulator started on 127.0.0.1:5020
 [12:00:01 INF] SubNode started. Press Ctrl+C to stop...
 [12:00:06 INF] Received: abc12 = 25.3
@@ -161,36 +169,27 @@ dotnet run
 ...
 ```
 
+---
+
 ## Using the SubNode Template
 
-The `subnode` template provides explicit lifecycle control.
+The `subnode` template provides explicit lifecycle control with code-based device configuration.
 
-### Step 1: Create New Project
-
-```bash
-cd templates/subnode
-```
-
-### Step 2: Review the Code
-
-**Program.cs:**
+### Code Overview
 
 ```csharp
 using Weda.SubNode.Host;
 using Weda.SubNode.Host.Context;
+using Weda.SubNode.Cloud;
 
 // Create context with mock cloud
 using var context = new WedaApplicationContext(
-    options => options.CloudService = WedaFactory.Cloud.Mock);
-
-// Configure and start simulator
-var simulator = await ConfigureTcpModbusSimulator(context);
+    options => options.CloudService = Cloud.Mock());
 
 // Create SubNode with explicit lifecycle
 await using var subNode = new SubNode(context);
 subNode.AddDevice(new MyFirstDevice(context, ConfigureDeviceConfiguration()));
 
-// Manual lifecycle control
 await subNode.InitializeAsync();
 await subNode.StartAsync();
 
@@ -198,21 +197,10 @@ Console.WriteLine("SubNode started. Press Ctrl+C to stop...");
 await Task.Delay(Timeout.Infinite);
 ```
 
-### Differences from WedaBuilder
-
-| Aspect | WedaBuilder | SubNode |
-|--------|-------------|---------|
-| Configuration | JSON-based | Code-based |
-| Lifecycle | Automatic | Manual |
-| Flexibility | Opinionated | Full control |
-| Best for | Most use cases | Custom scenarios |
-
-## Adding Configuration via Code
-
-For the SubNode template, configure sensors programmatically:
+### Configuring Sensors via Code
 
 ```csharp
-DeviceConfiguration ConfigureDeviceConfiguration()
+TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 {
     var modbusConfig = new TcpModbusDeviceConfiguration
     {
@@ -224,7 +212,6 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         SlaveId = 1
     };
 
-    // Add temperature sensor
     var tempSensor = new ModbusSensorReporturation
     {
         Name = "temperature.sensor",
@@ -234,20 +221,30 @@ DeviceConfiguration ConfigureDeviceConfiguration()
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
-    tempSensor.Config.Interval = 5000;
+    tempSensor.Config.Interval = 1000;
 
     modbusConfig.AddSensor(tempSensor);
 
-    var deviceConfig = modbusConfig.ToDeviceConfiguration();
-    deviceConfig.InitializeDtdl();
-
-    return deviceConfig;
+    return modbusConfig;
 }
 ```
 
-## Customizing Your Device
+### Differences Between the Two Templates
 
-### Add More Sensors
+| Aspect | WedaBuilder | SubNode |
+|--------|-------------|---------|
+| Configuration | JSON-based | Code-based |
+| Lifecycle | Automatic | Manual |
+| Flexibility | Opinionated | Full control |
+| Best for | Most use cases | Custom scenarios |
+
+---
+
+## Customizing the Template
+
+### Adding More Sensors
+
+Add items to the `Sensors` array in `devicecfg.json`:
 
 ```json
 {
@@ -276,38 +273,50 @@ DeviceConfiguration ConfigureDeviceConfiguration()
 }
 ```
 
-### Add Data Transforms
+### Adding a Data Transform
+
+Add `TransformPipeline` inside `Report`:
 
 ```json
 {
-  "Sensors": [
-    {
-      "Name": "temperature",
-      "Report": {
+  "Name": "temperature",
+  "Report": {
+    "Enabled": true,
+    "Interval": 5000,
+    "TransformPipeline": [
+      {
+        "Type": "calibration",
         "Enabled": true,
-        "Interval": 5000,
-        "Transforms": [
-          {
-            "Type": "calibration",
-            "Enabled": true,
-            "Parameters": {
-              "Scale": 0.1,
-              "Offset": -10.0
-            }
-          }
-        ]
+        "Parameters": {
+          "Scale": 0.1,
+          "Offset": -10.0
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
 
-## Next Steps
+---
 
-- [Connect to WedaCore](./connect-to-wedacore.md) - Configure cloud connectivity
-- [Sensor Configuration](../04-sensor-configuration/configuration-reference.md) - Full configuration reference
-- [Data Pipeline](../05-data-pipeline/pipeline-overview.md) - Data transformation guide
+## Summary
 
-import Revision from '@site/src/components/Revision';
+- **WedaBuilder template** (recommended): Builder pattern + JSON configuration with automatic lifecycle management
+- **SubNode template**: Code-based configuration + manual lifecycle control for fully custom scenarios
+- Both include a built-in Modbus Simulator -- no physical hardware required for development
+- Extend functionality through the `Sensors` array and `TransformPipeline` in `devicecfg.json`
 
-<Revision date="Mar-06, 2026" version="v1.0.0" />
+## See Also
+
+- [Connect to WedaCore](./04-connect-to-wedacore.md) - Set up cloud connectivity
+- [Sensor Configuration](../04-configuration/02-configuration-via-json.md) - Full JSON configuration reference
+- [Data Pipeline](../05-data-pipeline/01-overview.md) - Data transformation guide
+
+---
+
+## Change History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-03-06 | Rain Hu | Doc created. |
+| 1.1.0 | 2026-03-30 | Rain Hu | Rewritten to match zh version with Overview, What You'll Learn, Summary. |
