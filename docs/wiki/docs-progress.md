@@ -49,15 +49,9 @@
 
 | # | Article | zh Review | en Translate |
 |---|---------|-----------|--------------|
-| 1 | 01-overview.md | ⬜ Pending | ⬜ Pending |
-| 2 | 02-transformations.md | ⬜ Pending | ⬜ Pending |
-| 2.1 | 02-01-linear-transformation.md | ⬜ Pending | ⬜ Pending |
-| 2.2 | 02-02-polynomial-transformation.md | ⬜ Pending | ⬜ Pending |
-| 2.3 | 02-03-chunkage-transformation.md | ⬜ Pending | ⬜ Pending |
-| 3 | 03-dsp-filters.md | ⬜ Pending | ⬜ Pending |
-| 3.1 | 03-01-kalman-filter.md | ⬜ Pending | ⬜ Pending |
-| 3.2 | 03-02-moving-average-filter.md | ⬜ Pending | ⬜ Pending |
-| 3.3 | 03-03-relu-filter.md | ⬜ Pending | ⬜ Pending |
+| 1 | 01-overview.md | ✅ Complete | ✅ Complete |
+| 2 | 02-transformations.md | ✅ Complete | ✅ Complete |
+| 3 | 03-dsp-filters.md | ✅ Complete | ✅ Complete |
 
 ### 06-remote-control
 
@@ -126,13 +120,13 @@
 | 02-getting-started | 4 | 4 | 4 |
 | 03-hierarchy | 2 | 2 | 2 |
 | 04-configuration | 3 | 3 | 3 |
-| 05-data-pipeline | 8 | 0 | 0 |
+| 05-data-pipeline | 3 | 3 | 3 |
 | 06-remote-control | 2 | 0 | 0 |
 | 07-use-cases | 7 | 0 | 0 |
 | 08-examples | 6 | 0 | 0 |
 | 09-customization | 14 | 0 | 0 |
 | 10-faq | 3 | 0 | 0 |
-| **Total** | **52** | **12** | **12** |
+| **Total** | **46** | **15** | **15** |
 
 ---
 
