@@ -79,8 +79,6 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         _logger = context.GetLogger<DeviceBase>();
         _cloudService = context.CloudService;
 
-        configuration.InitializeDtdl();
-
         // Auto-subscribe to TelemetryRecording event for local storage
         if (_context.RecordingService != null)
         {
