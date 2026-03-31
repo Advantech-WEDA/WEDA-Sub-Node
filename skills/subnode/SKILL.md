@@ -1,14 +1,13 @@
 ---
 name: subnode
 description: |
-  SubNode project scaffolding tool for the Weda IoT edge computing framework. Creates complete, production-ready SubNode projects with proper structure, configuration, and device implementations.
+  SubNode project scaffolding tool for the Weda IoT edge computing framework. Uses `dotnet new` templates to create projects, then guides users through edge connection (simulator or real device), cloud connection (mock or real WedaNode), sensor configuration, and end-to-end verification.
 
   TRIGGER THIS SKILL when users:
   - Ask to create a new SubNode project or IoT device project
-  - Want to scaffold a Modbus TCP, MQTT, WebSocket, or custom protocol device
+  - Want to scaffold a Modbus TCP device or custom protocol device
   - Mention "subnode", "weda", "edge device", "IoT project", or similar
-  - Need to set up device communication (Modbus, MQTT, WebSocket)
-  - Ask about creating protocol parsers or device implementations
+  - Need to set up device communication (Modbus TCP, serial, DAQ)
   - Want to add a new device to the SubNode framework
 
   Even if the user doesn't explicitly say "subnode", trigger this skill if they're working in the edge_subnode repository and want to create a new device or project.
@@ -16,449 +15,404 @@ description: |
 
 # SubNode Project Scaffolding
 
-You are a specialized assistant for creating SubNode IoT edge computing projects. Guide users through an interactive process to build complete, production-ready projects.
+You are a specialized assistant for creating SubNode IoT edge computing projects. Guide users through an interactive process to build complete, verified, production-ready projects.
 
-## Overview
+## Reference Project
 
-SubNode is a modular IoT edge computing framework supporting:
-- **Request-Response**: Synchronous polling (Modbus TCP/RTU, OPC-UA)
-- **Pub/Sub**: Asynchronous messaging (MQTT, NATS)
-- **Streaming**: Bidirectional data flow (WebSocket, gRPC)
+The SubNode SDK repo is typically named `edge_subnode`. Use the user's current working directory or ask them where their `edge_subnode` repo is located. Store this as `{REPO_ROOT}` and use it throughout. When in doubt, read the templates and examples in the project.
+
+Helper tools and scripts at `{SKILL_DIR}` = `~/.claude/skills/subnode/`:
+- `tools/<rid>/NatsCheck` - Pre-compiled NATS connectivity tester (all platforms)
+- `scripts/test-edge-connection.sh` - Test Modbus TCP device reachability
+- `scripts/test-cloud-connection.sh` - Auto-selects NatsCheck binary for current OS/arch
+- `scripts/validate-devicecfg.sh` - Validate devicecfg.json for common errors
+- `scripts/verify-project.sh` - Build + run + automated log verification
+- `scripts/build-tools.sh` - Rebuild NatsCheck if a new platform is needed
+
+Pre-built platforms: `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64`, `win-x64`.
+
+Standalone simulator host at `{REPO_ROOT}/tools/simulator-host/` for docker-compose use.
+
+## Step 0: Prerequisite - Install Templates
+
+Before scaffolding, check if dotnet templates are already installed:
+
+```bash
+dotnet new list | grep -i subnode
+```
+
+If the output shows `subnode` and `wedabuilder` templates, skip to the next step. Otherwise, install them automatically:
+
+```bash
+cd {REPO_ROOT}
+bash scripts/install-templates.sh
+# Verify:
+dotnet new list | grep -i subnode
+```
+
+If `scripts/install-templates.sh` does not exist, fall back to:
+```bash
+dotnet new install {REPO_ROOT}/templates/subnode
+dotnet new install {REPO_ROOT}/templates/wedabuilder
+```
+
+Two templates are available:
+- **`subnode`** - Manual context pattern (WedaApplicationContext + SubNode class)
+- **`wedabuilder`** - Builder pattern (WedaApplication.CreateDefaultBuilder) - **recommended for most cases**
 
 ## Interactive Workflow
 
-When the user invokes this skill, gather information step by step using AskUserQuestion. Don't ask all questions at once - gather in logical groups.
+Gather information step by step using AskUserQuestion. Don't ask all questions at once.
 
 ### Phase 1: Basic Information
 
-First, collect basic project information:
+1. **Project Name** (kebab-case for directory, PascalCase for namespace)
+   - Example: `power-meter` -> namespace `PowerMeter`
 
-1. **Project Name** (ask as free text question or derive from context)
-   - Will be used for directory name and namespace
-   - Example: `power-meter`, `temperature-sensor`, `air-quality`
+2. **Template** - Which pattern to use:
+   - **`wedabuilder`** (recommended) - ASP.NET Core-style builder with hosted services, config from JSON files
+   - **`subnode`** - Manual context with programmatic device configuration
 
-2. **Device Type** - Ask which communication pattern:
-   - **Modbus TCP** - For industrial I/O modules, PLCs, power meters
-   - **MQTT/iSensing** - For smart sensors publishing JSON data
-   - **WebSocket Streaming** - For real-time bidirectional communication
-   - **Custom Protocol** - For implementing a custom IProtocolParser
+3. **SubNodeType** - The device category (enum `SubNodeType`):
+   - **`AdamEthernet`** - ADAM Ethernet-based devices (Modbus TCP/IP, HTTP/HTTPS)
+   - **`SerialDevice`** - Serial communication (Modbus RTU/ASCII, custom protocols)
+   - **`DaqDevice`** - High-speed data acquisition cards (PCI/PCIe drivers)
+   - **`SystemMonitor`** - Built-in system monitoring (System APIs)
+   - **`CustomDevice`** - User-defined custom devices (extensible protocols)
 
-### Phase 2: Connection Settings
+### Phase 2: Scaffold the Project
 
-Based on the device type, ask appropriate connection details:
+Run `dotnet new` in the `apps/` directory (create it if it doesn't exist):
 
-**For Modbus TCP:**
-- Host IP address (e.g., `192.168.1.100`)
-- Port (default: `502`)
-- Slave ID (default: `1`)
-- Polling interval in milliseconds (default: `1000`)
-
-**For MQTT/iSensing:**
-- Broker URL (e.g., `mqtt://localhost:1883`)
-- Topic pattern (e.g., `sensors/+/telemetry`)
-- Client ID (auto-generate if not specified)
-- QoS level (0, 1, or 2)
-
-**For WebSocket:**
-- WebSocket URL (e.g., `ws://localhost:8080/stream`)
-- Reconnection settings
-
-**For Custom Protocol:**
-- Base communication type (TCP, Serial, HTTP)
-- Connection parameters
-
-### Phase 3: Sensor Configuration
-
-Ask about the sensors to monitor:
-
-1. How many sensors?
-2. For each sensor (or use a pattern):
-   - Name (e.g., `Temperature`, `Humidity`, `Power`)
-   - Sensor Group: `AI` (Analog Input), `AO` (Analog Output), `DI` (Digital Input), `DO` (Digital Output), `SYS`, `TEMP`, `PWR`
-   - Unit (e.g., `°C`, `%RH`, `kW`)
-
-   **For Modbus sensors additionally ask:**
-   - Register address
-   - Register type: `HoldingRegister`, `InputRegister`, `Coil`, `DiscreteInput`
-   - Data type: `UInt16`, `Int16`, `Float32`, `Float64`
-   - Byte order: `BigEndian` or `LittleEndian`
-
-### Phase 4: Data Processing (Optional)
-
-Ask if the user needs data processing:
-
-1. **Transforms** - Value transformations:
-   - Linear Transform: `y = scale * x + offset`
-   - Unit Conversion
-   - Custom formula
-
-2. **DSP Filters** - Signal processing:
-   - Moving Average
-   - Kalman Filter
-   - Low Pass Filter
-   - Change Detection (deadband)
-
-### Phase 5: Additional Options
-
-- Enable cloud telemetry? (default: yes)
-- Telemetry reporting interval (default: `5000ms`)
-- Enable event tracking for debugging?
-
-## Project Structure to Generate
-
-Create the following structure in `apps/{project-name}/`:
-
-```
-apps/{project-name}/
-├── Program.cs                 # Application entry point
-├── {DeviceName}Device.cs      # Device implementation
-├── appsettings.json           # Main configuration
-├── {project-name}.csproj      # Project file
-└── Properties/
-    └── launchSettings.json    # Debug settings
+```bash
+mkdir -p {REPO_ROOT}/apps
+cd {REPO_ROOT}/apps
+dotnet new {template} -n {ProjectName}
 ```
 
-## Code Templates
+This generates the complete project structure including:
+- `Program.cs` - Application entry point
+- `MyFirstDevice.cs` - Device implementation (TcpModbusDevice subclass)
+- `appsettings.json` - Serilog configuration + simulator config (wedabuilder only)
+- `devicecfg.json` - SubNode metadata + device configs + sensors
+- `systemcfg.json` - WedaNode (NATS) connection settings
+- `{ProjectName}.csproj` - Project references
 
-### Program.cs Template
+### Phase 3: Edge Connection Setup
 
-```csharp
-using Serilog;
-using Weda.SubNode.Host;
+**CRITICAL: The user MUST have a working edge data source before proceeding.**
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
+Ask the user: "Do you have a real device ready, or should we use the built-in Modbus TCP simulator?"
 
-try
-{
-    Log.Information("Starting {ProjectName}...", "{ProjectName}");
+#### Option A: Use Standalone Simulator via docker-compose (recommended)
 
-    var builder = WedaApplication.CreateDefaultBuilder(args);
+The simulator runs as a **separate container**, keeping the app's Program.cs clean. Add to the project's `docker-compose.yml`:
 
-    builder.AddDevice<{DeviceName}Device>("{DeviceConfigKey}");
+```yaml
+services:
+  simulator:
+    build:
+      context: ../..
+      dockerfile: tools/simulator-host/Dockerfile
+    volumes:
+      - ./simulator-config.json:/app/appsettings.json:ro
+    network_mode: host
+    restart: unless-stopped
 
-    var app = builder.Build();
-    await app.RunAsync();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
-finally
-{
-    await Log.CloseAndFlushAsync();
-}
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./appsettings.json:/app/appsettings.json:ro
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - simulator
 ```
 
-### Device Class Templates
-
-**For Modbus TCP (`TcpModbusDevice`):**
-
-```csharp
-using Weda.SubNode.Devices;
-using Weda.SubNode.Host;
-
-namespace {Namespace};
-
-public class {DeviceName}Device : TcpModbusDevice
-{
-    public {DeviceName}Device(IWedaApplicationContext context, string configKey)
-        : base(context, configKey)
-    {
-        EnableDataReceivedTracking = true;
-        DataReceived += OnDataReceived;
-    }
-
-    private void OnDataReceived(object? sender, DataReceivedEvent e)
-    {
-        foreach (var measure in e.Telemetry)
-        {
-            Logger.LogDebug("Received {SensorName}: {Value} {Unit}",
-                measure.Name, measure.Value, measure.Unit);
-        }
-    }
-
-    protected override Task OnAfterConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
-    {
-        Logger.LogInformation("Configuration updated");
-        return Task.CompletedTask;
-    }
-}
-```
-
-**For MQTT/iSensing (`ISensingDevice`):**
-
-```csharp
-using Weda.SubNode.Devices;
-using Weda.SubNode.Host;
-
-namespace {Namespace};
-
-public class {DeviceName}Device : ISensingDevice
-{
-    public {DeviceName}Device(IWedaApplicationContext context, string configKey)
-        : base(context, configKey)
-    {
-        EnableDataReceivedTracking = true;
-        DataReceived += OnDataReceived;
-    }
-
-    private void OnDataReceived(object? sender, DataReceivedEvent e)
-    {
-        foreach (var measure in e.Telemetry)
-        {
-            Logger.LogDebug("Received {SensorName}: {Value} {Unit}",
-                measure.Name, measure.Value, measure.Unit);
-        }
-    }
-}
-```
-
-**For WebSocket Streaming (`StreamingDeviceBase`):**
-
-```csharp
-using Weda.SubNode.Core.Devices;
-using Weda.SubNode.Host;
-
-namespace {Namespace};
-
-public class {DeviceName}Device : StreamingDeviceBase<{DeviceName}StreamingParser>
-{
-    public {DeviceName}Device(IWedaApplicationContext context, string configKey)
-        : base(context, configKey)
-    {
-        EnableDataReceivedTracking = true;
-    }
-
-    protected override {DeviceName}StreamingParser CreateProtocolParser()
-    {
-        return new {DeviceName}StreamingParser(Configuration, Logger);
-    }
-}
-```
-
-**For Custom Protocol:**
-
-```csharp
-using Weda.SubNode.Core.Devices;
-using Weda.SubNode.Host;
-
-namespace {Namespace};
-
-public class {DeviceName}Device : RequestResponseDeviceBase<{DeviceName}ProtocolParser>
-{
-    public {DeviceName}Device(IWedaApplicationContext context, string configKey)
-        : base(context, configKey)
-    {
-        EnableDataReceivedTracking = true;
-    }
-
-    protected override {DeviceName}ProtocolParser CreateProtocolParser()
-    {
-        return new {DeviceName}ProtocolParser(Configuration, Logger);
-    }
-}
-
-// TODO: Implement your custom protocol parser
-public class {DeviceName}ProtocolParser : IRequestResponseProtocolParser
-{
-    // Implement protocol-specific logic here
-}
-```
-
-### appsettings.json Template
+Create `simulator-config.json` for the simulator container (Modbus TCP example):
 
 ```json
 {
-  "Serilog": {
-    "Using": ["Serilog.Sinks.Console"],
-    "MinimumLevel": {
-      "Default": "Information",
-      "Override": {
-        "Microsoft": "Warning",
-        "System": "Warning"
+  "TcpModbusSimulatorConfiguration": {
+    "TcpConnection": { "IpAddress": "0.0.0.0", "Port": 5020 },
+    "ModbusProtocol": { "SlaveId": 1, "UseModbusAddressing": false, "HoldingRegisterBase": 0 },
+    "Simulation": { "GlobalUpdateIntervalSeconds": 1, "EnableValueChanges": true },
+    "Sensors": [
+      {
+        "Name": "TemperatureSensor",
+        "Type": "Temperature",
+        "StartAddress": 0,
+        "RegisterCount": 2,
+        "DataType": "Float32",
+        "SimulationParams": {
+          "MinValue": 18.0, "MaxValue": 32.0,
+          "InitialValue": 25.0, "ChangeRate": 0.2, "NoiseLevel": 0.1
+        }
       }
-    },
-    "WriteTo": [
-      { "Name": "Console" }
     ]
-  },
+  }
+}
+```
+
+The simulator host project is at `{REPO_ROOT}/tools/simulator-host/` and supports **all 3 simulator types** based on which config section is present in appsettings.json:
+- `TcpModbusSimulatorConfiguration` - Modbus TCP (port 5020)
+- `WebSocketSimulatorConfiguration` - WebSocket (port 8080)
+- `MqttImageSimulatorConfiguration` - MQTT image publisher
+
+For local development without Docker:
+```bash
+cd {REPO_ROOT}/tools/simulator-host
+dotnet run
+# Or with a specific config profile:
+dotnet run -- --environment websocket
+```
+
+**Remove the `AddHostedService<TcpModbusSimulatorHostedService>()` and `TcpModbusSimulatorConfiguration` section from the app's Program.cs and appsettings.json** when using the standalone simulator.
+
+#### Option A2: Embedded Simulator (legacy, for quick prototyping only)
+
+If the user prefers the embedded approach, the `wedabuilder` template already includes simulator setup in `Program.cs` via `AddHostedService`. See template code for details.
+
+#### Option B: Real Device
+
+Ask the user for host IP address, port, and slave ID. Then **automatically test connectivity**:
+
+```bash
+bash {SKILL_DIR}/scripts/test-edge-connection.sh {host} {port}
+```
+
+**If the script exits 0**: proceed with the real device config.
+**If the script exits 1**: inform the user of the failure and offer two options:
+1. Re-enter connection details and retry
+2. Switch to the built-in simulator (Option A)
+
+Update `devicecfg.json` -> `DeviceConfigs.{DeviceName}.DeviceCommunication`:
+```json
+{ "Host": "192.168.1.100", "Port": 502 }
+```
+
+**Remove the simulator hosted service registration from Program.cs** if using a real device.
+
+### Phase 4: Cloud Connection Setup
+
+**CRITICAL: The user MUST decide on cloud connectivity before proceeding.**
+
+Ask the user: "Do you have a WedaNode (NATS) server ready, or should we use mock cloud for development?"
+
+#### Option A: Mock Cloud (recommended for development)
+
+**wedabuilder template** - already has `.UseMockCloud()` in Program.cs:
+```csharp
+var builder = WedaApplication.CreateDefaultBuilder(args)
+    .UseMockCloud();
+```
+
+**subnode template** - already has `Cloud.Mock()`:
+```csharp
+using var context = new WedaApplicationContext(options => options.CloudService = Cloud.Mock());
+```
+
+Mock cloud logs all operations locally without requiring NATS. It generates deterministic device IDs.
+
+#### Option B: Real WedaNode
+
+Ask for connection details, then **automatically test connectivity** (auto-selects correct binary for current OS/arch):
+
+```bash
+# Anonymous
+bash {SKILL_DIR}/scripts/test-cloud-connection.sh nats://server:4222
+
+# With credentials
+bash {SKILL_DIR}/scripts/test-cloud-connection.sh nats://server:4222 --user admin --pass secret
+
+# With token
+bash {SKILL_DIR}/scripts/test-cloud-connection.sh nats://server:4222 --token mytoken
+```
+
+**If the script exits 0**: proceed with real cloud config.
+**If the script exits 1**: inform the user of the failure and offer two options:
+1. Re-enter connection details and retry
+2. Switch to mock cloud (Option A)
+
+The `Cloud` factory supports 5 auth strategies:
+
+| Method | Auth Strategy |
+|--------|--------------|
+| `Cloud.Default()` | Anonymous (localhost:4222) |
+| `Cloud.Default(url)` | Anonymous (custom URL) |
+| `Cloud.Default(url, username, password)` | UserPassword |
+| `Cloud.Default(url, new NatsAuthToken(token))` | Token |
+| `Cloud.Default(url, new NatsCredFile(path))` | CredFile (JWT + NKey) |
+
+**For wedabuilder**: Update `systemcfg.json`:
+```json
+{
+  "WedaNode": {
+    "Url": "nats://your-server:4222",
+    "AuthStrategy": "UserPassword",
+    "Username": "your_user",
+    "Password": "your_password"
+  }
+}
+```
+And **remove `.UseMockCloud()`** from Program.cs.
+
+**For subnode**: Replace `Cloud.Mock()` with the appropriate `Cloud.Default(...)` call.
+
+### Phase 5: Sensor Configuration
+
+Configure sensors that match the actual edge data source (simulator or real device).
+
+**CRITICAL: Sensor register addresses MUST match the edge device exactly.**
+
+For each sensor, collect:
+- **Name** (snake_case, e.g., `temperature_sensor`)
+- **SensorGroup**: `AI`, `AO`, `DI`, `DO`, `SYS`, `TEMP`, `PWR`
+- **RegisterType**: `HoldingRegister`, `InputRegister`, `Coil`, `DiscreteInput`
+- **RegisterAddress**: Must match the device/simulator address
+- **RegisterCount**: Must match DataType (1 for UInt16/Int16, 2 for Float32/UInt32/Int32, 4 for Float64/UInt64/Int64)
+- **DataType**: `UInt16`, `Int16`, `UInt32`, `Int32`, `Float32`, `UInt64`, `Int64`, `Float64`, `String16`
+- **Report.Interval**: Reporting interval in ms
+- **Report.Unit**: Display unit (e.g., `celsius`, `%RH`, `kW`)
+
+#### wedabuilder: Configure in `devicecfg.json`
+
+```json
+{
   "SubNode": {
-    "Name": "{SubNodeName}",
-    "SubNodeType": "{SubNodeType}",
-    "Manufacturer": "Custom",
-    "Model": "{DeviceName}",
-    "SwVersion": "1.0.0",
-    "AutoGenEnabled": true
+    "Name": "MyDevice",
+    "SubNodeType": "AdamEthernet",
+    "Manufacturer": "Advantech",
+    "Model": "Demo",
+    "SwVersion": "1.0.0"
   },
-  "DeviceConfigs": [
-    {
-      "ConfigKey": "{DeviceConfigKey}",
+  "DeviceConfigs": {
+    "MyFirstDevice": {
       "Enabled": true,
-      "DeviceCommunication": {
-        // Connection settings based on device type
-      },
-      "Properties": {
-        // Protocol-specific properties
-      },
-      "ConnectionSettings": {
-        "RetryCount": 3,
-        "RetryDelayMs": 1000,
-        "TimeoutMs": 5000
-      },
-      "Periods": {
-        "TelemetryReportIntervalMs": 5000,
-        "HealthReportIntervalMs": 60000
-      },
+      "DeviceCommunication": { "Host": "127.0.0.1", "Port": 5020 },
+      "Dtdl": { "AutoGenEnabled": true },
+      "Properties": { "SlaveId": 1 },
       "Sensors": [
-        // Sensor definitions
+        {
+          "Name": "temperature_sensor",
+          "SensorGroup": "TEMP",
+          "SensorInfo": {
+            "DisplayName": "Temperature Sensor",
+            "Description": "Main temperature reading",
+            "Schema": "double"
+          },
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 0,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": "celsius"
+          }
+        }
       ]
     }
-  ]
-}
-```
-
-### .csproj Template
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>{Namespace}</RootNamespace>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../../src/Weda.SubNode.Host/Weda.SubNode.Host.csproj" />
-    <ProjectReference Include="../../src/Weda.SubNode.Devices/Weda.SubNode.Devices.csproj" />
-    <ProjectReference Include="../../src/Weda.SubNode.Cloud/Weda.SubNode.Cloud.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Serilog" Version="4.2.0" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-</Project>
-```
-
-## Sensor Configuration Examples
-
-### Modbus Sensor
-
-```json
-{
-  "ResourceId": "{auto-generate-uuid}",
-  "Name": "Temperature",
-  "Dtmi": "dtmi:com:example:Temperature;1",
-  "SensorGroup": "TEMP",
-  "Parameters": {
-    "RegisterAddress": 0,
-    "RegisterType": "HoldingRegister",
-    "DataType": "Float32",
-    "ByteOrder": "BigEndian"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 5000,
-    "Transforms": [
-      {
-        "Type": "linear",
-        "Parameters": {
-          "Scale": 0.1,
-          "Offset": 0
-        }
-      }
-    ],
-    "DspFilters": [
-      {
-        "Type": "movingaverage",
-        "Parameters": {
-          "WindowSize": 5
-        }
-      }
-    ]
   }
 }
 ```
 
-### MQTT/iSensing Sensor
+**IMPORTANT**: The `DeviceConfigs` key name (e.g., `"MyFirstDevice"`) MUST match the config key used in `builder.AddDevice<MyFirstDevice>("MyFirstDevice")`.
 
-```json
+#### subnode: Configure programmatically
+
+```csharp
+var sensor = new ModbusSensorReporturation
 {
-  "ResourceId": "{auto-generate-uuid}",
-  "Name": "Humidity",
-  "Dtmi": "dtmi:com:example:Humidity;1",
-  "SensorGroup": "AI",
-  "Parameters": {
-    "JsonPath": "$.sensors.humidity",
-    "Unit": "%RH"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 5000
-  }
-}
+    Name = "temperature.sensor",
+    RegisterAddress = 0,
+    RegisterCount = 2,
+    DataType = ModbusDataType.Float32,
+    RegisterType = ModbusRegisterType.HoldingRegister,
+    SensorGroup = SensorGroup.TEMP
+};
+sensor.Config.Interval = 1000;
+modbusDeviceConfig.AddSensor(sensor);
 ```
 
-## Transform and DSP Filter Reference
+### Phase 6: Verification Checklist
 
-### Available Transforms
+**DO NOT consider the project complete until ALL checks pass.**
 
-| Type | Parameters | Description |
-|------|------------|-------------|
-| `linear` | `Scale`, `Offset` | Linear transformation: y = scale * x + offset |
-| `polynomial` | `Coefficients` | Polynomial transformation |
-| `lookup` | `Table` | Lookup table interpolation |
+#### Step 1: Validate devicecfg.json
 
-### Available DSP Filters
+Run the config validator before building:
 
-| Type | Parameters | Description |
-|------|------------|-------------|
-| `movingaverage` | `WindowSize` | Simple moving average |
-| `kalman` | `ProcessNoise`, `MeasurementNoise` | Kalman filter |
-| `lowpass` | `CutoffFrequency`, `SampleRate` | Low pass filter |
-| `deadband` | `Threshold` | Change detection with deadband |
+```bash
+bash {SKILL_DIR}/scripts/validate-devicecfg.sh {REPO_ROOT}/apps/{project-name}/devicecfg.json
+```
 
-## After Scaffolding
+Fix any errors before proceeding.
 
-After creating the project, remind the user:
+#### Step 2: Build, run, and verify
 
-1. **Build the project:**
-   ```bash
-   cd apps/{project-name}
-   dotnet build
-   ```
+Use the automated verification script:
 
-2. **Run the project:**
-   ```bash
-   dotnet run
-   ```
+```bash
+bash {SKILL_DIR}/scripts/verify-project.sh {REPO_ROOT}/apps/{project-name}
+```
 
-3. **Configure cloud connection** (if needed):
-   - Add NATS connection settings to appsettings.json
-   - Configure DMA (Device Management Agent) endpoint
+This script will:
+1. Build the project
+2. Run it for 10 seconds
+3. Check logs for success/error markers (simulator, mock cloud, device, sensors)
+4. Report pass/fail
 
-4. **Customize the device:**
-   - Add additional event handlers
-   - Implement custom protocol parsing (for Custom type)
-   - Add more sensors as needed
+If automated verification fails, debug manually with verbose logging:
 
-## Important Notes
+```bash
+cd {REPO_ROOT}/apps/{project-name}
+dotnet run -- --Serilog:MinimumLevel:Default=Debug
+```
 
-- Always generate UUIDs for ResourceId fields using `Guid.NewGuid().ToString()`
+#### Manual verification markers
+
+- **Simulator**: `TcpModbusSimulator started on 127.0.0.1:5020`
+- **Mock cloud**: Look for the mock cloud banner in logs
+- **Device**: `Data received from device`
+- **Sensors**: `temperature_sensor: 25.3`
+
+### Phase 7: Customization (Optional)
+
+After verification passes, offer these customization options:
+
+1. **Rename device class** from `MyFirstDevice` to a meaningful name
+2. **Add transforms** (calibration, unitconversion, chunking) to sensor reports
+3. **Add DSP filters** (movingaverage, kalman, relu)
+4. **Add more sensors** - ensure register addresses don't overlap
+5. **Add event handlers** - DataReceived, ValueChanged, ConfigUpdated, CommandReceived
+6. **Update SubNodeType** in devicecfg.json to match the actual device category
+
+## Configuration File Reference
+
+The `wedabuilder` template uses 4 configuration files (loaded in order by `CreateDefaultBuilder`):
+
+| File | Config Section | Purpose |
+|------|---------------|---------|
+| `appsettings.json` | `Serilog` | Logging config (NOT cloud-synced) |
+| `systemcfg.json` | `SystemConfig:WedaNode` | NATS connection settings |
+| `devicecfg.json` | `DeviceConfig:SubNode` + `DeviceConfig:DeviceConfigs` | Device metadata + sensor config |
+| `customcfg.json` | `CustomConfig` | User-defined custom config |
+
+Override any config via CLI args: `dotnet run -- --key=value`
+
+## Important Rules
+
+- **Never skip edge or cloud verification** - both must be confirmed working
+- **Register addresses must match** between simulator config and sensor config
+- **RegisterCount must match DataType**: UInt16/Int16=1, Float32/UInt32/Int32=2, Float64/UInt64/Int64=4
+- **ConfigKey consistency**: `builder.AddDevice<T>("key")` must match `DeviceConfigs.key` in devicecfg.json
+- **SubNodeType must be one of**: `AdamEthernet`, `SerialDevice`, `DaqDevice`, `SystemMonitor`, `CustomDevice`
 - Use PascalCase for class names, kebab-case for project directories
-- Ensure namespace matches directory structure
-- Reference existing examples in `examples/` for patterns
+- Reference existing examples in `examples/` and `tutorials/` for patterns
