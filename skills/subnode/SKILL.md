@@ -22,14 +22,13 @@ You are a specialized assistant for creating SubNode IoT edge computing projects
 The SubNode SDK repo is typically named `edge_subnode`. Use the user's current working directory or ask them where their `edge_subnode` repo is located. Store this as `{REPO_ROOT}` and use it throughout. When in doubt, read the templates and examples in the project.
 
 Helper tools and scripts at `{SKILL_DIR}` = `~/.claude/skills/subnode/`:
-- `tools/<rid>/NatsCheck` - Pre-compiled NATS connectivity tester (all platforms)
 - `scripts/test-edge-connection.sh` - Test Modbus TCP device reachability
-- `scripts/test-cloud-connection.sh` - Auto-selects NatsCheck binary for current OS/arch
+- `scripts/test-cloud-connection.sh` - Test NATS connectivity (auto-builds NatsCheck from source on first use)
 - `scripts/validate-devicecfg.sh` - Validate devicecfg.json for common errors
 - `scripts/verify-project.sh` - Build + run + automated log verification
-- `scripts/build-tools.sh` - Rebuild NatsCheck if a new platform is needed
+- `scripts/build-tools.sh` - Manually rebuild NatsCheck for current platform
 
-Pre-built platforms: `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64`, `win-x64`.
+NatsCheck source: `{REPO_ROOT}/tools/nats-check/` (built on demand, cached at `{SKILL_DIR}/tools/`).
 
 Standalone simulator host at `{REPO_ROOT}/tools/simulator-host/` for docker-compose use.
 
@@ -224,13 +223,13 @@ Ask for connection details, then **automatically test connectivity** (auto-selec
 
 ```bash
 # Anonymous
-bash {SKILL_DIR}/scripts/test-cloud-connection.sh nats://server:4222
+bash {SKILL_DIR}/scripts/test-cloud-connection.sh {REPO_ROOT} nats://server:4222
 
 # With credentials
-bash {SKILL_DIR}/scripts/test-cloud-connection.sh nats://server:4222 --user admin --pass secret
+bash {SKILL_DIR}/scripts/test-cloud-connection.sh {REPO_ROOT} nats://server:4222 --user admin --pass secret
 
 # With token
-bash {SKILL_DIR}/scripts/test-cloud-connection.sh nats://server:4222 --token mytoken
+bash {SKILL_DIR}/scripts/test-cloud-connection.sh {REPO_ROOT} nats://server:4222 --token mytoken
 ```
 
 **If the script exits 0**: proceed with real cloud config.
@@ -330,7 +329,7 @@ For each sensor, collect:
 ```csharp
 var sensor = new ModbusSensorReporturation
 {
-    Name = "temperature.sensor",
+    Name = "temperature_sensor",
     RegisterAddress = 0,
     RegisterCount = 2,
     DataType = ModbusDataType.Float32,

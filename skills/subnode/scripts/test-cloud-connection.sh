@@ -1,18 +1,31 @@
 #!/bin/bash
-# Test WedaNode (NATS) connectivity using pre-compiled NatsCheck tool
-# Usage: test-cloud-connection.sh <nats-url> [--user <user> --pass <pass>]
+# Test WedaNode (NATS) connectivity using NatsCheck tool
+# Usage: test-cloud-connection.sh <repo-root> <nats-url> [--user <user> --pass <pass>]
 # Returns: exit 0 = connected, exit 1 = failed
 #
-# Auto-selects binary for current OS/arch from pre-built binaries.
+# Auto-builds NatsCheck from source on first use, then caches the binary.
+# Source: {repo-root}/tools/nats-check/
 #
 # Examples:
-#   ./test-cloud-connection.sh nats://localhost:4222
-#   ./test-cloud-connection.sh nats://10.0.0.1:4222 --user admin --pass secret
+#   ./test-cloud-connection.sh ~/edge_subnode nats://localhost:4222
+#   ./test-cloud-connection.sh ~/edge_subnode nats://10.0.0.1:4222 --user admin --pass secret
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOOLS_DIR="$SCRIPT_DIR/../tools"
+
+if [ $# -lt 2 ]; then
+    echo "Usage: test-cloud-connection.sh <repo-root> <nats-url> [--user <user> --pass <pass>]"
+    echo ""
+    echo "Examples:"
+    echo "  ./test-cloud-connection.sh ~/edge_subnode nats://localhost:4222"
+    echo "  ./test-cloud-connection.sh ~/edge_subnode nats://10.0.0.1:4222 --user admin --pass secret"
+    exit 1
+fi
+
+REPO_ROOT="$1"
+shift
 
 # Detect RID
 OS="$(uname -s)"
@@ -41,16 +54,31 @@ case "$OS" in
 esac
 
 # Select binary
-TOOL="$TOOLS_DIR/$RID/NatsCheck"
+TOOL="$TOOLS_DIR/NatsCheck"
 [ "$RID" = "win-x64" ] && TOOL="$TOOL.exe"
 
+# Build on first use if binary doesn't exist
 if [ ! -f "$TOOL" ]; then
-    echo "FAIL: NatsCheck binary not found for $RID"
-    echo "Expected: $TOOL"
+    PROJECT="$REPO_ROOT/tools/nats-check/NatsCheck.csproj"
+    if [ ! -f "$PROJECT" ]; then
+        echo "FAIL: NatsCheck project not found at $PROJECT"
+        echo "Make sure <repo-root> points to the edge_subnode repository."
+        exit 1
+    fi
+
+    echo "Building NatsCheck for $RID (first-time setup)..."
+    mkdir -p "$TOOLS_DIR"
+    dotnet publish "$PROJECT" \
+        -c Release \
+        -r "$RID" \
+        --self-contained true \
+        -p:PublishSingleFile=true \
+        -p:DebugType=none \
+        -o "$TOOLS_DIR" \
+        --nologo -v q
+
+    echo "NatsCheck built successfully."
     echo ""
-    echo "Available platforms:"
-    ls -d "$TOOLS_DIR"/*/ 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
-    exit 1
 fi
 
 exec "$TOOL" "$@"

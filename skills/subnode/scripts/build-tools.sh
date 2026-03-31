@@ -2,7 +2,7 @@
 # Build NatsCheck for the current platform
 # Usage: build-tools.sh <repo-root>
 #
-# Auto-detects OS/arch and publishes the correct binary to ~/.claude/skills/subnode/tools/
+# Auto-detects OS/arch and publishes the binary to ~/.claude/skills/subnode/tools/
 
 set -euo pipefail
 
