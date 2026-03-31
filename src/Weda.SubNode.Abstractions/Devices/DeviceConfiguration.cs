@@ -102,6 +102,9 @@ public class DeviceConfiguration
     [JsonIgnore]
     private Dictionary<string, Sensor>? _sensorLookup;
 
+    [JsonIgnore]
+    private bool _dtdlInitialized;
+
     #endregion
 
     /// <summary>
@@ -119,11 +122,13 @@ public class DeviceConfiguration
     public void InitializeDtdl(string? basePath = null, ILogger? logger = null)
     {
         // Idempotency check: Skip if DTDL already initialized
-        if (DtdlInterface != null)
+        if (_dtdlInitialized)
         {
             logger?.LogDebug("DTDL already initialized for device '{DeviceName}', skipping", DeviceName);
             return;
         }
+
+        _dtdlInitialized = true;
 
         // Device-level Dtdl.AutoGenEnabled takes priority over SubNode-level setting
         var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);

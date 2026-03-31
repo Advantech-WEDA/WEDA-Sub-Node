@@ -76,7 +76,8 @@ public enum ModbusDataType
     UInt64,
     Int64,
     Float64,
-    String16    // 16-character ASCII string (16 registers)
+    String16,   // 16-character ASCII string (16 registers)
+    Boolean     // Single bit value for Coil/DiscreteInput registers
 }
 
 /// <summary>

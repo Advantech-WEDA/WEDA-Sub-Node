@@ -7,7 +7,7 @@
     "SwVersion": "1.0.0"
   },
   "DeviceConfigs": {
-    "MyFirstDeviceConfig": {
+    "MyFirstDevice": {
       "Enabled": true,
       "DeviceCommunication": {
         "Host": "127.0.0.1",
@@ -21,7 +21,7 @@
       },
       "Sensors": [
         {
-          "Name": "temperature.sensor",
+          "Name": "temperature_sensor",
           "SensorGroup": "TEMP",
           "SensorInfo": {
             "DisplayName": "Temperature Sensor",
@@ -36,7 +36,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 5000,
+            "Interval": 1000,
             "Unit": "celsius"
           }
         }
