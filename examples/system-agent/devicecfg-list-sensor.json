@@ -1,0 +1,35 @@
+{
+  "SubNode": {
+    "Name": "Advantech-System-Agent",
+    "SubNodeType": "SystemMonitor",
+    "Manufacturer": "Advantech",
+    "Model": "SystemAgent",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "SystemAgentDeviceConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Sensors": [
+        {
+          "Name": "temperature_therm",
+          "Parameters": {
+            "MetricType": "temperature",
+            "MetricNames": [ "cpU-therm", "gpU-therm" ]
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "Thermal sensor temperature",
+            "DisplayName": "Temperature"
+          }
+        }
+      ]
+    }
+  }
+}
