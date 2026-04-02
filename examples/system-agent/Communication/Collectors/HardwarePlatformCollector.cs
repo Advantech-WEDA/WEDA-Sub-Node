@@ -218,6 +218,10 @@ public class HardwarePlatformCollector
                 pinNames.Length, string.Join(", ", pinNames));
             metrics.PinNames = pinNames;
 
+            // Build index-to-name mapping for lookup by either name or numeric ID
+            for (int i = 0; i < pinNames.Length; i++)
+                metrics.PinIndexToName[i] = pinNames[i];
+
             // Collect individual pin states
             foreach (var pinName in pinNames)
             {

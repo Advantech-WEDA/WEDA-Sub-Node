@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace SystemAgentExample.Communication.Utilities;
 
 /// <summary>
@@ -9,23 +11,14 @@ namespace SystemAgentExample.Communication.Utilities;
 /// 
 /// Reference: https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels
 /// </summary>
-public static class PlatformHelpers
+public static partial class PlatformHelpers
 {
+    [GeneratedRegex(@"[^a-zA-Z0-9_]+")]
+    private static partial Regex NonPrometheusChars();
     /// <summary>
-    /// Normalizes drive/partition names across different platforms to be Prometheus-compatible.
-    /// 
-    /// Prometheus label values can only contain alphanumeric characters and underscores.
-    /// This method converts platform-specific drive names into a standardized format.
-    /// 
-    /// Examples:
-    /// - Windows: "C:" ¡÷ "c"
-    /// - Windows: "D:" ¡÷ "d"
-    /// - Linux: "/dev/sda1" ¡÷ "sda1"
-    /// - Linux: "/dev/sdb" ¡÷ "sdb"
-    /// - Linux: "/" (root) ¡÷ "root"
-    /// - macOS: "/Volumes/Data" ¡÷ "volumes_data"
-    /// 
-    /// This ensures that the device name can be safely used as a Prometheus label value.
+    /// Normalizes drive/partition names across platforms to Prometheus-compatible format.
+    /// Strips colons, slashes, and path prefixes; returns lowercase alphanumeric with underscores.
+    /// Root partition "/" maps to "root".
     /// </summary>
     public static string NormalizeDriveName(string driveName)
     {
@@ -41,20 +34,22 @@ public static class PlatformHelpers
     /// Sanitizes network interface names to be Prometheus-compatible.
     /// 
     /// Prometheus label values can only contain alphanumeric characters and underscores.
-    /// This method converts platform-specific interface names into a standardized format
-    /// by replacing spaces and hyphens with underscores, and converting to lowercase.
-    /// 
-    /// Examples:
-    /// - "Ethernet 1" ¡÷ "ethernet_1"
-    /// - "Wi-Fi" ¡÷ "wi_fi"
-    /// - "eth0-vlan" ¡÷ "eth0_vlan"
-    /// - "Local Area Connection" ¡÷ "local_area_connection"
-    /// 
-    /// This ensures that the interface name can be safely used as a Prometheus label value,
-    /// allowing proper filtering and aggregation in monitoring dashboards.
+    /// Callers should pass NetworkInterface.Description (hardware driver name, always English).
+    /// If Description sanitizes to empty, falls back to sanitizing the friendlyName.
     /// </summary>
-    public static string SanitizeInterfaceName(string name)
+    public static string SanitizeInterfaceName(string description, string? friendlyName = null)
     {
-        return name.Replace(" ", "_").Replace("-", "_").ToLowerInvariant();
+        var sanitized = NonPrometheusChars().Replace(description, "_").Trim('_').ToLowerInvariant();
+        if (!string.IsNullOrEmpty(sanitized))
+            return sanitized;
+
+        if (!string.IsNullOrEmpty(friendlyName))
+        {
+            sanitized = NonPrometheusChars().Replace(friendlyName, "_").Trim('_').ToLowerInvariant();
+            if (!string.IsNullOrEmpty(sanitized))
+                return sanitized;
+        }
+
+        return description.Replace(" ", "_").Replace("-", "_").ToLowerInvariant();
     }
 }

@@ -18,6 +18,8 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
 {
     /// <summary>
     /// Initializes a new instance of SystemAgentDeviceBase.
+    /// Sensors without specific resource identifiers (Interface, PinId, MetricName)
+    /// are auto-expanded into per-resource sensors before device initialization.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing sensor settings.</param>
@@ -26,10 +28,10 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         LocalSystemCommunication communication)
-        : base(context, configuration, CreateParser(context, configuration, communication))
+        : base(context, ExpandSensors(context, configuration, communication), CreateParser(context, configuration, communication))
     {
-        _logger.LogDebug(
-            "SystemAgentDevice initialized ({SensorCount} sensors)",
+        _logger.LogInformation(
+            "SystemAgentDevice initialized ({SensorCount} sensors after expansion)",
             configuration.Sensors.Count);
     }
 
@@ -47,5 +49,27 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
             configuration,
             communication,
             loggerFactory.CreateLogger<SystemMetricsParser>());
+    }
+
+    /// <summary>
+    /// Discovers available system resources and expands template sensors
+    /// into per-resource sensors before passing to the base constructor.
+    /// </summary>
+    private static DeviceConfiguration ExpandSensors(
+        IWedaApplicationContext context,
+        DeviceConfiguration configuration,
+        LocalSystemCommunication communication)
+    {
+        var logger = context.LoggerFactory.CreateLogger<SystemAgentDeviceBase>();
+        var resources = communication.DiscoverAvailableResources();
+
+        logger.LogInformation(
+            "Discovered resources — Network: [{Networks}], GPIO: [{Gpio}], Temperature: [{Temp}]",
+            string.Join(", ", resources.NetworkInterfaces),
+            string.Join(", ", resources.GpioPins),
+            string.Join(", ", resources.TemperatureSources));
+
+        configuration.Sensors = SensorExpander.Expand(configuration.Sensors, resources, logger);
+        return configuration;
     }
 }
