@@ -1,0 +1,12 @@
+services:
+  air-quality-monitor:
+    build:
+      context: ../..
+      dockerfile: examples/air-quality-monitor/Dockerfile
+    volumes:
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./weda-data:/app/.weda
+    network_mode: host
+    restart: unless-stopped

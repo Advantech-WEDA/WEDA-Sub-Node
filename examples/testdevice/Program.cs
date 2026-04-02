@@ -5,7 +5,8 @@ using Weda.SubNode.Simulators.Modbus;
 using testdevice;
 using Weda.SubNode.WebApi;
 
-var builder = WedaApplication.CreateDefaultBuilder(args);
+var builder = WedaApplication.CreateDefaultBuilder(args)
+    .UseMockCloud();
 
 builder.AddWebApi();
 builder.AddDevice<MyFirstDevice>("MyFirstDeviceConfig");

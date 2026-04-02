@@ -5,6 +5,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="MQTTnet" />
+    <PackageReference Include="NATS.Net" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Weda.SubNode.Abstractions\Weda.SubNode.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

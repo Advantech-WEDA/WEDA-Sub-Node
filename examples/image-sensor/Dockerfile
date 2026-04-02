@@ -1,31 +1,38 @@
 # syntax=docker/dockerfile:1.6
 
-# Build stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+ARG TARGETARCH
 
 WORKDIR /src
-
-# Copy source (note: build context should be repository root)
 COPY . .
 
-# Restore dependencies for the image-sensor project
 WORKDIR /src/examples/image-sensor
 RUN dotnet restore
 
-# Publish
-RUN dotnet publish ImageSensor.csproj \
-    -c Release \
-    -o /app/publish
+RUN set -e; \
+    case "${TARGETARCH}" in \
+      amd64)  echo "linux-x64"   > /rid.txt ;; \
+      arm64)  echo "linux-arm64" > /rid.txt ;; \
+      arm)    echo "linux-arm"   > /rid.txt ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac
 
-# Runtime stage
+RUN RID=$(cat /rid.txt) && \
+    dotnet publish ImageSensor.csproj \
+      -c Release \
+      -r "$RID" \
+      --self-contained true \
+      -p:PublishSingleFile=false \
+      -p:PublishReadyToRun=false \
+      -p:DebugType=none \
+      -o /app/publish
+
 FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
 
 WORKDIR /app
-
-# Copy published files
 COPY --from=build /app/publish/ ./
 
-# Optional: reduce globalization dependencies
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["dotnet", "ImageSensor.dll"]
+ENTRYPOINT ["/app/ImageSensor"]

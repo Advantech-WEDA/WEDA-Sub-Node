@@ -5,93 +5,61 @@ All notable changes to the Weda SubNode SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-03-05
 
 ### Added
-- `IDeviceRegistry` for cross-device discovery and communication
-- `GetDevice`/`FindDevice` methods on `IWedaApplicationContext`
-- `GetSensor`/`FindSensor`/`GetSensorByResourceId`/`FindSensorByResourceId` methods on `IDevice`
-- `ConfigureConnectionPolicy()` method on `WedaApplicationBuilder`
-- Protocol parser interfaces: `IProtocolParserCore`, `IPublishSubscribeProtocolParser`, `IRequestResponseProtocolParser`
-- `ISensingPubSubParser` for ISensing MQTT publish/subscribe protocol
-- `ModbusRequestResponseParser` for Modbus request/response protocol
+- Modbus DO command support
+- Global Serilog logger configuration
+- air-quality-monitor example
+- `report.data` command
+- Dynamic record storage system with binary index and documentation
+- JSON payload files in examples
+- SubNode MimeType support (application/json & image/png, jpeg)
+- ImageSensor example
+- ImagePubSubParser and MqttImageDevice implementation
+- Image protocol parser with design docs for large data handling and dynamic recording
+- Photo simulator using MNIST dataset
+- Chunking for large size image and chunkingTransform for custom chunking
+- Route image topics per sensor
+- CRC32 support
+- MIME type validation for sensor telemetry data
+- MIME type schema whitelist restriction
+- Validation metrics log
+- Unit test for json adapter for TelemetryMeasureDto
 
 ### Changed
-- Connection retry policy now configurable via `ConnectionOptions`
-- `ConnectionOptions` extended with `MaxRetryDelayMs` and `WithRetries()` factory method
-- Refactored `IProtocolParser` into specialized interfaces for different communication patterns
+- Replace dots with underscores in sensor names to comply with IoT DB naming rule
+- Rename image-sensor example
+- Rename checksum to crc32Checksum
+- Naming corrections
 
-### Removed
-- Obsolete integration tests (`Wise4012SeDeviceIntegrationTests`, `MqttISensingIntegrationTests`)
-- Unused `DefaultPollingIntervalMs` from `DeviceOptions`
+### Fixed
+- Command interface change error
+- Auto value object serialization for dynamic storage
+- Correct air-quality model from array to object
+- Testing compile errors
+- Receiver using transferId instead of imageId
+- Chunked telemetry issue
+- Batch report request payload
+- Stop background tasks before config update to prevent race conditions
+- NOT_REGISTERED issue
+- Sensor name validation with IoT-DB naming rule
 
-## [0.0.1] - 2025-11-17
+## [0.2.0] - 2026-02-02
 
 ### Added
+- Support remote shadow configuration sync
+- Introduce Sub Node Manager
+- SubNode Sensor Recording
 
-#### Core Framework
-- `IWedaApplicationContext` - Central application context interface
-- `WedaApplicationContext` - Default implementation with NATS cloud service
-- `WedaApplicationBuilder` - Fluent builder pattern for application configuration
-- `WedaApplication.CreateBuilder()` and `CreateDefaultBuilder()` factory methods
+### Fixed
+- Resolved Sub Node Registration Issue
 
-#### Device Abstraction
-- `IDevice` interface for device abstraction
-- `DeviceBase` base class with common device functionality
-- `DeviceConfiguration` for device settings from appsettings.json
-- `DeviceCapabilities` for device metadata (manufacturer, model, version)
-- `Sensor` class with transform and DSP pipeline support
-
-#### Modbus Support
-- `TcpModbusDevice` for Modbus TCP communication
-- `ModbusDevice` base class for Modbus protocol handling
-- Batch reading optimization for consecutive registers
-- Auto-batch algorithm with configurable `MaxGapSize` and `MaxBatchSize`
-
-#### ISensing MQTT Support
-- `MqttISensingDevice` for ISensing MQTT communication
-- `ISensingDevice` base class for ISensing protocol handling
-- Publish/subscribe pattern for real-time sensor data
-
-#### Cloud Integration
-- NATS-based cloud service (`WedaCloudService`)
-- Telemetry upload functionality
-- Device registration with Weda.Core
-- Mock cloud service (`MockCloudService`) for development/testing
-
-#### Configuration
-- `appsettings.json` based configuration
-- Serilog logging integration
-- NATS connection settings
-- Device configuration with sensors, transforms, and DSP filters
-
-#### Data Processing
-- Transform pipeline (Calibration, UnitConversion)
-- DSP filter pipeline (MovingAverage, Kalman, LowPass, HighPass)
-- Threshold monitoring (UpperCritical, UpperWarning, LowerWarning, LowerCritical)
-
-#### Connection Management
-- Polly-based resilience policies
-- Configurable retry strategies (AlwaysRetry default)
-- Connection state management
-- Auto-reconnection support
-
-#### Templates
-- `SubNodeTemplate` project template for quick start
-- Example projects (WISE-4012 builder pattern)
-
-#### Documentation
-- Comprehensive wiki documentation (English and Chinese)
-- Quick start guides
-- API reference
-- Best practices
-
-### Infrastructure
-- DevContainer support for development
-- Centralized DTDL management
-- Solution restructuring for better organization
+### Installation and Upgrade Instructions
+- appsettings configuration interface changed
+- Please remove the sub node metadata before launching
 
 ---
 
-[Unreleased]: https://dev.azure.com/AIM-IIoT/EdgeSync/_git/edge_subnode/branchCompare?baseVersion=GTv0.0.1&targetVersion=GBfeature/phase-2
-[0.0.1]: https://dev.azure.com/AIM-IIoT/EdgeSync/_git/edge_subnode/branchCompare?baseVersion=GTa19787d&targetVersion=GTv0.0.1
+[1.0.0]: https://dev.azure.com/Advantech-EBO/IoT%20Platform/_wiki/wikis/IoT-Platform.wiki/4301/Sub-node
+[0.2.0]: https://dev.azure.com/Advantech-EBO/IoT%20Platform/_wiki/wikis/IoT-Platform.wiki/4338/Sub-Node-SDK

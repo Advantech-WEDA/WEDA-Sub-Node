@@ -5,93 +5,61 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本專案遵循 [語意化版本](https://semver.org/lang/zh-TW/)。
 
-## [未發布]
+## [1.0.0] - 2026-03-05
 
 ### 新增
-- `IDeviceRegistry` 用於跨裝置發現和通訊
-- `IWedaApplicationContext` 上的 `GetDevice`/`FindDevice` 方法
-- `IDevice` 上的 `GetSensor`/`FindSensor`/`GetSensorByResourceId`/`FindSensorByResourceId` 方法
-- `WedaApplicationBuilder` 上的 `ConfigureConnectionPolicy()` 方法
-- 協定解析器介面：`IProtocolParserCore`、`IPublishSubscribeProtocolParser`、`IRequestResponseProtocolParser`
-- `ISensingPubSubParser` 用於 ISensing MQTT 發布/訂閱協定
-- `ModbusRequestResponseParser` 用於 Modbus 請求/回應協定
+- Modbus DO 命令支援
+- 全域 Serilog 記錄器設定
+- air-quality-monitor 範例
+- `report.data` 命令
+- 動態記錄儲存系統，包含二進位索引和文件
+- 範例中的 json payload 檔案
+- SubNode MimeType 支援 (application/json & image/png, jpeg)
+- ImageSensor 範例
+- ImagePubSubParser 和 MqttImageDevice 實作
+- 影像協定解析器，包含大型資料處理和動態記錄的設計文件
+- 使用 MNIST 資料集的照片模擬器
+- 大型影像的分塊功能和自訂分塊的 chunkingTransform
+- 每個感測器的影像主題路由
+- CRC32 支援
+- 感測器遙測資料的 MIME 類型驗證
+- MIME 類型 schema 白名單限制
+- 驗證指標日誌
+- TelemetryMeasureDto 的 json adapter 單元測試
 
 ### 變更
-- 連線重試策略現可透過 `ConnectionOptions` 配置
-- `ConnectionOptions` 擴充 `MaxRetryDelayMs` 和 `WithRetries()` 工廠方法
-- 重構 `IProtocolParser` 為針對不同通訊模式的專用介面
+- 感測器名稱中的點號替換為底線，以符合 IoT DB 命名規則
+- 重新命名 image-sensor 範例
+- checksum 重新命名為 crc32Checksum
+- 命名修正
 
-### 移除
-- 過時的整合測試 (`Wise4012SeDeviceIntegrationTests`、`MqttISensingIntegrationTests`)
-- `DeviceOptions` 中未使用的 `DefaultPollingIntervalMs`
+### 修復
+- 命令介面變更錯誤
+- 動態儲存的自動值物件序列化問題
+- air-quality 模型從陣列修正為物件
+- 測試編譯錯誤
+- receiver 使用 transferId 而非 imageId
+- 分塊遙測問題
+- 批次報告請求 payload
+- 在配置更新前停止背景任務，防止競爭條件
+- NOT_REGISTERED 問題
+- 感測器名稱驗證，符合 IoT-DB 命名規則
 
-## [0.0.1] - 2025-11-17
+## [0.2.0] - 2026-02-02
 
 ### 新增
+- 遠端 shadow 配置同步支援
+- Sub Node Manager 導入
+- SubNode Sensor Recording
 
-#### 核心框架
-- `IWedaApplicationContext` - 中央應用程式上下文介面
-- `WedaApplicationContext` - 預設實作，包含 NATS 雲端服務
-- `WedaApplicationBuilder` - 流暢建構器模式，用於應用程式配置
-- `WedaApplication.CreateBuilder()` 和 `CreateDefaultBuilder()` 工廠方法
+### 修復
+- Sub Node 註冊問題
 
-#### 裝置抽象
-- `IDevice` 裝置抽象介面
-- `DeviceBase` 基礎類別，包含通用裝置功能
-- `DeviceConfiguration` 用於從 appsettings.json 讀取裝置設定
-- `DeviceCapabilities` 用於裝置元資料（製造商、型號、版本）
-- `Sensor` 類別，支援轉換和 DSP 管線
-
-#### Modbus 支援
-- `TcpModbusDevice` 用於 Modbus TCP 通訊
-- `ModbusDevice` Modbus 協定處理基礎類別
-- 連續暫存器的批次讀取最佳化
-- 自動批次演算法，可配置 `MaxGapSize` 和 `MaxBatchSize`
-
-#### ISensing MQTT 支援
-- `MqttISensingDevice` 用於 ISensing MQTT 通訊
-- `ISensingDevice` ISensing 協定處理基礎類別
-- 發布/訂閱模式，用於即時感測器資料
-
-#### 雲端整合
-- 基於 NATS 的雲端服務 (`WedaCloudService`)
-- 遙測上傳功能
-- 向 Weda.Core 進行裝置註冊
-- 模擬雲端服務 (`MockCloudService`) 用於開發/測試
-
-#### 配置
-- 基於 `appsettings.json` 的配置
-- Serilog 日誌整合
-- NATS 連線設定
-- 裝置配置，包含感測器、轉換和 DSP 濾波器
-
-#### 資料處理
-- 轉換管線（校正、單位轉換）
-- DSP 濾波器管線（移動平均、卡爾曼、低通、高通）
-- 閾值監控（上限嚴重、上限警告、下限警告、下限嚴重）
-
-#### 連線管理
-- 基於 Polly 的韌性策略
-- 可配置的重試策略（預設為 AlwaysRetry）
-- 連線狀態管理
-- 自動重連支援
-
-#### 範本
-- `SubNodeTemplate` 專案範本，快速開始
-- 範例專案（WISE-4012 建構器模式）
-
-#### 文件
-- 完整的 Wiki 文件（英文和中文）
-- 快速入門指南
-- API 參考
-- 最佳實踐
-
-### 基礎設施
-- DevContainer 開發支援
-- 集中式 DTDL 管理
-- 解決方案結構重組以改善組織
+### 安裝與升級說明
+- appsettings 配置介面已變更
+- 啟動前請移除 sub node metadata
 
 ---
 
-[未發布]: https://dev.azure.com/AIM-IIoT/EdgeSync/_git/edge_subnode/branchCompare?baseVersion=GTv0.0.1&targetVersion=GBfeature/phase-2
-[0.0.1]: https://dev.azure.com/AIM-IIoT/EdgeSync/_git/edge_subnode/branchCompare?baseVersion=GTa19787d&targetVersion=GTv0.0.1
+[1.0.0]: https://dev.azure.com/Advantech-EBO/IoT%20Platform/_wiki/wikis/IoT-Platform.wiki/4301/Sub-node
+[0.2.0]: https://dev.azure.com/Advantech-EBO/IoT%20Platform/_wiki/wikis/IoT-Platform.wiki/4338/Sub-Node-SDK

@@ -12,23 +12,14 @@
     "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
   ],
 
-  // Configure tool-specific properties
   "customizations": {
     "vscode": {
       "extensions": [
-        // C# and .NET
         "ms-dotnettools.csharp",
         "ms-dotnettools.csdevkit",
         "ms-dotnettools.vscode-dotnet-runtime",
-				"ms-dotnettools.dotnet-interactive-vscode",
-
-        // Docker
         "ms-azuretools.vscode-docker",
-
-        // EditorConfig
         "editorconfig.editorconfig",
-
-        // Markdown
         "yzhang.markdown-all-in-one"
       ],
       "settings": {
@@ -49,7 +40,6 @@
     }
   },
 
-  // Features to add to the dev container
   "features": {
     "ghcr.io/devcontainers/features/git:1": {
       "version": "latest"
@@ -59,13 +49,10 @@
     }
   },
 
-  // Post create command to restore packages and install templates
-  "postCreateCommand": "bash /tmp/install-templates.sh && dotnet restore && dotnet build",
+  "postCreateCommand": "bash /tmp/install-templates.sh && dotnet restore",
 
-  // Comment out to run as root instead
   "remoteUser": "vscode",
 
-  // Environment variables
   "remoteEnv": {
     "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
     "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1",

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Core.Protocols.Modbus;
 using Weda.SubNode.Devices.Generic;
 
 namespace WedaSubNode;
@@ -14,8 +15,8 @@ public class MyFirstDevice : TcpModbusDevice
 {
     public MyFirstDevice(
         IWedaApplicationContext context,
-        DeviceConfiguration configuration)
-        : base(context, configuration)
+        TcpModbusDeviceConfiguration configuration)
+        : base(context, configuration.ToDeviceConfiguration())
     {
         // Subscribe to DataReceived event to process telemetry
         EnableDataReceivedTracking = true;
