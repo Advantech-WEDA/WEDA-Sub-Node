@@ -41,12 +41,13 @@ public class NetworkCollector
 
             foreach (var iface in interfaces.Where(i => i.OperationalStatus == OperationalStatus.Up))
             {
-                if (!IsPhysicalOrLogicalInterface(iface))
-                {
-                    _logger.LogDebug("Skipping filter/virtual interface: {Name} (Type={Type}, Desc={Description})",
-                        iface.Name, iface.NetworkInterfaceType, iface.Description);
-                    continue;
-                }
+                // Let the user decide on the filtering.
+                //if (!IsPhysicalOrLogicalInterface(iface))
+                //{
+                //    _logger.LogDebug("Skipping filter/virtual interface: {Name} (Type={Type}, Desc={Description})",
+                //        iface.Name, iface.NetworkInterfaceType, iface.Description);
+                //    continue;
+                //}
 
                 _logger.LogDebug("Processing interface: {Name}, Type: {Type}, Status: {Status}",
                     iface.Name, iface.NetworkInterfaceType, iface.OperationalStatus);

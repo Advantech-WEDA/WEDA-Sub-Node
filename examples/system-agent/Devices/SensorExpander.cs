@@ -18,6 +18,7 @@ internal static class SensorExpander
 {
     /// <summary>
     /// Expands sensors that lack specific resource identifiers into per-resource sensors.
+    /// Each sensor is independently expanded based on its own MetricType.
     /// Priority: explicit array param > auto-detect from system.
     /// </summary>
     internal static List<Sensor> Expand(
@@ -25,40 +26,43 @@ internal static class SensorExpander
         DiscoveredResources resources,
         ILogger logger)
     {
-        var result = new List<Sensor>();
-
-        foreach (var sensor in sensors)
-        {
-            var metricType = GetParam(sensor, "MetricType")?.ToLowerInvariant();
-
-            var expanded = metricType switch
-            {
-                SupportedDataType.Network => ExpandNetwork(sensor, resources.NetworkInterfaces, logger),
-                SupportedDataType.Gpio => ExpandGpio(sensor, resources.GpioPins, logger),
-                SupportedDataType.Temperature => ExpandTemperature(sensor, resources.TemperatureSources, logger),
-                _ => null
-            };
-
-            if (expanded != null)
-                result.AddRange(expanded);
-            else
-                result.Add(sensor);
-        }
-
-        return result;
+        return sensors
+            .SelectMany(sensor => ExpandSensor(sensor, resources, logger))
+            .ToList();
     }
 
-    private static List<Sensor>? ExpandNetwork(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    /// <summary>
+    /// Expands a single sensor based on its MetricType.
+    /// Returns one or more sensors: either the expanded per-resource sensors,
+    /// or the original sensor unchanged if expansion is not applicable.
+    /// </summary>
+    private static List<Sensor> ExpandSensor(
+        Sensor sensor,
+        DiscoveredResources resources,
+        ILogger logger)
     {
-        // Already has specific Interface → no expansion needed
+        var metricType = GetParam(sensor, "MetricType")?.ToLowerInvariant();
+
+        return metricType switch
+        {
+            SupportedDataType.Network => ExpandNetwork(sensor, resources.NetworkInterfaces, logger),
+            SupportedDataType.Gpio => ExpandGpio(sensor, resources.GpioPins, logger),
+            SupportedDataType.Temperature => ExpandTemperature(sensor, resources.TemperatureSources, logger),
+            _ => [sensor]
+        };
+    }
+
+    private static List<Sensor> ExpandNetwork(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    {
+        // Already bound to a specific interface → keep as-is
         if (GetParam(sensor, "Interface") != null)
-            return null;
+            return [sensor];
 
         var interfaces = ResolveResourceList(sensor, "Interfaces", discovered);
         if (interfaces.Count == 0)
         {
             logger.LogWarning("No network interfaces discovered for sensor '{Name}', keeping as-is", sensor.Name);
-            return null;
+            return [sensor];
         }
 
         logger.LogInformation(
@@ -70,21 +74,21 @@ internal static class SensorExpander
             .ToList();
     }
 
-    private static List<Sensor>? ExpandGpio(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ExpandGpio(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
         var metricName = GetParam(sensor, "MetricName")?.ToLowerInvariant();
         if (metricName != "pinstate")
-            return null;
+            return [sensor];
 
-        // Already has specific PinId → no expansion needed
+        // Already bound to a specific pin → keep as-is
         if (GetParam(sensor, "PinId") != null)
-            return null;
+            return [sensor];
 
         var pins = ResolveResourceList(sensor, "PinIds", discovered);
         if (pins.Count == 0)
         {
             logger.LogWarning("No GPIO pins discovered for sensor '{Name}', keeping as-is", sensor.Name);
-            return null;
+            return [sensor];
         }
 
         logger.LogInformation(
@@ -96,17 +100,17 @@ internal static class SensorExpander
             .ToList();
     }
 
-    private static List<Sensor>? ExpandTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ExpandTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
-        // Already has specific MetricName → no expansion needed
+        // Already bound to a specific source → keep as-is
         if (GetParam(sensor, "MetricName") != null)
-            return null;
+            return [sensor];
 
         var sources = ResolveResourceList(sensor, "Sources", discovered);
         if (sources.Count == 0)
         {
             logger.LogWarning("No temperature sources discovered for sensor '{Name}', keeping as-is", sensor.Name);
-            return null;
+            return [sensor];
         }
 
         logger.LogInformation(
