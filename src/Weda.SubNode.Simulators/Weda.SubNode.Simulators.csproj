@@ -6,6 +6,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="MQTTnet" />
     <PackageReference Include="NATS.Net" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" />
   </ItemGroup>
 
   <ItemGroup>
