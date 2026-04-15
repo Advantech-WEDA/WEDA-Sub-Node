@@ -344,6 +344,19 @@ modbusDeviceConfig.AddSensor(sensor);
 
 **DO NOT consider the project complete until ALL checks pass.**
 
+#### Understanding Configuration Sections
+
+The `wedabuilder` template's `CreateDefaultBuilder` loads config files into the .NET configuration system under specific sections. When verifying configuration values, use the **full configuration path**:
+
+| Source File | Loaded Under Section | Example Config Path |
+|---|---|---|
+| `appsettings.json` | _(root)_ | `Serilog:MinimumLevel:Default` |
+| `systemcfg.json` | `SystemConfig` | `SystemConfig:WedaNode:Url` |
+| `devicecfg.json` | `DeviceConfig` | `DeviceConfig:DeviceConfigs:{DeviceName}:Sensors:0:Name` |
+| `customcfg.json` | `CustomConfig` | `CustomConfig:{YourKey}` |
+
+So a sensor configured in `devicecfg.json` at `DeviceConfigs.MyFirstDevice.Sensors[0]` resolves to `DeviceConfig:DeviceConfigs:MyFirstDevice:Sensors:0` in the built configuration. Keep this mapping in mind when debugging config binding issues.
+
 #### Step 1: Validate devicecfg.json
 
 Run the config validator before building:
@@ -382,7 +395,88 @@ dotnet run -- --Serilog:MinimumLevel:Default=Debug
 - **Device**: `Data received from device`
 - **Sensors**: `temperature_sensor: 25.3`
 
-### Phase 7: Customization (Optional)
+### Phase 7: NATS Web Dashboard (Optional)
+
+After verification passes and the project is using a **real WedaNode** (not mock cloud), offer to set up the NATS Web Dashboard for real-time telemetry monitoring.
+
+Ask the user: "Would you like to set up the NATS Web Dashboard to monitor your device telemetry in real-time?"
+
+If yes, proceed with the following steps:
+
+#### Step 1: Find the Device ID
+
+After the SubNode registers with WedaNode, check the registration cache:
+
+```bash
+cat {REPO_ROOT}/apps/{project-name}/.weda/subnode.registration.json | jq .natsTopicAssignments.telemetryTopic
+# Example output: "eco1j.weda.297948673633943552.telemetry"
+```
+
+Extract the device ID from the topic (e.g., `297948673633943552`).
+
+#### Step 2: Configure the Dashboard
+
+The dashboard project is at `{REPO_ROOT}/tools/nats-web-dashboard/`. Create or update `appsettings.json`:
+
+```json
+{
+  "Dashboard": {
+    "Nats": {
+      "Url": "{same NATS URL as systemcfg.json}",
+      "AuthStrategy": "{same auth strategy}",
+      "Username": "{if UserPassword}",
+      "Password": "{if UserPassword}"
+    },
+    "Subject": "eco1j.weda.{deviceId}.>",
+    "Port": 5050
+  }
+}
+```
+
+The `Dashboard:Nats` section uses `NatsConnectionSettings` from the SDK, so all auth strategies are supported:
+
+| Field | Description |
+|---|---|
+| `Url` | NATS server URL (`nats://` prefix auto-added if omitted) |
+| `AuthStrategy` | `None`, `UserPassword`, `Token`, `CredFile`, `TlsCert` |
+| `Username` / `Password` | For `UserPassword` auth |
+| `Token` | For `Token` auth |
+| `CredFile` | Path to `.creds` file for `CredFile` auth |
+
+**IMPORTANT**: The NATS connection settings should match the `systemcfg.json` used by the SubNode project. Use `>` (all subjects) or `eco1j.weda.{deviceId}.>` to filter by device.
+
+Configuration can also be overridden via environment variables or CLI arguments:
+
+```bash
+# Environment variables
+export Dashboard__Nats__Url=192.168.1.100:4222
+export Dashboard__Subject="eco1j.weda.12345.>"
+
+# CLI arguments
+dotnet run -- --Dashboard:Nats:Url=192.168.1.100:4222 --Dashboard:Subject="eco1j.weda.12345.>"
+```
+
+#### Step 3: Launch the Dashboard
+
+Ask the user: "Do you want me to launch the dashboard now?"
+
+If yes, start the dashboard:
+
+```bash
+cd {REPO_ROOT}/tools/nats-web-dashboard
+dotnet run
+```
+
+Then inform the user to open http://localhost:5050 in their browser.
+
+The dashboard provides:
+- **Sensor Telemetry** - Live sensor values with min/max/avg statistics
+- **Device Health** - CPU, memory, health status with progress bars
+- **Sensor Trend Chart** - Canvas line chart (last 120 samples)
+- **Message Log** - Raw NATS message stream classified by type
+- **Stats Bar** - Message count, rate (msg/s), last update time
+
+### Phase 8: Customization (Optional)
 
 After verification passes, offer these customization options:
 
@@ -391,18 +485,19 @@ After verification passes, offer these customization options:
 3. **Add DSP filters** (movingaverage, kalman, relu)
 4. **Add more sensors** - ensure register addresses don't overlap
 5. **Add event handlers** - DataReceived, ValueChanged, ConfigUpdated, CommandReceived
-6. **Update SubNodeType** in devicecfg.json to match the actual device category
 
 ## Configuration File Reference
 
-The `wedabuilder` template uses 4 configuration files (loaded in order by `CreateDefaultBuilder`):
+The `wedabuilder` template uses 4 configuration files (loaded in order by `CreateDefaultBuilder`). Each file's content is mounted under a **parent section** in the built configuration:
 
-| File | Config Section | Purpose |
-|------|---------------|---------|
-| `appsettings.json` | `Serilog` | Logging config (NOT cloud-synced) |
-| `systemcfg.json` | `SystemConfig:WedaNode` | NATS connection settings |
-| `devicecfg.json` | `DeviceConfig:SubNode` + `DeviceConfig:DeviceConfigs` | Device metadata + sensor config |
-| `customcfg.json` | `CustomConfig` | User-defined custom config |
+| File | Parent Section | Built Config Paths | Purpose |
+|------|---|---|---|
+| `appsettings.json` | _(root)_ | `Serilog:*` | Logging config (NOT cloud-synced) |
+| `systemcfg.json` | `SystemConfig` | `SystemConfig:WedaNode:Url`, `SystemConfig:WedaNode:AuthStrategy`, ... | NATS connection settings |
+| `devicecfg.json` | `DeviceConfig` | `DeviceConfig:SubNode:Name`, `DeviceConfig:DeviceConfigs:{Key}:Sensors:0:Name`, ... | Device metadata + sensor config |
+| `customcfg.json` | `CustomConfig` | `CustomConfig:{YourKey}` | User-defined custom config |
+
+For example, `devicecfg.json` contains `"SubNode"` and `"DeviceConfigs"` at the top level, but in the built configuration they resolve to `DeviceConfig:SubNode` and `DeviceConfig:DeviceConfigs` respectively.
 
 Override any config via CLI args: `dotnet run -- --key=value`
 
