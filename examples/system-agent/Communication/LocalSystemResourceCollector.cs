@@ -45,9 +45,8 @@ public class LocalSystemResourceCollector
 
         try
         {
-            _logger.LogInformation("Hardware platform device starting...");
+            _logger.LogInformation("Advantech.Edge.Device initializing...");
             advantechEdgeDevice = new Device();
-            _logger.LogInformation("Hardware platform device initialized successfully");
         }
         catch (TypeInitializationException typeEx)
         {
@@ -70,7 +69,16 @@ public class LocalSystemResourceCollector
             _logger.LogWarning(ex, "Advantech Device initialization failed ({ExceptionType}). Hardware metrics unavailable.", ex.GetType().Name);
         }
 
-        _hardwarePlatformCollector = new HardwarePlatformCollector(_logger, advantechEdgeDevice);
+        if (advantechEdgeDevice == null || advantechEdgeDevice.InitializationFailed)
+        {
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping new HardwarePlatformCollector");
+        }
+        else
+        {
+            _logger.LogInformation("Advantech.Edge.Device initialized successfully");
+            _hardwarePlatformCollector = new HardwarePlatformCollector(_logger, advantechEdgeDevice);
+            _logger.LogInformation("HardwarePlatformCollector initialized successfully");
+        }
     }
 
     /// <summary>
@@ -318,6 +326,47 @@ public class LocalSystemResourceCollector
         }
 
         return rawData;
+    }
+
+    /// <summary>
+    /// Discovers available resource names for sensor auto-expansion.
+    /// Returns network interface names, GPIO pin names, and temperature source names.
+    /// </summary>
+    public DiscoveredResources DiscoverAvailableResources()
+    {
+        var networkInterfaces = _networkCollector.CollectNetworkMetrics()
+            .Select(n => n.InterfaceName)
+            .ToList();
+
+        // For GPIO and temperature sources, we need to handle potential exceptions since they may not be supported on all hardware
+        List<string> gpioPins = [];
+        List<string> temperatureSources = [];
+
+        if (_hardwarePlatformCollector != null)
+        {
+            try
+            {
+                var gpio = _hardwarePlatformCollector.CollectGpioMetrics();
+                if (gpio.IsSupported)
+                    gpioPins = gpio.PinNames?.ToList() ?? [];
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover GPIO pins");
+            }
+
+            try
+            {
+                var temp = _hardwarePlatformCollector.CollectTemperatureMetrics();
+                temperatureSources = temp.Temperatures.Keys.ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover temperature sources");
+            }
+        }
+
+        return new DiscoveredResources(networkInterfaces, gpioPins, temperatureSources);
     }
 
     private static void AddCollectionError(SystemMetricsRawData rawData, string metricType)

@@ -432,6 +432,11 @@ public class GpioMetrics
     /// Key: Pin Name/ID (string). Value: Pin level as integer (0 = Low, 1 = High).
     /// </summary>
     public Dictionary<string, int> PinStateDetails { get; set; } = new Dictionary<string, int>();
+
+    /// <summary>
+    /// Maps pin index (0-based) to pin name, enabling lookup by either name or numeric ID.
+    /// </summary>
+    public Dictionary<int, string> PinIndexToName { get; set; } = new Dictionary<int, string>();
 }
 
 /// <summary>
