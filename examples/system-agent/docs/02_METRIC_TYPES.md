@@ -2,9 +2,45 @@
 
 使用者透過設定 `MetricType` 指定 System Agent 的採集指標。即使硬體不支援該指標，System Agent 也不會產生異常，只是無法採集對應指標資料。
 
-## MetricType 分類與設計原則
+## Sensor 配置結構
+
+每個 Sensor 在 `devicecfg.json` 中的配置結構如下：
+
+```json
+{
+  "Name": "cpu_usage",
+  "SensorGroup": "SYS",
+  "Parameters": {
+    "MetricType": "cpu",
+    "MetricName": "usage"
+  },
+  "Report": {
+    "Enabled": true,
+    "Interval": 5000
+  },
+  "SensorInfo": {
+    "Schema": "double",
+    "Description": "SensorInfo Description for cpu.usage",
+    "DisplayName": "SensorInfo DisplayName for cpu.usage"
+  }
+}
+```
+
+| 欄位 | 說明 |
+|------|------|
+| `Name` | Sensor 唯一識別名稱 |
+| `SensorGroup` | Sensor 分組（選填） |
+| `Parameters.MetricType` | 指標類型（必填） |
+| `Parameters.MetricName` | 指標名稱（所有 MetricType 均需要） |
+| `Report.Enabled` | 是否啟用 |
+| `Report.Interval` | 上報間隔（毫秒） |
+| `SensorInfo.Schema` | 預期回傳資料類型（`double`、`long`、`string`、`boolean`、`integer`） |
+| `SensorInfo.Description` | Sensor 描述 |
+| `SensorInfo.DisplayName` | Sensor 顯示名稱 |
 
 ---
+
+## MetricType 分類與設計原則
 
 ## 一、系統資源類
 
@@ -14,7 +50,7 @@
 
 | MetricName | 說明 | 資料類型 | 單位 |
 |-----------|------|---------|------|
-| `usage` | 整體 CPU 使用率 | double | % (0-100) |
+| `usage` | 整體 CPU 使用率（由各核心時間計算） | double | % (0-100) |
 | `load1` | 1 分鐘負載平均值 | double | - |
 | `load5` | 5 分鐘負載平均值 | double | - |
 | `load15` | 15 分鐘負載平均值 | double | - |
@@ -23,14 +59,20 @@
 **配置範例**：
 ```json
 {
-  "Name": "cpu.usage",
+  "Name": "cpu_usage",
+  "SensorGroup": "SYS",
   "Parameters": {
     "MetricType": "cpu",
     "MetricName": "usage"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
-    "Interval": 1000
+    "Interval": 5000
+  },
+  "SensorInfo": {
+    "Schema": "double",
+    "Description": "SensorInfo Description for cpu.usage",
+    "DisplayName": "SensorInfo DisplayName for cpu.usage"
   }
 }
 ```
@@ -40,10 +82,13 @@
 | MetricName | 說明 | 資料類型 | 單位 |
 |-----------|------|---------|------|
 | `total` | 總記憶體 | long | bytes |
-| `available` | 可用記憶體 | long | bytes |
-| `used` | 已使用記憶體 | long | bytes |
+| `available` | 可用記憶體（含可回收快取） | long | bytes |
+| `used` | 已使用記憶體（total - available） | long | bytes |
+| `free` | 空閒記憶體 | long | bytes |
 | `cached` | 快取記憶體 | long | bytes |
-| `usage_percent` | 記憶體使用率 | double | % (0-100) |
+| `buffers` | 緩衝區記憶體 | long | bytes |
+| `swap_total` | Swap 總容量 | long | bytes |
+| `swap_free` | Swap 可用容量 | long | bytes |
 
 ### disk
 
@@ -52,7 +97,8 @@
 | MetricName | 說明 | 資料類型 | 單位 |
 |-----------|------|---------|------|
 | `total` | 磁碟總容量 | long | bytes |
-| `available` | 可用容量 | long | bytes |
+| `available` | 可用容量（非特權使用者） | long | bytes |
+| `free` | 空閒容量 | long | bytes |
 | `used` | 已使用容量 | long | bytes |
 | `usage_percent` | 使用率百分比 | double | % (0-100) |
 | `reads_completed` | 讀取操作總數 | long | 次數 |
@@ -63,22 +109,28 @@
 **配置範例**：
 ```json
 {
-  "Name": "disk.root.usage",
+  "Name": "disk_root_usage_percent",
+  "SensorGroup": "SYS",
   "Parameters": {
     "MetricType": "disk",
     "MetricName": "usage_percent",
     "MountPoint": "/"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
-    "Interval": 3000
+    "Interval": 30000
+  },
+  "SensorInfo": {
+    "Schema": "double",
+    "Description": "SensorInfo Description for disk.root.usage_percent",
+    "DisplayName": "SensorInfo DisplayName for disk.root.usage_percent"
   }
 }
 ```
 
 ### network
 
-需要額外參數 `Interface`（例如 `eth0`）
+需要額外參數 `Interface`（例如 `eth0`、`en0`）
 
 | MetricName | 說明 | 資料類型 | 單位 |
 |-----------|------|---------|------|
@@ -86,21 +138,28 @@
 | `bytes_received` | 接收位元組總數 | long | bytes |
 | `packets_sent` | 傳送封包總數 | long | 封包數 |
 | `packets_received` | 接收封包總數 | long | 封包數 |
+| `errors` | 收發錯誤總數（errors_in + errors_out） | long | 次數 |
 | `errors_in` | 接收錯誤數 | long | 次數 |
 | `errors_out` | 傳送錯誤數 | long | 次數 |
 
 **配置範例**：
 ```json
 {
-  "Name": "network.eth0.tx",
+  "Name": "network_en0_bytes_sent",
+  "SensorGroup": "SYS",
   "Parameters": {
     "MetricType": "network",
     "MetricName": "bytes_sent",
-    "Interface": "eth0"
+    "Interface": "en0"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
-    "Interval": 1000
+    "Interval": 5000
+  },
+  "SensorInfo": {
+    "Schema": "long",
+    "Description": "SensorInfo Description for network.en0.bytes_sent",
+    "DisplayName": "SensorInfo DisplayName for network.en0.bytes_sent"
   }
 }
 ```
@@ -110,15 +169,21 @@
 | MetricName | 說明 | 資料類型 | 單位 |
 |-----------|------|---------|------|
 | `time` | 當前系統時間 | long | Unix timestamp (秒) |
+| `timex_offset` | NTP 時間偏移 | double | 秒 |
 | `boot_time` | 系統啟動時間 | long | Unix timestamp (秒) |
-| `procs_running` | 運行中的處理程序數 | long | 數量 |
-| `procs_blocked` | 被阻塞的處理程序數 | long | 數量 |
+| `filefd_allocated` | 已分配的檔案描述符數量 | long | 數量 |
+| `filefd_maximum` | 檔案描述符最大數量 | long | 數量 |
+| `procs_running` | 運行中的處理程序數 | int | 數量 |
+| `procs_blocked` | 被阻塞的處理程序數 | int | 數量 |
+| `intr_total` | 中斷處理總數 | long | 次數 |
 
 ### gpu
 
+使用 NVIDIA NVML 函式庫，需安裝 NVIDIA 驅動。
+
 | MetricName | 說明 | 資料類型 | 單位 |
 |-----------|------|---------|------|
-| `utilization` | GPU 使用率百分比 | double | % (0-100) |
+| `utilization` | GPU 使用率百分比 | int | % (0-100) |
 
 ---
 
@@ -140,14 +205,19 @@
 **配置範例**：
 ```json
 {
-  "Name": "hwinfo.motherboard",
+  "Name": "hwinfo_motherboard",
   "Parameters": {
     "MetricType": "hwinfo",
     "MetricName": "motherboardname"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 60000
+  },
+  "SensorInfo": {
+    "Schema": "string",
+    "Description": "SensorInfo Description for hwinfo.motherboard",
+    "DisplayName": "SensorInfo DisplayName for hwinfo.motherboard"
   }
 }
 ```
@@ -160,32 +230,32 @@
 
 ### temperature
 
-**返回類型**：`Dictionary<string, double?>`
+支援兩種模式：
 
-Parser 直接返回所有溫度感測器的完整字典，不支援指定單個感測器。
+**模式 A：指定感測器名稱**（建議使用）
 
-- **Key**：感測器來源名稱（如 "CPU", "System"）
-- **Value**：溫度值（°C）
+設定 `MetricName` 為感測器名稱（如 `cpU-therm`、`gpU-therm`），返回該感測器的溫度值（`double`，單位 °C）。支援不區分大小寫的比對。
 
-**範例返回值**：
+**模式 B：返回所有感測器**
+
+若 `MetricName` 設為任意值但不匹配任何感測器名稱，將返回 `null`。
+
+**配置範例**（指定感測器）：
 ```json
 {
-  "CPU": 45.0,
-  "System": 38.5,
-  "PCH": 42.0
-}
-```
-
-**配置範例**：
-```json
-{
-  "Name": "temperature",
+  "Name": "temperature_cpU_therm",
   "Parameters": {
-    "MetricType": "temperature"
+    "MetricType": "temperature",
+    "MetricName": "cpU-therm"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 1000
+  },
+  "SensorInfo": {
+    "Schema": "double",
+    "Description": "CPU thermal sensor temperature",
+    "DisplayName": "CPU Thermal"
   }
 }
 ```
@@ -194,7 +264,7 @@ Parser 直接返回所有溫度感測器的完整字典，不支援指定單個�
 
 **返回類型**：`Dictionary<string, double?>`
 
-Parser 直接返回所有電壓感測器的完整字典。
+Parser 返回所有電壓感測器的完整字典（忽略 `MetricName` 的值）。
 
 - **Key**：電壓軌名稱（如 "VCore", "+3.3V", "+5V"）
 - **Value**：電壓值（V）
@@ -211,13 +281,19 @@ Parser 直接返回所有電壓感測器的完整字典。
 **配置範例**：
 ```json
 {
-  "Name": "voltage",
+  "Name": "voltage_all",
   "Parameters": {
-    "MetricType": "voltage"
+    "MetricType": "voltage",
+    "MetricName": "all"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 1000
+  },
+  "SensorInfo": {
+    "Schema": "object",
+    "Description": "All voltage sensor readings",
+    "DisplayName": "Voltage Sensors"
   }
 }
 ```
@@ -226,7 +302,7 @@ Parser 直接返回所有電壓感測器的完整字典。
 
 **返回類型**：`Dictionary<string, double?>`
 
-Parser 直接返回所有風扇轉速的完整字典。
+Parser 返回所有風扇轉速的完整字典（忽略 `MetricName` 的值）。
 
 - **Key**：風扇名稱（如 "CPU_Fan", "Sys_Fan"）
 - **Value**：轉速值（RPM）
@@ -243,13 +319,19 @@ Parser 直接返回所有風扇轉速的完整字典。
 **配置範例**：
 ```json
 {
-  "Name": "fanspeed",
+  "Name": "fanspeed_all",
   "Parameters": {
-    "MetricType": "fanspeed"
+    "MetricType": "fanspeed",
+    "MetricName": "all"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 1000
+  },
+  "SensorInfo": {
+    "Schema": "object",
+    "Description": "All fan speed readings",
+    "DisplayName": "Fan Speed Sensors"
   }
 }
 ```
@@ -262,40 +344,64 @@ Parser 直接返回所有風扇轉速的完整字典。
 
 ### gpio
 
-**返回類型**：`GpioMetrics` 對象
+支援以下 MetricName：
 
-Parser 直接返回完整的 GPIO 資訊，包含支援狀態和所有腳位資料。
+| MetricName | 說明 | 額外參數 | 資料類型 |
+|-----------|------|---------|---------|
+| `isSupported` | GPIO 功能是否受支援 | 無 | boolean |
+| `pinState` | 指定腳位的電位狀態（0=Low, 1=High） | `PinId`（必填） | integer |
 
-**對象結構**：
+**配置範例**（查詢支援狀態）：
 ```json
 {
-  "IsSupported": true,
-  "PinNames": ["GPIO0", "GPIO1", "GPIO2", "GPIO3"],
-  "PinStateDetails": null
+  "Name": "gpio_isSupported",
+  "Parameters": {
+    "MetricType": "gpio",
+    "MetricName": "isSupported"
+  },
+  "Report": {
+    "Enabled": true,
+    "Interval": 6000
+  },
+  "SensorInfo": {
+    "Schema": "boolean",
+    "Description": "GPIO support status",
+    "DisplayName": "GPIO Supported"
+  }
 }
 ```
 
-**配置範例**：
+**配置範例**（查詢腳位狀態）：
 ```json
 {
-  "Name": "gpio",
+  "Name": "gpio_pin_UIO_GPIO2",
   "Parameters": {
-    "MetricType": "gpio"
+    "MetricType": "gpio",
+    "MetricName": "pinState",
+    "PinId": "UIO_GPIO2"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 6000
+  },
+  "SensorInfo": {
+    "Schema": "integer",
+    "Description": "GPIO pin state for UIO_GPIO2",
+    "DisplayName": "UIO_GPIO2 State"
   }
 }
 ```
 
 ### watchdog
 
-**返回類型**：`WatchdogMetrics` 對象
+支援以下 MetricName：
 
-Parser 直接返回完整的 Watchdog 資訊，包含支援狀態、計時器列表及詳細設置。
+| MetricName | 說明 | 資料類型 |
+|-----------|------|---------|
+| `isSupported` | Watchdog 功能是否受支援 | boolean |
+| 其他值 | 返回完整的 `WatchdogMetrics` 對象 | object |
 
-**對象結構**：
+**`WatchdogMetrics` 對象結構**：
 ```json
 {
   "IsSupported": true,
@@ -319,24 +425,33 @@ Parser 直接返回完整的 Watchdog 資訊，包含支援狀態、計時器列
 **配置範例**：
 ```json
 {
-  "Name": "watchdog",
+  "Name": "watchdog_isSupported",
   "Parameters": {
-    "MetricType": "watchdog"
+    "MetricType": "watchdog",
+    "MetricName": "isSupported"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 6000
+  },
+  "SensorInfo": {
+    "Schema": "boolean",
+    "Description": "Watchdog support status",
+    "DisplayName": "Watchdog Supported"
   }
 }
 ```
 
 ### thermalprotection
 
-**返回類型**：`ThermalProtectionMetrics` 對象
+支援以下 MetricName：
 
-Parser 直接返回完整的熱保護資訊，包含支援狀態、保護區域列表及詳細設置。
+| MetricName | 說明 | 資料類型 |
+|-----------|------|---------|
+| `isSupported` | 熱保護功能是否受支援 | boolean |
+| 其他值 | 返回完整的 `ThermalProtectionMetrics` 對象 | object |
 
-**對象結構**：
+**`ThermalProtectionMetrics` 對象結構**：
 ```json
 {
   "IsSupported": true,
@@ -361,35 +476,63 @@ Parser 直接返回完整的熱保護資訊，包含支援狀態、保護區域�
 **配置範例**：
 ```json
 {
-  "Name": "thermalprotection",
+  "Name": "thermalprotection_isSupported",
   "Parameters": {
-    "MetricType": "thermalprotection"
+    "MetricType": "thermalprotection",
+    "MetricName": "isSupported"
   },
-  "Config": {
+  "Report": {
     "Enabled": true,
     "Interval": 6000
+  },
+  "SensorInfo": {
+    "Schema": "boolean",
+    "Description": "Thermal protection support status",
+    "DisplayName": "Thermal Protection Supported"
   }
 }
 ```
 
 ---
 
+## 五、健康狀態（內部虛擬指標）
+
+### health
+
+`health` 為內部虛擬指標，用於追蹤各 Collector 的採集狀態。不由 Collector 採集，而是從 `HealthStatusMetrics` 中取得。
+
+| MetricName | 說明 | 資料類型 |
+|-----------|------|---------|
+| `is_healthy` | 系統代理是否健康（1=健康, 0=異常） | int |
+| `error_count` | 當前活動錯誤數量 | int |
+| `errors` | 所有錯誤訊息（以 `;` 分隔） | string |
+
+---
+
 ## 重要說明
 
 ### 1. MetricName 設計
-- **不需要 MetricName 的 MetricType**：`temperature`、`voltage`、`fanspeed`、`gpio`、`watchdog`、`thermalprotection` 
-  - Parser 直接返回完整的數據（Dictionary 或 Metrics 對象）
-  - 配置時不需要設置 `MetricName` 參數
 
-### 2. 頻率限制
+所有 MetricType 均需要設定 `MetricName` 參數。若 `MetricName` 為 `null`，Parser 將返回 `null`。
 
-**這些 MetricType 無法設置不同細節的不同頻率**，這是與其他 MetricType（如 `cpu`、`memory`）最大的差異：
+各類型的 MetricName 行為差異：
 
-- **其他 MetricType**：可為不同的 MetricName 設置不同的 Interval
-  - 例如：`cpu.usage` 每 1 秒上拋，`cpu.load1` 每 5 秒上拋
+| MetricType | MetricName 行為 |
+|-----------|----------------|
+| `cpu`、`memory`、`disk`、`network`、`system`、`gpu`、`hwinfo` | 必須設定為支援的指標名稱，返回單一純量值 |
+| `temperature` | 設定為感測器名稱，返回該感測器的溫度值（`double`） |
+| `voltage`、`fanspeed` | 需設定但值會被忽略，始終返回完整字典 |
+| `gpio` | 設定為 `isSupported` 或 `pinState`（需搭配 `PinId`） |
+| `watchdog`、`thermalprotection` | 設定為 `isSupported` 返回布林值，其他值返回完整對象 |
+| `health` | 設定為 `is_healthy`、`error_count` 或 `errors` |
 
-- **這些 MetricType**：硬體收集器一次性上拋所有數據，**無法為單個感測器或屬性設置不同的上拋頻率**
-  - 它們會以相同的 Interval 統一返回
+### 2. SIL2 安全性檢查
+
+Parser 在轉換指標時會檢查 `Health.ActiveErrors`。若某 MetricType 的 Collector 發生採集失敗，該類型所有 Sensor 的遙測資料會被跳過，避免回報預設值/零值。
+
+### 3. Request-Response 最佳化
+
+系統僅採集已啟用 Sensor 所需的 MetricType。例如只配置了 `cpu` 和 `memory` 的 Sensor，則不會呼叫 `DiskCollector`、`NetworkCollector` 等。
 
 ---
 
