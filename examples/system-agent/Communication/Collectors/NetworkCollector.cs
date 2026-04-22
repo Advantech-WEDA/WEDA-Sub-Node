@@ -62,7 +62,7 @@ public class NetworkCollector
                 }
                 catch (PlatformNotSupportedException)
                 {
-                    _logger.LogWarning("NonUnicastPackets not supported for {Name}, using 0", iface.Name);
+                    _logger.LogDebug("NonUnicastPackets not supported for {Name}, using 0", iface.Name);
                 }
 
                 var networkMetric = new NetworkMetrics
