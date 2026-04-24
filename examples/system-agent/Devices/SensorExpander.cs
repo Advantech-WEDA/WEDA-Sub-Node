@@ -12,7 +12,7 @@ namespace SystemAgentExample.Devices;
 /// <summary>
 /// Expands template sensors (without specific resource identifiers) into
 /// individual per-resource sensors based on discovered system resources.
-/// Supports explicit resource lists (Interfaces/PinIds/Sources) and auto-detection.
+/// Supports explicit resource lists (Interfaces/PinIds/MetricNames) and auto-detection.
 /// </summary>
 internal static class SensorExpander
 {
@@ -106,7 +106,7 @@ internal static class SensorExpander
         if (GetParam(sensor, "MetricName") != null)
             return [sensor];
 
-        var sources = ResolveResourceList(sensor, "Sources", discovered);
+        var sources = ResolveResourceList(sensor, "MetricNames", discovered);
         if (sources.Count == 0)
         {
             logger.LogWarning("No temperature sources discovered for sensor '{Name}', keeping as-is", sensor.Name);
@@ -118,7 +118,7 @@ internal static class SensorExpander
             sensor.Name, sources.Count, string.Join(", ", sources));
 
         return sources
-            .Select(source => CloneSensor(sensor, source, "Sources", "MetricName"))
+            .Select(source => CloneSensor(sensor, source, "MetricNames", "MetricName"))
             .ToList();
     }
 
