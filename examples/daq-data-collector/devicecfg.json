@@ -1,0 +1,200 @@
+{
+  "SubNode": {
+    "Name": "UniaxialVibrationDevice",
+    "SubNodeType": "DaqDevice",
+    "Manufacturer": "Advantech",
+    "Model": "iDAQ-801+B10BG3",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "UniaxialVibrationDeviceConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "DeviceCommunication": {
+        "DaqModuleDeviceNumber": 3
+      },
+      "Properties": {
+        "AccelerationSamplingRate": 2000,
+        "FrameIntervalSeconds": 1.0,
+        "DecimationFactor": 2
+      },
+      "Sensors": [
+        {
+          "Name": "daqraw_vibration_payload",
+          "SensorGroup": "AI",
+          "Report": {
+            "Enabled": false,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "application/json",
+            "DisplayName": "Raw Vibration Payload",
+            "Description": "Raw DAQ frame JSON payload for feature extraction pipeline"
+          }
+        },
+        {
+          "Name": "x_axis_rms_mg",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisRMSmg"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis RMSmg",
+            "Description": "RMS from FFT-transformed spectrum (Parseval energy)"
+          }
+        },
+        {
+          "Name": "x_axis_peak_mg",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisPeakmg"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Peakmg",
+            "Description": "Maximum spectral magnitude in FFT spectrum"
+          }
+        },
+        {
+          "Name": "x_axis_peak_to_peak_displacement",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisPeakToPeakDisplacement"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Peak-to-Peak Displacement",
+            "Description": "Peak-to-peak of displacement signal from double spectral integration"
+          }
+        },
+        {
+          "Name": "x_axis_oa_velocity",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisOAVelocity"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis OA Velocity",
+            "Description": "Overall velocity RMS from acceleration spectrum"
+          }
+        },
+        {
+          "Name": "x_axis_deviation",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisDeviation"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Deviation",
+            "Description": "Sample standard deviation"
+          }
+        },
+        {
+          "Name": "x_axis_skewness",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisSkewness"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Skewness",
+            "Description": "Third standardized central moment"
+          }
+        },
+        {
+          "Name": "x_axis_kurtosis",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisKurtosis"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Kurtosis",
+            "Description": "Fourth standardized central moment"
+          }
+        },
+        {
+          "Name": "x_axis_crest_factor",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisCrestFactor"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Crest Factor",
+            "Description": "Ratio of peak to RMS"
+          }
+        },
+        {
+          "Name": "timestamp_timestamp",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "FeatureName": "Timestamp"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "dateTime",
+            "DisplayName": "Timestamp",
+            "Description": "Hardware sample timestamp"
+          }
+        },
+        {
+          "Name": "device_time",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "FeatureName": "DeviceTime"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "dateTime",
+            "DisplayName": "Device Time",
+            "Description": "Edge device system clock at feature computation time"
+          }
+        }
+      ]
+    }
+  }
+}
