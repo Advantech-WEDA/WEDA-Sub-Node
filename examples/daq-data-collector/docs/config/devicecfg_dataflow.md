@@ -4,8 +4,8 @@
 
 This document details how the `devicecfg.json` configuration file is utilized throughout the entire DAQ data collection pipeline in the UniaxialVibrationDevice. The configuration serves two main purposes:
 
-1. **Properties Section**: Provides DAQ hardware parameters (sampling rate, frame size, FFT configuration)
-2. **Sensors Section**: Defines the output telemetry schema and reporting intervals for the transformed PHM features
+1. **Properties Section**: Provides DAQ hardware parameters (acceleration sampling rate and decimation factor)
+2. **Sensors Section**: Defines the output telemetry schema and reporting intervals for the transformed PHM features (11 sensors total: 1 raw payload + 9 PHM features + 1 timestamp + 1 device time)
 
 ---
 
@@ -13,15 +13,16 @@ This document details how the `devicecfg.json` configuration file is utilized th
 
 ```
 devicecfg.json
+    ├── Dtdl (DTDL Auto-generation settings)
+    ├── DeviceCommunication (DAQ module hardware configuration)
     ├── Properties (DAQ Parameters)
-    │   ├── SamplingRate → DaqCollector initialization
-    │   ├── FrameSize → Raw frame accumulation trigger
-    │   ├── FftSize → Frequency-domain feature extraction
-    │   └── AxisName → Sensor axis identification
+    │   ├── AccelerationSamplingRate → DaqCollector hardware sampling rate
+    │   └── DecimationFactor → Sample rate reduction factor
     │
-    └── Sensors (Output Telemetry Schema)
-        ├── daqraw:vibration:payload (internal raw input)
-        └── 9 PHM feature sensors (time-domain + frequency-domain + metadata)
+    └── Sensors (Output Telemetry Schema - 11 sensors)
+        ├── daqraw_vibration_payload (internal raw input, AI group, disabled)
+        ├── 9 AI sensors (PHM features: time-domain + frequency-domain)
+        └── 2 SYS sensors (metadata: timestamp + device time)
 ```
 
 ---
@@ -34,7 +35,7 @@ devicecfg.json
 {
   "SubNode": {
     "Name": "UniaxialVibrationDevice",
-    "SubNodeType": "VibrationSensor",
+    "SubNodeType": "DaqDevice",
     "Manufacturer": "Advantech",
     "Model": "iDAQ-801+B10BG3",
     "SwVersion": "1.0.0"
@@ -42,39 +43,190 @@ devicecfg.json
   "DeviceConfigs": {
     "UniaxialVibrationDeviceConfig": {
       "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "DeviceCommunication": {
+        "DaqModuleDeviceNumber": 0
+      },
       "Properties": {
-        "SamplingRate": 2500,
-        "FrameSize": 2500,
-        "FftSize": 2500,
-        "AxisName": "X"
+        "AccelerationSamplingRate": 5000,
+        "DecimationFactor": 2
       },
       "Sensors": [
         {
           "Name": "daqraw_vibration_payload",
-          "ResourceId": "daqraw:vibration:payload",
-          "SensorGroup": "RAW",
+          "SensorGroup": "AI",
           "Report": {
-            "Enabled": true,
+            "Enabled": false,
             "Interval": 1000
           },
           "SensorInfo": {
-            "Schema": "string",
-            "DisplayName": "Raw Vibration Payload"
+            "Schema": "application/json",
+            "DisplayName": "Raw Vibration Payload",
+            "Description": "Raw DAQ frame JSON payload for feature extraction pipeline"
           }
         },
         {
           "Name": "x_axis_rms_mg",
-          "SensorGroup": "PHM",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisRMSmg"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 1000
           },
           "SensorInfo": {
             "Schema": "double",
-            "DisplayName": "X-Axis RMSmg"
+            "DisplayName": "X-Axis RMSmg",
+            "Description": "RMS from FFT-transformed spectrum (Parseval energy)"
           }
         },
-        // ... 8 additional PHM feature sensors
+        {
+          "Name": "x_axis_peak_mg",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisPeakmg"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Peakmg",
+            "Description": "Maximum spectral magnitude in FFT spectrum"
+          }
+        },
+        {
+          "Name": "x_axis_peak_to_peak_displacement",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisPeakToPeakDisplacement"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Peak-to-Peak Displacement",
+            "Description": "Peak-to-peak of displacement signal from double spectral integration"
+          }
+        },
+        {
+          "Name": "x_axis_oa_velocity",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisOAVelocity"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis OA Velocity",
+            "Description": "Overall velocity RMS from acceleration spectrum"
+          }
+        },
+        {
+          "Name": "x_axis_deviation",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisDeviation"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Deviation",
+            "Description": "Sample standard deviation"
+          }
+        },
+        {
+          "Name": "x_axis_skewness",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisSkewness"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Skewness",
+            "Description": "Third standardized central moment"
+          }
+        },
+        {
+          "Name": "x_axis_kurtosis",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisKurtosis"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Kurtosis",
+            "Description": "Fourth standardized central moment"
+          }
+        },
+        {
+          "Name": "x_axis_crest_factor",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisCrestFactor"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Crest Factor",
+            "Description": "Ratio of peak to RMS"
+          }
+        },
+        {
+          "Name": "timestamp_timestamp",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "FeatureName": "Timestamp"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "dateTime",
+            "DisplayName": "Timestamp",
+            "Description": "Hardware sample timestamp"
+          }
+        },
+        {
+          "Name": "device_time",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "FeatureName": "DeviceTime"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "dateTime",
+            "DisplayName": "Device Time",
+            "Description": "Edge device system clock at feature computation time"
+          }
+        }
       ]
     }
   }
@@ -89,8 +241,8 @@ When the application starts, the `devicecfg.json` is loaded into a `DeviceConfig
 public class DeviceConfiguration
 {
     public bool Enabled { get; set; }
-    public Dictionary<string, object> Properties { get; set; }  // SamplingRate, FrameSize, etc.
-    public List<Sensor> Sensors { get; set; }                   // 10 sensor definitions
+    public Dictionary<string, object> Properties { get; set; }  // AccelerationSamplingRate, DecimationFactor, etc.
+    public List<Sensor> Sensors { get; set; }                   // 11 sensor definitions
     public BackgroundTaskPeriods Periods { get; set; }
     // ... other configuration fields
 }
@@ -126,27 +278,22 @@ private static DaqMetricsParser CreateStreamingParser(
 
     // Step A: Read DAQ parameters from Properties section
     var props = configuration.Properties;
-    var samplingRate = props.TryGetValue("SamplingRate", out var sr) 
-        ? int.Parse(sr!.ToString()!) 
-        : 2500;  // Default: 2500 Hz
+    var accelerationSamplingRate = props.TryGetValue("AccelerationSamplingRate", out var asr) 
+        ? int.Parse(asr!.ToString()!) 
+        : 5000;  // Default: 5000 Hz
     
-    var frameSize = props.TryGetValue("FrameSize", out var fs) 
-        ? int.Parse(fs!.ToString()!) 
-        : 2500;  // Default: 2500 samples/frame
+    var decimationFactor = props.TryGetValue("DecimationFactor", out var df) 
+        ? int.Parse(df!.ToString()!) 
+        : 2;  // Default: decimation factor 2
     
-    var fftSize = props.TryGetValue("FftSize", out var fft) 
-        ? int.Parse(fft!.ToString()!) 
-        : 2500;
-    
-    var axisName = props.TryGetValue("AxisName", out var ax) 
-        ? ax!.ToString()! 
-        : "X";
+    // Effective sampling rate after decimation
+    var effectiveSamplingRate = accelerationSamplingRate / decimationFactor;  // 2500 Hz
 
     // Step B: Initialize DaqCollector (wraps Advantech.Edge.Daq)
     var collector = new DaqCollector(
-        frameSize: frameSize,           // 2500 samples
-        samplingRate: samplingRate,     // 2500 Hz
-        axisName: axisName,             // "X"
+        accelerationSamplingRate: accelerationSamplingRate,  // 5000 Hz (hardware rate)
+        decimationFactor: decimationFactor,                  // 2 (reduction factor)
+        effectiveSamplingRate: effectiveSamplingRate,        // 2500 Hz (after decimation)
         logger: loggerFactory.CreateLogger<DaqCollector>());
 
     // Step C: Wrap as DaqCommunication (StreamingCommunicationBase)
@@ -172,23 +319,17 @@ protected override Task OnBeforeInitializeAsync(CancellationToken ct)
 
     var props = Configuration.Properties;
 
-    // Validate SamplingRate > 0
-    if (props.TryGetValue("SamplingRate", out var sr) &&
-        int.TryParse(sr?.ToString(), out var samplingRate) &&
-        samplingRate <= 0)
-        throw new InvalidOperationException($"SamplingRate must be positive, got: {samplingRate}");
+    // Validate AccelerationSamplingRate > 0
+    if (props.TryGetValue("AccelerationSamplingRate", out var asr) &&
+        int.TryParse(asr?.ToString(), out var accelerationSamplingRate) &&
+        accelerationSamplingRate <= 0)
+        throw new InvalidOperationException($"AccelerationSamplingRate must be positive, got: {accelerationSamplingRate}");
 
-    // Validate FrameSize > 0
-    if (props.TryGetValue("FrameSize", out var fs) &&
-        int.TryParse(fs?.ToString(), out var frameSize) &&
-        frameSize <= 0)
-        throw new InvalidOperationException($"FrameSize must be positive, got: {frameSize}");
-
-    // Validate FftSize > 0
-    if (props.TryGetValue("FftSize", out var fft) &&
-        int.TryParse(fft?.ToString(), out var fftSize) &&
-        fftSize <= 0)
-        throw new InvalidOperationException($"FftSize must be positive, got: {fftSize}");
+    // Validate DecimationFactor >= 1
+    if (props.TryGetValue("DecimationFactor", out var df) &&
+        int.TryParse(df?.ToString(), out var decimationFactor) &&
+        decimationFactor < 1)
+        throw new InvalidOperationException($"DecimationFactor must be >= 1, got: {decimationFactor}");
 
     _logger.LogInformation("Configuration validation passed.");
     return base.OnBeforeInitializeAsync(ct);
@@ -273,33 +414,33 @@ protected List<(int IntervalMs, List<Sensor> Sensors)> GroupSensorsByInterval()
 
 ### 4.2 For DAQ Data Collector
 
-Given the `devicecfg.json` configuration, all sensors have `Report.Interval: 1000`:
+Given the `devicecfg.json` configuration, all enabled sensors have `Report.Interval: 1000`:
 
 ```csharp
 // Result of GroupSensorsByInterval():
+// Note: daqraw_vibration_payload is filtered out because Report.Enabled: false
 var sensorGroups = new List<(int, List<Sensor>)>
 {
     (IntervalMs: 1000, Sensors: new List<Sensor>
     {
-        // ResourceId: "daqraw:vibration:payload" (RAW)
-        Sensor(name: "daqraw_vibration_payload", interval: 1000),
+        // AI sensors (9 PHM feature sensors)
+        Sensor(name: "x_axis_rms_mg", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_peak_mg", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_peak_to_peak_displacement", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_oa_velocity", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_deviation", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_skewness", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_kurtosis", sensorGroup: "AI", interval: 1000),
+        Sensor(name: "x_axis_crest_factor", sensorGroup: "AI", interval: 1000),
         
-        // ResourceId: "x_axis_rms_mg" (PHM feature)
-        Sensor(name: "x_axis_rms_mg", interval: 1000),
-        
-        // ... 8 additional PHM sensors, all at 1000ms
-        Sensor(name: "x_axis_peak_mg", interval: 1000),
-        Sensor(name: "x_axis_peak_to_peak_displacement", interval: 1000),
-        Sensor(name: "x_axis_oa_velocity", interval: 1000),
-        Sensor(name: "x_axis_deviation", interval: 1000),
-        Sensor(name: "x_axis_skewness", interval: 1000),
-        Sensor(name: "x_axis_kurtosis", interval: 1000),
-        Sensor(name: "x_axis_crest_factor", interval: 1000),
-        Sensor(name: "timestamp_timestamp", interval: 1000),
-        Sensor(name: "device_time", interval: 1000)
+        // SYS sensors (2 metadata sensors)
+        Sensor(name: "timestamp_timestamp", sensorGroup: "SYS", interval: 1000),
+        Sensor(name: "device_time", sensorGroup: "SYS", interval: 1000)
     })
 };
 ```
+
+**Note**: The `daqraw_vibration_payload` sensor is defined in `devicecfg.json` but has `Report.Enabled: false`, so it is filtered out by `GroupSensorsByInterval()`. It is only used internally by the transform pipeline to generate PHM features.
 
 ### 4.3 Interval Loop Creation
 
@@ -369,24 +510,29 @@ protected async Task RunIntervalLoopAsync(
 
 ```csharp
 // StreamingDeviceBase.ReadSensorsForIntervalGroupAsync()
-// (implementation detail of ProcessIntervalGroupAsync)
+// (called by ProcessIntervalGroupAsync in DeviceBase)
 
-protected override async Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
-    List<string> sensorResourceIds,  // ["daqraw:vibration:payload", "x_axis_rms_mg", ...]
+protected override Task<IntervalGroupReadResult> ReadSensorsForIntervalGroupAsync(
+    List<string> sensorResourceIds,  // ["x_axis_rms_mg", "x_axis_peak_mg", ...]
     CancellationToken cancellationToken)
 {
     // Read from SensorCache (where streamed data is stored)
+    // SensorCache buffers latest telemetry values pushed from the stream
     var measures = _sensorCache.Read(sensorResourceIds);
     
-    if (measures.Count > 0)
-    {
-        _logger.LogDebug("Sampled {Count} telemetry measures from cache", measures.Count);
-        // Raise DataReceived event (RAW data before transform/filter)
-        RaiseDataReceived(measures);
-    }
-
-    return Task.FromResult(measures);
+    // Return wrapped result with read duration (TimeSpan.Zero for streaming - cache read is instant)
+    return Task.FromResult(new IntervalGroupReadResult(measures, TimeSpan.Zero));
 }
+```
+
+**Data Flow Note**: The `RaiseDataReceived()` event is called by `ProcessIntervalGroupAsync()` in `DeviceBase` after this method returns, not within this method. The complete flow is:
+
+```
+ProcessIntervalGroupAsync()
+  1. Call ReadSensorsForIntervalGroupAsync() → read from cache
+  2. RaiseDataReceived(measures)              → fire raw data event
+  3. EnqueueTelemetryAsync(measures)          → apply transforms/filters
+     └─ RaiseDataProcessed()                  → fire processed data event
 ```
 
 ---
@@ -411,9 +557,10 @@ public class PhmFeatureTransform : ITelemetryTransform
     {
         var outputMeasures = new List<TelemetryMeasure>();
 
-        // Find the raw payload sensor
+        // Find the raw payload sensor by name
+        // Note: ResourceId is auto-generated by the WEDA SubNode framework and maps to the sensor Name
         var rawPayloadMeasure = measures.FirstOrDefault(m => 
-            m.ResourceId == "daqraw:vibration:payload");
+            m.SensorName == "daqraw_vibration_payload");
 
         if (rawPayloadMeasure == null)
             return outputMeasures;  // No raw data to process
@@ -451,17 +598,17 @@ public class PhmFeatureTransform : ITelemetryTransform
             };
 
             // Step 5: Emit 10 TelemetryMeasure objects
-            // (one for each sensor defined in devicecfg.json)
+            // (one for each enabled sensor defined in devicecfg.json)
             outputMeasures.Add(new TelemetryMeasure
             {
-                ResourceId = "x_axis_rms_mg",
+                SensorName = "x_axis_rms_mg",
                 Value = features.XAxisRMSmg,
                 Timestamp = rawFrame.Timestamp
             });
 
             outputMeasures.Add(new TelemetryMeasure
             {
-                ResourceId = "x_axis_peak_mg",
+                SensorName = "x_axis_peak_mg",
                 Value = features.XAxisPeakmg,
                 Timestamp = rawFrame.Timestamp
             });
@@ -584,18 +731,22 @@ private void StartBatchSendTask(CancellationToken ct)
 
 ## Configuration to Runtime Mapping
 
-| devicecfg.json Field           | Runtime Usage                                      | Example Value                |
-| ------------------------------ | -------------------------------------------------- | ---------------------------- |
-| `Properties.SamplingRate`      | Passed to `DaqCollector` and feature extractors    | `2500` (Hz)                  |
-| `Properties.FrameSize`         | Accumulation trigger in `DaqCollector`             | `2500` (samples)             |
-| `Properties.FftSize`           | FFT window size in `FrequencyDomainExtractor`      | `2500`                       |
-| `Properties.AxisName`          | Axis identifier in raw frame                       | `"X"`                        |
-| `Sensors[0].ResourceId`        | Raw payload sensor identifier in SensorCache       | `"daqraw:vibration:payload"` |
-| `Sensors[1-9].ResourceId`      | PHM feature sensor identifiers for output          | `"x_axis_rms_mg"`, etc.      |
-| `Sensors[*].Report.Enabled`    | Determines if sensor participates in sampling loop | `true`                       |
-| `Sensors[*].Report.Interval`   | Sampling/reporting interval; used to group sensors | `1000` (ms)                  |
-| `Sensors[*].Name`              | Human-readable sensor name                         | `"x_axis_rms_mg"`            |
-| `Sensors[*].SensorInfo.Schema` | DTDL data type for telemetry                       | `"double"` or `"string"`     |
+| devicecfg.json Field                    | Runtime Usage                                           | Example Value                |
+| --------------------------------------- | ------------------------------------------------------- | ---------------------------- |
+| `Dtdl.AutoGenEnabled`                   | Enable automatic DTDL interface generation              | `true`                       |
+| `DeviceCommunication.DaqModuleDeviceNumber` | DAQ hardware module device ID                       | `0`                          |
+| `Properties.AccelerationSamplingRate`   | Hardware sampling rate passed to DAQ collector          | `5000` (Hz)                  |
+| `Properties.DecimationFactor`           | Sample rate reduction factor                            | `2`                          |
+| `Sensors[0].Name`                       | Raw payload sensor name (AI group, disabled)            | `"daqraw_vibration_payload"` |
+| `Sensors[0].Report.Enabled`             | Raw payload disabled (internal transform use only)      | `false`                      |
+| `Sensors[1-9].Name`                     | PHM feature sensor names (AI group, enabled)            | `"x_axis_rms_mg"`, etc.      |
+| `Sensors[10-11].Name`                   | Metadata sensor names (SYS group, enabled)              | `"timestamp_timestamp"`, `"device_time"` |
+| `Sensors[*].SensorGroup`                | Sensor classification category                          | `"AI"` or `"SYS"`            |
+| `Sensors[*].Report.Enabled`             | Determines if sensor participates in sampling loop      | `true` or `false`            |
+| `Sensors[*].Report.Interval`            | Sampling/reporting interval in milliseconds             | `1000` (ms)                  |
+| `Sensors[*].Parameters.FeatureName`     | Internal feature computation identifier                 | `"XAxisRMSmg"`, etc.         |
+| `Sensors[*].SensorInfo.Schema`          | DTDL data type for telemetry                            | `"double"`, `"dateTime"`, etc. |
+| `Sensors[*].SensorInfo.Description`     | Human-readable feature description                      | Describes the extracted feature |
 
 ---
 
@@ -623,22 +774,22 @@ private void StartBatchSendTask(CancellationToken ct)
 ┌─────────────▼───────────────────────────────────────────────────────┐
 │ 4. Serialization to TelemetryMeasure                                │
 │    DaqRawFrame → JSON payload                                       │
-│    → TelemetryMeasure(ResourceId: "daqraw:vibration:payload")       │
+│    → TelemetryMeasure(SensorName: "daqraw_vibration_payload")       │
 │    → SensorCache                                                    │
 └─────────────┬───────────────────────────────────────────────────────┘
               │
 ┌─────────────▼───────────────────────────────────────────────────────┐
 │ 5. Sensor Grouping & Interval Loop (every 1000ms)                   │
-│    GroupSensorsByInterval() → all sensors at 1000ms interval        │
-│    RunIntervalLoopAsync() → sample all 10 sensors from SensorCache  │
+│    GroupSensorsByInterval() → all enabled sensors at 1000ms interval│
+│    RunIntervalLoopAsync() → sample all 10 enabled sensors from Cache│
 └─────────────┬───────────────────────────────────────────────────────┘
               │
 ┌─────────────▼───────────────────────────────────────────────────────┐
 │ 6. Transform Pipeline                                               │
 │    PhmFeatureTransform.TransformAsync()                             │
-│    Input: daqraw:vibration:payload (1 measure)                      │
-│    Process: Extract time/freq features                              │
-│    Output: 9 PHM feature measures + metadata                        │
+│    Input: daqraw_vibration_payload (1 measure)                      │
+│    Process: Extract time-domain & frequency-domain features         │
+│    Output: 9 PHM feature measures (AI) + 1 timestamp (SYS)          │
 └─────────────┬───────────────────────────────────────────────────────┘
               │
 ┌─────────────▼───────────────────────────────────────────────────────┐
@@ -662,16 +813,22 @@ private void StartBatchSendTask(CancellationToken ct)
 
 ### Why Split into RAW + PHM Sensors?
 
-1. **RAW Sensor** (`daqraw:vibration:payload`):
+1. **RAW Sensor** (`daqraw_vibration_payload`, AI group):
    - Internal transit format for raw vibration data
-   - Not directly reported to cloud (consumed by transform)
+   - Disabled in configuration (`Report.Enabled: false`)
+   - Not reported to cloud (consumed internally by transform)
    - Enables feature extraction pipeline isolation
 
-2. **PHM Sensors** (9 computed features):
-   - Final output of transformation
+2. **PHM Sensors** (9 computed features, AI group):
+   - Final output of transformation (time-domain + frequency-domain)
    - Each can be independently enabled/disabled via `Report.Enabled`
    - Each has configurable reporting interval via `Report.Interval`
    - Mapped to DTDL interface for cloud digital twin
+
+3. **SYS Sensors** (2 metadata sensors):
+   - `timestamp_timestamp`: Hardware sample timestamp from raw frame
+   - `device_time`: Edge device system time at feature computation
+   - Provides temporal context for measurements
 
 ### Why Interval Grouping?
 
@@ -689,18 +846,21 @@ private void StartBatchSendTask(CancellationToken ct)
 
 ## Configuration Best Practices
 
-### 1. Set Appropriate SamplingRate & FrameSize
+### 1. Set Appropriate Hardware Sampling Rate and Decimation
 
 ```json
 {
-  "SamplingRate": 2500,    // Must match hardware capability
-  "FrameSize": 2500        // Duration = FrameSize / SamplingRate = 1 second
+  "Properties": {
+    "AccelerationSamplingRate": 5000,    // Hardware sampling rate (Hz)
+    "DecimationFactor": 2                // Decimation factor for sample reduction
+  }
 }
 ```
 
-- Typical vibration monitoring: 2500-5000 Hz
-- Ensure FrameSize is large enough for meaningful FFT features
-- Frame duration should be short enough for responsive monitoring (< 5 seconds)
+- `AccelerationSamplingRate` must match DAQ hardware capability (typically 5000-10000 Hz for vibration)
+- `DecimationFactor` reduces the effective sampling rate: Effective Rate = AccelerationSamplingRate / DecimationFactor
+- Example: 5000 Hz / 2 = 2500 Hz effective rate
+- Higher decimation saves bandwidth but reduces frequency resolution
 
 ### 2. Enable Only Required Sensors
 
@@ -751,13 +911,14 @@ private void StartBatchSendTask(CancellationToken ct)
 
 ## Troubleshooting Guide
 
-| Issue                      | Cause                                  | Solution                                          |
-| -------------------------- | -------------------------------------- | ------------------------------------------------- |
-| No telemetry sent          | `Report.Enabled: false` on all sensors | Enable at least one sensor in `devicecfg.json`    |
-| Features are NaN           | Invalid SamplingRate or FrameSize      | Verify `Properties.SamplingRate` matches hardware |
-| High latency               | `Report.Interval` too large            | Reduce `Report.Interval` in `devicecfg.json`      |
-| High CPU usage             | Too many enabled sensors or intervals  | Disable unused sensors, consolidate intervals     |
-| Configuration update fails | Schema mismatch                        | Verify `Sensors[].ResourceId` uniqueness          |
+| Issue                      | Cause                                         | Solution                                            |
+| -------------------------- | --------------------------------------------- | --------------------------------------------------- |
+| No telemetry sent          | All sensors disabled (`Report.Enabled: false`)| Enable at least one sensor in `devicecfg.json`      |
+| Features are NaN           | Invalid AccelerationSamplingRate or DecimationFactor | Verify parameters match DAQ hardware capability |
+| High latency               | `Report.Interval` too large                   | Reduce `Report.Interval` in `devicecfg.json`        |
+| High CPU usage             | Too many enabled sensors or low intervals     | Disable unused sensors, consolidate intervals       |
+| Raw data reported to cloud | `daqraw_vibration_payload` has `Enabled: true` | Set `Enabled: false` (should only transform internally) |
+| Missing timestamp data     | `timestamp_timestamp` or `device_time` disabled | Enable both SYS group sensors for temporal context |
 
 ---
 

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
@@ -32,8 +33,23 @@ public class DaqCommunication : StreamingCommunicationBase<object, object>
     /// </summary>
     protected override Task<bool> ConnectCoreAsync(CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "DaqCommunication.ConnectCoreAsync: establish connection state not yet implemented.");
+        try
+        {
+            // Verify that DAQ modules are available
+            if (!_collector.VerifyDaqModulesAvailable())
+            {
+                _logger.LogError("DaqCommunication connection failed: No DAQ modules available.");
+                return Task.FromResult(false);
+            }
+
+            _logger.LogInformation("DaqCommunication connection established (state transition only).");
+            return Task.FromResult(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during DaqCommunication connection.");
+            return Task.FromResult(false);
+        }
     }
 
     /// <summary>
@@ -41,8 +57,8 @@ public class DaqCommunication : StreamingCommunicationBase<object, object>
     /// </summary>
     public override Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "DaqCommunication.DisconnectAsync: disconnect and cleanup not yet implemented.");
+        _logger.LogInformation("DaqCommunication disconnected.");
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -60,11 +76,20 @@ public class DaqCommunication : StreamingCommunicationBase<object, object>
         IAsyncEnumerable<object> requests,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "DaqCommunication.StreamAsync: connect collector stream and yield JSON payloads not yet implemented.");
-        // Note: placeholder for yield statements in implementation phase
-#pragma warning disable CS0162
-        yield break;
-#pragma warning restore CS0162
+        _logger.LogInformation("Starting DaqCommunication stream (consuming DaqCollector).");
+
+        await foreach (var frame in _collector.StreamFramesAsync(cancellationToken))
+        {
+            _logger.LogInformation("DaqCommunication received DaqRawFrame");
+
+            // Serialize DaqRawFrame to JSON string
+            var json = JsonSerializer.Serialize(frame, new JsonSerializerOptions { WriteIndented = false });
+
+            _logger.LogInformation("DaqCommunication yielding JSON payload (size: {size} bytes).", json.Length);
+
+            yield return json;
+        }
+
+        _logger.LogInformation("DaqCommunication stream completed normally.");
     }
 }

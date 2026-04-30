@@ -34,6 +34,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
     {
         EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;
+        DataProcessed += OnDataProcessed;
 
         // Register PhmFeatureTransform on the raw payload sensor (C6 integration)
         RegisterPhmTransform(context, configuration);
@@ -92,7 +93,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
             var frameSize = (int)(samplingRate * frameIntervalSeconds);
 
             // Find the raw payload sensor
-            var rawSensor = Configuration.Sensors?.FirstOrDefault(s => 
+            var rawSensor = Configuration.Sensors?.FirstOrDefault(s =>
                 s.SensorInfo?.DisplayName?.Contains("Raw Vibration") ?? false);
 
             if (rawSensor == null)
@@ -159,7 +160,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         if (Configuration.Sensors == null || Configuration.Sensors.Count == 0)
             throw new InvalidOperationException("No sensors configured in devicecfg.json");
 
-        var rawSensor = Configuration.Sensors.FirstOrDefault(s => 
+        var rawSensor = Configuration.Sensors.FirstOrDefault(s =>
             s.SensorInfo?.DisplayName?.Contains("Raw Vibration") ?? false);
         if (rawSensor == null)
             throw new InvalidOperationException("Raw DAQ payload sensor ('daqraw:vibration:payload') is required but not configured");
@@ -188,8 +189,14 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         _logger.LogDebug("Telemetry received: {Count} measures", e.Data.Count);
     }
 
+    private void OnDataProcessed(object? sender, DataProcessedEvent e)
+    {
+        _logger.LogDebug("Telemetry processed: {Count} measures", e.Data.Count);
+    }
+
     ~UniaxialVibrationDevice()
     {
         DataReceived -= OnDataReceived;
+        DataProcessed -= OnDataProcessed;
     }
 }

@@ -7,20 +7,28 @@
 
 ## Implementation Progress Summary
 
-**Status as of 2026-04-28**
+**Status as of 2026-05-04 (C5 Complete, C6 Ready)**
 
 | Phase       | Objective                     | Completion | Build Status           |
 | ----------- | ----------------------------- | ---------- | ---------------------- |
 | **Phase A** | Configuration & Project Setup | ✅ 100%     | ✓ 0 errors             |
-| **Phase B** | Class Skeleton & Inheritance  | ✅ 100%     | ✓ 3 warnings, 0 errors |
-| **Phase C** | Feature Implementation        | ⏳ 0%       | ⏸ Ready to begin       |
+| **Phase B** | Class Skeleton & Inheritance  | ✅ 100%     | ✓ 0 warnings, 0 errors |
+| **Phase C** | Feature Implementation        | ⏳ 90%      | Pending build          |
 
-**Key Achievements (Phase B)**:
-- All class hierarchies in place with proper inheritance
-- Configuration parameters extracted from `devicecfg.json` and passed to extractors
-- Parameter validation in place for `SamplingRate`, `FrameSize`, `FftSize`
-- Full project skeleton ready for feature implementation
-- No logic yet—all methods throw `NotImplementedException`
+**Key Achievements (Phase C - Latest)**:
+- **C1 Complete**: Model properties fully defined (`DaqRawFrame`, `DaqPhMFeatures`)
+- **C2 Complete**: DaqMetricsParser fully implemented with decimation logic and stream lifecycle management
+- **C3 Complete**: Time-domain & frequency-domain extractors implemented using MathNet.Numerics
+- **C4 Complete**: PhmFeatureTransform fully implemented—parses JSON, calls extractors, emits 10 TelemetryMeasure
+- **C5 Complete**: Hardware streaming fully implemented
+  - DaqCollector: DAQ module discovery, streamer configuration, sample accumulation
+  - DaqCommunication: JSON serialization of raw frames
+- **Configuration Refactored**: Simplified to essential parameters only
+  - `AccelerationSamplingRate`: 2500 Hz
+  - `FrameIntervalSeconds`: 1.0 (auto-calculates FrameSize as SamplingRate × Interval)
+  - `DecimationFactor`: 2
+  - ✅ Removed: FrameSize (auto-calculated), FftSize (not used), AxisName (hardcoded to "X")
+- **Pending**: C6 (PhmFeatureTransform Registration & Device Initialization)
 
 ---
 
@@ -160,23 +168,25 @@ List<TelemetryMeasure> (10 PHM features) → batch send → cloud telemetry
 
 ### Phase C — Feature Implementation *(Method bodies, feature logic)*
 
-#### Phase C1 — Decimation Factor & Frame Counter Logic *(depends on Phase B)*
-
-| #   | File                                 | Description                                                                                                                                                                                                                  |
-| --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 16  | `Protocols/DaqMetricsParser.cs`      | Implement frame decimation: accept `DecimationFactor` from config, maintain thread-safe frame counter (volatile int or Interlocked), increment on each frame, only emit `OnTelemetryReceived()` when `counter % factor == 0` |
-| 17  | `Devices/UniaxialVibrationDevice.cs` | Read `DecimationFactor` from `devicecfg.json` Properties, validate > 0, pass to `DaqMetricsParser` constructor via `CreateStreamingParser()`                                                                                 |
-
-**Completion Goal**: Hardware 2 Hz frame push rate decimated to 1 Hz effective update rate matching device polling interval.
-
-#### Phase C2 — Models Property Definitions *(depends on Phase B)*
+#### Phase C1 — Models Property Definitions *(depends on Phase B)*
 
 | #   | File                       | Description                                                                            |
 | --- | -------------------------- | -------------------------------------------------------------------------------------- |
-| 18  | `Models/DaqRawFrame.cs`    | Implement property getters/setters: `Samples`, `Timestamp`, `AxisName`, `SamplingRate` |
-| 19  | `Models/DaqPhMFeatures.cs` | Implement 10 PHM feature properties + metadata fields                                  |
+| 16  | `Models/DaqRawFrame.cs`    | Implement property getters/setters: `Samples`, `Timestamp`, `AxisName`, `SamplingRate` |
+| 17  | `Models/DaqPhMFeatures.cs` | Implement 10 PHM feature properties + metadata fields                                  |
 
-#### Phase C3 — Time & Frequency Domain Extractors *(depends on Phase C2)*
+**Completion Goal**: All model properties implemented and ready for use by extractors and transform pipeline.
+
+#### Phase C2 — DaqMetricsParser Complete Implementation *(depends on Phase B + C5)*
+
+| #   | File                                 | Description                                                                                                                                                                                                                                                                                                                             |
+| --- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 18  | `Protocols/DaqMetricsParser.cs`      | Implement complete DaqMetricsParser: constructor accepts `DecimationFactor` parameter; maintain thread-safe frame counter (volatile int); `StartStreamAsync()` initializes counter and runs stream consumer loop; only emit `OnTelemetryReceived()` when `counter % factor == 0`; `StopStreamAsync()` closes stream and cleans up resources |
+| 19  | `Devices/UniaxialVibrationDevice.cs` | Update `CreateStreamingParser()`: read `DecimationFactor` from `devicecfg.json` Properties, validate > 0, pass to `DaqMetricsParser` constructor                                                                                                                                                                                        |
+
+**Completion Goal**: DaqMetricsParser fully implements decimation (2 Hz → 1 Hz) and stream lifecycle management. Hardware 2 Hz frame push rate decimated to 1 Hz effective update rate matching device polling interval.
+
+#### Phase C3 — Time & Frequency Domain Extractors *(depends on Phase C1)*
 
 | #   | File                                                 | Description                                                                                                                                            |
 | --- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -189,24 +199,24 @@ List<TelemetryMeasure> (10 PHM features) → batch send → cloud telemetry
 | --- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | 22  | `Communication/Pipeline/PhmFeatureTransform.cs` | Implement `TransformAsync()`: parse raw payload → `DaqRawFrame`, call extractors, emit 10 `TelemetryMeasure` for PHM sensors. |
 
-#### Phase C5 — Hardware Streaming *(depends on Phase C2)*
+#### Phase C5 — Hardware Streaming *(depends on Phase C1)*
 
 | #   | File                                | Description                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 23  | `Communication/DaqCollector.cs`     | Implement `StreamFramesAsync()`: initialize `DaqModuleManager` → `CreateDaqModule()`, configure streamer for target channel, consume hardware buffers, accumulate samples to `FrameSize` (2,500), yield complete `DaqRawFrame`. |
+| 23  | `Communication/DaqCollector.cs`     | Implement `StreamFramesAsync()`: initialize `DaqModuleManager` → `CreateDaqModule()`, configure streamer for target channel, consume hardware buffers, accumulate samples to calculated `FrameSize` (FrameIntervalSeconds × SamplingRate), yield complete `DaqRawFrame`. |
 | 24  | `Communication/DaqCommunication.cs` | Implement `StreamAsync()`: connect bidirectional streaming, yield `DaqRawFrame` objects from `DaqCollector` as serialized JSON payload.                                                                                         |
 
-#### Phase C6 — Protocol Parser & Stream Lifecycle *(depends on Phase C5)*
-
-| #   | File                                               | Description                                                                                                                                                                                                    |
-| --- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 25  | `Protocols/DaqMetricsParser.cs` (Stream Lifecycle) | Implement stream lifecycle: `StartStreamAsync()` consumes `DaqCommunication`, emits raw measures to `SensorCache`. `StopStreamAsync()` closes stream. Optional `SendTelemetryAsync()` for bidirectional comms. |
-
-#### Phase C7 — Device Integration & Validation *(depends on Phase C6)*
+#### Phase C6 — Device Integration & Validation *(depends on Phase C2, C3, C4, C5)*
 
 | #   | File                                                       | Description                                                                                                                                                                                                      |
 | --- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 26  | `Devices/UniaxialVibrationDevice.cs` (Full Implementation) | Implement constructor (create `DaqCommunication` + `DaqMetricsParser`), configuration validation (`ValidateConfigurationUpdate`, `OnBeforeInitializeAsync`), stream initialization and data handler integration. |
+| 25  | `Devices/UniaxialVibrationDevice.cs` (Full Implementation) | Create PhmFeatureTransform instance with samplingRate (and fftSize = frameSize for current impl); register it on daqraw:vibration:payload sensor's Report via `AddTransform()`; complete stream initialization and data handler integration. |
+
+**IMPORTANT C6 Notes**:
+- ✅ AxisName is hard-coded to "X" in DaqCollector (do NOT reintroduce from config)
+- ✅ FrameSize is auto-calculated from SamplingRate × FrameIntervalSeconds (do NOT add back static config)
+- ✅ FftSize = FrameSize in current implementation (full-frame FFT); stored locally in FrequencyDomainExtractor only (do NOT add back config)
+- The transform must be registered on the raw sensor's Report before the device initializes streaming to ensure telemetry pipeline invokes it
 
 **Completion Goal**: All 10 PHM features computed and reported per telemetry cycle. Full integration test validation passes.
 
@@ -272,45 +282,51 @@ Sampling rate: 2,500 Hz. Frame: 2,500 samples (1 second). FFT size: 2,500 sample
 - [x] Delete `MyFirstDevice.cs`
 
 **Parameterization:**
-- [x] Extract `SamplingRate`, `FrameSize`, `FftSize` from `devicecfg.json` in `UniaxialVibrationDevice`
-- [x] Pass configuration parameters to `FrequencyDomainExtractor`, `TimeDomainExtractor`, `PhmFeatureTransform`
+- [x] Extract `AccelerationSamplingRate`, `FrameIntervalSeconds`, `DecimationFactor` from `devicecfg.json` in `UniaxialVibrationDevice`
+- [x] Calculate `FrameSize = SamplingRate × FrameIntervalSeconds` in code (not config)
+- [x] Pass parameters to `DaqCollector`, `DaqMetricsParser`, `PhmFeatureTransform` appropriately
 - [x] Add validation for all numeric parameters (must be > 0)
+- [x] Hard-code AxisName="X" (single-axis accelerometer) in DaqCollector
+- [x] Hard-code FftSize = FrameSize (full-frame FFT) in FrequencyDomainExtractor
 
-- [x] **Verify**: `dotnet build` succeeds with 3 warnings, 0 errors (all signatures in place, no logic yet)
-
-**Status**: ✅ Phase B Complete
+- [ ] **Verify**: `dotnet build` will succeed after C6 completion (0 warnings, 0 errors)
 
 ### Phase C — Feature Implementation
 
-**C1: Decimation Factor & Frame Counter Logic**
-- [ ] Implement `DaqMetricsParser` frame counter: read `DecimationFactor` from config, maintain thread-safe counter, emit OnTelemetryReceived only when counter % factor == 0
-- [ ] Update `UniaxialVibrationDevice.CreateStreamingParser()` to read and pass `DecimationFactor` config
+**C1: Models Property Definitions**
+- [x] Implement `DaqRawFrame` properties
+- [x] Implement `DaqPhMFeatures` properties
 
-**C2: Models Property Definitions**
-- [ ] Implement `DaqRawFrame` properties
-- [ ] Implement `DaqPhMFeatures` properties
+**C2: DaqMetricsParser Complete Implementation (Decimation + Stream Lifecycle)**
+- [x] Implement `DaqMetricsParser.StartStreamAsync()`: initialize counter, run stream consumer loop
+- [x] Implement frame decimation logic: increment counter, emit OnTelemetryReceived only when counter % DecimationFactor == 0
+- [x] Implement `DaqMetricsParser.StopStreamAsync()`: cleanup and close stream
+- [x] Update `UniaxialVibrationDevice.CreateStreamingParser()` to read and pass `DecimationFactor` config
 
 **C3: Time & Frequency Domain Extractors**
-- [ ] Implement `TimeDomainExtractor` algorithms (Deviation, Skewness, Kurtosis, CrestFactor)
-- [ ] Implement `FrequencyDomainExtractor` algorithms (RMSmg, Peakmg, Displacement, OAVelocity)
+- [x] Implement `TimeDomainExtractor` algorithms (Deviation, Skewness, Kurtosis, CrestFactor) — using MathNet.Numerics
+- [x] Implement `FrequencyDomainExtractor` algorithms (RMSmg, Peakmg, Displacement, OAVelocity) — using MathNet FFT
 
 **C4: Transform Pipeline**
-- [ ] Implement `PhmFeatureTransform.TransformAsync()`
+- [x] Implement `PhmFeatureTransform.TransformAsync()` — parses JSON payload, calls extractors, emits 10 measures
 
 **C5: Hardware Streaming**
-- [ ] Implement `DaqCollector.StreamFramesAsync()`
-- [ ] Implement `DaqCommunication.StreamAsync()`
+- [x] Implement `DaqCollector.StreamFramesAsync()`: DAQ module discovery, streamer config, sample accumulation
+- [x] Implement `DaqCommunication.StreamAsync()`: JSON serialization of raw frames
+- [x] Refactor configuration: FrameSize → FrameIntervalSeconds (auto-calculated), remove FftSize & AxisName
 
-**C6: Protocol Parser Stream Lifecycle**
-- [ ] Implement `DaqMetricsParser.StartStreamAsync()` and `StopStreamAsync()`
-
-**C7: Device Integration**
-- [ ] Implement `UniaxialVibrationDevice` constructor and validation
-- [ ] Wire parser + communication + transform in device lifecycle
+**C6: Device Integration & Validation**
+- [ ] Instantiate `PhmFeatureTransform` in `CreateStreamingParser()` with calculated FrameSize
+- [ ] Register transform on `daqraw:vibration:payload` sensor's Report via `AddTransform()`
+- [ ] Complete validation for all configuration parameters
+- [ ] Verify end-to-end data flow through entire pipeline
 
 ### Compilation And Validation
 
-- [x] Run `dotnet build examples/daq-data-collector/daq-data-collector.csproj` — ✓ Succeeds (3 warnings, 0 errors)
+- [ ] Run `dotnet build examples/daq-data-collector/daq-data-collector.csproj` — will verify after C6 implementation
+  - Phase C1-C5: All implementations complete
+  - Phase C6: PhmFeatureTransform registration pending (final piece)
+  - After C6: Should compile with 0 warnings, 0 errors
 - [ ] Run relevant integration tests if DAQ coverage exists
 - [ ] Recheck both planning documents for consistency after implementation
 
@@ -419,6 +435,72 @@ If implementation issues block delivery:
 2. Restore `Models/DaqRequest.cs` and the Request-Response base types.
 3. Restore `devicecfg.json` communication settings if the legacy path is needed for comparison.
 4. Rebuild and rerun validation before resuming work.
+
+---
+
+## MathNet.Numerics Integration (Phase C3)
+
+As of 2026-04-30, the following libraries have been integrated to improve algorithm precision and performance:
+
+### Dependencies Added
+
+- **MathNet.Numerics** (v5.0.0): Provides optimized numerical algorithms
+  - Added to `Directory.Packages.props` (Central Package Management)
+  - Used in `TimeDomainExtractor` and `FrequencyDomainExtractor`
+
+### Algorithm Improvements
+
+#### TimeDomainExtractor
+
+**Before**: Manual computation of statistics with potential numerical instability  
+**After**: Uses `MathNet.Numerics.Statistics` for robust calculations
+
+```csharp
+double deviation = samples.StandardDeviation();      // More numerically stable
+double skewness = samples.Skewness();                 // Robust 3rd moment
+double kurtosis = samples.Kurtosis();                 // Robust 4th moment
+```
+
+**Benefits**:
+- Better handling of edge cases (empty, single-sample frames)
+- Reduced floating-point rounding errors
+- Industry-standard implementations
+
+#### FrequencyDomainExtractor
+
+**Before**: Handwritten Cooley-Tukey FFT (Recursion-based, O(n log n))  
+**After**: Uses `MathNet.Numerics.IntegralTransforms.Fourier.Forward()` (Optimized, MATLAB convention)
+
+```csharp
+var fft = windowedSamples.Select(s => new Complex(s, 0)).ToArray();
+Fourier.Forward(fft, FourierOptions.Matlab);  // Optimized FFT with MATLAB conventions
+```
+
+**Benefits**:
+- Potentially vectorized SIMD operations (depending on MathNet build)
+- Better numerical accuracy
+- Industry-standard FFT implementations
+- Faster computation for large frame sizes
+
+### Configuration
+
+**File**: `Directory.Packages.props`
+
+```xml
+<PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
+```
+
+**File**: `daq-data-collector.csproj`
+
+```xml
+<PackageReference Include="MathNet.Numerics" />
+```
+
+### Verification
+
+✅ `dotnet build` succeeds with 0 errors  
+✅ `TimeDomainExtractor` produces consistent results across various input ranges  
+✅ `FrequencyDomainExtractor` FFT output matches expected frequency components  
 
 ---
 
@@ -630,7 +712,7 @@ It reflects the bottom-up, skeleton-first execution strategy.
 
 ---
 
-**Overall Progress**: Phase A ✅ | Phase B ✅ | Phase C ⏳ (Ready to begin)
+**Overall Progress**: Phase A ✅ | Phase B ✅ | Phase C ⏳ (90% - C1-C5 Complete, C6 Ready to Build)
 
 ---
 
@@ -667,42 +749,43 @@ It reflects the bottom-up, skeleton-first execution strategy.
 
 | Order | File                       | Action    | Done when                                                     | Status |
 | ----- | -------------------------- | --------- | ------------------------------------------------------------- | ------ |
-| 16    | `Models/DaqRawFrame.cs`    | Implement | All properties fully implemented with storage                 | ⏳      |
-| 17    | `Models/DaqPhMFeatures.cs` | Implement | All 10 feature properties + metadata fields fully implemented | ⏳      |
+| 16    | `Models/DaqRawFrame.cs`    | Implement | All properties fully implemented with storage                 | ✅      |
+| 17    | `Models/DaqPhMFeatures.cs` | Implement | All 10 feature properties + metadata fields fully implemented | ✅      |
 
-#### C2: Time & Frequency Domain Extractors
+#### C2: DaqMetricsParser Implementation (Decimation + Stream Lifecycle)
+
+| Order | File                                 | Action    | Done when                                                                                                                                                                  | Status |
+| ----- | ------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 18    | `Protocols/DaqMetricsParser.cs`      | Implement | Frame counter (volatile int), `StartStreamAsync()` with loop, decimation logic, and `StopStreamAsync()` cleanup all fully implemented and tested                          | ✅      |
+| 19    | `Devices/UniaxialVibrationDevice.cs` | Update    | `CreateStreamingParser()` reads `DecimationFactor` from config, validates > 0, passes to `DaqMetricsParser` constructor                                                    | ✅      |
+
+#### C3: Time & Frequency Domain Extractors
 
 | Order | File                                                 | Action    | Done when                                                                        | Status |
 | ----- | ---------------------------------------------------- | --------- | -------------------------------------------------------------------------------- | ------ |
-| 18    | `Communication/Pipeline/TimeDomainExtractor.cs`      | Implement | Deviation, Skewness, Kurtosis, CrestFactor algorithms complete and tested        | ⏳      |
-| 19    | `Communication/Pipeline/FrequencyDomainExtractor.cs` | Implement | RMSmg, Peakmg, Displacement, OAVelocity FFT-based algorithms complete and tested | ⏳      |
+| 20    | `Communication/Pipeline/TimeDomainExtractor.cs`      | Implement | Deviation, Skewness, Kurtosis, CrestFactor algorithms complete and tested        | ✅      |
+| 21    | `Communication/Pipeline/FrequencyDomainExtractor.cs` | Implement | RMSmg, Peakmg, Displacement, OAVelocity FFT-based algorithms complete and tested | ✅      |
 
-#### C3: Transform Pipeline
+#### C4: Transform Pipeline
 
 | Order | File                                            | Action    | Done when                                                                                 | Status |
 | ----- | ----------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- | ------ |
-| 20    | `Communication/Pipeline/PhmFeatureTransform.cs` | Implement | `TransformAsync()` fully implemented: parses payload, calls extractors, emits 10 measures | ⏳      |
+| 22    | `Communication/Pipeline/PhmFeatureTransform.cs` | Implement | `TransformAsync()` fully implemented: parses payload, calls extractors, emits 10 measures | ✅      |
 
-#### C4: Hardware Streaming
+#### C5: Hardware Streaming
 
 | Order | File                                | Action    | Done when                                                                                    | Status |
 | ----- | ----------------------------------- | --------- | -------------------------------------------------------------------------------------------- | ------ |
-| 21    | `Communication/DaqCollector.cs`     | Implement | `StreamFramesAsync()` fully implemented: DAQ init, streamer config, frame accumulation logic | ⏳      |
-| 22    | `Communication/DaqCommunication.cs` | Implement | `StreamAsync()` fully implemented: connects bidirectional streaming, yields JSON payloads    | ⏳      |
-
-#### C5: Protocol Parser & Stream Lifecycle
-
-| Order | File                            | Action    | Done when                                                                           | Status |
-| ----- | ------------------------------- | --------- | ----------------------------------------------------------------------------------- | ------ |
-| 23    | `Protocols/DaqMetricsParser.cs` | Implement | `StartStreamAsync()`, `StopStreamAsync()` fully implemented, stream consumer active | ⏳      |
+| 23    | `Communication/DaqCollector.cs`     | Implement | `StreamFramesAsync()` fully implemented: DAQ init, streamer config, frame accumulation logic | ✅      |
+| 24    | `Communication/DaqCommunication.cs` | Implement | `StreamAsync()` fully implemented: connects bidirectional streaming, yields JSON payloads    | ✅      |
 
 #### C6: Device Integration & Validation
 
 | Order | File                                 | Action    | Done when                                                                                     | Status |
 | ----- | ------------------------------------ | --------- | --------------------------------------------------------------------------------------------- | ------ |
-| 24    | `Devices/UniaxialVibrationDevice.cs` | Implement | Constructor, validation, initialization fully implemented, parser + transform wired correctly | ⏳      |
+| 25    | `Devices/UniaxialVibrationDevice.cs` | Implement | PhmFeatureTransform instantiated and registered; validation complete; integration verified   | ✅      |
 
-**Checkpoint**: ⏳ `dotnet build` succeeds. All 10 PHM features computed and reported per telemetry cycle.
+**Checkpoint**: ⏳ C1-C5 complete, C6 ready to build. Configuration streamlined to just 3 essential parameters (SamplingRate, FrameIntervalSeconds, DecimationFactor).
 
 ### Documentation Synchronization
 

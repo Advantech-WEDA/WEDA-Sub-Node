@@ -18,12 +18,18 @@ namespace daq_data_collector.Protocols;
 ///
 /// Consumes the DaqCommunication stream, emits raw payload to SensorCache,
 /// which then triggers telemetry pipeline (Transform → Filter → Send).
+/// Implements frame decimation to map the 2 Hz hardware frame push rate
+/// to a configurable effective update rate (default 1 Hz with DecimationFactor=2).
 /// </summary>
 public class DaqMetricsParser : IStreamingProtocolParser
 {
     private readonly DaqCommunication _communication;
     private readonly ILogger<DaqMetricsParser> _logger;
+    private readonly int _decimationFactor;
     private StreamState _streamState = StreamState.Disconnected;
+    private volatile int _frameCounter = 0;
+    private Task? _streamTask;
+    private CancellationTokenSource? _streamCts;
 
     public ICommunication Communication => _communication;
 
@@ -34,28 +40,171 @@ public class DaqMetricsParser : IStreamingProtocolParser
 
     public DaqMetricsParser(
         DaqCommunication communication,
-        ILogger<DaqMetricsParser> logger)
+        ILogger<DaqMetricsParser> logger,
+        int decimationFactor = 2)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        if (decimationFactor <= 0)
+            throw new ArgumentException("DecimationFactor must be a positive integer.", nameof(decimationFactor));
+
+        _decimationFactor = decimationFactor;
     }
 
     /// <summary>
     /// Start consuming the DaqCommunication stream and emit raw measures to SensorCache.
+    /// Initializes decimation counter and launches stream consumer background task.
     /// </summary>
-    public Task StartStreamAsync(CancellationToken cancellationToken = default)
+    public async Task StartStreamAsync(CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "DaqMetricsParser.StartStreamAsync: start streaming and emit raw measures not yet implemented.");
+        if (_streamState != StreamState.Disconnected)
+        {
+            _logger.LogWarning("Stream is already initialized (state={state}). Skipping StartStreamAsync.", _streamState);
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Starting DaqMetricsParser stream with DecimationFactor={factor}...", _decimationFactor);
+
+            // Initialize decimation counter
+            _frameCounter = 0;
+
+            // Create cancellation token source for stream lifecycle
+            _streamCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            // Update state and notify
+            SetStreamState(StreamState.Connecting);
+
+            // Connect communication layer
+            await _communication.ConnectAsync(_streamCts.Token).ConfigureAwait(false);
+            SetStreamState(StreamState.Connected);
+
+            _logger.LogInformation("DaqCommunication connected successfully.");
+
+            // Launch stream consumer background task (fire-and-forget)
+            _streamTask = RunStreamConsumerAsync(_streamCts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error starting stream.");
+            SetStreamState(StreamState.Error);
+            _streamCts?.Dispose();
+            _streamCts = null;
+            throw;
+        }
     }
 
     /// <summary>
     /// Stop consuming the stream and clean up resources.
     /// </summary>
-    public Task StopStreamAsync(CancellationToken cancellationToken = default)
+    public async Task StopStreamAsync(CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "DaqMetricsParser.StopStreamAsync: stop streaming and close connection not yet implemented.");
+        if (_streamState == StreamState.Disconnected)
+        {
+            _logger.LogWarning("Stream is already disconnected. Skipping StopStreamAsync.");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Stopping DaqMetricsParser stream...");
+
+            SetStreamState(StreamState.Connected);  // Transition toward disconnection
+
+            // Signal stream task cancellation
+            _streamCts?.Cancel();
+
+            // Wait for stream task to complete (with timeout)
+            if (_streamTask != null)
+            {
+                try
+                {
+                    using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    await _streamTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Stream consumer task did not complete within timeout.");
+                }
+            }
+
+            // Disconnect communication
+            await _communication.DisconnectAsync(cancellationToken).ConfigureAwait(false);
+
+            SetStreamState(StreamState.Disconnected);
+            _logger.LogInformation("DaqMetricsParser stream stopped successfully.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error stopping stream.");
+            SetStreamState(StreamState.Error);
+            throw;
+        }
+        finally
+        {
+            _streamCts?.Dispose();
+            _streamCts = null;
+            _streamTask = null;
+        }
+    }
+
+    /// <summary>
+    /// Background task that consumes the DaqCommunication stream and emits raw telemetry measures.
+    /// Implements frame decimation: increments counter and only emits when counter % DecimationFactor == 0.
+    /// </summary>
+    private async Task RunStreamConsumerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Empty request stream for one-way streaming (no requests from device → cloud)
+            var requestStream = Enumerable.Empty<object>().ToAsyncEnumerable();
+
+            await foreach (var payload in _communication.StreamAsync(requestStream, cancellationToken).ConfigureAwait(false))
+            {
+                // Increment frame counter
+                _frameCounter++;
+
+                // Only emit telemetry when decimation condition is met
+                if (_frameCounter % _decimationFactor == 0)
+                {
+                    _logger.LogDebug("Emitting raw telemetry (frame {frame}, decimation {factor}).", _frameCounter, _decimationFactor);
+
+                    var rawMeasure = new TelemetryMeasure
+                    {
+                        ResourceId = "daqraw:vibration:payload",
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        Value = payload?.ToString() ?? string.Empty,
+                        Metadata = null
+                    };
+
+                    OnTelemetryReceived?.Invoke(new List<TelemetryMeasure> { rawMeasure });
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Stream consumer task cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in stream consumer task.");
+            SetStreamState(StreamState.Error);
+        }
+    }
+
+    /// <summary>
+    /// Helper to update stream state and notify listeners.
+    /// </summary>
+    private void SetStreamState(StreamState newState)
+    {
+        if (_streamState != newState)
+        {
+            _streamState = newState;
+            OnStreamStateChanged?.Invoke(_streamState);
+            _logger.LogInformation("Stream state changed to: {state}", _streamState);
+        }
     }
 
     /// <summary>

@@ -1,4 +1,7 @@
 using daq_data_collector.Models;
+
+using MathNet.Numerics.Statistics;
+
 using Microsoft.Extensions.Logging;
 
 namespace daq_data_collector.Communication.Pipeline;
@@ -29,13 +32,34 @@ public class TimeDomainExtractor
     public int SamplingRate => _samplingRate;
 
     /// <summary>
-    /// Extracts time-domain features from the provided raw frame.
-    /// Writes results into the supplied <paramref name="features"/> builder object.
+    /// Extracts time-domain features from the provided raw frame using MathNet.Numerics.
+    /// Features: Deviation (StdDev), Skewness, Kurtosis, CrestFactor.
     /// </summary>
     public TimeDomainResults Extract(DaqRawFrame frame)
     {
-        throw new NotImplementedException(
-            "Time-domain feature extraction (Deviation, Skewness, Kurtosis, CrestFactor) not yet implemented.");
+        if (frame?.Samples == null || frame.Samples.Length == 0)
+            throw new ArgumentException("Frame must contain at least one sample", nameof(frame));
+
+        // Convert float samples to double for MathNet
+        var samples = frame.Samples.Select(s => (double)s).ToArray();
+
+        // Use MathNet.Numerics for robust statistics
+        double deviation = samples.StandardDeviation();
+        double skewness = samples.Skewness();
+        double kurtosis = samples.Kurtosis();
+
+        // Compute RMS and Crest Factor
+        double rms = Math.Sqrt(samples.Sum(s => s * s) / samples.Length);
+        double max = samples.Maximum();
+        double min = samples.Minimum();
+        double peakAmplitude = Math.Max(Math.Abs(max), Math.Abs(min));
+        double crestFactor = rms > 0 ? peakAmplitude / rms : 0.0;
+
+        return new TimeDomainResults(
+            Deviation: deviation,
+            Skewness: skewness,
+            Kurtosis: kurtosis,
+            CrestFactor: crestFactor);
     }
 }
 
