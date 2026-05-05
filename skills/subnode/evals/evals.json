@@ -1,0 +1,23 @@
+{
+  "skill_name": "subnode",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我想建立一個新的 subnode 專案來讀取 Modbus TCP 電表的資料，電表 IP 是 192.168.1.100，需要讀取電壓、電流和功率三個數值",
+      "expected_output": "應該詢問更多細節（如 port、slave ID、register 位址），然後生成完整的 Modbus TCP 專案結構",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "幫我 scaffold 一個 MQTT sensor 專案，我的 broker 在 mqtt://192.168.1.50:1883，sensor 會發布 JSON 格式的溫濕度資料到 sensors/env/data topic",
+      "expected_output": "應該生成 MQTT/iSensing 專案，包含正確的 topic 訂閱設定和 JSON path 配置",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/subnode 我要建立一個 WebSocket streaming 專案連接到 ws://192.168.1.200:8080/realtime 接收即時振動數據",
+      "expected_output": "應該生成 WebSocket Streaming 專案，包含重連設定和適當的 DSP filters",
+      "files": []
+    }
+  ]
+}

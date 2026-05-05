@@ -1,3 +1,4 @@
+using System.IO.Hashing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -9,30 +10,37 @@ using Weda.SubNode.Core.Policies;
 
 namespace Weda.SubNode.Core.Storage;
 
+/// <summary>
+/// Binary slot-based storage for fixed-size data types.
+/// Supports V1 (legacy, double-only) for reading and V2 (multi-type) for writing.
+/// </summary>
 public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<RecordingOptions> options) : IRecordStorage
 {
     private readonly ILogger<BinaryRecordStorage> _logger = logger;
     private readonly RecordingOptions _options = options.Value;
     private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
     private const int MillisecondsPerDay = 86400000;
-    private const ushort Version = 1;
+    private const ushort CurrentVersion = 2;
     private readonly ResiliencePipeline _storagePipeline = ConnectionPolicies.CreateGeneralOperationPipeline(logger, ConnectionPolicyOptions.NFSDefault);
 
-    public async Task WriteAsync(string sensorId, int interval, RecordingDataPoint dataPoint, CancellationToken cancellationToken = default)
+    public async Task WriteAsync(string sensorId, int interval, SchemaType schemaType, RecordingDataPoint dataPoint, CancellationToken cancellationToken = default)
     {
+        if (!schemaType.IsSlotBasedSchema())
+            throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage");
+
         EnsureDiskSpace();
-        
-        var filePath = GetFilePath(sensorId, interval, dataPoint.Timestamp);
+
+        var filePath = GetFilePath(sensorId, interval, schemaType, dataPoint.Timestamp);
         var startOfDay = GetStartOfDay(dataPoint.Timestamp);
-        EnsureFileExists(filePath, interval, startOfDay);
-        await WriteToSlotAsync(filePath, interval, startOfDay, dataPoint, cancellationToken);
+        EnsureFileExists(filePath, interval, schemaType, startOfDay);
+        await WriteToSlotAsync(filePath, interval, schemaType, startOfDay, dataPoint, cancellationToken);
     }
 
-    public async Task WriteBatchAsync(string sensorId, int interval, IEnumerable<RecordingDataPoint> dataPoints, CancellationToken cancellationToken = default)
+    public async Task WriteBatchAsync(string sensorId, int interval, SchemaType schemaType, IEnumerable<RecordingDataPoint> dataPoints, CancellationToken cancellationToken = default)
     {
         foreach (var dataPoint in dataPoints)
         {
-            await WriteAsync(sensorId, interval, dataPoint, cancellationToken);
+            await WriteAsync(sensorId, interval, schemaType, dataPoint, cancellationToken);
         }
     }
 
@@ -50,11 +58,15 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var filePath = GetFilePathForDate(sensorId, interval, currentDate);
-            if (File.Exists(filePath))
+            // Try to find files for this date (V1 or V2 format)
+            var filePaths = GetFilePathsForDate(sensorId, interval, currentDate);
+            foreach (var filePath in filePaths)
             {
-                var dataPoints = await ReadFromFileAsync(filePath, interval, startMs, endMs, cancellationToken);
-                result.AddRange(dataPoints);
+                if (File.Exists(filePath))
+                {
+                    var dataPoints = await ReadFromFileAsync(filePath, interval, startMs, endMs, cancellationToken);
+                    result.AddRange(dataPoints);
+                }
             }
 
             currentDate = currentDate.AddDays(1);
@@ -79,10 +91,22 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return allResults.OrderBy(p => p.Timestamp).ToList();
     }
 
-    private string GetFilePathForDate(string sensorId, int interval, DateTime date)
+    /// <summary>
+    /// Gets all possible file paths for a sensor/interval/date combination.
+    /// Returns V1 path first, then V2 paths for each SchemaType.
+    /// </summary>
+    private IEnumerable<string> GetFilePathsForDate(string sensorId, int interval, DateTime date)
     {
-        var fileName = $"{date:yyyy-MM-dd}_{interval}";
-        return Path.Combine(_resolvedStorageDirectory, sensorId, $"{fileName}.bin");
+        var sensorDir = Path.Combine(_resolvedStorageDirectory, sensorId);
+
+        // V1 format: {date}_{interval}.bin
+        yield return Path.Combine(sensorDir, $"{date:yyyy-MM-dd}_{interval}.bin");
+
+        // V2 format: {date}_{interval}_{schemaType}.bin
+        foreach (var schemaType in new[] { SchemaType.Double, SchemaType.Long, SchemaType.Integer, SchemaType.Boolean })
+        {
+            yield return Path.Combine(sensorDir, $"{date:yyyy-MM-dd}_{interval}_{schemaType.ToString().ToLowerInvariant()}.bin");
+        }
     }
 
     private static async Task<List<RecordingDataPoint>> ReadFromFileAsync(string filePath, int interval, long startMs, long endMs, CancellationToken cancellationToken)
@@ -135,14 +159,32 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
 
         var intervals = Directory.GetFiles(sensorDir, "*.bin")
             .Select(Path.GetFileNameWithoutExtension)
-            .Select(name => name?.Split('_').LastOrDefault())
-            .Where(intervalStr => int.TryParse(intervalStr, out _))
-            .Select(intervalStr => int.Parse(intervalStr!))
+            .Select(name => ExtractIntervalFromFileName(name))
+            .Where(interval => interval.HasValue)
+            .Select(interval => interval!.Value)
             .Distinct()
             .OrderBy(i => i)
             .ToList();
 
         return Task.FromResult<IReadOnlyList<int>>(intervals);
+    }
+
+    /// <summary>
+    /// Extracts interval from filename.
+    /// V1: yyyy-MM-dd_interval
+    /// V2: yyyy-MM-dd_interval_schemaType
+    /// </summary>
+    private static int? ExtractIntervalFromFileName(string? fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+            return null;
+
+        var parts = fileName.Split('_');
+        if (parts.Length < 2)
+            return null;
+
+        // Interval is always the second part
+        return int.TryParse(parts[1], out var interval) ? interval : null;
     }
 
     public Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
@@ -163,7 +205,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var fileName = Path.GetFileNameWithoutExtension(file);
-                var datePart = fileName.Split('_')[0];
+                var datePart = fileName?.Split('_')[0];
 
                 if (DateTime.TryParse(datePart, out var fileDate) && fileDate < cutoffDate)
                 {
@@ -198,10 +240,13 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return Task.CompletedTask;
     }
 
-    private string GetFilePath(string sensorId, int interval, long timestamp)
+    /// <summary>
+    /// Gets file path for V2 format: {date}_{interval}_{schemaType}.bin
+    /// </summary>
+    private string GetFilePath(string sensorId, int interval, SchemaType schemaType, long timestamp)
     {
         var date = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.Date;
-        var fileName = $"{date:yyyy-MM-dd}_{interval}";
+        var fileName = $"{date:yyyy-MM-dd}_{interval}_{schemaType.ToString().ToLowerInvariant()}";
         return Path.Combine(_resolvedStorageDirectory, sensorId, $"{fileName}.bin");
     }
 
@@ -211,7 +256,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
     }
 
-    private void EnsureFileExists(string filePath, int interval, long startOfDay)
+    private void EnsureFileExists(string filePath, int interval, SchemaType schemaType, long startOfDay)
     {
         _storagePipeline.Execute(() =>
         {
@@ -223,60 +268,81 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
 
             if (!File.Exists(filePath))
             {
-                CreateFileWithHeader(filePath, interval, startOfDay);
+                CreateFileWithHeaderV2(filePath, interval, schemaType, startOfDay);
             }
         });
     }
 
-    private static void CreateFileWithHeader(string filePath, int interval, long startOfDay)
+    /// <summary>
+    /// Creates a new V2 format file with header and empty slots.
+    /// </summary>
+    private static void CreateFileWithHeaderV2(string filePath, int interval, SchemaType schemaType, long startOfDay)
     {
+        var slotSize = schemaType.GetSlotSize();
         var slotCount = MillisecondsPerDay / interval;
-        var fileSize = RecordingFileHeader.HeaderSize + slotCount * sizeof(double);
+        var fileSize = RecordingFileHeader.HeaderSizeV2 + slotCount * slotSize;
 
         using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
         fs.SetLength(fileSize);
 
-        // Header layout (24 bytes):
+        // V2 Header layout (32 bytes):
         // [0-3]   uint32  Prefix
-        // [4-5]   uint16  Version
+        // [4-5]   uint16  Version (= 2)
         // [6]     byte    Flags (0 = Little Endian)
-        // [7]     byte    CheckSumType (0 = None)
+        // [7]     byte    SchemaType
         // [8-11]  uint32  Interval
-        // [12-19] ulong   StartTimestamp
-        // [20-23] uint32  SlotCount
-        fs.Write(BitConverter.GetBytes(RecordingFileHeader.Prefix));
-        fs.Write(BitConverter.GetBytes(Version));
-        fs.WriteByte(0); // Flags: Little Endian
-        fs.WriteByte(0); // CheckSumType: None
-        fs.Write(BitConverter.GetBytes((uint)interval));
-        fs.Write(BitConverter.GetBytes((ulong)startOfDay));
-        fs.Write(BitConverter.GetBytes((uint)slotCount));
+        // [12-15] uint32  SlotSize
+        // [16-23] ulong   StartTimestamp
+        // [24-27] uint32  SlotCount
+        // [28-31] uint32  HeaderChecksum (CRC32 of bytes 0-27)
 
-        var nanBytes = BitConverter.GetBytes(double.NaN);
+        // Build header bytes (first 28 bytes, checksum excluded)
+        var headerBytes = new byte[28];
+        var offset = 0;
+        BitConverter.GetBytes(RecordingFileHeader.Prefix).CopyTo(headerBytes, offset); offset += 4;
+        BitConverter.GetBytes(CurrentVersion).CopyTo(headerBytes, offset); offset += 2;
+        headerBytes[offset++] = 0; // Flags: Little Endian
+        headerBytes[offset++] = (byte)schemaType;
+        BitConverter.GetBytes((uint)interval).CopyTo(headerBytes, offset); offset += 4;
+        BitConverter.GetBytes((uint)slotSize).CopyTo(headerBytes, offset); offset += 4;
+        BitConverter.GetBytes((ulong)startOfDay).CopyTo(headerBytes, offset); offset += 8;
+        BitConverter.GetBytes((uint)slotCount).CopyTo(headerBytes, offset);
+
+        // Calculate CRC32 checksum
+        var checksum = Crc32.HashToUInt32(headerBytes);
+
+        // Write header with checksum
+        fs.Write(headerBytes);
+        fs.Write(BitConverter.GetBytes(checksum));
+
+        // Initialize all slots with empty values
+        var emptySlotBytes = schemaType.GetEmptySlotBytes();
         for (int i = 0; i < slotCount; i++)
         {
-            fs.Write(nanBytes);
+            fs.Write(emptySlotBytes);
         }
     }
 
-    private static async Task WriteToSlotAsync(string filePath, int interval, long startOfDay, RecordingDataPoint dataPoint, CancellationToken cancellationToken)
+    private static async Task WriteToSlotAsync(string filePath, int interval, SchemaType schemaType, long startOfDay, RecordingDataPoint dataPoint, CancellationToken cancellationToken)
     {
         var slotIndex = (int)((dataPoint.Timestamp - startOfDay) / interval);
-        var slotCount = (int)(MillisecondsPerDay / interval);
+        var slotCount = MillisecondsPerDay / interval;
+        var slotSize = schemaType.GetSlotSize();
 
-        // prevent index out of range error
+        // Prevent index out of range error
         if (slotIndex < 0 || slotIndex >= slotCount)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(dataPoint), 
-                $"Timestamp {dataPoint.Timestamp} produces invalid slot {slotIndex} (valid range-{slotCount - 1})");
+                nameof(dataPoint),
+                $"Timestamp {dataPoint.Timestamp} produces invalid slot {slotIndex} (valid range 0-{slotCount - 1})");
         }
 
-        var position = RecordingFileHeader.HeaderSize + slotIndex * sizeof(double);
+        var position = RecordingFileHeader.HeaderSizeV2 + slotIndex * slotSize;
+        var valueBytes = schemaType.ToBytes(dataPoint.Value);
 
         await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Write);
         fs.Seek(position, SeekOrigin.Begin);
-        await fs.WriteAsync(BitConverter.GetBytes(dataPoint.Value), cancellationToken);
+        await fs.WriteAsync(valueBytes, cancellationToken);
     }
 
     /// <summary>
@@ -307,11 +373,11 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         while (ShouldCleanup())
         {
             var deletedFileSize = _storagePipeline.Execute(DeleteOldestFileAndGetSize);
-            
-            if (deletedFileSize == 0) 
+
+            if (deletedFileSize == 0)
                 break;
-            
-            currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize); 
+
+            currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize);
         };
     }
 
@@ -320,7 +386,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         var oldestFile = GetOldestFile();
         if (oldestFile == null)
             return 0;
-        
+
         long deletedFileSize = 0;
         try
         {
@@ -386,7 +452,9 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
     }
 
     /// <summary>
-    /// Parses date from filename format: yyyy-MM-dd_interval
+    /// Parses date from filename format.
+    /// V1: yyyy-MM-dd_interval
+    /// V2: yyyy-MM-dd_interval_schemaType
     /// </summary>
     private static DateTime? ParseDateFromFileName(string? fileName)
     {

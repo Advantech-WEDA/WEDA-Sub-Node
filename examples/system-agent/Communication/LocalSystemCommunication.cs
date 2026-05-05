@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+
 using SystemAgentExample.Models;
+
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Core.Communication.Common;
 
@@ -70,6 +72,11 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     }
 
     /// <summary>
+    /// Discovers available system resources for sensor auto-expansion.
+    /// </summary>
+    public DiscoveredResources DiscoverAvailableResources() => _collector.DiscoverAvailableResources();
+
+    /// <summary>
     /// Implements the Request-Response pattern for system metrics collection.
     /// </summary>
     /// <param name="request">System metrics request containing metric types to collect</param>
@@ -81,8 +88,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     {
         try
         {
-            _logger.LogInformation("Collect system metrics for types: {Types}",
-               string.Join(", ", request.MetricTypes));
+            _logger.LogDebug("Collect system metrics for types: {Types}", string.Join(", ", request.MetricTypes));
             return await _collector.CollectMetricsAsync(request.MetricTypes, cancellationToken);
         }
         catch (Exception ex)

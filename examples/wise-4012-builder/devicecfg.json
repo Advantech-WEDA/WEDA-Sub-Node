@@ -31,6 +31,11 @@
             "RegisterCount": 1,
             "DataType": "UInt16"
           },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 0",
+            "Description": "Analog input channel 0",
+            "Schema": "integer"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 1000
@@ -45,6 +50,11 @@
             "RegisterAddress": 1,
             "RegisterCount": 1,
             "DataType": "UInt16"
+          },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 1",
+            "Description": "Analog input channel 1",
+            "Schema": "integer"
           },
           "Report": {
             "Enabled": true,
@@ -61,6 +71,11 @@
             "RegisterCount": 1,
             "DataType": "UInt16"
           },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 2",
+            "Description": "Analog input channel 2",
+            "Schema": "integer"
+          },
           "Report": {
             "Enabled": true,
             "Interval": 1000
@@ -75,6 +90,11 @@
             "RegisterAddress": 3,
             "RegisterCount": 1,
             "DataType": "UInt16"
+          },
+          "SensorInfo": {
+            "DisplayName": "AI Channel 3",
+            "Description": "Analog input channel 3",
+            "Schema": "integer"
           },
           "Report": {
             "Enabled": true,

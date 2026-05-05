@@ -1,17 +1,16 @@
 using Microsoft.Extensions.Logging;
-using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Host;
 using Weda.SubNode.Host.Context;
-using Weda.SubNode.Core;
 using Weda.SubNode.Core.Protocols.Modbus;
 using Weda.SubNode.Simulators.Modbus;
+using Weda.SubNode.Cloud;
 using WedaSubNode;
 
 try
 {
     // Create WedaApplicationContext with mock cloud (remove UseMockCloud for real cloud)
-    using var context = new WedaApplicationContext(options => options.CloudService = WedaFactory.Cloud.Mock);
+    using var context = new WedaApplicationContext(options => options.CloudService = Cloud.Mock());
 
     // Configure and start Modbus Simulator
     var simulator = await ConfigureTcpModbusSimulator(context);
@@ -38,7 +37,7 @@ catch (Exception ex)
     Console.WriteLine($"Application terminated unexpectedly: {ex}");
 }
 
-DeviceConfiguration ConfigureDeviceConfiguration()
+TcpModbusDeviceConfiguration ConfigureDeviceConfiguration()
 {
     // Configure Device using TcpModbusDeviceConfiguration
     var modbusDeviceConfig = new TcpModbusDeviceConfiguration
@@ -54,25 +53,19 @@ DeviceConfiguration ConfigureDeviceConfiguration()
     // Create temperature sensor with transform pipeline
     var tempSensor = new ModbusSensorReporturation
     {
-        Name = "temperature.sensor",
+        Name = "temperature_sensor",
         RegisterAddress = 0,
         RegisterCount = 2,
         DataType = ModbusDataType.Float32,
         RegisterType = ModbusRegisterType.HoldingRegister,
         SensorGroup = SensorGroup.TEMP
     };
-    tempSensor.Config.Interval = 5000;
+    tempSensor.Config.Interval = 1000;
 
     // Add sensor to device
     modbusDeviceConfig.AddSensor(tempSensor);
 
-    // Convert to DeviceConfiguration
-    var deviceConfig = modbusDeviceConfig.ToDeviceConfiguration();
-
-    // Load DTDL metadata (required for cloud registration)
-    deviceConfig.InitializeDtdl();
-
-    return deviceConfig;
+    return modbusDeviceConfig;
 }
 
 async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContext context)
@@ -92,7 +85,7 @@ async Task<TcpModbusSimulator> ConfigureTcpModbusSimulator(WedaApplicationContex
         },
         Simulation = new SimulationSettings
         {
-            GlobalUpdateIntervalSeconds = 5,
+            GlobalUpdateIntervalSeconds = 1,
             EnableValueChanges = true
         },
         Sensors = new List<SimulatedSensor>

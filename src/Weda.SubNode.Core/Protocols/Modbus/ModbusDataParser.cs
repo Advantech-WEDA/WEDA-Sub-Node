@@ -31,6 +31,10 @@ public static class ModbusDataParser
         if (registers == null || registers.Length == 0)
             throw new ArgumentException("Registers cannot be null or empty", nameof(registers));
 
+        // Boolean type: treat register value as bool (0 = false, non-zero = true)
+        if (dataType == ModbusDataType.Boolean)
+            return registers[0] != 0;
+
         object rawValue = dataType switch
         {
             ModbusDataType.UInt16 => ParseUInt16(registers),

@@ -1,0 +1,98 @@
+# GitHub Sync Pipeline
+# Mirrors specified branches from Azure DevOps to GitHub (Advantech-WISE-Edge/WEDA-Sub-Node)
+#
+# === SETUP (one-time, by repo admin) ===
+# 1. Generate an SSH deploy key pair:
+#      ssh-keygen -t ed25519 -C "azure-pipeline-sync" -f github_deploy_key
+# 2. In GitHub repo → Settings → Deploy keys → Add key (enable "Allow write access")
+#      paste content of github_deploy_key.pub
+# 3. In Azure DevOps → Pipelines → Library → Secure files → Upload github_deploy_key (private key)
+# 4. In Azure DevOps → Pipelines → Library → Variable groups → create "github-sync-secrets":
+#      GITHUB_SSH_PUBLIC_KEY  = <content of github_deploy_key.pub>  (plain text)
+# 5. Grant the pipeline permission to the secure file and variable group.
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - release/*
+  paths:
+    exclude:
+      - azure-pipelines-github-sync.yml  # avoid self-trigger loop
+
+pr: none  # sync on push only, not on PRs
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: github-sync-secrets           # provides GITHUB_SSH_PUBLIC_KEY
+  - name: GITHUB_REPO
+    value: 'git@github.com:Advantech-WISE-Edge/WEDA-Sub-Node.git'
+  - name: GIT_USER_EMAIL
+    value: 'azure-pipeline@advantech.com'
+  - name: GIT_USER_NAME
+    value: 'Azure Pipeline Bot'
+
+steps:
+  # ── 1. Full clone (no shallow) so all history is available ──────────────────
+  - checkout: self
+    displayName: 'Checkout full history'
+    fetchDepth: 0
+    clean: true
+    persistCredentials: false   # we use our own SSH key below
+
+  # ── 2. Install the GitHub deploy key ────────────────────────────────────────
+  - task: InstallSSHKey@0
+    displayName: 'Install GitHub deploy key'
+    inputs:
+      knownHostsEntry: 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+      sshPublicKey: '$(GITHUB_SSH_PUBLIC_KEY)'
+      sshKeySecureFile: 'github_deploy_key'
+
+  # ── 3. Validate SSH connectivity before pushing ──────────────────────────────
+  - script: |
+      ssh -T git@github.com 2>&1 | grep -q "successfully authenticated" \
+        && echo "SSH connection to GitHub: OK" \
+        || { echo "##vso[task.logissue type=warning]SSH handshake completed (GitHub returns non-zero even on success)"; }
+    displayName: 'Verify GitHub SSH connectivity'
+    continueOnError: true
+
+  # ── 4. Mirror branch to GitHub ───────────────────────────────────────────────
+  - script: |
+      set -euo pipefail
+
+      BRANCH="$(Build.SourceBranchName)"
+      echo "=== Syncing branch: $BRANCH ==="
+      echo "    Source commit : $(Build.SourceVersion)"
+      echo "    Target repo   : $(GITHUB_REPO)"
+
+      git config user.email "$(GIT_USER_EMAIL)"
+      git config user.name  "$(GIT_USER_NAME)"
+
+      # Add GitHub remote (idempotent)
+      if git remote get-url github > /dev/null 2>&1; then
+        git remote set-url github "$(GITHUB_REPO)"
+      else
+        git remote add github "$(GITHUB_REPO)"
+      fi
+
+      # Fetch remote state from GitHub (ignore failure if branch is new)
+      git fetch github "$BRANCH" 2>/dev/null || echo "Branch '$BRANCH' not yet on GitHub — will create it."
+
+      # Push: force is intentional — Azure DevOps is the source of truth
+      git push github "refs/remotes/origin/$BRANCH:refs/heads/$BRANCH" --force
+
+      echo "=== Branch '$BRANCH' successfully synced to GitHub ==="
+    displayName: 'Push branch to GitHub'
+
+  # ── 5. Report sync result ────────────────────────────────────────────────────
+  - script: |
+      BRANCH="$(Build.SourceBranchName)"
+      COMMIT="$(Build.SourceVersion)"
+      SHORT="${COMMIT:0:8}"
+      echo "##vso[task.setvariable variable=SyncSummary]Synced $BRANCH @ $SHORT → github.com/Advantech-WISE-Edge/WEDA-Sub-Node"
+      echo "Sync complete: $BRANCH @ $SHORT"
+    displayName: 'Report sync result'
+    condition: succeeded()

@@ -1,0 +1,165 @@
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --border: #2a2d3a;
+  --text: #e4e6eb;
+  --dim: #8b8fa3;
+  --accent: #4f8ff7;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
+  --cyan: #06b6d4;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* --- Header --- */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.header h1 { font-size: 18px; font-weight: 600; }
+
+.status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.disconnected { background: var(--red); }
+
+/* --- Stats Bar --- */
+.stats-bar {
+  display: flex;
+  gap: 24px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.stat { display: flex; gap: 6px; }
+.stat-label { color: var(--dim); }
+.stat-value { font-weight: 600; }
+
+/* --- Grid Layout --- */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px 24px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow: hidden;
+}
+.card-title {
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.full-width { grid-column: 1 / -1; }
+
+/* --- Sensor Cards --- */
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.sensor-item {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+}
+.sensor-name { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+.sensor-value { font-size: 24px; font-weight: 700; color: var(--green); }
+.sensor-unit { font-size: 12px; color: var(--dim); margin-left: 4px; }
+.sensor-stats { display: flex; gap: 12px; margin-top: 8px; font-size: 11px; color: var(--dim); }
+
+/* --- Chart --- */
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.chart-tabs { display: flex; gap: 6px; font-size: 12px; }
+.chart-container {
+  position: relative;
+  height: 200px;
+  background: var(--bg);
+  border-radius: 6px;
+  overflow: hidden;
+}
+canvas { width: 100% !important; height: 100% !important; }
+
+.chart-tab {
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--dim);
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.chart-tab:hover { color: var(--text); border-color: var(--accent); }
+.chart-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.chart-tab.all { background: transparent; border-style: dashed; }
+.chart-tab.all.active { background: var(--accent); border-style: solid; }
+
+/* --- Message Log --- */
+.log-container { max-height: 300px; overflow-y: auto; font-size: 12px; }
+.log-entry {
+  display: flex;
+  gap: 12px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.log-entry:hover { background: rgba(79, 143, 247, 0.05); }
+.log-time { color: var(--dim); min-width: 70px; }
+.log-type { min-width: 80px; font-weight: 600; }
+.log-type.telemetry { color: var(--cyan); }
+.log-type.health { color: var(--yellow); }
+.log-type.config { color: var(--green); }
+.log-type.command { color: var(--red); }
+.log-type.other { color: var(--dim); }
+.log-subject {
+  color: var(--dim);
+  min-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-payload {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* --- Health --- */
+.health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.health-item { background: var(--bg); border-radius: 6px; padding: 12px; }
+.health-label { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+.health-value { font-size: 18px; font-weight: 600; }
+.bar-container { height: 6px; background: var(--border); border-radius: 3px; margin-top: 6px; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+}

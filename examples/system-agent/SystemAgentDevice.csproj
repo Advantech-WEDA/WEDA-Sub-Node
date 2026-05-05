@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SystemAgentDevice.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Weda.SubNode.Core\Weda.SubNode.Core.csproj" />
     <ProjectReference Include="..\..\src\Weda.SubNode.Host\Weda.SubNode.Host.csproj" />
     <ProjectReference Include="..\..\src\Weda.SubNode.Abstractions\Weda.SubNode.Abstractions.csproj" />

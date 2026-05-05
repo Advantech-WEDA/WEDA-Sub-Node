@@ -995,7 +995,7 @@ public class ConfigurationUpdateHelperTests
             [
                 new Sensor
                 {
-                    Name = "temperature.sensor",
+                    Name = "temperature_sensor",
                     Dtmi = "dtmi:test:sensor;1",
                     SensorGroup = SensorGroup.TEMP,
                     Parameters = new Dictionary<string, object>(),
@@ -1031,7 +1031,7 @@ public class ConfigurationUpdateHelperTests
                                     [
                                         new SubNodeSensorReportDto
                                         {
-                                            Name = "temperature.sensor",
+                                            Name = "temperature_sensor",
                                             SensorGroup = "TEMP",
                                             Report = new SubNodeSensorRuntimeConfigDto
                                             {
@@ -1042,7 +1042,7 @@ public class ConfigurationUpdateHelperTests
                                         },
                                         new SubNodeSensorReportDto
                                         {
-                                            Name = "temperature.sensor.2",
+                                            Name = "temperature_sensor.2",
                                             SensorGroup = "TEMP",
                                             Report = new SubNodeSensorRuntimeConfigDto
                                             {
@@ -1067,11 +1067,11 @@ public class ConfigurationUpdateHelperTests
         result.ShouldBeTrue();
         config.Sensors.Count.ShouldBe(2);
 
-        var sensor1 = config.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor");
+        var sensor1 = config.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor");
         sensor1.ShouldNotBeNull();
         sensor1!.Report.Interval.ShouldBe(2000);
 
-        var sensor2 = config.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor.2");
+        var sensor2 = config.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor.2");
         sensor2.ShouldNotBeNull();
         sensor2!.Report.Interval.ShouldBe(3000);
     }
@@ -1414,17 +1414,17 @@ public class ConfigurationUpdateHelperTests
         var deviceConfig = CreateDeviceConfiguration("TestDevice");
         deviceConfig.Sensors.Add(new Sensor
         {
-            Name = "temperature.sensor3",
+            Name = "temperature_sensor3",
             Dtmi = "dtmi:test:temp3;1",
             SensorGroup = SensorGroup.AI,
             Parameters = new Dictionary<string, object>(),
             Report = new SensorReport { Enabled = true, Interval = 1000 }
         });
-        deviceConfig.Sensors.Count.ShouldBe(3); // channel_0, channel_1, temperature.sensor3
+        deviceConfig.Sensors.Count.ShouldBe(3); // channel_0, channel_1, temperature_sensor3
 
         // Desired has 2 sensors with different names:
         // - channel_0 (exists)
-        // - temperature.sensor.NEW (does not exist, should be added)
+        // - temperature_sensor.NEW (does not exist, should be added)
         var desiredSensors = new List<SubNodeSensorReportDto>
         {
             new()
@@ -1439,7 +1439,7 @@ public class ConfigurationUpdateHelperTests
             },
             new()
             {
-                Name = "temperature.sensor.NEW",
+                Name = "temperature_sensor.NEW",
                 SensorGroup = "TEMP",
                 Report = new SubNodeSensorRuntimeConfigDto
                 {
@@ -1467,20 +1467,20 @@ public class ConfigurationUpdateHelperTests
             deviceConfig, desiredSensors, "test-device-id");
 
         // Assert
-        // Should remove 2 sensors: channel_1 and temperature.sensor3
+        // Should remove 2 sensors: channel_1 and temperature_sensor3
         result.RemovedSensors.Count.ShouldBe(2);
         result.RemovedSensors.ShouldContain("channel_1");
-        result.RemovedSensors.ShouldContain("temperature.sensor3");
+        result.RemovedSensors.ShouldContain("temperature_sensor3");
 
-        // Should add 1 sensor: temperature.sensor.NEW
+        // Should add 1 sensor: temperature_sensor.NEW
         result.AddedSensors.Count.ShouldBe(1);
-        result.AddedSensors.ShouldContain("temperature.sensor.NEW");
+        result.AddedSensors.ShouldContain("temperature_sensor.NEW");
 
-        // Final count should be 2 (channel_0 kept, temperature.sensor.NEW added)
+        // Final count should be 2 (channel_0 kept, temperature_sensor.NEW added)
         deviceConfig.Sensors.Count.ShouldBe(2);
 
         // Verify the new sensor was properly added
-        var newSensor = deviceConfig.Sensors.FirstOrDefault(s => s.Name == "temperature.sensor.NEW");
+        var newSensor = deviceConfig.Sensors.FirstOrDefault(s => s.Name == "temperature_sensor.NEW");
         newSensor.ShouldNotBeNull();
         newSensor!.Report.TransformPipeline.Count.ShouldBe(1);
         newSensor.Report.TransformPipeline[0].Type.ShouldBe("UnitConversion");

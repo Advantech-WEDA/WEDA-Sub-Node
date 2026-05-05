@@ -29,7 +29,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogInformation("Hardware platform device not available, skipping hardware info metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect hardwareInfo metrics");
             return metrics;
         }
 
@@ -63,7 +63,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogDebug("Hardware platform device not available, skipping temperature metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect temperature metrics");
             return metrics;
         }
 
@@ -109,7 +109,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogDebug("Hardware platform device not available, skipping voltage metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect voltage metrics");
             return metrics;
         }
 
@@ -128,7 +128,7 @@ public class HardwarePlatformCollector
                 {
                     var voltage = _advantechEdgeDevice.OnboardSensors.GetVoltage(source);
                     metrics.Voltages[source.ToString()] = voltage;
-                    _logger.LogInformation($"{source} Voltage: {voltage} V");
+                    _logger.LogDebug($"{source} Voltage: {voltage} V");
                 }
                 catch (Exception ex)
                 {
@@ -155,7 +155,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogDebug("Hardware platform device not available, skipping fan speed metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect fanSpeed metrics");
             return metrics;
         }
 
@@ -174,7 +174,7 @@ public class HardwarePlatformCollector
                 {
                     var fanSpeed = _advantechEdgeDevice.OnboardSensors.GetFanSpeed(source);
                     metrics.FanSpeeds[source.ToString()] = fanSpeed;
-                    _logger.LogInformation($"{source} Fan Speed: {fanSpeed} RPM");
+                    _logger.LogDebug($"{source} Fan Speed: {fanSpeed} RPM");
                 }
                 catch (Exception ex)
                 {
@@ -199,7 +199,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogDebug("Hardware platform device not available, skipping GPIO metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect GPIO metrics");
             return metrics;
         }
 
@@ -214,9 +214,13 @@ public class HardwarePlatformCollector
             }
 
             var pinNames = _advantechEdgeDevice.Gpio.PinNames;
-            _logger.LogInformation("GPIO pin list - Length: {Length}, Names: {Names}",
+            _logger.LogDebug("GPIO pin list - Length: {Length}, Names: {Names}",
                 pinNames.Length, string.Join(", ", pinNames));
             metrics.PinNames = pinNames;
+
+            // Build index-to-name mapping for lookup by either name or numeric ID
+            for (int i = 0; i < pinNames.Length; i++)
+                metrics.PinIndexToName[i] = pinNames[i];
 
             // Collect individual pin states
             foreach (var pinName in pinNames)
@@ -257,7 +261,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogDebug("Hardware platform device not available, skipping watchdog metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect watchdog metrics");
             return metrics;
         }
 
@@ -333,7 +337,7 @@ public class HardwarePlatformCollector
 
         if (_advantechEdgeDevice == null)
         {
-            _logger.LogDebug("Hardware platform device not available, skipping thermal protection metrics");
+            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect thermal protection metrics");
             return metrics;
         }
 
@@ -347,8 +351,6 @@ public class HardwarePlatformCollector
                 _logger.LogWarning("Thermal protection is NOT supported on this device");
                 return metrics;
             }
-
-            _logger.LogInformation("Thermal protection is supported on this device");
 
             var zoneIds = _advantechEdgeDevice.ThermalProtection.ZoneIds ?? Array.Empty<string>();
             metrics.ZoneIds = zoneIds;

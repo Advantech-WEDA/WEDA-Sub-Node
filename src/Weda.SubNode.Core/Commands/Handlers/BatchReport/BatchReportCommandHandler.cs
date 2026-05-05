@@ -220,11 +220,18 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                             samplesToTake = Math.Min(remainingInBatch, remainingInMeasure);
                         }
 
-                        // Take a slice of values
+                        // Take a slice of values and convert to double
                         var sliceValues = values
                             .Skip(valuesProcessed)
                             .Take(samplesToTake)
-                            .Select(v => double.IsFinite(v) ? (double?)v : null)
+                            .Select(v => v switch
+                            {
+                                double d when double.IsFinite(d) => (double?)d,
+                                int i => (double?)i,
+                                long l => (double?)l,
+                                bool b => b ? 1.0 : 0.0,
+                                _ => null
+                            })
                             .ToList();
 
                         // Calculate the start timestamp for this slice

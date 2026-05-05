@@ -478,6 +478,7 @@ public class ModbusScanner
             ModbusDataType.Int32 => true,
             ModbusDataType.UInt64 => true,
             ModbusDataType.Int64 => true,
+            ModbusDataType.Boolean => true,
 
             _ => false
         };
@@ -545,6 +546,7 @@ public class ModbusScanner
             ModbusDataType.UInt64 => 4,
             ModbusDataType.Int64 => 4,
             ModbusDataType.Float64 => 4,
+            ModbusDataType.Boolean => 1,
             ModbusDataType.String16 => 16,
             _ => 1
         };

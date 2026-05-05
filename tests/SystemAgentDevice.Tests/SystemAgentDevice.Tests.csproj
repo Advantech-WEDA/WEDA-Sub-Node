@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\examples\system-agent\SystemAgentDevice.csproj" />
+    <ProjectReference Include="..\Weda.SubNode.TestBase\Weda.SubNode.TestBase.csproj" />
+  </ItemGroup>
+
+</Project>

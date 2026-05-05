@@ -6,7 +6,7 @@ namespace Weda.SubNode.Abstractions.Telemetry;
 /// </summary>
 /// <param name="ResourceId">Sensor Resource ID (full UUID, e.g., "21af0dc4-5389-a7dd-df64d7cf782c")</param>
 /// <param name="ShortId">Short ID derived from the last 5 characters of ResourceId (e.g., "f782c")</param>
-/// <param name="Name">Sensor name or channel identifier (e.g., "ai.channel[0]", "temperature.sensor")</param>
+/// <param name="Name">Sensor name or channel identifier (e.g., "channel_0", "temperature_sensor")</param>
 /// <param name="Record">Sensor recording configuration for local storage.</param>
 /// <param name="DeviceResourceId">Reference to parent device resource ID (e.g., "74fe488d5d54-ffff")</param>
 public record RecordingSensorDto(
