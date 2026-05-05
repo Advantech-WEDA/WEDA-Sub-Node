@@ -72,6 +72,11 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     }
 
     /// <summary>
+    /// Discovers available system resources for sensor auto-expansion.
+    /// </summary>
+    public DiscoveredResources DiscoverAvailableResources() => _collector.DiscoverAvailableResources();
+
+    /// <summary>
     /// Implements the Request-Response pattern for system metrics collection.
     /// </summary>
     /// <param name="request">System metrics request containing metric types to collect</param>
