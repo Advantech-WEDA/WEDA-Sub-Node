@@ -13,15 +13,16 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 /// This parser owns Communication and DeviceConfiguration, handling all mapping logic internally.
 ///
 /// Responsibilities:
-/// - Protocol frame building (MBAP header + PDU)
+/// - Protocol PDU building [SlaveId, FC, Data...]
 /// - Communication (owns IRequestResponseCommunication)
-/// - Response parsing (MBAP + register extraction)
+/// - Response parsing (PDU + register extraction)
 /// - Batch optimization (via ModbusBatchReader)
 /// - Type conversion (ushort[] -> C# primitives)
 /// - Sensor data mapping (protocol fields -> TelemetryMeasure using DeviceConfiguration)
 ///
 /// Architecture:
-/// Device -> Parser -> Communication
+/// Device -> Parser -> Communication (ModbusTcpCommunication or ModbusRtuCommunication)
+/// Communication wrapper handles frame encapsulation (MBAP for TCP, CRC for RTU)
 /// Device only calls ReadTelemetryAsync() - Parser handles all mapping internally
 /// </summary>
 public class ModbusRequestResponseParser : IRequestResponseProtocolParser
@@ -35,7 +36,6 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     private readonly bool _useBatchOptimization;
     private readonly Dictionary<string, ModbusSensorRegister> _sensorMetadata;
     private readonly int _defaultCommandTimeoutMs;
-    private ushort _transactionId = 0;
 
     /// <summary>
     /// Initializes a new instance of ModbusRequestResponseParser
@@ -264,6 +264,17 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         {
             return command.DeviceCmd switch
             {
+                // Read commands
+                // FC 01: Read Coils (Digital Outputs)
+                "GetDO" or "GetDigitalOutput" or "ReadCoil" => await ExecuteGetDOAsync(command, linkedCts.Token),
+                // FC 02: Read Discrete Inputs (Digital Inputs)
+                "GetDI" or "GetDigitalInput" or "ReadDiscreteInput" => await ExecuteGetDIAsync(command, linkedCts.Token),
+                // FC 03: Read Holding Registers (Analog Outputs)
+                "GetAO" or "GetAnalogOutput" or "ReadHoldingRegister" => await ExecuteGetAOAsync(command, linkedCts.Token),
+                // FC 04: Read Input Registers (Analog Inputs)
+                "GetAI" or "GetAnalogInput" or "ReadInputRegister" => await ExecuteGetAIAsync(command, linkedCts.Token),
+
+                // Write commands
                 // FC 05: Write Single Coil
                 "SetDO" or "SetDigitalOutput" => await ExecuteSetDOAsync(command, linkedCts.Token),
                 // FC 06: Write Single Register
@@ -301,6 +312,213 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                 description: ex.Message);
         }
     }
+
+    #region Read Commands (FC 01-04)
+
+    /// <summary>
+    /// Execute GetDO command (FC 01: Read Single Coil)
+    /// Reads the current state of a digital output (coil).
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetDOAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractOutputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetDO.MissingName",
+                description: "Missing 'name', 'do', or 'outputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetDO.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's a Coil type
+        if (register.RegisterType != ModbusRegisterType.Coil)
+        {
+            return Error.Validation(
+                code: "GetDO.InvalidSensorType",
+                description: $"Sensor '{name}' is not a Coil type (found: {register.RegisterType})");
+        }
+
+        // Read the coil using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetDO.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read coil");
+        }
+
+        _logger.LogDebug("GetDO: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Execute GetDI command (FC 02: Read Single Discrete Input)
+    /// Reads the current state of a digital input.
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetDIAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractInputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetDI.MissingName",
+                description: "Missing 'name', 'di', or 'inputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetDI.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's a DiscreteInput type
+        if (register.RegisterType != ModbusRegisterType.DiscreteInput)
+        {
+            return Error.Validation(
+                code: "GetDI.InvalidSensorType",
+                description: $"Sensor '{name}' is not a DiscreteInput type (found: {register.RegisterType})");
+        }
+
+        // Read the discrete input using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetDI.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read discrete input");
+        }
+
+        _logger.LogDebug("GetDI: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Execute GetAO command (FC 03: Read Holding Register)
+    /// Reads the current value of an analog output (holding register).
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetAOAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractOutputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetAO.MissingName",
+                description: "Missing 'name', 'ao', or 'outputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetAO.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's a HoldingRegister type
+        if (register.RegisterType != ModbusRegisterType.HoldingRegister)
+        {
+            return Error.Validation(
+                code: "GetAO.InvalidSensorType",
+                description: $"Sensor '{name}' is not a HoldingRegister type (found: {register.RegisterType})");
+        }
+
+        // Read the holding register using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetAO.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read holding register");
+        }
+
+        _logger.LogDebug("GetAO: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Execute GetAI command (FC 04: Read Input Register)
+    /// Reads the current value of an analog input (input register).
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteGetAIAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var name = ExtractInputName(command.Parameters);
+        if (string.IsNullOrEmpty(name))
+        {
+            return Error.Validation(
+                code: "GetAI.MissingName",
+                description: "Missing 'name', 'ai', or 'inputName' parameter");
+        }
+
+        // Find sensor metadata
+        if (!_sensorMetadata.TryGetValue(name, out var register))
+        {
+            return Error.NotFound(
+                code: "GetAI.SensorNotFound",
+                description: $"Sensor '{name}' not found in configuration");
+        }
+
+        // Verify it's an InputRegister type
+        if (register.RegisterType != ModbusRegisterType.InputRegister)
+        {
+            return Error.Validation(
+                code: "GetAI.InvalidSensorType",
+                description: $"Sensor '{name}' is not an InputRegister type (found: {register.RegisterType})");
+        }
+
+        // Read the input register using batch reader
+        var result = await _batchReader.ReadSingleSensorAsync(register, cancellationToken);
+
+        if (!result.Success)
+        {
+            return Error.Failure(
+                code: "GetAI.ReadFailed",
+                description: result.ErrorMessage ?? "Failed to read input register");
+        }
+
+        _logger.LogDebug("GetAI: {Name} = {Value}", name, result.Value);
+        return result.Value!;
+    }
+
+    /// <summary>
+    /// Extracts input name from command parameters.
+    /// Supports aliases: 'name', 'di', 'ai', 'inputName'
+    /// </summary>
+    private static string? ExtractInputName(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("name", out var nameObj))
+            return nameObj?.ToString();
+        if (parameters.TryGetValue("di", out var diObj))
+            return diObj?.ToString();
+        if (parameters.TryGetValue("ai", out var aiObj))
+            return aiObj?.ToString();
+        if (parameters.TryGetValue("inputName", out var inputNameObj))
+            return inputNameObj?.ToString();
+        return null;
+    }
+
+    #endregion
+
+    #region Write Commands (FC 05-16)
 
     /// <summary>
     /// Execute SetDO command (FC 05: Write Single Coil)
@@ -746,20 +964,16 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Build Modbus FC 05 (Write Single Coil) request
+    /// Build Modbus FC 05 (Write Single Coil) PDU
     /// </summary>
     private byte[] BuildWriteSingleCoilRequest(ushort coilAddress, bool state)
     {
-        var transactionId = ++_transactionId;
         // Modbus coil value: 0xFF00 = ON, 0x0000 = OFF
         var value = state ? (ushort)0xFF00 : (ushort)0x0000;
 
         return
         [
-            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),  // Transaction ID
-            0x00, 0x00,                                                 // Protocol ID
-            0x00, 0x06,                                                 // Length (6 bytes follow)
-            _slaveId,                                                   // Unit ID
+            _slaveId,                                                   // Slave ID
             0x05,                                                       // Function Code (Write Single Coil)
             (byte)(coilAddress >> 8), (byte)(coilAddress & 0xFF),      // Coil Address
             (byte)(value >> 8), (byte)(value & 0xFF)                   // Value (0xFF00 or 0x0000)
@@ -768,23 +982,24 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 
     /// <summary>
     /// Validate Modbus FC 05 response (echo of request on success)
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, ValueHi, ValueLo]
     /// </summary>
     private static void ValidateWriteCoilResponse(byte[] response, ushort expectedAddress, bool expectedState)
     {
-        // Minimum response length: MBAP header (7) + FC (1) = 8 bytes
-        // Error response: 9 bytes (MBAP 7 + FC 1 + Error Code 1)
-        // Success response: 12 bytes (MBAP 7 + FC 1 + Address 2 + Value 2)
-        if (response.Length < 8)
+        // Minimum PDU length: SlaveId (1) + FC (1) = 2 bytes
+        // Error response: 3 bytes (SlaveId + FC|0x80 + ErrorCode)
+        // Success response: 6 bytes (SlaveId + FC + Address 2 + Value 2)
+        if (response.Length < 2)
         {
             throw new InvalidOperationException(
-                $"Invalid Modbus response length: {response.Length}, expected at least 8 bytes");
+                $"Invalid Modbus response length: {response.Length}, expected at least 2 bytes");
         }
 
         // Check for error response (function code has high bit set)
-        var functionCode = response[7];
+        var functionCode = response[1];
         if ((functionCode & 0x80) != 0)
         {
-            var errorCode = response.Length > 8 ? response[8] : (byte)0xFF;
+            var errorCode = response.Length > 2 ? response[2] : (byte)0xFF;
             throw new InvalidOperationException(
                 $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
         }
@@ -796,15 +1011,15 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                 $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x05");
         }
 
-        // For success response, we need at least 12 bytes
-        if (response.Length < 12)
+        // For success response, we need at least 6 bytes
+        if (response.Length < 6)
         {
             throw new InvalidOperationException(
-                $"Incomplete Modbus response: {response.Length} bytes, expected 12 bytes for FC05 success response");
+                $"Incomplete Modbus response: {response.Length} bytes, expected 6 bytes for FC05 success response");
         }
 
         // Verify echoed address matches
-        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        var actualAddress = (ushort)((response[2] << 8) | response[3]);
         if (actualAddress != expectedAddress)
         {
             throw new InvalidOperationException(
@@ -812,7 +1027,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         }
 
         // Verify echoed value matches
-        var actualValue = (ushort)((response[10] << 8) | response[11]);
+        var actualValue = (ushort)((response[4] << 8) | response[5]);
         var expectedValue = expectedState ? (ushort)0xFF00 : (ushort)0x0000;
 
         if (actualValue != expectedValue)
@@ -823,18 +1038,13 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Build Modbus FC 06 (Write Single Register) request
+    /// Build Modbus FC 06 (Write Single Register) PDU
     /// </summary>
     private byte[] BuildWriteSingleRegisterRequest(ushort registerAddress, ushort value)
     {
-        var transactionId = ++_transactionId;
-
         return
         [
-            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),      // Transaction ID
-            0x00, 0x00,                                                     // Protocol ID
-            0x00, 0x06,                                                     // Length (6 bytes follow)
-            _slaveId,                                                       // Unit ID
+            _slaveId,                                                       // Slave ID
             0x06,                                                           // Function Code (Write Single Register)
             (byte)(registerAddress >> 8), (byte)(registerAddress & 0xFF),  // Register Address
             (byte)(value >> 8), (byte)(value & 0xFF)                       // Value
@@ -843,19 +1053,20 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 
     /// <summary>
     /// Validate Modbus FC 06 response (echo of request on success)
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, ValueHi, ValueLo]
     /// </summary>
     private static void ValidateWriteRegisterResponse(byte[] response, ushort expectedAddress, ushort expectedValue)
     {
-        if (response.Length < 12)
+        if (response.Length < 6)
         {
             throw new InvalidOperationException(
-                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+                $"Invalid Modbus response length: {response.Length}, expected at least 6 bytes");
         }
 
-        var functionCode = response[7];
+        var functionCode = response[1];
         if ((functionCode & 0x80) != 0)
         {
-            var errorCode = response[8];
+            var errorCode = response[2];
             throw new InvalidOperationException(
                 $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
         }
@@ -866,14 +1077,14 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                 $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x06");
         }
 
-        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        var actualAddress = (ushort)((response[2] << 8) | response[3]);
         if (actualAddress != expectedAddress)
         {
             throw new InvalidOperationException(
                 $"Address mismatch in response: expected {expectedAddress}, got {actualAddress}");
         }
 
-        var actualValue = (ushort)((response[10] << 8) | response[11]);
+        var actualValue = (ushort)((response[4] << 8) | response[5]);
         if (actualValue != expectedValue)
         {
             throw new InvalidOperationException(
@@ -882,12 +1093,11 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Build Modbus FC 15 (Write Multiple Coils) request
+    /// Build Modbus FC 15 (Write Multiple Coils) PDU
     /// Coils are bit-packed: 8 coils per byte, LSB first
     /// </summary>
     private byte[] BuildWriteMultipleCoilsRequest(ushort startAddress, bool[] states)
     {
-        var transactionId = ++_transactionId;
         var coilCount = (ushort)states.Length;
         var byteCount = (byte)((coilCount + 7) / 8); // Ceiling division
 
@@ -903,48 +1113,39 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
             }
         }
 
-        // Build request
-        var pduLength = (ushort)(7 + byteCount); // Unit ID + FC + Address(2) + Count(2) + ByteCount(1) + Data
-        var request = new byte[6 + pduLength];
+        // Build PDU: SlaveId + FC + Address(2) + Count(2) + ByteCount(1) + Data
+        var request = new byte[7 + byteCount];
 
-        // MBAP Header
-        request[0] = (byte)(transactionId >> 8);
-        request[1] = (byte)(transactionId & 0xFF);
-        request[2] = 0x00; // Protocol ID
-        request[3] = 0x00;
-        request[4] = (byte)(pduLength >> 8);
-        request[5] = (byte)(pduLength & 0xFF);
-
-        // PDU
-        request[6] = _slaveId;                              // Unit ID
-        request[7] = 0x0F;                                  // Function Code (Write Multiple Coils)
-        request[8] = (byte)(startAddress >> 8);             // Start Address (high)
-        request[9] = (byte)(startAddress & 0xFF);           // Start Address (low)
-        request[10] = (byte)(coilCount >> 8);               // Quantity of Coils (high)
-        request[11] = (byte)(coilCount & 0xFF);             // Quantity of Coils (low)
-        request[12] = byteCount;                            // Byte Count
+        request[0] = _slaveId;                              // Slave ID
+        request[1] = 0x0F;                                  // Function Code (Write Multiple Coils)
+        request[2] = (byte)(startAddress >> 8);             // Start Address (high)
+        request[3] = (byte)(startAddress & 0xFF);           // Start Address (low)
+        request[4] = (byte)(coilCount >> 8);                // Quantity of Coils (high)
+        request[5] = (byte)(coilCount & 0xFF);              // Quantity of Coils (low)
+        request[6] = byteCount;                             // Byte Count
 
         // Coil data
-        Array.Copy(coilBytes, 0, request, 13, byteCount);
+        Array.Copy(coilBytes, 0, request, 7, byteCount);
 
         return request;
     }
 
     /// <summary>
     /// Validate Modbus FC 15 response
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
     /// </summary>
     private static void ValidateWriteMultipleCoilsResponse(byte[] response, ushort expectedAddress, ushort expectedCount)
     {
-        if (response.Length < 12)
+        if (response.Length < 6)
         {
             throw new InvalidOperationException(
-                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+                $"Invalid Modbus response length: {response.Length}, expected at least 6 bytes");
         }
 
-        var functionCode = response[7];
+        var functionCode = response[1];
         if ((functionCode & 0x80) != 0)
         {
-            var errorCode = response[8];
+            var errorCode = response[2];
             throw new InvalidOperationException(
                 $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
         }
@@ -955,14 +1156,14 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                 $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x0F");
         }
 
-        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        var actualAddress = (ushort)((response[2] << 8) | response[3]);
         if (actualAddress != expectedAddress)
         {
             throw new InvalidOperationException(
                 $"Address mismatch in response: expected {expectedAddress}, got {actualAddress}");
         }
 
-        var actualCount = (ushort)((response[10] << 8) | response[11]);
+        var actualCount = (ushort)((response[4] << 8) | response[5]);
         if (actualCount != expectedCount)
         {
             throw new InvalidOperationException(
@@ -971,40 +1172,29 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Build Modbus FC 16 (Write Multiple Registers) request
+    /// Build Modbus FC 16 (Write Multiple Registers) PDU
     /// </summary>
     private byte[] BuildWriteMultipleRegistersRequest(ushort startAddress, ushort[] values)
     {
-        var transactionId = ++_transactionId;
         var registerCount = (ushort)values.Length;
         var byteCount = (byte)(registerCount * 2);
 
-        // Build request
-        var pduLength = (ushort)(7 + byteCount); // Unit ID + FC + Address(2) + Count(2) + ByteCount(1) + Data
-        var request = new byte[6 + pduLength];
+        // Build PDU: SlaveId + FC + Address(2) + Count(2) + ByteCount(1) + Data
+        var request = new byte[7 + byteCount];
 
-        // MBAP Header
-        request[0] = (byte)(transactionId >> 8);
-        request[1] = (byte)(transactionId & 0xFF);
-        request[2] = 0x00; // Protocol ID
-        request[3] = 0x00;
-        request[4] = (byte)(pduLength >> 8);
-        request[5] = (byte)(pduLength & 0xFF);
-
-        // PDU
-        request[6] = _slaveId;                              // Unit ID
-        request[7] = 0x10;                                  // Function Code (Write Multiple Registers)
-        request[8] = (byte)(startAddress >> 8);             // Start Address (high)
-        request[9] = (byte)(startAddress & 0xFF);           // Start Address (low)
-        request[10] = (byte)(registerCount >> 8);           // Quantity of Registers (high)
-        request[11] = (byte)(registerCount & 0xFF);         // Quantity of Registers (low)
-        request[12] = byteCount;                            // Byte Count
+        request[0] = _slaveId;                              // Slave ID
+        request[1] = 0x10;                                  // Function Code (Write Multiple Registers)
+        request[2] = (byte)(startAddress >> 8);             // Start Address (high)
+        request[3] = (byte)(startAddress & 0xFF);           // Start Address (low)
+        request[4] = (byte)(registerCount >> 8);            // Quantity of Registers (high)
+        request[5] = (byte)(registerCount & 0xFF);          // Quantity of Registers (low)
+        request[6] = byteCount;                             // Byte Count
 
         // Register data (big-endian)
         for (int i = 0; i < values.Length; i++)
         {
-            request[13 + (i * 2)] = (byte)(values[i] >> 8);
-            request[14 + (i * 2)] = (byte)(values[i] & 0xFF);
+            request[7 + (i * 2)] = (byte)(values[i] >> 8);
+            request[8 + (i * 2)] = (byte)(values[i] & 0xFF);
         }
 
         return request;
@@ -1012,19 +1202,20 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
 
     /// <summary>
     /// Validate Modbus FC 16 response
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
     /// </summary>
     private static void ValidateWriteMultipleRegistersResponse(byte[] response, ushort expectedAddress, ushort expectedCount)
     {
-        if (response.Length < 12)
+        if (response.Length < 6)
         {
             throw new InvalidOperationException(
-                $"Invalid Modbus response length: {response.Length}, expected at least 12 bytes");
+                $"Invalid Modbus response length: {response.Length}, expected at least 6 bytes");
         }
 
-        var functionCode = response[7];
+        var functionCode = response[1];
         if ((functionCode & 0x80) != 0)
         {
-            var errorCode = response[8];
+            var errorCode = response[2];
             throw new InvalidOperationException(
                 $"Modbus error response: {GetModbusErrorDescription(errorCode)} (0x{errorCode:X2})");
         }
@@ -1035,14 +1226,14 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                 $"Unexpected function code in response: 0x{functionCode:X2}, expected 0x10");
         }
 
-        var actualAddress = (ushort)((response[8] << 8) | response[9]);
+        var actualAddress = (ushort)((response[2] << 8) | response[3]);
         if (actualAddress != expectedAddress)
         {
             throw new InvalidOperationException(
                 $"Address mismatch in response: expected {expectedAddress}, got {actualAddress}");
         }
 
-        var actualCount = (ushort)((response[10] << 8) | response[11]);
+        var actualCount = (ushort)((response[4] << 8) | response[5]);
         if (actualCount != expectedCount)
         {
             throw new InvalidOperationException(
@@ -1066,6 +1257,8 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         0x0B => "Gateway Target Device Failed to Respond",
         _ => "Unknown Error"
     };
+
+    #endregion
 
     /// <summary>
     /// Write sensor data to device (if protocol supports write operations)
@@ -1110,33 +1303,30 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
     }
 
     /// <summary>
-    /// Build Modbus TCP request (MBAP header + PDU)
+    /// Build Modbus read request PDU
+    /// PDU format: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
     /// </summary>
     private byte[] BuildModbusRequest(byte functionCode, ushort startAddress, ushort count)
     {
-        var transactionId = ++_transactionId;
-
-        return new byte[]
-        {
-            (byte)(transactionId >> 8), (byte)(transactionId & 0xFF),  // Transaction ID
-            0x00, 0x00,                                                 // Protocol ID
-            0x00, 0x06,                                                 // Length
-            _slaveId,                                                   // Unit ID
+        return
+        [
+            _slaveId,                                                   // Slave ID
             functionCode,                                               // Function code
             (byte)(startAddress >> 8), (byte)(startAddress & 0xFF),    // Start address
             (byte)(count >> 8), (byte)(count & 0xFF)                   // Register count
-        };
+        ];
     }
 
     /// <summary>
-    /// Parse Modbus TCP response (MBAP header + register data)
+    /// Parse Modbus read response PDU
+    /// PDU format: [SlaveId, FC, ByteCount, Data...]
     /// </summary>
-    private ushort[] ParseModbusResponse(byte[] response, ushort expectedCount)
+    private static ushort[] ParseModbusResponse(byte[] response, ushort expectedCount)
     {
-        if (response.Length < 9)
+        if (response.Length < 3)
             throw new InvalidOperationException($"Invalid Modbus response length: {response.Length}");
 
-        var byteCount = response[8];
+        var byteCount = response[2];
         var expectedByteCount = expectedCount * 2;
 
         if (byteCount != expectedByteCount)
@@ -1145,7 +1335,7 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
         var registers = new ushort[expectedCount];
         for (int i = 0; i < expectedCount; i++)
         {
-            var offset = 9 + (i * 2);
+            var offset = 3 + (i * 2);
             registers[i] = (ushort)((response[offset] << 8) | response[offset + 1]);
         }
 

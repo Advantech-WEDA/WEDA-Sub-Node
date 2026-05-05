@@ -165,22 +165,20 @@ public class MockModbusCommunication : IRequestResponseCommunication<byte[], byt
     {
         RequestCount++;
 
-        // Parse Modbus request
-        var functionCode = request[7];
-        var startAddress = (ushort)((request[8] << 8) | request[9]);
-        var registerCount = (ushort)((request[10] << 8) | request[11]);
+        // Parse Modbus PDU request: [SlaveId, FC, AddrHi, AddrLo, CountHi, CountLo]
+        var slaveId = request[0];
+        var functionCode = request[1];
+        var startAddress = (ushort)((request[2] << 8) | request[3]);
+        var registerCount = (ushort)((request[4] << 8) | request[5]);
 
         LastStartAddress = startAddress;
         LastRegisterCount = registerCount;
 
-        // Generate mock response
+        // Generate mock PDU response: [SlaveId, FC, ByteCount, Data...]
         var response = new List<byte>
         {
-            request[0], request[1], // Transaction ID
-            0x00, 0x00,             // Protocol ID
-            (byte)((registerCount * 2 + 3) >> 8), (byte)((registerCount * 2 + 3) & 0xFF), // Length
-            request[6],             // Unit ID
-            functionCode,           // Function code
+            slaveId,                  // Slave ID
+            functionCode,             // Function code
             (byte)(registerCount * 2) // Byte count
         };
 

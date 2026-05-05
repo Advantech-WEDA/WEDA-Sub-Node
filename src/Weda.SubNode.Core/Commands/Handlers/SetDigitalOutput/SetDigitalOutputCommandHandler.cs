@@ -1,16 +1,18 @@
 using ErrorOr;
+
 using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
+using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 
 namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput;
 
 /// <summary>
-/// Handler for the "cmd.do" command that sets digital output states.
+/// Handler for the "do.set" command that sets digital output states.
 /// </summary>
 /// <remarks>
 /// This handler locates devices implementing <see cref="IDigitalOutputControllable"/>
@@ -39,8 +41,8 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
         {
             logger.LogWarning("No devices support digital output control");
             return SetDigitalOutputResult.Error(
-                SetDigitalOutputStatusCode.NotSupported,
-                "NOT_SUPPORTED",
+                CommandStatusCode.UnsupportedCommand,
+                "UNSUPPORTED_COMMAND",
                 "No devices support digital output control",
                 executedAt);
         }
@@ -60,8 +62,8 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
             {
                 logger.LogWarning("Device '{DeviceName}' not found or does not support digital output", command.Parameters.DeviceName);
                 return SetDigitalOutputResult.Error(
-                    SetDigitalOutputStatusCode.DeviceNotFound,
-                    "DEVICE_NOT_FOUND",
+                    CommandStatusCode.NotFound,
+                    "NOT_FOUND",
                     $"Device '{command.Parameters.DeviceName}' not found or does not support digital output control",
                     executedAt);
             }
@@ -117,7 +119,7 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
             {
                 logger.LogWarning("SetDigitalOutput command timed out after {Timeout}s", command.Timeout);
                 return SetDigitalOutputResult.Error(
-                    SetDigitalOutputStatusCode.Timeout,
+                    CommandStatusCode.Timeout,
                     "TIMEOUT",
                     $"Command execution timed out after {command.Timeout} seconds",
                     executedAt);
@@ -146,8 +148,8 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
         {
             logger.LogError("SetDigitalOutput failed: all {FailureCount} outputs failed", failureCount);
             return SetDigitalOutputResult.Error(
-                SetDigitalOutputStatusCode.ExecutionFailed,
-                "EXECUTION_FAILED",
+                CommandStatusCode.HardwareError,
+                "HARDWARE_ERROR",
                 "All digital output operations failed",
                 executedAt);
         }

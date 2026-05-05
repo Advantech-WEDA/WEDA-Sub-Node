@@ -4,8 +4,8 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Communication.Tcp;
-using Weda.SubNode.Core.Devices;
 using Weda.SubNode.Core.Protocols.Modbus;
+using Weda.SubNode.Core.Protocols.Modbus.Communication;
 
 namespace Weda.SubNode.Devices.Generic;
 
@@ -20,7 +20,7 @@ public class TcpModbusDevice : ModbusDevice
     /// Automatically retrieves configuration from context.DeviceConfigs[configKey].
     /// </summary>
     /// <param name="context">The application context</param>
-    /// <param name="configKey">The configuration key from appsettings.json DeviceConfigs section</param>
+    /// <param name="configKey">The configuration key from deviceconfig.json in DeviceConfigs section.</param>
     public TcpModbusDevice(IWedaApplicationContext context, string configKey)
         : this(context, context[configKey])
     {
@@ -37,13 +37,13 @@ public class TcpModbusDevice : ModbusDevice
         : base(
             context,
             configuration,
-            CreateTcpCommunication(context, configuration),
+            CreateModbusTcpCommunication(context, configuration),
             slaveId: GetSlaveId(configuration),
             byteOrder: GetByteOrder(configuration))
     {
     }
 
-    private static IRequestResponseCommunication<byte[], byte[]> CreateTcpCommunication(
+    private static IRequestResponseCommunication<byte[], byte[]> CreateModbusTcpCommunication(
         IWedaApplicationContext context,
         DeviceConfiguration configuration)
     {
@@ -54,25 +54,10 @@ public class TcpModbusDevice : ModbusDevice
         // Use ConnectionSettings from configuration (retry, timeout, security)
         var connectionSettings = configuration.ConnectionSettings ?? new ConnectionSettings();
 
-        // Create TCP communication directly
+        // Create TCP communication and wrap with ModbusTcpCommunication for MBAP handling
         // Connection will be established automatically by DeviceBase.InitializeAsync via ConnectionManager
         var logger = context.GetLogger<CommunicationBase>();
-        return new TcpCommunication(tcpSettings.Host, tcpSettings.Port, connectionSettings, logger);
-    }
-
-    private static byte GetSlaveId(DeviceConfiguration configuration)
-    {
-        // Check Properties first (recommended), then DeviceCommunication for backwards compatibility
-        return configuration.Properties.TryGetValue("SlaveId", out _)
-            ? (byte)configuration.Properties.GetInt32("SlaveId", 1)
-            : (byte)configuration.DeviceCommunication.GetInt32("SlaveId", 1);
-    }
-
-    private static ModbusByteOrder GetByteOrder(DeviceConfiguration configuration)
-    {
-        // Check Properties first (recommended), then DeviceCommunication for backwards compatibility
-        return configuration.Properties.TryGetValue("ByteOrder", out _)
-            ? configuration.Properties.GetEnum("ByteOrder", ModbusByteOrder.BigEndian)
-            : configuration.DeviceCommunication.GetEnum("ByteOrder", ModbusByteOrder.BigEndian);
+        var tcpCommunication = new TcpCommunication(tcpSettings.Host, tcpSettings.Port, connectionSettings, logger);
+        return new ModbusTcpCommunication(tcpCommunication, logger);
     }
 }

@@ -1372,7 +1372,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             string.Equals(s.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
     }
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         // Unregister device from context's device registry
         _context.DeviceRegistry.Unregister(this);

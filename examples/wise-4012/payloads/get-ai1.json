@@ -1,0 +1,16 @@
+{
+  "cmd": "deviceCmd",
+  "seqId": 302,
+  "reqSeqId": "b1c2d3e4-f5a6-7890-bcde-222222222222",
+  "timestamp": 1737004691020,
+  "parentDeviceId": "74fe488d5d54",
+  "data": {
+    "deviceCmd": "ai.get",
+    "respTopic": "eco1j.weda.270078643315671040.subnode.cmd.rsp",
+    "timeout": 30,
+    "parameters": {
+      "deviceName": "MyFirstDevice",
+      "inputs": ["channel_1"]
+    }
+  }
+}

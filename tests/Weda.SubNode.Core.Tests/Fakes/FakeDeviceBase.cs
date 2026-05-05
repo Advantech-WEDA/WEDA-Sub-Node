@@ -107,7 +107,7 @@ public class FakeDevice : IDevice
     public Task<DeviceHealth> GetHealthAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(new DeviceHealth { DeviceId = SubNodeId, Status = HealthStatus.Healthy });
     public Task<int> ExecuteCommandAsync(DeviceCommand command, CancellationToken cancellationToken = default)
-        => Task.FromResult(CommandResponseStatusCode.Success);
+        => Task.FromResult(CommandStatusCode.Success);
     public Task<string?> RegisterAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<string?>(SubNodeId);
     public Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken cancellationToken = default, params IDspFilter[] runtimeFilters)

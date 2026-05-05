@@ -1,13 +1,11 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Weda.SubNode.Abstractions.Commands.Contracts;
-using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Communication.Mqtt;
-using Weda.SubNode.Core.Devices;
+using Weda.SubNode.Core.Protocols.ISensing;
 using Weda.SubNode.TestBase;
 using Xunit;
 

@@ -14,6 +14,7 @@ namespace Weda.SubNode.Abstractions.Commands.Contracts;
 ///   "seqId": 100,
 ///   "reqSeqId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 ///   "timestamp": 1737004691020,
+///   "parentDeviceId": "74fe488d5d54",
 ///   "data": { ... }
 /// }
 /// </example>
@@ -42,6 +43,12 @@ public class CommandMessage
     /// </summary>
     [JsonPropertyName("timestamp")]
     public long Timestamp { get; set; }
+
+    /// <summary>
+    /// Parent WEDA Node device ID.
+    /// </summary>
+    [JsonPropertyName("parentDeviceId")]
+    public string ParentDeviceId { get; set; } = string.Empty;
 
     /// <summary>
     /// Specific data payload message of each type of request.
