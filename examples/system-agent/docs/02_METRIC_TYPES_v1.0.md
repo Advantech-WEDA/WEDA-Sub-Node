@@ -4,7 +4,7 @@
 
 ## Sensor 配置結構
 
-每個 Sensor 在 `devicecfg.json` 中的配置結構如下：
+每個 Sensor 在 `devicecfg.json` 中的配置結構如下，Parameters 會因為不同的 Sensor 有不同的欄位：
 
 ```json
 {
@@ -29,10 +29,10 @@
 | 欄位 | 說明 |
 |------|------|
 | `Name` | Sensor 唯一識別名稱 |
-| `SensorGroup` | Sensor 分組（選填） |
+| `SensorGroup` | Sensor 分組 |
 | `Parameters.MetricType` | 指標類型（必填） |
 | `Parameters.MetricName` | 指標名稱（所有 MetricType 均需要） |
-| `Report.Enabled` | 是否啟用 |
+| `Report.Enabled` | 是否啟用上報 |
 | `Report.Interval` | 上報間隔（毫秒） |
 | `SensorInfo.Schema` | 預期回傳資料類型（`double`、`long`、`string`、`boolean`、`integer`） |
 | `SensorInfo.Description` | Sensor 描述 |
@@ -230,15 +230,7 @@
 
 ### temperature
 
-支援兩種模式：
-
-**模式 A：指定感測器名稱**（建議使用）
-
 設定 `MetricName` 為感測器名稱（如 `cpU-therm`、`gpU-therm`），返回該感測器的溫度值（`double`，單位 °C）。支援不區分大小寫的比對。
-
-**模式 B：返回所有感測器**
-
-若 `MetricName` 設為任意值但不匹配任何感測器名稱，將返回 `null`。
 
 **配置範例**（指定感測器）：
 ```json
@@ -256,82 +248,6 @@
     "Schema": "double",
     "Description": "CPU thermal sensor temperature",
     "DisplayName": "CPU Thermal"
-  }
-}
-```
-
-### voltage
-
-**返回類型**：`Dictionary<string, double?>`
-
-Parser 返回所有電壓感測器的完整字典（忽略 `MetricName` 的值）。
-
-- **Key**：電壓軌名稱（如 "VCore", "+3.3V", "+5V"）
-- **Value**：電壓值（V）
-
-**範例返回值**：
-```json
-{
-  "VCore": 1.2,
-  "+3.3V": 3.28,
-  "+5V": 4.98
-}
-```
-
-**配置範例**：
-```json
-{
-  "Name": "voltage_all",
-  "Parameters": {
-    "MetricType": "voltage",
-    "MetricName": "all"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 1000
-  },
-  "SensorInfo": {
-    "Schema": "object",
-    "Description": "All voltage sensor readings",
-    "DisplayName": "Voltage Sensors"
-  }
-}
-```
-
-### fanspeed
-
-**返回類型**：`Dictionary<string, double?>`
-
-Parser 返回所有風扇轉速的完整字典（忽略 `MetricName` 的值）。
-
-- **Key**：風扇名稱（如 "CPU_Fan", "Sys_Fan"）
-- **Value**：轉速值（RPM）
-
-**範例返回值**：
-```json
-{
-  "CPU_Fan": 2500,
-  "Sys_Fan1": 1800,
-  "Sys_Fan2": 1750
-}
-```
-
-**配置範例**：
-```json
-{
-  "Name": "fanspeed_all",
-  "Parameters": {
-    "MetricType": "fanspeed",
-    "MetricName": "all"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 1000
-  },
-  "SensorInfo": {
-    "Schema": "object",
-    "Description": "All fan speed readings",
-    "DisplayName": "Fan Speed Sensors"
   }
 }
 ```
@@ -392,159 +308,11 @@ Parser 返回所有風扇轉速的完整字典（忽略 `MetricName` 的值）�
 }
 ```
 
-### watchdog
-
-支援以下 MetricName：
-
-| MetricName | 說明 | 資料類型 |
-|-----------|------|---------|
-| `isSupported` | Watchdog 功能是否受支援 | boolean |
-| 其他值 | 返回完整的 `WatchdogMetrics` 對象 | object |
-
-**`WatchdogMetrics` 對象結構**：
-```json
-{
-  "IsSupported": true,
-  "TimerIds": ["Timer0", "Timer1"],
-  "TimerDetails": {
-    "Timer0": {
-      "Cap": {
-        "IsStoppable": true,
-        "DelayMinimum": 1,
-        "DelayMaximum": 255
-      },
-      "Config": {
-        "Delay": 60,
-        "EventType": "NMI"
-      }
-    }
-  }
-}
-```
-
-**配置範例**：
-```json
-{
-  "Name": "watchdog_isSupported",
-  "Parameters": {
-    "MetricType": "watchdog",
-    "MetricName": "isSupported"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 6000
-  },
-  "SensorInfo": {
-    "Schema": "boolean",
-    "Description": "Watchdog support status",
-    "DisplayName": "Watchdog Supported"
-  }
-}
-```
-
-### thermalprotection
-
-支援以下 MetricName：
-
-| MetricName | 說明 | 資料類型 |
-|-----------|------|---------|
-| `isSupported` | 熱保護功能是否受支援 | boolean |
-| 其他值 | 返回完整的 `ThermalProtectionMetrics` 對象 | object |
-
-**`ThermalProtectionMetrics` 對象結構**：
-```json
-{
-  "IsSupported": true,
-  "ZoneIds": ["Zone0", "Zone1"],
-  "ZoneDetails": {
-    "Zone0": {
-      "Cap": {
-        "SupportSources": ["CPU", "System"],
-        "SendEventTemperatureMinimum": 0,
-        "SendEventTemperatureMaximum": 100
-      },
-      "Config": {
-        "Source": "CPU",
-        "EventType": "Shutdown",
-        "SendEventTemperature": 85
-      }
-    }
-  }
-}
-```
-
-**配置範例**：
-```json
-{
-  "Name": "thermalprotection_isSupported",
-  "Parameters": {
-    "MetricType": "thermalprotection",
-    "MetricName": "isSupported"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 6000
-  },
-  "SensorInfo": {
-    "Schema": "boolean",
-    "Description": "Thermal protection support status",
-    "DisplayName": "Thermal Protection Supported"
-  }
-}
-```
-
----
-
-## 五、健康狀態（內部虛擬指標）
-
-### health
-
-`health` 為內部虛擬指標，用於追蹤各 Collector 的採集狀態。不由 Collector 採集，而是從 `HealthStatusMetrics` 中取得。
-
-| MetricName | 說明 | 資料類型 |
-|-----------|------|---------|
-| `is_healthy` | 系統代理是否健康（1=健康, 0=異常） | int |
-| `error_count` | 當前活動錯誤數量 | int |
-| `errors` | 所有錯誤訊息（以 `;` 分隔） | string |
-
----
-
-## 重要說明
-
-### 1. MetricName 設計
-
-所有 MetricType 均需要設定 `MetricName` 參數。若 `MetricName` 為 `null`，Parser 將返回 `null`。
-
-各類型的 MetricName 行為差異：
-
-| MetricType | MetricName 行為 |
-|-----------|----------------|
-| `cpu`、`memory`、`disk`、`network`、`system`、`gpu`、`hwinfo` | 必須設定為支援的指標名稱，返回單一純量值 |
-| `temperature` | 設定為感測器名稱，返回該感測器的溫度值（`double`） |
-| `voltage`、`fanspeed` | 需設定但值會被忽略，始終返回完整字典 |
-| `gpio` | 設定為 `isSupported` 或 `pinState`（需搭配 `PinId`） |
-| `watchdog`、`thermalprotection` | 設定為 `isSupported` 返回布林值，其他值返回完整對象 |
-| `health` | 設定為 `is_healthy`、`error_count` 或 `errors` |
-
-### 2. SIL2 安全性檢查
-
-Parser 在轉換指標時會檢查 `Health.ActiveErrors`。若某 MetricType 的 Collector 發生採集失敗，該類型所有 Sensor 的遙測資料會被跳過，避免回報預設值/零值。
-
-### 3. Request-Response 最佳化
-
-系統僅採集已啟用 Sensor 所需的 MetricType。例如只配置了 `cpu` 和 `memory` 的 Sensor，則不會呼叫 `DiskCollector`、`NetworkCollector` 等。
-
 ---
 
 ## 在不支援硬體上的行為
 
-### 跨平台指標
-
-`cpu`、`memory`、`disk`、`network`、`system`、`gpu` 支援所有平台運行，不依賴硬體驅動。
-
-### 硬體相關指標
-
-在不支援的硬體上（例如沒有對應硬體平台驅動），以下 MetricType 會：
+在不支援的硬體上（例如沒有對應硬體平台驅動）會：
 
 1. **程式不會崩潰**：捕獲驅動載入失敗的異常並繼續運行
 2. **顯示警告日誌**：
@@ -553,17 +321,3 @@ Parser 在轉換指標時會檢查 `Health.ActiveErrors`。若某 MetricType 的
    ```
 3. **通用指標不受影響**：系統資源類指標正常採集
 4. **硬體指標無資料**：相關 sensors 無法採集資料
-
-### 建議
-
-- **開發環境**：可保留所有 sensor 配置，忽略警告日誌
-- **生產環境（非工業電腦）**：建議禁用硬體相關 sensors（設置 `Enabled: false`）
-- **生產環境（工業電腦）**：確保硬體平台驅動正確安裝（如 Advantech 工業電腦需要 SUSI 驅動）
-
----
-
-## 參考資料
-
-- [QUICK_START.md](01_QUICK_START.md) - 快速開始指南
-- [DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) - Docker 部署說明
-- [README.md](README.md) - 完整說明文件
