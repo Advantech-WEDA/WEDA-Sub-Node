@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Communication;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Abstractions.Telemetry;
 
@@ -26,6 +27,7 @@ public class DaqMetricsParser : IStreamingProtocolParser
     private readonly DaqCommunication _communication;
     private readonly ILogger<DaqMetricsParser> _logger;
     private readonly int _decimationFactor;
+    private readonly Sensor? _rawSensor;  // Raw vibration sensor with ResourceId for telemetry emission
     private StreamState _streamState = StreamState.Disconnected;
     private volatile int _frameCounter = 0;
     private Task? _streamTask;
@@ -41,7 +43,8 @@ public class DaqMetricsParser : IStreamingProtocolParser
     public DaqMetricsParser(
         DaqCommunication communication,
         ILogger<DaqMetricsParser> logger,
-        int decimationFactor = 2)
+        int decimationFactor = 2,
+        Sensor? rawSensor = null)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -50,10 +53,12 @@ public class DaqMetricsParser : IStreamingProtocolParser
             throw new ArgumentException("DecimationFactor must be a positive integer.", nameof(decimationFactor));
 
         _decimationFactor = decimationFactor;
+        _rawSensor = rawSensor;  // Raw sensor with ResourceId for telemetry emission
     }
 
     /// <summary>
     /// Start consuming the DaqCommunication stream and emit raw measures to SensorCache.
+    /// Uses the injected raw sensor ResourceId to identify telemetry payloads.
     /// Initializes decimation counter and launches stream consumer background task.
     /// </summary>
     public async Task StartStreamAsync(CancellationToken cancellationToken = default)
@@ -66,7 +71,16 @@ public class DaqMetricsParser : IStreamingProtocolParser
 
         try
         {
-            _logger.LogInformation("Starting DaqMetricsParser stream with DecimationFactor={factor}...", _decimationFactor);
+            _logger.LogInformation($"Starting DaqMetricsParser stream with DecimationFactor={_decimationFactor}...");
+
+            if (_rawSensor != null)
+            {
+                _logger.LogInformation($"Raw sensor ResourceId: {_rawSensor.ResourceId}");
+            }
+            else
+            {
+                _logger.LogWarning("Raw sensor not provided, using default ResourceId pattern");
+            }
 
             // Initialize decimation counter
             _frameCounter = 0;
@@ -169,11 +183,11 @@ public class DaqMetricsParser : IStreamingProtocolParser
                 // Only emit telemetry when decimation condition is met
                 if (_frameCounter % _decimationFactor == 0)
                 {
-                    _logger.LogDebug("Emitting raw telemetry (frame {frame}, decimation {factor}).", _frameCounter, _decimationFactor);
+                    _logger.LogInformation("Emitting raw telemetry (frame {frame}, decimation {factor}).", _frameCounter, _decimationFactor);
 
                     var rawMeasure = new TelemetryMeasure
                     {
-                        ResourceId = "daqraw:vibration:payload",
+                        ResourceId = _rawSensor?.ResourceId ?? "daqraw:vibration:payload",  // Use injected sensor ResourceId or default
                         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                         Value = payload?.ToString() ?? string.Empty,
                         Metadata = null

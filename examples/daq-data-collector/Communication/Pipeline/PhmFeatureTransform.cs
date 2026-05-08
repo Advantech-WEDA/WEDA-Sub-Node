@@ -23,6 +23,8 @@ public class PhmFeatureTransform : ITelemetryTransform
     private readonly TimeDomainExtractor _timeDomain;
     private readonly FrequencyDomainExtractor _frequencyDomain;
     private readonly ILogger<PhmFeatureTransform> _logger;
+    private readonly string _rawPayloadResourceId;  // Raw sensor's actual ResourceId (UUID)
+    private readonly Dictionary<string, string> _phMSensorResourceIds;  // PHM output sensor ResourceIds (name -> UUID)
 
     public string Name => "PhmFeatureTransform";
 
@@ -33,25 +35,34 @@ public class PhmFeatureTransform : ITelemetryTransform
     /// </summary>
     /// <param name="samplingRate">Sampling rate from devicecfg.json Properties.SamplingRate</param>
     /// <param name="fftSize">FFT size from devicecfg.json Properties.FftSize</param>
+    /// <param name="rawPayloadResourceId">ResourceId of the raw payload sensor (UUID from Sensor.ResourceId)</param>
+    /// <param name="phMSensorResourceIds">Mapping of PHM output sensor names to their ResourceIds (UUID)</param>
     /// <param name="timeDomain">Optional custom time-domain extractor (uses default if null)</param>
     /// <param name="frequencyDomain">Optional custom frequency-domain extractor (uses default if null)</param>
     /// <param name="logger">Optional logger</param>
     public PhmFeatureTransform(
         int samplingRate,
         int fftSize,
+        string rawPayloadResourceId,
+        Dictionary<string, string>? phMSensorResourceIds = null,
         TimeDomainExtractor? timeDomain = null,
         FrequencyDomainExtractor? frequencyDomain = null,
         ILogger<PhmFeatureTransform>? logger = null)
     {
+        if (string.IsNullOrWhiteSpace(rawPayloadResourceId))
+            throw new ArgumentException("rawPayloadResourceId cannot be null or empty.", nameof(rawPayloadResourceId));
+
         var loggerFactory = NullLoggerFactory.Instance;
         _timeDomain = timeDomain ?? new TimeDomainExtractor(samplingRate, loggerFactory.CreateLogger<TimeDomainExtractor>());
         _frequencyDomain = frequencyDomain ?? new FrequencyDomainExtractor(fftSize, loggerFactory.CreateLogger<FrequencyDomainExtractor>());
         _logger = logger ?? loggerFactory.CreateLogger<PhmFeatureTransform>();
+        _rawPayloadResourceId = rawPayloadResourceId;
+        _phMSensorResourceIds = phMSensorResourceIds ?? new Dictionary<string, string>();
     }
 
     /// <summary>
     /// Transforms raw payload into PHM feature measurements.
-    /// Expects input to contain one measure with ResourceId="daqraw:vibration:payload".
+    /// Expects input to contain one measure with ResourceId matching the configured raw payload sensor.
     /// </summary>
     public Task<List<TelemetryMeasure>> TransformAsync(
         List<TelemetryMeasure> measures,
@@ -67,11 +78,11 @@ public class PhmFeatureTransform : ITelemetryTransform
 
         try
         {
-            // Find raw DAQ payload measure
-            var rawMeasure = measures.FirstOrDefault(m => m.ResourceId == "daqraw:vibration:payload");
+            // Find raw DAQ payload measure using configured ResourceId
+            var rawMeasure = measures.FirstOrDefault(m => m.ResourceId == _rawPayloadResourceId);
             if (rawMeasure == null)
             {
-                _logger.LogWarning("No raw DAQ payload measure found (ResourceId='daqraw:vibration:payload')");
+                _logger.LogWarning($"No raw DAQ payload measure found (ResourceId='{_rawPayloadResourceId}')");
                 return Task.FromResult(result);
             }
 
@@ -113,17 +124,29 @@ public class PhmFeatureTransform : ITelemetryTransform
                 XAxisCrestFactor = timeDomainResults.CrestFactor
             };
 
-            // Emit 10 PHM feature measures
-            result.Add(new TelemetryMeasure { ResourceId = "Timestamp_Timestamp", Value = phMFeatures.Timestamp.ToUnixTimeMilliseconds().ToString() });
-            result.Add(new TelemetryMeasure { ResourceId = "Device_Time", Value = phMFeatures.DeviceTime.ToUnixTimeMilliseconds().ToString() });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_RMSmg", Value = phMFeatures.XAxisRMSmg.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_Peakmg", Value = phMFeatures.XAxisPeakmg.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_Peak-to-Peak_Displacement", Value = phMFeatures.XAxisPeakToPeakDisplacement.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_OAVelocity", Value = phMFeatures.XAxisOAVelocity.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_Deviation", Value = phMFeatures.XAxisDeviation.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_Skewness", Value = phMFeatures.XAxisSkewness.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_Kurtosis", Value = phMFeatures.XAxisKurtosis.ToString("F6") });
-            result.Add(new TelemetryMeasure { ResourceId = "X-Axis_CrestFactor", Value = phMFeatures.XAxisCrestFactor.ToString("F6") });
+            // Emit 10 PHM feature measures using configured ResourceIds (UUID from sensor config)
+            var sensorNameMappings = new[]
+            {
+                ("timestamp_timestamp", phMFeatures.Timestamp.ToUnixTimeMilliseconds()),
+                ("device_time", phMFeatures.DeviceTime.ToUnixTimeMilliseconds()),
+                ("x_axis_rms_mg", phMFeatures.XAxisRMSmg),
+                ("x_axis_peak_mg", phMFeatures.XAxisPeakmg),
+                ("x_axis_peak_to_peak_displacement", phMFeatures.XAxisPeakToPeakDisplacement),
+                ("x_axis_oa_velocity", phMFeatures.XAxisOAVelocity),
+                ("x_axis_deviation", phMFeatures.XAxisDeviation),
+                ("x_axis_skewness", phMFeatures.XAxisSkewness),
+                ("x_axis_kurtosis", phMFeatures.XAxisKurtosis),
+                ("x_axis_crest_factor", phMFeatures.XAxisCrestFactor)
+            };
+
+            foreach (var (sensorName, value) in sensorNameMappings)
+            {
+                // Use configured ResourceId if available, fallback to sensor name
+                var resourceId = _phMSensorResourceIds.TryGetValue(sensorName, out var uuid)
+                    ? uuid
+                    : sensorName;  // Fallback for backward compatibility
+                result.Add(new TelemetryMeasure { ResourceId = resourceId, Value = value });
+            }
 
             _logger.LogDebug("PHM feature extraction completed: 10 features emitted");
         }

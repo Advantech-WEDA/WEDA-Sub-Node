@@ -9,6 +9,7 @@ using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Devices;
 
 namespace daq_data_collector.Devices;
@@ -36,8 +37,42 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         DataReceived += OnDataReceived;
         DataProcessed += OnDataProcessed;
 
-        // Register PhmFeatureTransform on the raw payload sensor (C6 integration)
-        RegisterPhmTransform(context, configuration);
+        // Note: RegisterPhmTransform is deferred to OnAfterInitializeAsync 
+        // because ResourceId is not yet generated (UUID) at this point
+    }
+
+    // ── Extraction ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Extract the raw vibration sensor from configuration.
+    /// </summary>
+    private static Sensor? ExtractRawSensor(DeviceConfiguration configuration)
+    {
+        return configuration.Sensors?.FirstOrDefault(s =>
+            s.SensorInfo?.DisplayName?.Contains("Raw Vibration") ?? false);
+    }
+
+    /// <summary>
+    /// Extract PHM sensor name-to-Sensor mapping from configuration.
+    /// </summary>
+    private static Dictionary<string, Sensor> ExtractPhmSensorMapping(DeviceConfiguration configuration)
+    {
+        var phMSensorNames = new[]
+        {
+            "timestamp_timestamp", "device_time",
+            "x_axis_rms_mg", "x_axis_peak_mg", "x_axis_peak_to_peak_displacement", "x_axis_oa_velocity",
+            "x_axis_deviation", "x_axis_skewness", "x_axis_kurtosis", "x_axis_crest_factor"
+        };
+
+        return phMSensorNames
+            .Select(sensorName => new
+            {
+                Name = sensorName,
+                Sensor = configuration.Sensors?.FirstOrDefault(s =>
+                    s.Name.Equals(sensorName, StringComparison.OrdinalIgnoreCase))
+            })
+            .Where(x => x.Sensor != null)
+            .ToDictionary(x => x.Name, x => x.Sensor!);
     }
 
     // ── Assembly ──────────────────────────────────────────────────────────────
@@ -47,6 +82,9 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         DeviceConfiguration configuration)
     {
         var loggerFactory = context.LoggerFactory;
+
+        // Extract and cache raw sensor early (used for DaqMetricsParser)
+        var rawSensor = ExtractRawSensor(configuration);
 
         // Read DAQ parameters from devicecfg.json Properties block
         var props = configuration.Properties;
@@ -61,6 +99,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         var collector = new DaqCollector(
             samplingRate: samplingRate,
             frameSize: frameSize,
+            frameIntervalSeconds: frameIntervalSeconds,
             daqModuleDeviceNumber: daqModuleDeviceNumber,
             logger: loggerFactory.CreateLogger<DaqCollector>());
 
@@ -71,7 +110,41 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         return new DaqMetricsParser(
             communication,
             loggerFactory.CreateLogger<DaqMetricsParser>(),
-            decimationFactor);
+            decimationFactor,
+            rawSensor);  // Pass only the raw sensor (extracted earlier), not the entire Sensors list
+    }
+
+    /// <summary>
+    /// Build PHM transform configuration including sensor mappings and raw sensor ResourceId.
+    /// Returns a tuple of (PHM sensor mappings, raw sensor ResourceId).
+    /// </summary>
+    private (Dictionary<string, string> PhMSensorResourceIds, string RawSensorResourceId)? BuildPhmResourceMapping(DeviceConfiguration configuration)
+    {
+        // Extract sensors using centralized helper methods
+        var rawSensor = ExtractRawSensor(configuration);
+        if (rawSensor == null)
+        {
+            _logger.LogWarning("Raw DAQ payload sensor not found in configuration");
+            return null;
+        }
+
+        var sensorMapping = ExtractPhmSensorMapping(configuration);
+        if (sensorMapping.Count == 0)
+        {
+            _logger.LogWarning("No PHM sensors found in configuration");
+            return null;
+        }
+
+        // Extract ResourceIds from sensor mapping and log them
+        var phMSensorResourceIds = sensorMapping
+            .Select(kvp =>
+            {
+                _logger.LogDebug("PHM sensor '{name}' ResourceId: {resourceId}", kvp.Key, kvp.Value.ResourceId);
+                return kvp;
+            })
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ResourceId);
+
+        return (phMSensorResourceIds, rawSensor.ResourceId);
     }
 
     /// <summary>
@@ -80,7 +153,8 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
     /// </summary>
     private void RegisterPhmTransform(
         IWedaApplicationContext context,
-        DeviceConfiguration configuration)
+        DeviceConfiguration configuration,
+        (Dictionary<string, string> PhMSensorResourceIds, string RawSensorResourceId) resourceMapping)
     {
         try
         {
@@ -92,9 +166,8 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
             var frameIntervalSeconds = props.TryGetValue("FrameIntervalSeconds", out var fis) ? double.Parse(fis!.ToString()!) : 1.0;
             var frameSize = (int)(samplingRate * frameIntervalSeconds);
 
-            // Find the raw payload sensor
-            var rawSensor = Configuration.Sensors?.FirstOrDefault(s =>
-                s.SensorInfo?.DisplayName?.Contains("Raw Vibration") ?? false);
+            // Get the raw payload sensor to access its Report property
+            var rawSensor = ExtractRawSensor(configuration);
 
             if (rawSensor == null)
             {
@@ -106,13 +179,15 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
             var transform = new PhmFeatureTransform(
                 samplingRate: samplingRate,
                 fftSize: frameSize,  // FftSize = FrameSize in current implementation
+                rawPayloadResourceId: resourceMapping.RawSensorResourceId,  // Pass actual UUID from config
+                phMSensorResourceIds: resourceMapping.PhMSensorResourceIds,  // Pass PHM output sensor ResourceIds (UUIDs)
                 logger: loggerFactory.CreateLogger<PhmFeatureTransform>());
 
             rawSensor.Report?.AddTransform(transform);
 
             _logger.LogInformation(
-                "PhmFeatureTransform registered on raw sensor: SamplingRate={rate} Hz, FrameSize={frameSize}",
-                samplingRate, frameSize);
+                "PhmFeatureTransform registered on raw sensor: SamplingRate={rate} Hz, FrameSize={frameSize}, RawSensorResourceId={resourceId}, PHM sensors={phMCount}",
+                samplingRate, frameSize, resourceMapping.RawSensorResourceId, resourceMapping.PhMSensorResourceIds.Count);
         }
         catch (Exception ex)
         {
@@ -122,6 +197,20 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
     }
 
     // ── Lifecycle hooks ───────────────────────────────────────────────────────
+
+    protected override async Task OnAfterInitializeAsync(CancellationToken ct)
+    {
+        // ResourceId is now UUID (after EnrichConfiguration)
+        // Build PHM transform config first, then register transform if config is valid
+        var resourceMapping = BuildPhmResourceMapping(Configuration);
+        if (resourceMapping != null)
+        {
+            RegisterPhmTransform(_context, Configuration, resourceMapping.Value);
+        }
+
+        // Continue with base initialization (e.g., start stream if configured to auto-start)
+        await base.OnAfterInitializeAsync(ct);
+    }
 
     protected override Task OnBeforeInitializeAsync(CancellationToken ct)
     {
@@ -160,8 +249,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         if (Configuration.Sensors == null || Configuration.Sensors.Count == 0)
             throw new InvalidOperationException("No sensors configured in devicecfg.json");
 
-        var rawSensor = Configuration.Sensors.FirstOrDefault(s =>
-            s.SensorInfo?.DisplayName?.Contains("Raw Vibration") ?? false);
+        var rawSensor = ExtractRawSensor(Configuration);
         if (rawSensor == null)
             throw new InvalidOperationException("Raw DAQ payload sensor ('daqraw:vibration:payload') is required but not configured");
 

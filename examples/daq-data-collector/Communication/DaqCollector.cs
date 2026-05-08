@@ -24,6 +24,7 @@ public class DaqCollector
 {
     private readonly int _samplingRate;
     private readonly int _frameSize;  // Calculated from SamplingRate * FrameIntervalSeconds
+    private readonly double _frameIntervalSeconds;  // Frame interval in seconds
     private readonly int _daqModuleDeviceNumber;
     private readonly ILogger<DaqCollector> _logger;
     private DaqModuleManager? _manager;
@@ -31,6 +32,7 @@ public class DaqCollector
     public DaqCollector(
         int samplingRate,
         int frameSize,
+        double frameIntervalSeconds,
         int daqModuleDeviceNumber,
         ILogger<DaqCollector> logger)
     {
@@ -38,11 +40,14 @@ public class DaqCollector
             throw new ArgumentException("SamplingRate must be positive.", nameof(samplingRate));
         if (frameSize <= 0)
             throw new ArgumentException("FrameSize must be positive.", nameof(frameSize));
+        if (frameIntervalSeconds <= 0)
+            throw new ArgumentException("FrameIntervalSeconds must be positive.", nameof(frameIntervalSeconds));
         if (daqModuleDeviceNumber < 0)
             throw new ArgumentException("DaqModuleDeviceNumber must be non-negative.", nameof(daqModuleDeviceNumber));
 
         _samplingRate = samplingRate;
         _frameSize = frameSize;
+        _frameIntervalSeconds = frameIntervalSeconds;
         _daqModuleDeviceNumber = daqModuleDeviceNumber;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -113,8 +118,8 @@ public class DaqCollector
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Starting DAQ streaming: DaqDeviceNumber={device}, SamplingRate={rate} Hz, FrameSize={frameSize}",
-            _daqModuleDeviceNumber, _samplingRate, _frameSize);
+            "Starting DAQ streaming: DaqDeviceNumber={device}, SamplingRate={rate} Hz, FrameSize={frameSize}, FrameInterval={interval} s",
+            _daqModuleDeviceNumber, _samplingRate, _frameSize, _frameIntervalSeconds);
 
         // Get DAQ module manager (singleton instance)
         var manager = GetDaqModuleManager(_logger);
@@ -129,7 +134,7 @@ public class DaqCollector
             yield break;
         }
 
-        _logger.LogInformation("Discovered {count} DAQ modules.", moduleInfos.Count());
+        _logger.LogInformation("Discovered {count} DAQ module(s).", moduleInfos.Count());
 
         // Find the target module by device number
         var targetModuleInfo = moduleInfos.FirstOrDefault(m => m.DeviceNumber == _daqModuleDeviceNumber);
@@ -145,9 +150,7 @@ public class DaqCollector
         DaqModule module;
         try
         {
-            _logger.LogInformation("Creating DAQ module instance for device {device}...", _daqModuleDeviceNumber);
             module = manager.CreateDaqModule(targetModuleInfo, DaqModuleAccessMode.Writable);
-            _logger.LogInformation("Created DAQ module instance for device {device}.", _daqModuleDeviceNumber);
             if (module.Analog == null)
             {
                 _logger.LogError("DAQ module does not support analog input.");

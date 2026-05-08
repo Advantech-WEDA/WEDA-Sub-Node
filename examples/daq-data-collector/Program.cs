@@ -11,14 +11,7 @@ Console.WriteLine();
 
 try
 {
-    var builder = WedaApplication.CreateBuilder(args)
-        .UseMockCloud()     // Uncomment to enable mock cloud connectivity for testing (no real cloud connection)
-        .AddLogging()
-        .AddTelemetry()
-        .AddHealthReporting()
-        .AddConfigUpdates()
-        .AddCommands()
-        .AddRecording();
+    var builder = WedaApplication.CreateDefaultBuilder(args);
 
     builder.AddDevice<UniaxialVibrationDevice>("UniaxialVibrationDeviceConfig");
 
