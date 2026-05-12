@@ -19,7 +19,8 @@ services:
       - /opt/Advantech/system-monitor/customcfg.json:/app/customcfg.json
       - /opt/Advantech/system-monitor/devicecfg.json:/app/devicecfg.json
       - /opt/Advantech/system-monitor/systemcfg.json:/app/systemcfg.json
-      
+      # Device libraries need to be mounted as read-only
+      - /sys/firmware/efi/efivars:/sys/firmware/efi/efivars:ro
       # Persist .weda directory for device registration (避免重複註冊)
       - ./weda-data:/app/.weda
       
