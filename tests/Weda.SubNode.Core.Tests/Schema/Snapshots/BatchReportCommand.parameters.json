@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "properties": {
+    "timeRange": {
+      "type": "object",
+      "properties": {
+        "startTime": {
+          "type": "integer"
+        },
+        "endTime": {
+          "type": "integer"
+        }
+      },
+      "description": "Time range for historical data query (Unix milliseconds). Defaults to last 10 minutes when omitted."
+    },
+    "sensorFilter": {
+      "type": "object",
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Optional filter selecting which sensors to include / exclude."
+    },
+    "maxBatchesPerMessage": {
+      "type": "integer",
+      "description": "Maximum number of batches per outbound message.",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 1000
+    },
+    "maxBatchSize": {
+      "type": "integer",
+      "description": "Maximum samples per batch. Larger sensor result sets are split into multiple batches.",
+      "default": 10000,
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "transmissionRateLimit": {
+      "type": "integer",
+      "description": "Transmission rate limit (messages per second). 0 disables rate limiting.",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 10000
+    }
+  }
+}

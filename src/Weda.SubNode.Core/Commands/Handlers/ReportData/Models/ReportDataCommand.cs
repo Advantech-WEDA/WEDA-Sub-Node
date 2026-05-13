@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Contracts;
@@ -14,6 +16,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.ReportData.Models;
 /// - MIME data > 1MB → chunked, each chunk published as separate NATS message
 /// </remarks>
 [DeviceCmd("report.data")]
+[Description("Query a specific telemetry data point by sensor and timestamp.")]
 public class ReportDataCommand : CommandData<ReportDataParameters>
 {
 }
@@ -23,23 +26,17 @@ public class ReportDataCommand : CommandData<ReportDataParameters>
 /// </summary>
 public class ReportDataParameters
 {
-    /// <summary>
-    /// Short resource ID of the sensor to query (e.g., "f782c").
-    /// </summary>
+    [Required]
     [JsonPropertyName("sensorShortResourceId")]
-    public required string SensorShortResourceId { get; init; }
+    [Description("Short resource ID of the sensor to query (e.g., 'f782c').")]
+    public string SensorShortResourceId { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Unix timestamp in milliseconds for the data point to retrieve.
-    /// </summary>
+    [Required]
     [JsonPropertyName("resourceTimestamp")]
-    public required long ResourceTimestamp { get; init; }
+    [Description("Unix timestamp (milliseconds) of the data point to retrieve.")]
+    public long ResourceTimestamp { get; init; }
 
-    /// <summary>
-    /// Optional unique identifier for the transfer operation.
-    /// If provided, retrieves the specific transfer (e.g., a specific MIME chunk set).
-    /// If null, retrieves all measures for the sensor at the given timestamp.
-    /// </summary>
     [JsonPropertyName("transferId")]
+    [Description("Optional identifier targeting a specific transfer (e.g., a specific MIME chunk set). When null, retrieves all measures for the sensor at the given timestamp.")]
     public string? TransferId { get; init; }
 }

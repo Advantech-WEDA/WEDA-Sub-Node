@@ -33,7 +33,8 @@ public record DeviceCapDto(
     [property: JsonPropertyName("subDeviceSwVersion")] string SubNodeSwVersion,
     [property: JsonPropertyName("deviceName")] string DeviceName,
     [property: JsonPropertyName("deviceInfo")] Dictionary<string, object> DeviceInfo,
-    [property: JsonPropertyName("sensors")] IReadOnlyList<SensorDto> Sensors);
+    [property: JsonPropertyName("sensors")] IReadOnlyList<SensorDto> Sensors,
+    [property: JsonPropertyName("capabilities")] SubNodeCapabilitiesDto Capabilities);
 
 /// <summary>
 /// Device configuration data for upload

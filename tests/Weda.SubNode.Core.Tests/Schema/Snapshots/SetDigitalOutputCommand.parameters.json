@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "properties": {
+    "deviceName": {
+      "type": "string"
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "outputs"
+  ]
+}

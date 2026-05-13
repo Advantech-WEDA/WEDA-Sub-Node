@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "deviceName": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

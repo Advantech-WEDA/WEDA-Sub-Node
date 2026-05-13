@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "processNoise": {
+      "type": "number",
+      "description": "Process noise (Q). Must be \u003E= 0.",
+      "default": 0.01,
+      "minimum": 0,
+      "maximum": 1.7976931348623157E+308
+    },
+    "measurementNoise": {
+      "type": "number",
+      "description": "Measurement noise (R). Must be \u003E 0.",
+      "default": 0.1
+    }
+  }
+}

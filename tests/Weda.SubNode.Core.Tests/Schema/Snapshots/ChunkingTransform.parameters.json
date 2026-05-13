@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "chunkSize": {
+      "type": "integer",
+      "description": "Maximum size in bytes for each chunk. Must be between 1KB and 750KB.",
+      "default": 262144,
+      "minimum": 1024,
+      "maximum": 768000
+    }
+  }
+}

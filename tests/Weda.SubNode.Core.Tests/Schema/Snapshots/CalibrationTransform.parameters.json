@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "scale": {
+      "type": "number",
+      "description": "Linear calibration scale factor. Must not be zero.",
+      "default": 1
+    },
+    "offset": {
+      "type": "number",
+      "description": "Linear calibration offset value.",
+      "default": 0
+    },
+    "calibrationCurve": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rawValue": {
+            "type": "number",
+            "description": "Raw sensor value before calibration."
+          },
+          "calibratedValue": {
+            "type": "number",
+            "description": "Calibrated sensor value after calibration."
+          }
+        }
+      },
+      "description": "Curve points for non-linear calibration. Overrides Scale/Offset when provided."
+    }
+  }
+}

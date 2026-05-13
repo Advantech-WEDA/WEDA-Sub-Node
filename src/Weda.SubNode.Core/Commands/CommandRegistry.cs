@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 
@@ -5,10 +6,13 @@ using ErrorOr;
 
 using Microsoft.Extensions.Logging;
 
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Behaviors;
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Schema;
+using Weda.SubNode.Core.Schema;
 
 namespace Weda.SubNode.Core.Commands;
 
@@ -101,18 +105,56 @@ public class CommandRegistry
             var behaviorConfigs = ScanHandlerAttributes(type);
             var autoAckEnabled = IsAutoAckEnabled(type);
 
+            var parameterType = GetCommandParameterType(commandType);
+            var description = commandType.GetCustomAttribute<DescriptionAttribute>()?.Description;
+            var parameterSchema = parameterType is not null
+                ? JsonSchemaEmitter.Emit(parameterType)
+                : JsonSchemaDto.EmptyObject();
+            var responseSchema = JsonSchemaEmitter.Emit(resultType);
+
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
                 ResultType: resultType,
                 HandlerType: type,
                 BehaviorConfigurations: behaviorConfigs,
-                AutoAckEnabled: autoAckEnabled);
+                AutoAckEnabled: autoAckEnabled,
+                ParameterType: parameterType,
+                Description: description,
+                ParameterSchema: parameterSchema,
+                ResponseSchema: responseSchema);
 
             _logger?.LogDebug(
                 "Registered command handler: {CommandName} -> {HandlerType} (Behaviors: {BehaviorCount})",
                 commandName, type.Name, behaviorConfigs.Count);
         }
+    }
+
+    /// <summary>
+    /// Returns the descriptor list for every registered command. Used by
+    /// <c>DeviceConfigurationMappingExtensions</c> when uploading SubNode
+    /// capabilities to cloud.
+    /// </summary>
+    public IReadOnlyList<CommandDescriptorDto> GetDescriptors() =>
+        _registrations.Values
+            .Select(r => new CommandDescriptorDto(
+                Name: r.CommandName,
+                Description: r.Description,
+                ParameterSchema: r.ParameterSchema ?? JsonSchemaDto.EmptyObject(),
+                ResponseSchema: r.ResponseSchema ?? JsonSchemaDto.EmptyObject(),
+                AutoAck: r.AutoAckEnabled))
+            .ToList();
+
+    /// <summary>
+    /// Resolves the TParameter generic argument from <see cref="ICommand{TParameter}"/>
+    /// on the command type. Returns null if the command does not implement the generic
+    /// variant (rare; falls back to empty parameter schema).
+    /// </summary>
+    private static Type? GetCommandParameterType(Type commandType)
+    {
+        var iface = commandType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICommand<>));
+        return iface?.GetGenericArguments()[0];
     }
 
     /// <summary>
@@ -466,7 +508,11 @@ public record CommandRegistration(
     Type HandlerType,
     object? HandlerInstance = null,
     IReadOnlyList<BehaviorConfiguration>? BehaviorConfigurations = null,
-    bool AutoAckEnabled = true)
+    bool AutoAckEnabled = true,
+    Type? ParameterType = null,
+    string? Description = null,
+    JsonSchemaDto? ParameterSchema = null,
+    JsonSchemaDto? ResponseSchema = null)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.

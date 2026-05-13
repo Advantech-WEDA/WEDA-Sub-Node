@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +19,7 @@ using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Commands;
 using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host;
@@ -397,12 +400,31 @@ public class WedaApplicationBuilder
             return new NatsClient(natsOpts);
         });
 
+        // Register CommandRegistry as a singleton so DeviceAgentClient can pick it
+        // up for capability upload. Scans the SDK assembly plus the entry assembly
+        // for user-defined handlers — matching what WedaApplicationContext does on
+        // the non-DI path.
+        Services.AddSingleton<CommandRegistry>(sp =>
+        {
+            var logger = sp.GetService<ILogger<CommandRegistry>>();
+            var registry = new CommandRegistry(logger);
+            registry.ScanAssembly(typeof(CommandRegistry).Assembly);
+
+            var entryAssembly = Assembly.GetEntryAssembly();
+            if (entryAssembly != null && entryAssembly != typeof(CommandRegistry).Assembly)
+            {
+                registry.ScanAssembly(entryAssembly);
+            }
+            return registry;
+        });
+
         // Register NATS-based clients
         Services.AddSingleton<IDeviceAgentClient>(sp =>
         {
             var natsClient = sp.GetRequiredService<NatsClient>();
             var logger = sp.GetService<ILogger<DeviceAgentClient>>();
-            return new DeviceAgentClient(natsClient, logger);
+            var commandRegistry = sp.GetService<CommandRegistry>();
+            return new DeviceAgentClient(natsClient, logger, commandRegistry);
         });
 
         Services.AddSingleton<ITelemetryClient>(sp =>

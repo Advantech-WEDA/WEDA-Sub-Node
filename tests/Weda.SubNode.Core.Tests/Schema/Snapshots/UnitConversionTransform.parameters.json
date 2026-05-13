@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "fromUnit": {
+      "type": "string",
+      "description": "Source unit. Accepted values: C, F, K, celsius, fahrenheit, kelvin."
+    },
+    "toUnit": {
+      "type": "string",
+      "description": "Target unit. Accepted values: C, F, K, celsius, fahrenheit, kelvin."
+    }
+  },
+  "required": [
+    "fromUnit",
+    "toUnit"
+  ]
+}

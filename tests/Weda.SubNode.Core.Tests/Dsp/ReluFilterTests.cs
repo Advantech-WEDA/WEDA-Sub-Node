@@ -1,4 +1,5 @@
 using Xunit;
+using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Dsp;
 
@@ -6,6 +7,8 @@ namespace Weda.SubNode.Core.Tests.Dsp;
 
 public class ReluFilterTests
 {
+    private static IConfigurableDspFilter<ReluFilter, ReluParameters> AsConfigurable(ReluFilter f) => f;
+
     private static TelemetryMeasure CreateMeasure(double value, string resourceId = "sensor1")
         => new() { ResourceId = resourceId, Value = value };
 
@@ -28,10 +31,7 @@ public class ReluFilterTests
     public void ValidateParameters_EmptyParams_ReturnsSuccess()
     {
         var filter = new ReluFilter();
-        var parameters = new Dictionary<string, object>();
-
-        var result = filter.ValidateParameters(parameters);
-
+        var result = AsConfigurable(filter).ValidateParameters(new ReluParameters());
         Assert.False(result.IsError);
     }
 
@@ -39,13 +39,8 @@ public class ReluFilterTests
     public void UpdateParameters_NoEffect()
     {
         var filter = new ReluFilter();
-        var parameters = new Dictionary<string, object>
-        {
-            ["SomeParam"] = 123
-        };
-
         // Should not throw
-        filter.UpdateParameters(parameters);
+        filter.UpdateParameters(new ReluParameters());
     }
 
     [Fact]
