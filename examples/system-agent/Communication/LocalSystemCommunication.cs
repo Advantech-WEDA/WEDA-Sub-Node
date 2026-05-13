@@ -88,7 +88,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     {
         try
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "[SIGSEGV-FIX] RequestAsyncCore ENTERED (RequestLock=true serialized) on Thread {ThreadId}, types: {Types}",
                 Environment.CurrentManagedThreadId, string.Join(", ", request.MetricTypes));
             return await _collector.CollectMetricsAsync(request.MetricTypes, cancellationToken);
