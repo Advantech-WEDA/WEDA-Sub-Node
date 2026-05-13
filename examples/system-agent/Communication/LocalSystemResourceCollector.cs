@@ -183,7 +183,7 @@ public class LocalSystemResourceCollector
             hardwareTask = Task.Run(() =>
             {
                 var threadId = Environment.CurrentManagedThreadId;
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "[SIGSEGV-FIX] Hardware metrics sequential task started on Thread {ThreadId}. Types: {Types}",
                     threadId, string.Join(", ", hardwareMetricTypes));
                 var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -204,7 +204,7 @@ public class LocalSystemResourceCollector
                     rawData.ThermalProtection = _hardwarePlatformCollector.CollectThermalProtectionMetrics();
 
                 sw.Stop();
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "[SIGSEGV-FIX] Hardware metrics sequential task completed on Thread {ThreadId} in {ElapsedMs}ms",
                     threadId, sw.ElapsedMilliseconds);
             }, ct);
