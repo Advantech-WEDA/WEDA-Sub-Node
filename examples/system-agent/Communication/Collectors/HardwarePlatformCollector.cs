@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Advantech.Edge.IFeatures;
 
 using Microsoft.Extensions.Logging;
@@ -10,399 +11,445 @@ namespace SystemAgentExample.Communication.Collectors;
 
 /// <summary>
 /// Collects hardware platform-specific metrics using the underlying hardware driver.
-/// Implementation uses Advantech SUSI Driver, but the abstraction layer should not expose this detail.
+/// 
+/// CRITICAL: All calls to Advantech.Edge.Device are dispatched to a single dedicated thread.
+/// The native libSusiIoT.so library has thread-affinity (uses TLS or non-thread-safe global state).
+/// Calling from different OS threads — even sequentially — causes SIGSEGV (exit code 139).
 /// </summary>
-public class HardwarePlatformCollector
+public class HardwarePlatformCollector : IDisposable
 {
     private readonly ILogger _logger;
-    private readonly Device? _advantechEdgeDevice;
+    private readonly Device _advantechEdgeDevice;
 
-    public HardwarePlatformCollector(ILogger logger, Device? advantechEdgeDevice)
+    /// <summary>
+    /// Dedicated thread that owns all native library calls.
+    /// The native library must always be called from the same OS thread.
+    /// </summary>
+    private readonly Thread _nativeThread;
+    private readonly BlockingCollection<Action> _workQueue = new();
+    private volatile bool _disposed;
+
+    public HardwarePlatformCollector(ILogger logger)
     {
         _logger = logger;
-        _advantechEdgeDevice = advantechEdgeDevice;
+
+        _nativeThread = new Thread(NativeThreadLoop)
+        {
+            Name = "SusiIoT-Native",
+            IsBackground = true
+        };
+        _nativeThread.Start();
+
+        // Initialize Device on the dedicated native thread (thread-affinity requirement)
+        _advantechEdgeDevice = RunOnNativeThread(() =>
+        {
+            _logger.LogInformation(
+                "[SIGSEGV-FIX] Advantech.Edge.Device initializing on dedicated thread (ManagedThreadId={ThreadId})",
+                Environment.CurrentManagedThreadId);
+            var device = new Device();
+            if (device.InitializationFailed)
+            {
+                _logger.LogWarning("Advantech.Edge.Device initialization reported failure");
+                return null;
+            }
+            _logger.LogInformation("[SIGSEGV-FIX] Advantech.Edge.Device initialized successfully on dedicated thread");
+            return device;
+        }) ?? throw new InvalidOperationException("Advantech.Edge.Device initialization failed on native thread");
+
+        _logger.LogInformation(
+            "[SIGSEGV-FIX] HardwarePlatformCollector created with dedicated native thread (ManagedThreadId={ThreadId})",
+            _nativeThread.ManagedThreadId);
+    }
+
+    private void NativeThreadLoop()
+    {
+        _logger.LogInformation(
+            "[SIGSEGV-FIX] Native thread started: ManagedThreadId={ThreadId}, OSThreadId={OSThreadId}",
+            Environment.CurrentManagedThreadId,
+            Environment.CurrentManagedThreadId);
+
+        foreach (var action in _workQueue.GetConsumingEnumerable())
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[SIGSEGV-FIX] Exception on native thread");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dispatches work to the dedicated native thread and waits for completion.
+    /// </summary>
+    private T RunOnNativeThread<T>(Func<T> func)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(HardwarePlatformCollector));
+
+        T result = default!;
+        Exception? caught = null;
+        using var done = new ManualResetEventSlim(false);
+
+        _workQueue.Add(() =>
+        {
+            try
+            {
+                result = func();
+            }
+            catch (Exception ex)
+            {
+                caught = ex;
+            }
+            finally
+            {
+                done.Set();
+            }
+        });
+
+        done.Wait();
+
+        if (caught != null)
+            throw caught;
+
+        return result;
     }
 
     public HardwareInfoMetrics CollectHardwareInfoMetrics()
     {
-        var metrics = new HardwareInfoMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect hardwareInfo metrics");
+            var metrics = new HardwareInfoMetrics();
+            try
+            {
+                metrics.MotherboardName = _advantechEdgeDevice.PlatformInformation.MotherboardName ?? string.Empty;
+                metrics.Manufacturer = _advantechEdgeDevice.PlatformInformation.Manufacturer ?? string.Empty;
+                metrics.BiosRevision = _advantechEdgeDevice.PlatformInformation.BiosRevision ?? string.Empty;
+                metrics.DriverVersion = _advantechEdgeDevice.PlatformInformation.DriverVersion ?? string.Empty;
+                metrics.LibraryVersion = _advantechEdgeDevice.PlatformInformation.LibraryVersion ?? string.Empty;
+                metrics.EcRevision = _advantechEdgeDevice.PlatformInformation.EcRevision ?? string.Empty;
+
+                _logger.LogDebug("Hardware platform information collected: Motherboard={Motherboard}, Manufacturer={Manufacturer}, BIOS={Bios}",
+                    metrics.MotherboardName, metrics.Manufacturer, metrics.BiosRevision);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect hardware platform information metrics");
+            }
             return metrics;
-        }
-
-        try
-        {
-            metrics.MotherboardName = _advantechEdgeDevice.PlatformInformation.MotherboardName ?? string.Empty;
-            metrics.Manufacturer = _advantechEdgeDevice.PlatformInformation.Manufacturer ?? string.Empty;
-            metrics.BiosRevision = _advantechEdgeDevice.PlatformInformation.BiosRevision ?? string.Empty;
-            metrics.DriverVersion = _advantechEdgeDevice.PlatformInformation.DriverVersion ?? string.Empty;
-            metrics.LibraryVersion = _advantechEdgeDevice.PlatformInformation.LibraryVersion ?? string.Empty;
-            metrics.EcRevision = _advantechEdgeDevice.PlatformInformation.EcRevision ?? string.Empty;
-
-            _logger.LogDebug("Hardware platform information collected: Motherboard={Motherboard}, Manufacturer={Manufacturer}, BIOS={Bios}",
-                metrics.MotherboardName, metrics.Manufacturer, metrics.BiosRevision);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect hardware platform information metrics");
-        }
-        return metrics;
+        });
     }
 
-    /// <summary>
-    /// Collects temperature metrics from onboard sensors.
-    /// Each metric type (temperature, voltage, fanspeed) is collected separately 
-    /// since they can be configured independently in settings.
-    /// </summary>
     public TemperatureMetrics CollectTemperatureMetrics()
     {
-        var metrics = new TemperatureMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect temperature metrics");
-            return metrics;
-        }
-
-        if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
-        {
-            _logger.LogWarning("Onboard sensors not supported on this device");
-            return metrics;
-        }
-
-        try
-        {
-            var temperatureSources = _advantechEdgeDevice.OnboardSensors.TemperatureSources;
-            foreach (var source in temperatureSources)
+            var metrics = new TemperatureMetrics();
+            try
             {
-                try
+                if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
                 {
-                    var temperature = _advantechEdgeDevice.OnboardSensors.GetTemperature(source);
-                    metrics.Temperatures[source.ToString()] = temperature;
-                    _logger.LogDebug($"{source} Temperature: {temperature} °C");
+                    _logger.LogWarning("Onboard sensors not supported on this device");
+                    return metrics;
                 }
-                catch (Exception ex)
+
+                var temperatureSources = _advantechEdgeDevice.OnboardSensors.TemperatureSources;
+                foreach (var source in temperatureSources)
                 {
-                    _logger.LogWarning(ex, $"Failed to collect {source} Temperature metrics");
+                    try
+                    {
+                        var temperature = _advantechEdgeDevice.OnboardSensors.GetTemperature(source);
+                        metrics.Temperatures[source.ToString()] = temperature;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to collect {Source} Temperature metrics", source);
+                    }
                 }
+                _logger.LogDebug("Temperature metrics collected: {Count} sensors", temperatureSources.Length);
             }
-
-            _logger.LogDebug("Temperature metrics collected: {Count} sensors", temperatureSources.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect temperature metrics");
-        }
-
-        return metrics;
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect temperature metrics");
+            }
+            return metrics;
+        });
     }
 
-    /// <summary>
-    /// Collects voltage metrics from onboard sensors.
-    /// </summary>
     public VoltageMetrics CollectVoltageMetrics()
     {
-        var metrics = new VoltageMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect voltage metrics");
-            return metrics;
-        }
-
-        if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
-        {
-            _logger.LogWarning("Onboard sensors not supported on this device");
-            return metrics;
-        }
-
-        try
-        {
-            var voltageSources = _advantechEdgeDevice.OnboardSensors.VoltageSources;
-            foreach (var source in voltageSources)
+            var metrics = new VoltageMetrics();
+            try
             {
-                try
+                if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
                 {
-                    var voltage = _advantechEdgeDevice.OnboardSensors.GetVoltage(source);
-                    metrics.Voltages[source.ToString()] = voltage;
-                    _logger.LogDebug($"{source} Voltage: {voltage} V");
+                    _logger.LogWarning("Onboard sensors not supported on this device");
+                    return metrics;
                 }
-                catch (Exception ex)
+
+                var voltageSources = _advantechEdgeDevice.OnboardSensors.VoltageSources;
+                foreach (var source in voltageSources)
                 {
-                    _logger.LogWarning(ex, $"Failed to collect {source} Voltage metrics");
+                    try
+                    {
+                        var voltage = _advantechEdgeDevice.OnboardSensors.GetVoltage(source);
+                        metrics.Voltages[source.ToString()] = voltage;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to collect {Source} Voltage metrics", source);
+                    }
                 }
+                _logger.LogDebug("Voltage metrics collected: {Count} sensors", voltageSources.Length);
             }
-
-            _logger.LogDebug("Voltage metrics collected: {Count} sensors", voltageSources.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect voltage metrics");
-        }
-
-        return metrics;
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect voltage metrics");
+            }
+            return metrics;
+        });
     }
 
-    /// <summary>
-    /// Collects fan speed metrics from onboard sensors.
-    /// </summary>
     public FanSpeedMetrics CollectFanSpeedMetrics()
     {
-        var metrics = new FanSpeedMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect fanSpeed metrics");
-            return metrics;
-        }
-
-        if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
-        {
-            _logger.LogWarning("Onboard sensors not supported on this device");
-            return metrics;
-        }
-
-        try
-        {
-            var fanSources = _advantechEdgeDevice.OnboardSensors.FanSources;
-            foreach (var source in fanSources)
+            var metrics = new FanSpeedMetrics();
+            try
             {
-                try
+                if (!_advantechEdgeDevice.OnboardSensors!.IsSupported)
                 {
-                    var fanSpeed = _advantechEdgeDevice.OnboardSensors.GetFanSpeed(source);
-                    metrics.FanSpeeds[source.ToString()] = fanSpeed;
-                    _logger.LogDebug($"{source} Fan Speed: {fanSpeed} RPM");
+                    _logger.LogWarning("Onboard sensors not supported on this device");
+                    return metrics;
                 }
-                catch (Exception ex)
+
+                var fanSources = _advantechEdgeDevice.OnboardSensors.FanSources;
+                foreach (var source in fanSources)
                 {
-                    _logger.LogWarning(ex, $"Failed to collect {source} Fan Speed metrics");
+                    try
+                    {
+                        var fanSpeed = _advantechEdgeDevice.OnboardSensors.GetFanSpeed(source);
+                        metrics.FanSpeeds[source.ToString()] = fanSpeed;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to collect {Source} Fan Speed metrics", source);
+                    }
                 }
+                _logger.LogDebug("Fan speed metrics collected: {Count} fans", fanSources.Length);
             }
-
-            _logger.LogDebug("Fan speed metrics collected: {Count} fans", fanSources.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect fan speed metrics");
-        }
-
-        return metrics;
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect fan speed metrics");
+            }
+            return metrics;
+        });
     }
-
 
     public GpioMetrics CollectGpioMetrics()
     {
-        var metrics = new GpioMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect GPIO metrics");
+            var metrics = new GpioMetrics();
+            try
+            {
+                metrics.IsSupported = _advantechEdgeDevice.Gpio!.IsSupported;
+
+                if (!metrics.IsSupported)
+                {
+                    _logger.LogWarning("GPIO not supported on this device");
+                    return metrics;
+                }
+
+                var pinNames = _advantechEdgeDevice.Gpio.PinNames;
+                _logger.LogDebug("GPIO pin list - Length: {Length}, Names: {Names}",
+                    pinNames.Length, string.Join(", ", pinNames));
+                metrics.PinNames = pinNames;
+
+                foreach (var pinName in pinNames)
+                {
+                    try
+                    {
+                        var level = _advantechEdgeDevice.Gpio.GetLevel(pinName);
+                        if (level.HasValue)
+                        {
+                            metrics.PinStateDetails[pinName] = (int)level.Value;
+                        }
+                        else
+                        {
+                            _logger.LogWarning("GPIO pin '{PinName}' returned null level", pinName);
+                        }
+                    }
+                    catch (Exception exPin)
+                    {
+                        _logger.LogWarning(exPin, "Exception while reading GPIO pin '{PinName}' state", pinName);
+                        metrics.PinStateDetails[pinName] = int.MinValue;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect GPIO metrics");
+            }
             return metrics;
-        }
-
-        try
-        {
-            metrics.IsSupported = _advantechEdgeDevice.Gpio!.IsSupported;
-
-            if (!metrics.IsSupported)
-            {
-                _logger.LogWarning("GPIO not supported on this device");
-                return metrics;
-            }
-
-            var pinNames = _advantechEdgeDevice.Gpio.PinNames;
-            _logger.LogDebug("GPIO pin list - Length: {Length}, Names: {Names}",
-                pinNames.Length, string.Join(", ", pinNames));
-            metrics.PinNames = pinNames;
-
-            // Collect individual pin states
-            foreach (var pinName in pinNames)
-            {
-                try
-                {
-                    var level = _advantechEdgeDevice.Gpio.GetLevel(pinName);
-                    if (level.HasValue)
-                    {
-                        // Store level as integer (0 = Low, 1 = High)
-                        metrics.PinStateDetails[pinName] = (int)level.Value;
-                        _logger.LogDebug("GPIO pin '{PinName}' level: {Level}", pinName, level.Value);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("GPIO pin '{PinName}' returned null level", pinName);
-                    }
-                }
-                catch (Exception exPin)
-                {
-                    _logger.LogWarning(exPin, "Exception while reading GPIO pin '{PinName}' state", pinName);
-                    metrics.PinStateDetails[pinName] = int.MinValue; // Indicate error with special value
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect GPIO metrics");
-        }
-
-        return metrics;
+        });
     }
-
 
     public WatchdogMetrics CollectWatchdogMetrics()
     {
-        var metrics = new WatchdogMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect watchdog metrics");
+            var metrics = new WatchdogMetrics();
+            try
+            {
+                metrics.IsSupported = _advantechEdgeDevice.Watchdog!.IsSupported;
+
+                if (!metrics.IsSupported)
+                {
+                    _logger.LogWarning("Watchdog not supported on this device");
+                }
+
+                var timerIds = _advantechEdgeDevice.Watchdog.TimerIds ?? Array.Empty<string>();
+                metrics.TimerIds = timerIds;
+
+                if (timerIds.Length == 0)
+                {
+                    _logger.LogWarning("No watchdog timers available on this device");
+                    return metrics;
+                }
+
+                foreach (var timerId in timerIds)
+                {
+                    try
+                    {
+                        WatchdogTimerCap? cap = null;
+                        WatchdogTimerConfig? config = null;
+
+                        if (!_advantechEdgeDevice.Watchdog.TryGetCap(timerId, out cap) || cap is null)
+                        {
+                            _logger.LogWarning("Failed to get capabilities for watchdog timer '{TimerId}'", timerId);
+                            continue;
+                        }
+
+                        if (!_advantechEdgeDevice.Watchdog.TryGetConfig(timerId, out config) || config is null)
+                        {
+                            _logger.LogWarning("Failed to get current config for watchdog timer '{TimerId}'", timerId);
+                            continue;
+                        }
+
+                        metrics.TimerDetails[timerId] = new
+                        {
+                            Cap = cap,
+                            Config = config
+                        };
+
+                        _logger.LogDebug(
+                            "Watchdog Timer '{TimerId}' read: IsStoppable={IsStoppable}, Delay[min/max]={DelayMin}/{DelayMax}, Event[min/max]={EventMin}/{EventMax}, Reset[min/max]={ResetMin}/{ResetMax}, SupportFlags={Flags}",
+                            timerId,
+                            cap.IsStoppable,
+                            cap.DelayMinimum, cap.DelayMaximum,
+                            cap.EventMinimum, cap.EventMaximum,
+                            cap.ResetMinimum, cap.ResetMaximum,
+                            cap.SupportFlags
+                        );
+                    }
+                    catch (Exception exTimer)
+                    {
+                        _logger.LogWarning(exTimer, "Exception while reading watchdog timer '{TimerId}' details", timerId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect watchdog metrics");
+            }
             return metrics;
-        }
-
-        try
-        {
-            metrics.IsSupported = _advantechEdgeDevice.Watchdog!.IsSupported;
-
-            if (!metrics.IsSupported)
-            {
-                _logger.LogWarning("Watchdog not supported on this device");
-            }
-
-            var timerIds = _advantechEdgeDevice.Watchdog.TimerIds ?? Array.Empty<string>();
-            metrics.TimerIds = timerIds;
-
-            if (timerIds.Length == 0)
-            {
-                _logger.LogWarning("No watchdog timers available on this device");
-                return metrics;
-            }
-
-            foreach (var timerId in timerIds)
-            {
-                try
-                {
-                    WatchdogTimerCap? cap = null;
-                    WatchdogTimerConfig? config = null;
-
-                    if (!_advantechEdgeDevice.Watchdog.TryGetCap(timerId, out cap) || cap is null)
-                    {
-                        _logger.LogWarning("Failed to get capabilities for watchdog timer '{TimerId}'", timerId);
-                        continue;
-                    }
-
-                    if (!_advantechEdgeDevice.Watchdog.TryGetConfig(timerId, out config) || config is null)
-                    {
-                        _logger.LogWarning("Failed to get current config for watchdog timer '{TimerId}'", timerId);
-                        continue;
-                    }
-
-                    metrics.TimerDetails[timerId] = new
-                    {
-                        Cap = cap,
-                        Config = config
-                    };
-
-                    _logger.LogDebug(
-                        "Watchdog Timer '{TimerId}' read: IsStoppable={IsStoppable}, Delay[min/max]={DelayMin}/{DelayMax}, Event[min/max]={EventMin}/{EventMax}, Reset[min/max]={ResetMin}/{ResetMax}, SupportFlags={Flags}",
-                        timerId,
-                        cap.IsStoppable,
-                        cap.DelayMinimum, cap.DelayMaximum,
-                        cap.EventMinimum, cap.EventMaximum,
-                        cap.ResetMinimum, cap.ResetMaximum,
-                        cap.SupportFlags
-                    );
-                }
-                catch (Exception exTimer)
-                {
-                    _logger.LogWarning(exTimer, "Exception while reading watchdog timer '{TimerId}' details", timerId);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect watchdog metrics");
-        }
-        return metrics;
+        });
     }
 
     public ThermalProtectionMetrics CollectThermalProtectionMetrics()
     {
-        var metrics = new ThermalProtectionMetrics();
-
-        if (_advantechEdgeDevice == null)
+        return RunOnNativeThread(() =>
         {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping collect thermal protection metrics");
+            var metrics = new ThermalProtectionMetrics();
+            try
+            {
+                metrics.IsSupported = _advantechEdgeDevice.ThermalProtection!.IsSupported;
+
+                if (!metrics.IsSupported)
+                {
+                    _logger.LogWarning("Thermal protection is NOT supported on this device");
+                    return metrics;
+                }
+
+                var zoneIds = _advantechEdgeDevice.ThermalProtection.ZoneIds ?? Array.Empty<string>();
+                metrics.ZoneIds = zoneIds;
+
+                if (zoneIds.Length == 0)
+                {
+                    _logger.LogWarning("No thermal protection zones available on this device");
+                    return metrics;
+                }
+
+                foreach (var zoneId in zoneIds)
+                {
+                    try
+                    {
+                        ThermalProtectionZoneCap? cap = null;
+                        ThermalProtectionZoneConfig? config = null;
+
+                        if (!_advantechEdgeDevice.ThermalProtection.TryGetZoneCap(zoneId, out cap) || cap is null)
+                        {
+                            _logger.LogWarning("Failed to get capabilities for thermal protection zone '{ZoneId}'", zoneId);
+                            continue;
+                        }
+
+                        if (!_advantechEdgeDevice.ThermalProtection.TryGetZoneConfig(zoneId, out config) || config is null)
+                        {
+                            _logger.LogWarning("Failed to get current config for thermal protection zone '{ZoneId}'", zoneId);
+                            continue;
+                        }
+
+                        metrics.ZoneDetails[zoneId] = new
+                        {
+                            Cap = cap,
+                            Config = config
+                        };
+
+                        _logger.LogDebug(
+                            "Thermal Zone '{ZoneId}' read: Sources={Sources}, Flags={Flags}, SendEventTemp[min/max]={SendMin}/{SendMax}, ClearEventTemp[min/max]={ClearMin}/{ClearMax}, CurrentSource={Source}, EventType={EventType}",
+                            zoneId,
+                            cap.SupportSources,
+                            cap.SupportFlags,
+                            cap.SendEventTemperatureMinimum, cap.SendEventTemperatureMaximum,
+                            cap.ClearEventTemperatureMinimum, cap.ClearEventTemperatureMaximum,
+                            config.Source,
+                            config.EventType
+                        );
+                    }
+                    catch (Exception exZone)
+                    {
+                        _logger.LogWarning(exZone, "Exception while reading thermal protection zone '{ZoneId}' details", zoneId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to collect thermal protection metrics");
+            }
             return metrics;
-        }
+        });
+    }
 
-        try
-        {
-            _logger.LogDebug("Checking thermal protection availability");
-            metrics.IsSupported = _advantechEdgeDevice.ThermalProtection!.IsSupported;
-
-            if (!metrics.IsSupported)
-            {
-                _logger.LogWarning("Thermal protection is NOT supported on this device");
-                return metrics;
-            }
-
-            var zoneIds = _advantechEdgeDevice.ThermalProtection.ZoneIds ?? Array.Empty<string>();
-            metrics.ZoneIds = zoneIds;
-
-            if (zoneIds.Length == 0)
-            {
-                _logger.LogWarning("No thermal protection zones available on this device");
-                return metrics;
-            }
-
-            foreach (var zoneId in zoneIds)
-            {
-                try
-                {
-                    ThermalProtectionZoneCap? cap = null;
-                    ThermalProtectionZoneConfig? config = null;
-
-                    if (!_advantechEdgeDevice.ThermalProtection.TryGetZoneCap(zoneId, out cap) || cap is null)
-                    {
-                        _logger.LogWarning("Failed to get capabilities for thermal protection zone '{ZoneId}'", zoneId);
-                        continue;
-                    }
-
-                    if (!_advantechEdgeDevice.ThermalProtection.TryGetZoneConfig(zoneId, out config) || config is null)
-                    {
-                        _logger.LogWarning("Failed to get current config for thermal protection zone '{ZoneId}'", zoneId);
-                        continue;
-                    }
-
-                    metrics.ZoneDetails[zoneId] = new
-                    {
-                        Cap = cap,
-                        Config = config
-                    };
-
-                    _logger.LogDebug(
-                        "Thermal Zone '{ZoneId}' read: Sources={Sources}, Flags={Flags}, SendEventTemp[min/max]={SendMin}/{SendMax}, ClearEventTemp[min/max]={ClearMin}/{ClearMax}, CurrentSource={Source}, EventType={EventType}",
-                        zoneId,
-                        cap.SupportSources,
-                        cap.SupportFlags,
-                        cap.SendEventTemperatureMinimum, cap.SendEventTemperatureMaximum,
-                        cap.ClearEventTemperatureMinimum, cap.ClearEventTemperatureMaximum,
-                        config.Source,
-                        config.EventType
-                    );
-                }
-                catch (Exception exZone)
-                {
-                    _logger.LogWarning(exZone, "Exception while reading thermal protection zone '{ZoneId}' details", zoneId);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to collect thermal protection metrics");
-        }
-        return metrics;
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _workQueue.CompleteAdding();
+        _nativeThread.Join(TimeSpan.FromSeconds(5));
+        _workQueue.Dispose();
     }
 }

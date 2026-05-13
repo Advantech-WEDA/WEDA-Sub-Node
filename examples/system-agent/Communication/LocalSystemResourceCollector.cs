@@ -6,8 +6,6 @@ using SystemAgentExample.Protocols;
 
 using Weda.SubNode.Core.Policies;
 
-using Device = Advantech.Edge.Device;
-
 namespace SystemAgentExample.Communication;
 
 /// <summary>
@@ -39,45 +37,19 @@ public class LocalSystemResourceCollector
         _systemCollector = new SystemCollector(logger);
         _gpuCollector = new GpuCollector(logger);
 
-        // Attempt to initialize Advantech Device
-        // If initialization fails (e.g., non-Advantech hardware), log warning and continue
-        Device? advantechEdgeDevice = null;
-
+        // Attempt to initialize Advantech Device via HardwarePlatformCollector.
+        // CRITICAL: Device initialization AND all subsequent native calls MUST happen on the
+        // same OS thread due to native library thread-affinity (TLS). 
+        // HardwarePlatformCollector handles this via its dedicated native thread.
         try
         {
-            _logger.LogInformation("Advantech.Edge.Device initializing...");
-            advantechEdgeDevice = new Device();
-        }
-        catch (TypeInitializationException typeEx)
-        {
-            _logger.LogWarning(typeEx, "Advantech Device initialization failed (static initializer). Hardware metrics unavailable.");
-        }
-        catch (System.Reflection.TargetInvocationException targetEx)
-        {
-            _logger.LogWarning(targetEx, "Advantech Device initialization failed (reflection). Hardware metrics unavailable.");
-        }
-        catch (DllNotFoundException dllEx)
-        {
-            _logger.LogWarning(dllEx, "Advantech driver DLL not found. Hardware metrics unavailable.");
-        }
-        catch (BadImageFormatException badImageEx)
-        {
-            _logger.LogWarning(badImageEx, "Advantech driver architecture mismatch. Hardware metrics unavailable.");
+            _logger.LogInformation("Initializing HardwarePlatformCollector (Device init on dedicated native thread)...");
+            _hardwarePlatformCollector = new HardwarePlatformCollector(_logger);
+            _logger.LogInformation("HardwarePlatformCollector initialized successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Advantech Device initialization failed ({ExceptionType}). Hardware metrics unavailable.", ex.GetType().Name);
-        }
-
-        if (advantechEdgeDevice == null || advantechEdgeDevice.InitializationFailed)
-        {
-            _logger.LogWarning("Device not available Advantech.Edge.Device, skipping new HardwarePlatformCollector");
-        }
-        else
-        {
-            _logger.LogInformation("Advantech.Edge.Device initialized successfully");
-            _hardwarePlatformCollector = new HardwarePlatformCollector(_logger, advantechEdgeDevice);
-            _logger.LogInformation("HardwarePlatformCollector initialized successfully");
+            _logger.LogWarning(ex, "HardwarePlatformCollector initialization failed ({ExceptionType}). Hardware metrics unavailable.", ex.GetType().Name);
         }
     }
 
@@ -128,13 +100,8 @@ public class LocalSystemResourceCollector
         Task<SystemMetrics?>? systemTask = null;
         Task<GpuMetrics?>? gpuTask = null;
 
-        Task<HardwareInfoMetrics?>? hardwareInfoTask = null;
-        Task<TemperatureMetrics?>? temperatureTask = null;
-        Task<VoltageMetrics?>? voltageTask = null;
-        Task<FanSpeedMetrics?>? fanSpeedTask = null;
-        Task<GpioMetrics?>? gpioTask = null;
-        Task<WatchdogMetrics?>? watchdogTask = null;
-        Task<ThermalProtectionMetrics?>? thermalProtectionTask = null;
+        // Collect which hardware metric types are requested
+        var hardwareMetricTypes = new HashSet<string>();
 
         foreach (var metricType in metricTypes)
         {
@@ -172,60 +139,76 @@ public class LocalSystemResourceCollector
 
                 case SupportedDataType.Hwinfo:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        hardwareInfoTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectHardwareInfoMetrics(), t), "HardwareInfo", ct);
-                        tasks.Add(hardwareInfoTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Hwinfo);
                     break;
 
                 case SupportedDataType.Temperature:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        temperatureTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectTemperatureMetrics(), t), "Temperature", ct);
-                        tasks.Add(temperatureTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Temperature);
                     break;
 
                 case SupportedDataType.Voltage:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        voltageTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectVoltageMetrics(), t), "Voltage", ct);
-                        tasks.Add(voltageTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Voltage);
                     break;
 
                 case SupportedDataType.Fanspeed:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        fanSpeedTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectFanSpeedMetrics(), t), "FanSpeed", ct);
-                        tasks.Add(fanSpeedTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Fanspeed);
                     break;
 
                 case SupportedDataType.Gpio:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        gpioTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectGpioMetrics(), t), "GPIO", ct);
-                        tasks.Add(gpioTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Gpio);
                     break;
 
                 case SupportedDataType.Watchdog:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        watchdogTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectWatchdogMetrics(), t), "Watchdog", ct);
-                        tasks.Add(watchdogTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Watchdog);
                     break;
 
                 case SupportedDataType.Thermalprotection:
                     if (_hardwarePlatformCollector != null)
-                    {
-                        thermalProtectionTask = ExecuteWithRetryAsync(t => Task.Run(() => _hardwarePlatformCollector.CollectThermalProtectionMetrics(), t), "ThermalProtection", ct);
-                        tasks.Add(thermalProtectionTask);
-                    }
+                        hardwareMetricTypes.Add(SupportedDataType.Thermalprotection);
                     break;
             }
+        }
+
+        // Hardware platform metrics are collected SEQUENTIALLY in a SINGLE task
+        // to prevent concurrent P/Invoke calls to the non-thread-safe libSusiIoT.so native library.
+        // Concurrent calls cause SIGSEGV (exit code 139).
+        Task? hardwareTask = null;
+        if (_hardwarePlatformCollector != null && hardwareMetricTypes.Count > 0)
+        {
+            hardwareTask = Task.Run(() =>
+            {
+                var threadId = Environment.CurrentManagedThreadId;
+                _logger.LogDebug(
+                    "[SIGSEGV-FIX] Hardware metrics sequential task started on Thread {ThreadId}. Types: {Types}",
+                    threadId, string.Join(", ", hardwareMetricTypes));
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                if (hardwareMetricTypes.Contains(SupportedDataType.Hwinfo))
+                    rawData.HardwareInfo = _hardwarePlatformCollector.CollectHardwareInfoMetrics();
+                if (hardwareMetricTypes.Contains(SupportedDataType.Temperature))
+                    rawData.Temperature = _hardwarePlatformCollector.CollectTemperatureMetrics();
+                if (hardwareMetricTypes.Contains(SupportedDataType.Voltage))
+                    rawData.Voltage = _hardwarePlatformCollector.CollectVoltageMetrics();
+                if (hardwareMetricTypes.Contains(SupportedDataType.Fanspeed))
+                    rawData.FanSpeed = _hardwarePlatformCollector.CollectFanSpeedMetrics();
+                if (hardwareMetricTypes.Contains(SupportedDataType.Gpio))
+                    rawData.Gpio = _hardwarePlatformCollector.CollectGpioMetrics();
+                if (hardwareMetricTypes.Contains(SupportedDataType.Watchdog))
+                    rawData.Watchdog = _hardwarePlatformCollector.CollectWatchdogMetrics();
+                if (hardwareMetricTypes.Contains(SupportedDataType.Thermalprotection))
+                    rawData.ThermalProtection = _hardwarePlatformCollector.CollectThermalProtectionMetrics();
+
+                sw.Stop();
+                _logger.LogDebug(
+                    "[SIGSEGV-FIX] Hardware metrics sequential task completed on Thread {ThreadId} in {ElapsedMs}ms",
+                    threadId, sw.ElapsedMilliseconds);
+            }, ct);
+            tasks.Add(hardwareTask);
         }
 
         if (tasks.Count > 0)
@@ -283,46 +266,11 @@ public class LocalSystemResourceCollector
             else AddCollectionError(rawData, SupportedDataType.Gpu);
         }
 
-        if (hardwareInfoTask != null)
+        if (hardwareTask != null && hardwareTask.IsFaulted)
         {
-            if (hardwareInfoTask.IsCompletedSuccessfully && hardwareInfoTask.Result != null) rawData.HardwareInfo = hardwareInfoTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Hwinfo);
-        }
-
-        if (temperatureTask != null)
-        {
-            if (temperatureTask.IsCompletedSuccessfully && temperatureTask.Result != null) rawData.Temperature = temperatureTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Temperature);
-        }
-
-        if (voltageTask != null)
-        {
-            if (voltageTask.IsCompletedSuccessfully && voltageTask.Result != null) rawData.Voltage = voltageTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Voltage);
-        }
-
-        if (fanSpeedTask != null)
-        {
-            if (fanSpeedTask.IsCompletedSuccessfully && fanSpeedTask.Result != null) rawData.FanSpeed = fanSpeedTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Fanspeed);
-        }
-
-        if (gpioTask != null)
-        {
-            if (gpioTask.IsCompletedSuccessfully && gpioTask.Result != null) rawData.Gpio = gpioTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Gpio);
-        }
-
-        if (watchdogTask != null)
-        {
-            if (watchdogTask.IsCompletedSuccessfully && watchdogTask.Result != null) rawData.Watchdog = watchdogTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Watchdog);
-        }
-
-        if (thermalProtectionTask != null)
-        {
-            if (thermalProtectionTask.IsCompletedSuccessfully && thermalProtectionTask.Result != null) rawData.ThermalProtection = thermalProtectionTask.Result;
-            else AddCollectionError(rawData, SupportedDataType.Thermalprotection);
+            _logger.LogError(hardwareTask.Exception, "Hardware platform metric collection failed");
+            foreach (var metricType in hardwareMetricTypes)
+                AddCollectionError(rawData, metricType);
         }
 
         return rawData;
