@@ -22,7 +22,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     public LocalSystemCommunication(
         ConnectionSettings? settings = null,
         ILogger<CommunicationBase>? logger = null)
-        : base(settings ?? new ConnectionSettings { RequestLock = false }, logger)
+        : base(settings ?? new ConnectionSettings { RequestLock = true }, logger)
     {
         // LocalSystemResourceCollector initialization should never fail
         // because it gracefully handles hardware platform init failures
@@ -88,7 +88,9 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     {
         try
         {
-            _logger.LogDebug("Collect system metrics for types: {Types}", string.Join(", ", request.MetricTypes));
+            _logger.LogDebug(
+                "[SIGSEGV-FIX] RequestAsyncCore ENTERED (RequestLock=true serialized) on Thread {ThreadId}, types: {Types}",
+                Environment.CurrentManagedThreadId, string.Join(", ", request.MetricTypes));
             return await _collector.CollectMetricsAsync(request.MetricTypes, cancellationToken);
         }
         catch (Exception ex)
