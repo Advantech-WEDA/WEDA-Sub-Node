@@ -232,6 +232,11 @@ public class ModbusRequestResponseParser : IRequestResponseProtocolParser
                         resourceId,
                         string.Join(",", rawData));
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Caller cancelled (config update / shutdown) - stop reading remaining sensors
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
