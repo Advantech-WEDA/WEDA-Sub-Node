@@ -89,6 +89,12 @@ public class ModbusBatchReader
                 {
                     await ExecuteBatchAsync(batch, results, cancellationToken);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Caller cancelled (config update / shutdown) - propagate without marking
+                    // sensors as failed, so the caller can handle it as cancellation rather than error.
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
