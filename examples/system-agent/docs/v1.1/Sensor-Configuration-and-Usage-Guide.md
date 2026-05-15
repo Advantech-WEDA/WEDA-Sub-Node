@@ -1,6 +1,36 @@
-# Sensor 配置快速參考 — v1.1 差異
+# Sensor 配置參考 — v1.1 差異
 
 > 本文件僅說明 v1.1 與 v1.0 的差異。完整欄位說明請參閱 [v1.0 Sensor-Configuration-and-Usage-Guide](../v1.0/Sensor-Configuration-and-Usage-Guide.md)。
+
+---
+
+## Sensor 欄位修改規則
+
+### 可修改的欄位
+
+| 欄位 | 適用類型 | 可設定的值 |
+|------|----------|------------|
+| `Report.Enabled` | 所有 | `true` / `false` |
+| `Report.Interval` | 所有 | 正整數（毫秒） |
+| `SensorInfo.Description` | 所有 | 任意字串 |
+| `SensorInfo.DisplayName` | 所有 | 任意字串 |
+| `Parameters.MountPoint` | MetricType : `disk` + 任意 MetricName | 字串，如 `/`、`/home` |
+| `Parameters.Interface` | MetricType : `network` + 任意 MetricName | 字串，如 `eth0` |
+| `Parameters.Interfaces` | MetricType : `network` + 任意 MetricName | 陣列，如 []、[`eth0`、`eth1`]  |
+| `Parameters.PinId` | MetricType : `gpio` + MetricName:`pinState` | 字串，如 `gpio4`、`4`（支援名稱或數字編號） |
+| `Parameters.PinIds` | MetricType : `gpio` + MetricName:`pinState` | 陣列，如 `[]`、`[4, 17, 27]`、`["gpio4", "gpio17"]`（支援名稱或數字編號） |
+| `Parameters.Source` | MetricType : `temperature` + MetricName:`therm` | 字串，如 `cpu-therm` |
+| `Parameters.Sources` | MetricType : `temperature` + MetricName:`therm` | 陣列，如 `[]`、`["cpu-therm", "gpu-therm"]` |
+
+### 不可修改的欄位
+
+| 欄位 | 說明 |
+|------|------|
+| `Name` | Sensor 唯一識別名稱，建立後不可變更 |
+| `SensorGroup` | Sensor 分組（`AI`/`AO`/`DI`/`DO`/`TEMP`/`PWR`/`SYS`） |
+| `SensorInfo.Schema` | 資料類型（`double`/`long`/`integer`/`boolean`/`string`） |
+| `Parameters.MetricType` | 指標類型（`cpu`/`memory`/`disk`/`network`/`gpu`/`system`/`hwinfo`/`temperature`/`voltage`/`fanspeed`/`gpio`/`watchdog`/`thermalprotection`） |
+| `Parameters.MetricName` | 指標名稱（對應 MetricType 的固定列舉值） |
 
 ---
 

@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
@@ -7,7 +5,6 @@ using SystemAgentExample.Protocols;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Protocols;
-using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Devices;
 
 namespace SystemAgentExample.Devices;
@@ -82,136 +79,6 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
 
         configuration.Sensors = SensorExpander.Expand(configuration.Sensors, resources, logger);
 
-        // Update RawDeviceCfgJson so shadow reports the expanded sensor list
-        // (device mgmt needs to see individual sensors, not the template)
-        UpdateRawDeviceCfgWithExpandedSensors(configuration, logger);
-
         return configuration;
-    }
-
-    /// <summary>
-    /// Rebuilds RawDeviceCfgJson with the expanded sensor list so that
-    /// shadow report contains the actual runtime sensors (not the unexpanded templates).
-    /// </summary>
-    private static void UpdateRawDeviceCfgWithExpandedSensors(
-        DeviceConfiguration configuration, ILogger logger)
-    {
-        if (!configuration.RawDeviceCfgJson.HasValue)
-            return;
-
-        try
-        {
-            var rawJson = configuration.RawDeviceCfgJson.Value;
-
-            using var stream = new MemoryStream();
-            using (var writer = new Utf8JsonWriter(stream))
-            {
-                writer.WriteStartObject();
-
-                foreach (var prop in rawJson.EnumerateObject())
-                {
-                    if (prop.Name == "DeviceConfigs")
-                    {
-                        writer.WritePropertyName("DeviceConfigs");
-                        writer.WriteStartObject();
-
-                        foreach (var deviceConfigProp in prop.Value.EnumerateObject())
-                        {
-                            if (deviceConfigProp.Name == configuration.DeviceName)
-                            {
-                                // Replace this device's Sensors with expanded list
-                                writer.WritePropertyName(deviceConfigProp.Name);
-                                writer.WriteStartObject();
-
-                                foreach (var field in deviceConfigProp.Value.EnumerateObject())
-                                {
-                                    if (field.Name == "Sensors")
-                                    {
-                                        writer.WritePropertyName("Sensors");
-                                        WriteSensorsAsDeviceCfgFormat(writer, configuration.Sensors);
-                                    }
-                                    else
-                                    {
-                                        field.WriteTo(writer);
-                                    }
-                                }
-
-                                writer.WriteEndObject();
-                            }
-                            else
-                            {
-                                deviceConfigProp.WriteTo(writer);
-                            }
-                        }
-
-                        writer.WriteEndObject();
-                    }
-                    else
-                    {
-                        prop.WriteTo(writer);
-                    }
-                }
-
-                writer.WriteEndObject();
-            }
-
-            stream.Position = 0;
-            using var doc = JsonDocument.Parse(stream);
-            configuration.RawDeviceCfgJson = doc.RootElement.Clone();
-
-            logger.LogDebug("Updated RawDeviceCfgJson with {Count} expanded sensors", configuration.Sensors.Count);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to update RawDeviceCfgJson with expanded sensors");
-        }
-    }
-
-    /// <summary>
-    /// Writes sensors in the same JSON format as devicecfg.json:
-    /// Only Name, SensorGroup (string), Parameters, Report (Enabled+Interval), SensorInfo (Schema+Description+DisplayName).
-    /// </summary>
-    private static void WriteSensorsAsDeviceCfgFormat(Utf8JsonWriter writer, List<Sensor> sensors)
-    {
-        writer.WriteStartArray();
-
-        foreach (var sensor in sensors)
-        {
-            writer.WriteStartObject();
-
-            writer.WriteString("Name", sensor.Name);
-            writer.WriteString("SensorGroup", sensor.SensorGroup.ToString());
-
-            // Parameters
-            writer.WritePropertyName("Parameters");
-            writer.WriteStartObject();
-            if (sensor.Parameters != null)
-            {
-                foreach (var kvp in sensor.Parameters)
-                {
-                    writer.WriteString(kvp.Key, kvp.Value?.ToString() ?? "");
-                }
-            }
-            writer.WriteEndObject();
-
-            // Report
-            writer.WritePropertyName("Report");
-            writer.WriteStartObject();
-            writer.WriteBoolean("Enabled", sensor.Report.Enabled);
-            writer.WriteNumber("Interval", sensor.Report.Interval);
-            writer.WriteEndObject();
-
-            // SensorInfo
-            writer.WritePropertyName("SensorInfo");
-            writer.WriteStartObject();
-            writer.WriteString("Schema", sensor.SensorInfo.Schema);
-            writer.WriteString("Description", sensor.SensorInfo.Description);
-            writer.WriteString("DisplayName", sensor.SensorInfo.DisplayName);
-            writer.WriteEndObject();
-
-            writer.WriteEndObject();
-        }
-
-        writer.WriteEndArray();
     }
 }
