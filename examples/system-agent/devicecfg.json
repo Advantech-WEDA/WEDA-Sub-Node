@@ -214,8 +214,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "Disk total capacity for /",
-            "DisplayName": "Disk Total (/)"
+            "Description": "Disk total capacity for root volume",
+            "DisplayName": "Disk Total (root)"
           }
         },
         {
@@ -232,8 +232,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "Disk available capacity for /",
-            "DisplayName": "Disk Available (/)"
+            "Description": "Disk available capacity for root volume",
+            "DisplayName": "Disk Available (root)"
           }
         },
         {
@@ -250,8 +250,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "Disk used capacity for /",
-            "DisplayName": "Disk Used (/)"
+            "Description": "Disk used capacity for root volume",
+            "DisplayName": "Disk Used (root)"
           }
         },
         {
@@ -268,8 +268,8 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "Disk usage percentage for /",
-            "DisplayName": "Disk Usage (/)"
+            "Description": "Disk usage percentage for root volume",
+            "DisplayName": "Disk Usage (root)"
           }
         },
         {
