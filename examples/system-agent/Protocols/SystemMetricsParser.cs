@@ -387,27 +387,31 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     {
         if (metrics == null || metrics.Temperatures == null) return null;
 
-        if (string.IsNullOrEmpty(metricName))
+        // v1.1: use Source parameter as the sensor source name
+        // v1.0 fallback: use MetricName as the sensor source name
+        var sourceName = GetParameterValue(sensor, "Source") ?? metricName;
+
+        if (string.IsNullOrEmpty(sourceName))
         {
-            _logger.LogWarning("Sensor '{Name}' missing MetricName for temperature, skipping", sensor.Name);
+            _logger.LogWarning("Sensor '{Name}' missing Source/MetricName for temperature, skipping", sensor.Name);
             return null;
         }
 
         // Try exact match first
-        if (metrics.Temperatures.TryGetValue(metricName, out var temp))
+        if (metrics.Temperatures.TryGetValue(sourceName, out var temp))
         {
             return temp;
         }
 
         // Try case-insensitive match
         var key = metrics.Temperatures.Keys
-            .FirstOrDefault(k => k.Equals(metricName, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(k => k.Equals(sourceName, StringComparison.OrdinalIgnoreCase));
         if (key != null && metrics.Temperatures.TryGetValue(key, out var tempValue))
         {
             return tempValue;
         }
 
-        _logger.LogDebug("Temperature sensor '{MetricName}' not found in collected metrics", metricName);
+        _logger.LogDebug("Temperature sensor '{Source}' not found in collected metrics", sourceName);
         return null;
     }
 

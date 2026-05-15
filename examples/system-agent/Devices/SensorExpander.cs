@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 using Microsoft.Extensions.Logging;
 
 using SystemAgentExample.Communication;
@@ -103,10 +101,15 @@ internal static class SensorExpander
     private static List<Sensor> ExpandTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
         // Already bound to a specific source → keep as-is
-        if (GetParam(sensor, "MetricName") != null)
+        if (GetParam(sensor, "Source") != null)
             return [sensor];
 
-        var sources = ResolveResourceList(sensor, "MetricNames", discovered);
+        // v1.0 compat: MetricName without Source means already bound (MetricName acts as source)
+        if (GetParam(sensor, "Source") == null && GetParam(sensor, "Sources") == null
+            && GetParam(sensor, "MetricName") != null)
+            return [sensor];
+
+        var sources = ResolveResourceList(sensor, "Sources", discovered);
         if (sources.Count == 0)
         {
             logger.LogWarning("No temperature sources discovered for sensor '{Name}', keeping as-is", sensor.Name);
@@ -118,27 +121,28 @@ internal static class SensorExpander
             sensor.Name, sources.Count, string.Join(", ", sources));
 
         return sources
-            .Select(source => CloneSensor(sensor, source, "MetricNames", "MetricName"))
+            .Select(source => CloneSensor(sensor, source, "Sources", "Source"))
             .ToList();
     }
 
     /// <summary>
-    /// Resolves the resource list: explicit array param takes priority, otherwise use auto-discovered.
+    /// Resolves the resource list from a pre-normalized string[] parameter.
+    /// If the array exists and has elements, use it. Otherwise fall back to auto-discovered.
+    /// Expects ParameterNormalizer to have already converted all formats to string[].
     /// </summary>
     private static IReadOnlyList<string> ResolveResourceList(
         Sensor sensor, string arrayParamKey, IReadOnlyList<string> discovered)
     {
-        if (sensor.Parameters != null &&
-            sensor.Parameters.TryGetValue(arrayParamKey, out var arrayValue))
+        if (sensor.Parameters == null ||
+            !sensor.Parameters.TryGetValue(arrayParamKey, out var arrayValue))
         {
-            var arr = arrayValue is JsonElement element
-                ? element.Deserialize<string[]>()
-                : JsonSerializer.Deserialize<string[]>(JsonSerializer.Serialize(arrayValue));
-
-            if (arr is { Length: > 0 })
-                return arr;
+            return discovered;
         }
 
+        if (arrayValue is string[] arr && arr.Length > 0)
+            return arr;
+
+        // Empty array or removed key → auto-detect
         return discovered;
     }
 

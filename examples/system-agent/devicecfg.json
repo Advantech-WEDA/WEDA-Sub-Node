@@ -26,8 +26,8 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for cpu.usage",
-            "DisplayName": "SensorInfo DisplayName for cpu.usage"
+            "Description": "CPU usage percentage",
+            "DisplayName": "CPU Usage"
           }
         },
         {
@@ -43,8 +43,8 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for cpu.load.1m",
-            "DisplayName": "SensorInfo DisplayName for cpu.load.1m"
+            "Description": "1 minute load average",
+            "DisplayName": "CPU Load (1m)"
           }
         },
         {
@@ -60,8 +60,8 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for cpu.load.5m",
-            "DisplayName": "SensorInfo DisplayName for cpu.load.5m"
+            "Description": "5 minute load average",
+            "DisplayName": "CPU Load (5m)"
           }
         },
         {
@@ -77,8 +77,25 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for cpu.load.15m",
-            "DisplayName": "SensorInfo DisplayName for cpu.load.15m"
+            "Description": "15 minute load average",
+            "DisplayName": "CPU Load (15m)"
+          }
+        },
+        {
+          "Name": "cpu_context_switches",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "cpu",
+            "MetricName": "context_switches"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "Total context switches",
+            "DisplayName": "Context Switches"
           }
         },
         {
@@ -94,8 +111,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for memory.total",
-            "DisplayName": "SensorInfo DisplayName for memory.total"
+            "Description": "Total memory in bytes",
+            "DisplayName": "Memory Total"
           }
         },
         {
@@ -111,8 +128,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for memory.available",
-            "DisplayName": "SensorInfo DisplayName for memory.available"
+            "Description": "Available memory in bytes",
+            "DisplayName": "Memory Available"
           }
         },
         {
@@ -128,8 +145,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for memory.used",
-            "DisplayName": "SensorInfo DisplayName for memory.used"
+            "Description": "Used memory in bytes",
+            "DisplayName": "Memory Used"
           }
         },
         {
@@ -145,8 +162,42 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for memory.cached",
-            "DisplayName": "SensorInfo DisplayName for memory.cached"
+            "Description": "Cached memory in bytes",
+            "DisplayName": "Memory Cached"
+          }
+        },
+        {
+          "Name": "memory_swap_total",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "swap_total"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "Total swap in bytes",
+            "DisplayName": "Swap Total"
+          }
+        },
+        {
+          "Name": "memory_swap_free",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "memory",
+            "MetricName": "swap_free"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "Free swap in bytes",
+            "DisplayName": "Swap Free"
           }
         },
         {
@@ -163,8 +214,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for disk.root.total",
-            "DisplayName": "SensorInfo DisplayName for disk.root.total"
+            "Description": "Disk total capacity for /",
+            "DisplayName": "Disk Total (/)"
           }
         },
         {
@@ -181,8 +232,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for disk.root.available",
-            "DisplayName": "SensorInfo DisplayName for disk.root.available"
+            "Description": "Disk available capacity for /",
+            "DisplayName": "Disk Available (/)"
           }
         },
         {
@@ -199,8 +250,8 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for disk.root.used",
-            "DisplayName": "SensorInfo DisplayName for disk.root.used"
+            "Description": "Disk used capacity for /",
+            "DisplayName": "Disk Used (/)"
           }
         },
         {
@@ -217,17 +268,17 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "SensorInfo Description for disk.root.usage_percent",
-            "DisplayName": "SensorInfo DisplayName for disk.root.usage_percent"
+            "Description": "Disk usage percentage for /",
+            "DisplayName": "Disk Usage (/)"
           }
         },
         {
-          "Name": "network_en0_bytes_sent",
+          "Name": "network_bytes_sent",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
             "MetricName": "bytes_sent",
-            "Interface": "en0"
+            "Interfaces": []
           },
           "Report": {
             "Enabled": true,
@@ -235,17 +286,17 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for network.en0.bytes_sent",
-            "DisplayName": "SensorInfo DisplayName for network.en0.bytes_sent"
+            "Description": "Total bytes sent",
+            "DisplayName": "Bytes Sent"
           }
         },
         {
-          "Name": "network_en0_bytes_received",
+          "Name": "network_bytes_received",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
             "MetricName": "bytes_received",
-            "Interface": "en0"
+            "Interfaces": []
           },
           "Report": {
             "Enabled": true,
@@ -253,17 +304,17 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for network.en0.bytes_received",
-            "DisplayName": "SensorInfo DisplayName for network.en0.bytes_received"
+            "Description": "Total bytes received",
+            "DisplayName": "Bytes Received"
           }
         },
         {
-          "Name": "network_en0_packets_sent",
+          "Name": "network_packets_sent",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
             "MetricName": "packets_sent",
-            "Interface": "en0"
+            "Interfaces": []
           },
           "Report": {
             "Enabled": true,
@@ -271,17 +322,17 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for network.en0.packets_sent",
-            "DisplayName": "SensorInfo DisplayName for network.en0.packets_sent"
+            "Description": "Total packets sent",
+            "DisplayName": "Packets Sent"
           }
         },
         {
-          "Name": "network_en0_packets_received",
+          "Name": "network_packets_received",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
             "MetricName": "packets_received",
-            "Interface": "en0"
+            "Interfaces": []
           },
           "Report": {
             "Enabled": true,
@@ -289,17 +340,17 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for network.en0.packets_received",
-            "DisplayName": "SensorInfo DisplayName for network.en0.packets_received"
+            "Description": "Total packets received",
+            "DisplayName": "Packets Received"
           }
         },
         {
-          "Name": "network_en0_errors",
+          "Name": "network_errors",
           "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "network",
             "MetricName": "errors",
-            "Interface": "en0"
+            "Interfaces": []
           },
           "Report": {
             "Enabled": true,
@@ -307,12 +358,64 @@
           },
           "SensorInfo": {
             "Schema": "long",
-            "Description": "SensorInfo Description for network.en0.errors",
-            "DisplayName": "SensorInfo DisplayName for network.en0.errors"
+            "Description": "Total network errors",
+            "DisplayName": "Network Errors"
+          }
+        },
+        {
+          "Name": "system_time",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "system",
+            "MetricName": "time"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "Current system time (Unix timestamp)",
+            "DisplayName": "System Time"
+          }
+        },
+        {
+          "Name": "system_boot_time",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "system",
+            "MetricName": "boot_time"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "System boot time (Unix timestamp)",
+            "DisplayName": "Boot Time"
+          }
+        },
+        {
+          "Name": "gpu_utilization",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "gpu",
+            "MetricName": "utilization"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPU utilization percentage",
+            "DisplayName": "GPU Utilization"
           }
         },
         {
           "Name": "hwinfo_motherboard",
+          "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "hwinfo",
             "MetricName": "motherboardname"
@@ -323,15 +426,51 @@
           },
           "SensorInfo": {
             "Schema": "string",
-            "Description": "SensorInfo Description for hwinfo.motherboard",
-            "DisplayName": "SensorInfo DisplayName for hwinfo.motherboard"
+            "Description": "Motherboard name",
+            "DisplayName": "Motherboard"
           }
         },
         {
-          "Name": "temperature_cpU_therm",
+          "Name": "hwinfo_manufacturer",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "hwinfo",
+            "MetricName": "manufacturer"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "SensorInfo": {
+            "Schema": "string",
+            "Description": "Manufacturer name",
+            "DisplayName": "Manufacturer"
+          }
+        },
+        {
+          "Name": "hwinfo_biosrevision",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "hwinfo",
+            "MetricName": "biosrevision"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "SensorInfo": {
+            "Schema": "string",
+            "Description": "BIOS revision",
+            "DisplayName": "BIOS Revision"
+          }
+        },
+        {
+          "Name": "temperature",
+          "SensorGroup": "TEMP",
           "Parameters": {
             "MetricType": "temperature",
-            "MetricName": "cpU-therm"
+            "MetricName": "therm",
+            "Sources": []
           },
           "Report": {
             "Enabled": true,
@@ -339,28 +478,47 @@
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "CPU thermal sensor temperature",
-            "DisplayName": "CPU Thermal"
+            "Description": "Temperature sensor",
+            "DisplayName": "Temperature"
           }
         },
         {
-          "Name": "temperature_gpU_therm",
+          "Name": "voltage",
+          "SensorGroup": "PWR",
           "Parameters": {
-            "MetricType": "temperature",
-            "MetricName": "gpU-therm"
+            "MetricType": "voltage",
+            "MetricName": "voltage"
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 5000
           },
           "SensorInfo": {
             "Schema": "double",
-            "Description": "GPU thermal sensor temperature",
-            "DisplayName": "GPU Thermal"
+            "Description": "Voltage sensor reading",
+            "DisplayName": "Voltage"
+          }
+        },
+        {
+          "Name": "fanspeed",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "fanspeed",
+            "MetricName": "fanspeed"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "Fan speed reading",
+            "DisplayName": "Fan Speed"
           }
         },
         {
           "Name": "gpio_isSupported",
+          "SensorGroup": "DI",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "isSupported"
@@ -376,11 +534,12 @@
           }
         },
         {
-          "Name": "gpio_pin_UIO_GPIO2",
+          "Name": "gpio_pinState",
+          "SensorGroup": "DI",
           "Parameters": {
             "MetricType": "gpio",
             "MetricName": "pinState",
-            "PinId": "UIO_GPIO2"
+            "PinIds": []
           },
           "Report": {
             "Enabled": true,
@@ -388,318 +547,13 @@
           },
           "SensorInfo": {
             "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO2",
-            "DisplayName": "UIO_GPIO2 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO4",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO4"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO4",
-            "DisplayName": "UIO_GPIO4 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO5",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO5"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO5",
-            "DisplayName": "UIO_GPIO5 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO6",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO6"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO6",
-            "DisplayName": "UIO_GPIO6 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO7",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO7"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO7",
-            "DisplayName": "UIO_GPIO7 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO8",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO8"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO8",
-            "DisplayName": "UIO_GPIO8 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO9",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO9"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO9",
-            "DisplayName": "UIO_GPIO9 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO10",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO10"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO10",
-            "DisplayName": "UIO_GPIO10 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO11_CPU",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO11_CPU"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO11_CPU",
-            "DisplayName": "UIO_GPIO11_CPU State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO12_CPU",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO12_CPU"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO12_CPU",
-            "DisplayName": "UIO_GPIO12_CPU State"
-          }
-        },
-        {
-          "Name": "gpio_pin_CN13_GPIO1",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "CN13_GPIO1"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for CN13_GPIO1",
-            "DisplayName": "CN13_GPIO1 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_CN13_GPIO7",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "CN13_GPIO7"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for CN13_GPIO7",
-            "DisplayName": "CN13_GPIO7 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_CN13_GPIO9",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "CN13_GPIO9"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for CN13_GPIO9",
-            "DisplayName": "CN13_GPIO9 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_CN13_GPIO11",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "CN13_GPIO11"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for CN13_GPIO11",
-            "DisplayName": "CN13_GPIO11 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_CN13_GPIO12",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "CN13_GPIO12"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for CN13_GPIO12",
-            "DisplayName": "CN13_GPIO12 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_CN13_GPIO13",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "CN13_GPIO13"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for CN13_GPIO13",
-            "DisplayName": "CN13_GPIO13 State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO11_Expender",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO11_Expender"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO11_Expender",
-            "DisplayName": "UIO_GPIO11_Expender State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_GPIO12_Expender",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_GPIO12_Expender"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_GPIO12_Expender",
-            "DisplayName": "UIO_GPIO12_Expender State"
-          }
-        },
-        {
-          "Name": "gpio_pin_UIO_ID_SW",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "UIO_ID_SW"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for UIO_ID_SW",
-            "DisplayName": "UIO_ID_SW State"
+            "Description": "GPIO pin state",
+            "DisplayName": "Pin State"
           }
         },
         {
           "Name": "watchdog_isSupported",
+          "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "watchdog",
             "MetricName": "isSupported"
@@ -716,6 +570,7 @@
         },
         {
           "Name": "thermalprotection_isSupported",
+          "SensorGroup": "SYS",
           "Parameters": {
             "MetricType": "thermalprotection",
             "MetricName": "isSupported"
