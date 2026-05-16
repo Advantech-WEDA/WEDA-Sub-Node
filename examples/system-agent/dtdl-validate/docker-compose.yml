@@ -1,0 +1,40 @@
+# WEDA System-Agent DTDL validator -- compose wrapper.
+#
+# Run from this directory (dtdl-validate/):
+#
+#   # Build the image and run both validators against docs/Metrics/
+#   docker compose run --rm validate
+#
+#   # Run just the schema-level validator
+#   docker compose run --rm validate node /app/validate-dtdl.js
+#
+#   # Run just the instance-level validator
+#   docker compose run --rm validate node /app/validate-samples.js
+#
+# The project's docs/Metrics/ directory is mounted read-only at /work, so
+# editing a DTDL file or a sample fixture and re-running picks up the
+# change immediately -- no image rebuild needed.
+
+services:
+  # Node.js validator (faster build, smaller image -- preferred for CI gates).
+  validate:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    image: weda-dtdl-validate:latest
+    volumes:
+      - ../docs/Metrics:/work:ro
+    environment:
+      DTDL_BASE: /work
+
+  # .NET 8 validator (same logic, useful when the team already has .NET
+  # tooling pinned or wants to share a single base image with the agent).
+  validate-dotnet:
+    build:
+      context: ./scripts-dotnet
+      dockerfile: Dockerfile
+    image: weda-dtdl-validate-dotnet:latest
+    volumes:
+      - ../docs/Metrics:/work:ro
+    environment:
+      DTDL_BASE: /work

@@ -1,0 +1,15 @@
+[
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",              "Value": true,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",              "Value": false, "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",              "Value": "yes", "expect": "invalid", "reason": "not boolean" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",              "Value": 1,     "expect": "invalid", "reason": "not boolean" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": 0,     "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": 1,     "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": 2,     "expect": "invalid", "reason": "not in {0, 1}" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": -1,    "expect": "invalid", "reason": "not in {0, 1}" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": true,  "expect": "invalid", "reason": "wrong type (boolean)" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:WatchdogIsSupported;1",          "Value": false, "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:WatchdogIsSupported;1",          "Value": true,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:ThermalProtectionIsSupported;1", "Value": true,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:ThermalProtectionIsSupported;1", "Value": null,  "expect": "invalid", "reason": "null not allowed for boolean capability" }
+]

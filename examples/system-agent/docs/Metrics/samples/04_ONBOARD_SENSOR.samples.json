@@ -1,0 +1,13 @@
+[
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1", "Value": 42.5,    "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1", "Value": -40.0,   "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1", "Value": 125.0,   "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1", "Value": 200.0,   "expect": "invalid", "reason": "out of [-40, 125]" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1", "Value": -50.0,   "expect": "invalid", "reason": "out of [-40, 125]" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Voltage;1",     "Value": 5.05,    "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Voltage;1",     "Value": 3.3,     "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Voltage;1",     "Value": -0.1,    "expect": "invalid", "reason": "negative volts" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1",    "Value": 2400.0,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1",    "Value": 0.0,     "expect": "valid", "reason": "fan stopped (cross-metric heuristic flags this only when CPU temp rises)" },
+  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1",    "Value": -100,    "expect": "invalid", "reason": "negative RPM" }
+]

@@ -1,0 +1,187 @@
+{
+  "@id": "dtmi:advantech:WEDA:SystemAgent:CpuNetwork;1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent — CPU & Network Telemetry",
+  "description": "DTDL v2 schema for the CPU and Network MetricTypes documented in docs/Metrics/01_CPU_NETWORK_FIELDS.md. Each Telemetry corresponds to one (MetricType, MetricName) pair emitted by SystemMetricsParser. The schemas[] array publishes reusable Enums for MetricType / MetricName / SensorGroup / SensorInfo.Schema; every Telemetry carries a comment field with the validation rule downstream consumers should apply.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface. Validation: Parameters.MetricType MUST equal one of these literals.",
+      "enumValues": [
+        { "name": "Cpu", "enumValue": "cpu", "displayName": "CPU" },
+        { "name": "Network", "enumValue": "network", "displayName": "Network" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:CpuMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when Parameters.MetricType == 'cpu'.",
+      "enumValues": [
+        { "name": "Usage", "enumValue": "usage", "displayName": "CPU Usage (%)" },
+        { "name": "Load1", "enumValue": "load1", "displayName": "1-Minute Load Average" },
+        { "name": "Load5", "enumValue": "load5", "displayName": "5-Minute Load Average" },
+        { "name": "Load15", "enumValue": "load15", "displayName": "15-Minute Load Average" },
+        { "name": "ContextSwitches", "enumValue": "context_switches", "displayName": "Context Switches" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:NetworkMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when Parameters.MetricType == 'network'.",
+      "enumValues": [
+        { "name": "BytesSent", "enumValue": "bytes_sent", "displayName": "Bytes Sent" },
+        { "name": "BytesReceived", "enumValue": "bytes_received", "displayName": "Bytes Received" },
+        { "name": "PacketsSent", "enumValue": "packets_sent", "displayName": "Packets Sent" },
+        { "name": "PacketsReceived", "enumValue": "packets_received", "displayName": "Packets Received" },
+        { "name": "Errors", "enumValue": "errors", "displayName": "Errors (Total)" },
+        { "name": "ErrorsIn", "enumValue": "errors_in", "displayName": "RX Errors" },
+        { "name": "ErrorsOut", "enumValue": "errors_out", "displayName": "TX Errors" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. CPU and Network sensors conventionally use 'SYS'.",
+      "enumValues": [
+        { "name": "AI", "enumValue": "AI", "displayName": "Analog Input" },
+        { "name": "AO", "enumValue": "AO", "displayName": "Analog Output" },
+        { "name": "DI", "enumValue": "DI", "displayName": "Digital Input" },
+        { "name": "DO", "enumValue": "DO", "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR", "enumValue": "PWR", "displayName": "Power" },
+        { "name": "SYS", "enumValue": "SYS", "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema. Validation: must match the Telemetry's native DTDL schema (see Telemetry.schema below).",
+      "enumValues": [
+        { "name": "Double", "enumValue": "double", "displayName": "double" },
+        { "name": "Long", "enumValue": "long", "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String", "enumValue": "string", "displayName": "string" }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",
+      "@type": "Telemetry",
+      "name": "CpuUsage",
+      "displayName": "CPU Usage",
+      "schema": "double",
+      "description": "Overall CPU busy % across all cores (0.00-100.00). MetricType=cpu, MetricName=usage.",
+      "comment": "Validation: 0 <= v <= 100 (rounded to 2 dp); reject NaN / +-Inf as sensor faults; sustained v > 95 for >= 5 min indicates saturation. Unit: percent."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1",
+      "@type": "Telemetry",
+      "name": "CpuLoad1",
+      "displayName": "CPU Load (1m)",
+      "schema": "double",
+      "description": "1-minute load average from /proc/loadavg. MetricType=cpu, MetricName=load1.",
+      "comment": "Validation: v >= 0; unitless; v > 2 * nproc for >= 5 min indicates sustained overload. Returns 0.0 on non-Linux platforms."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:CpuLoad5;1",
+      "@type": "Telemetry",
+      "name": "CpuLoad5",
+      "displayName": "CPU Load (5m)",
+      "schema": "double",
+      "description": "5-minute load average from /proc/loadavg. MetricType=cpu, MetricName=load5.",
+      "comment": "Validation: v >= 0; unitless. Same overload threshold as CpuLoad1."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:CpuLoad15;1",
+      "@type": "Telemetry",
+      "name": "CpuLoad15",
+      "displayName": "CPU Load (15m)",
+      "schema": "double",
+      "description": "15-minute load average from /proc/loadavg. MetricType=cpu, MetricName=load15.",
+      "comment": "Validation: v >= 0; unitless. Same overload threshold as CpuLoad1."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:CpuContextSwitches;1",
+      "@type": "Telemetry",
+      "name": "CpuContextSwitches",
+      "displayName": "CPU Context Switches",
+      "schema": "long",
+      "description": "Cumulative scheduler context-switch count since boot (/proc/stat ctxt). MetricType=cpu, MetricName=context_switches.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0 between samples; resets only on reboot (detect via system.boot_time). Always graph as rate, not absolute value."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkBytesSent;1",
+      "@type": ["Telemetry", "DataSize"],
+      "name": "NetworkBytesSent",
+      "displayName": "Network Bytes Sent",
+      "schema": "long",
+      "unit": "byte",
+      "description": "Cumulative L2 bytes transmitted on the interface since boot. MetricType=network, MetricName=bytes_sent.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0; resets only on reboot. Graph as rate(...) [bps]."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkBytesReceived;1",
+      "@type": ["Telemetry", "DataSize"],
+      "name": "NetworkBytesReceived",
+      "displayName": "Network Bytes Received",
+      "schema": "long",
+      "unit": "byte",
+      "description": "Cumulative L2 bytes received on the interface since boot. MetricType=network, MetricName=bytes_received.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0; resets only on reboot. Graph as rate(...) [bps]."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkPacketsSent;1",
+      "@type": "Telemetry",
+      "name": "NetworkPacketsSent",
+      "displayName": "Network Packets Sent",
+      "schema": "long",
+      "description": "Cumulative TX frame count on the interface since boot. MetricType=network, MetricName=packets_sent.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0; resets only on reboot. Graph as rate(...) [pps]."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkPacketsReceived;1",
+      "@type": "Telemetry",
+      "name": "NetworkPacketsReceived",
+      "displayName": "Network Packets Received",
+      "schema": "long",
+      "description": "Cumulative RX frame count on the interface since boot. MetricType=network, MetricName=packets_received.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0; resets only on reboot. Graph as rate(...) [pps]."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkErrors;1",
+      "@type": "Telemetry",
+      "name": "NetworkErrors",
+      "displayName": "Network Errors",
+      "schema": "long",
+      "description": "Cumulative total network errors (errors_in + errors_out) on the interface since boot. MetricType=network, MetricName=errors.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0. Any sustained non-zero rate on Ethernet is abnormal -- investigate cable / NIC / driver."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkErrorsIn;1",
+      "@type": "Telemetry",
+      "name": "NetworkErrorsIn",
+      "displayName": "Network RX Errors",
+      "schema": "long",
+      "description": "Cumulative receive errors (CRC / framing / FIFO drops) on the interface since boot. MetricType=network, MetricName=errors_in.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0. Non-zero rate typically signals layer-1 problems (cabling, transceiver, FIFO overflow under load)."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:NetworkErrorsOut;1",
+      "@type": "Telemetry",
+      "name": "NetworkErrorsOut",
+      "displayName": "Network TX Errors",
+      "schema": "long",
+      "description": "Cumulative transmit errors (carrier loss / device failure) on the interface since boot. MetricType=network, MetricName=errors_out.",
+      "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0. Non-zero rate typically signals carrier loss or device-side TX failure."
+    }
+  ]
+}

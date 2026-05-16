@@ -1,0 +1,116 @@
+{
+  "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo;1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent — Hardware Information Telemetry",
+  "description": "DTDL v2 schema for the hwinfo MetricType documented in docs/Metrics/03_HARDWARE_INFO_FIELDS.md. Every Telemetry is a constant-per-boot platform identity string read from the hardware-platform driver (e.g. Advantech SUSI). On unsupported hosts the values are suppressed (null), never empty strings.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface.",
+      "enumValues": [
+        { "name": "Hwinfo", "enumValue": "hwinfo", "displayName": "Hardware Info" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:HwinfoMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'hwinfo'.",
+      "enumValues": [
+        { "name": "MotherboardName", "enumValue": "motherboardname", "displayName": "Motherboard Name" },
+        { "name": "Manufacturer",    "enumValue": "manufacturer",    "displayName": "Manufacturer" },
+        { "name": "BiosRevision",    "enumValue": "biosrevision",    "displayName": "BIOS Revision" },
+        { "name": "DriverVersion",   "enumValue": "driverversion",   "displayName": "Driver Version" },
+        { "name": "LibraryVersion",  "enumValue": "libraryversion",  "displayName": "Library Version" },
+        { "name": "EcRevision",      "enumValue": "ecrevision",      "displayName": "EC Revision" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. hwinfo sensors conventionally use 'SYS'.",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema. For hwinfo every MetricName resolves to 'string'.",
+      "enumValues": [
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoMotherboardName;1",
+      "@type": "Telemetry",
+      "name": "HwinfoMotherboardName",
+      "displayName": "Motherboard Name",
+      "schema": "string",
+      "description": "Mainboard model identifier from BIOS / platform driver. MetricType=hwinfo, MetricName=motherboardname.",
+      "comment": "Validation: non-empty ASCII; constant per boot. Drift between samples implies BIOS update or board swap -- log as identity change. null/suppressed on unsupported hosts (no driver)."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoManufacturer;1",
+      "@type": "Telemetry",
+      "name": "HwinfoManufacturer",
+      "displayName": "Manufacturer",
+      "schema": "string",
+      "description": "OEM string from SMBIOS / platform driver. MetricType=hwinfo, MetricName=manufacturer.",
+      "comment": "Validation: non-empty ASCII; constant per boot. Used for fleet-side filtering by vendor."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoBiosRevision;1",
+      "@type": "Telemetry",
+      "name": "HwinfoBiosRevision",
+      "displayName": "BIOS Revision",
+      "schema": "string",
+      "description": "BIOS firmware version. MetricType=hwinfo, MetricName=biosrevision.",
+      "comment": "Validation: non-empty string matching vendor versioning scheme (e.g. 'Vd.dd'). Change between samples implies a BIOS flash -- log as identity change."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoDriverVersion;1",
+      "@type": "Telemetry",
+      "name": "HwinfoDriverVersion",
+      "displayName": "Driver Version",
+      "schema": "string",
+      "description": "Loaded hardware-platform kernel driver version (e.g. SUSI). MetricType=hwinfo, MetricName=driverversion.",
+      "comment": "Validation: non-empty 'd.d.dd' style string. Change between samples implies a driver reload -- log as identity change."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoLibraryVersion;1",
+      "@type": "Telemetry",
+      "name": "HwinfoLibraryVersion",
+      "displayName": "Library Version",
+      "schema": "string",
+      "description": "Userspace platform SDK library version the agent links against. MetricType=hwinfo, MetricName=libraryversion.",
+      "comment": "Validation: non-empty string; constant per binary. Change between samples implies the agent was redeployed."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoEcRevision;1",
+      "@type": "Telemetry",
+      "name": "HwinfoEcRevision",
+      "displayName": "EC Revision",
+      "schema": "string",
+      "description": "Embedded-controller firmware revision (chassis / fan / sensor MCU). MetricType=hwinfo, MetricName=ecrevision.",
+      "comment": "Validation: non-empty string; constant per boot. Change between samples implies EC firmware update."
+    }
+  ]
+}

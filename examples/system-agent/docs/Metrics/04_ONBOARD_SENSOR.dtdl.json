@@ -1,0 +1,106 @@
+{
+  "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor;1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent — Onboard Sensor Telemetry",
+  "description": "DTDL v2 schema for the temperature, voltage, and fanspeed MetricTypes documented in docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md. All three are platform-dependent (e.g. Advantech SUSI). Temperature supports v1.1 Sensor Expansion via Parameters.Source / Parameters.Sources; expanded sensors share the Temperature Telemetry DTMI and differentiate by ResourceId suffix at publish time.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface.",
+      "enumValues": [
+        { "name": "Temperature", "enumValue": "temperature", "displayName": "Temperature" },
+        { "name": "Voltage",     "enumValue": "voltage",     "displayName": "Voltage" },
+        { "name": "Fanspeed",    "enumValue": "fanspeed",    "displayName": "Fan Speed" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:TemperatureMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'temperature'. v1.1 recommends 'therm' with the source moved to Parameters.Source / Parameters.Sources. v1.0-compatible MetricName values (any hardware source name, e.g. 'cpU-therm') are accepted but not enumerated here -- validators must allow MetricName to be 'therm' or any non-empty string.",
+      "enumValues": [
+        { "name": "Therm", "enumValue": "therm", "displayName": "Thermal Sensor (generic)" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:VoltageMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'voltage'.",
+      "enumValues": [
+        { "name": "Voltage", "enumValue": "voltage", "displayName": "Voltage" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:FanspeedMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'fanspeed'.",
+      "enumValues": [
+        { "name": "Fanspeed", "enumValue": "fanspeed", "displayName": "Fan Speed" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. Temperature uses 'TEMP'; voltage uses 'PWR'; fanspeed uses 'SYS'.",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema. For every metric in this Interface the value is 'double'.",
+      "enumValues": [
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:Temperature;1",
+      "@type": ["Telemetry", "Temperature"],
+      "name": "Temperature",
+      "displayName": "Temperature",
+      "schema": "double",
+      "unit": "degreeCelsius",
+      "description": "Onboard thermal sensor reading in Celsius. MetricType=temperature, MetricName=therm (v1.1) or source name (v1.0 compat). v1.1 expansion: one published sample per Source; ResourceId is suffixed with the source name.",
+      "comment": "Validation: -40.0 <= v <= 125.0 realistic; reject NaN / +-Inf as sensor faults; null/suppressed when the source name is missing from the driver-supplied dictionary or hardware returns null. Pair with ThermalProtectionIsSupported (see HardwareFeature interface) -- without thermal protection the host has no autonomous over-temperature response."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:Voltage;1",
+      "@type": ["Telemetry", "Voltage"],
+      "name": "Voltage",
+      "displayName": "Voltage",
+      "schema": "double",
+      "unit": "volt",
+      "description": "Onboard voltage-rail reading in volts. MetricType=voltage, MetricName=voltage. v1.x publishes the aggregate of all rails as a single sensor; per-rail discrimination is reserved for a future release (planned: a Source/Sources parameter mirroring Temperature).",
+      "comment": "Validation: rail-specific bounds applied downstream (e.g. VCORE in [0.6, 1.5], +5V in [4.75, 5.25]); reject NaN / +-Inf; null/suppressed on unsupported hosts."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1",
+      "@type": "Telemetry",
+      "name": "FanSpeed",
+      "displayName": "Fan Speed",
+      "schema": "double",
+      "description": "Onboard fan speed reading in RPM. MetricType=fanspeed, MetricName=fanspeed. v1.x publishes the aggregate of all fans as a single sensor; per-fan discrimination is reserved for a future release.",
+      "comment": "Validation: v >= 0 RPM; reject NaN / +-Inf; null/suppressed on unsupported hosts. v == 0 while Temperature is climbing is the canonical fan-failure signature. (DTDL v2 has no semantic type for RPM; treat as plain double.)"
+    }
+  ]
+}

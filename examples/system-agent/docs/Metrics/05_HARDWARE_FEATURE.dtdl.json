@@ -1,0 +1,124 @@
+{
+  "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature;1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent — Hardware Feature Telemetry",
+  "description": "DTDL v2 schema for the gpio, watchdog, and thermalprotection MetricTypes documented in docs/Metrics/05_HARDWARE_FEATURE_FIELDS.md. All three are platform-dependent (e.g. Advantech SUSI). GPIO pinState supports v1.1 Sensor Expansion via Parameters.PinId / Parameters.PinIds; expanded sensors share the GpioPinState Telemetry DTMI and differentiate by ResourceId suffix at publish time. The reusable GpioPinLevel Enum maps the integer wire values 0/1 to the named labels Low/High.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface.",
+      "enumValues": [
+        { "name": "Gpio",              "enumValue": "gpio",              "displayName": "GPIO" },
+        { "name": "Watchdog",          "enumValue": "watchdog",          "displayName": "Watchdog" },
+        { "name": "ThermalProtection", "enumValue": "thermalprotection", "displayName": "Thermal Protection" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:GpioMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'gpio'. 'pinState' requires Parameters.PinId (v1.0) or Parameters.PinIds (v1.1) or auto-detect.",
+      "enumValues": [
+        { "name": "IsSupported", "enumValue": "isSupported", "displayName": "GPIO Supported" },
+        { "name": "PinState",    "enumValue": "pinState",    "displayName": "GPIO Pin State" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:WatchdogMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'watchdog'.",
+      "enumValues": [
+        { "name": "IsSupported", "enumValue": "isSupported", "displayName": "Watchdog Supported" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:ThermalProtectionMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'thermalprotection'.",
+      "enumValues": [
+        { "name": "IsSupported", "enumValue": "isSupported", "displayName": "Thermal Protection Supported" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:GpioPinLevel;1",
+      "@type": "Enum",
+      "valueSchema": "integer",
+      "description": "Logical level for a GPIO input pin. The agent emits the underlying integer value; consumer dashboards may resolve to the named label via this Enum.",
+      "enumValues": [
+        { "name": "Low",  "enumValue": 0, "displayName": "Low (0)" },
+        { "name": "High", "enumValue": 1, "displayName": "High (1)" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. GPIO pinState uses 'DI'; capability flags (gpio.isSupported, watchdog.isSupported, thermalprotection.isSupported) use 'SYS'.",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema. For this Interface: 'boolean' for every *.isSupported, 'integer' for gpio.pinState.",
+      "enumValues": [
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",
+      "@type": "Telemetry",
+      "name": "GpioIsSupported",
+      "displayName": "GPIO Supported",
+      "schema": "boolean",
+      "description": "Whether the GPIO subsystem is present and responsive. MetricType=gpio, MetricName=isSupported.",
+      "comment": "Validation: stable per boot; v in {true, false}. A flip between samples on the same host indicates driver reload -- investigate. Use as a gate: if false, suppress alarms from any GpioPinState sensors on the same device."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",
+      "@type": "Telemetry",
+      "name": "GpioPinState",
+      "displayName": "GPIO Pin State",
+      "schema": "integer",
+      "description": "Logical level of one GPIO pin (0=Low, 1=High). MetricType=gpio, MetricName=pinState. v1.1 expansion: one published sample per PinId; ResourceId is suffixed with the pin name. Writing GPIO outputs is NOT supported in v1.x.",
+      "comment": "Validation: v in {0, 1}; any other value indicates a driver bug -- drop the sample. null/suppressed when PinId is missing on the sensor, when the pin name does not resolve, or when GpioIsSupported is false. See the GpioPinLevel Enum schema for the named-label mapping."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:WatchdogIsSupported;1",
+      "@type": "Telemetry",
+      "name": "WatchdogIsSupported",
+      "displayName": "Watchdog Supported",
+      "schema": "boolean",
+      "description": "Whether the platform exposes at least one hardware watchdog timer. MetricType=watchdog, MetricName=isSupported.",
+      "comment": "Validation: stable per boot; v in {true, false}. v == false on a unit that should support watchdog (per HwinfoMotherboardName) usually indicates a misloaded kernel module. Kicking the watchdog is NOT exposed in v1.x."
+    },
+    {
+      "@id": "dtmi:advantech:WEDA:SystemInfo:ThermalProtectionIsSupported;1",
+      "@type": "Telemetry",
+      "name": "ThermalProtectionIsSupported",
+      "displayName": "Thermal Protection Supported",
+      "schema": "boolean",
+      "description": "Whether the platform exposes the auto-shutdown / fan-curve engine. MetricType=thermalprotection, MetricName=isSupported.",
+      "comment": "Validation: stable per boot; v in {true, false}. SAFETY-RELEVANT: v == false means the host has no autonomous over-temperature response and the dashboard must be watched by an operator. Per-zone configuration is reserved for a future release."
+    }
+  ]
+}
