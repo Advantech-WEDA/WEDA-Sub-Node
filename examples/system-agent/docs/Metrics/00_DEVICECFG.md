@@ -4,9 +4,8 @@ This page is the one-screen orientation for `devicecfg.json`, the System Agent's
 
 | File path on the agent | Role |
 |---|---|
-| `devicecfg.json` | The canonical runtime config — committed alongside the source, copied next to the built binary on deploy. |
-| `devicecfg-list-sensor.json` | Optional sidecar: lists which sensors the runtime should expose. |
-| `devicecfg-auto-sensor.json` | Optional sidecar: lets the agent auto-detect hardware-backed sensors (GPIOs, temperature probes, fans). |
+| `devicecfg.json` | The canonical runtime config — uses `[]` auto-detect mode (recommended). |
+| `devicecfg-explicit-list.json` | Example: explicit list mode and single-bound sensor syntax. |
 
 ---
 
