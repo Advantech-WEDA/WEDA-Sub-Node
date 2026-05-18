@@ -1,12 +1,12 @@
 {
-  "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo;1",
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo;1",
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
   "displayName": "System Agent — Hardware Information Telemetry",
   "description": "DTDL v2 schema for the hwinfo MetricType documented in docs/Metrics/03_HARDWARE_INFO_FIELDS.md. Every Telemetry is a constant-per-boot platform identity string read from the hardware-platform driver (e.g. Advantech SUSI). On unsupported hosts the values are suppressed (null), never empty strings.",
   "schemas": [
     {
-      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:MetricType;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:MetricType;1",
       "@type": "Enum",
       "valueSchema": "string",
       "description": "Allowed MetricType discriminators in this Interface.",
@@ -15,7 +15,7 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:HwinfoMetricName;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:HwinfoMetricName;1",
       "@type": "Enum",
       "valueSchema": "string",
       "description": "Allowed values of Parameters.MetricName when MetricType == 'hwinfo'.",
@@ -29,7 +29,7 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:SensorGroup;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:SensorGroup;1",
       "@type": "Enum",
       "valueSchema": "string",
       "description": "Allowed values of SensorGroup. hwinfo sensors conventionally use 'SYS'.",
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:SensorInfoSchema;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:SensorInfoSchema;1",
       "@type": "Enum",
       "valueSchema": "string",
       "description": "Allowed values of SensorInfo.Schema. For hwinfo every MetricName resolves to 'string'.",
@@ -59,7 +59,7 @@
   ],
   "contents": [
     {
-      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoMotherboardName;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoMotherboardName;1",
       "@type": "Telemetry",
       "name": "HwinfoMotherboardName",
       "displayName": "Motherboard Name",
@@ -68,7 +68,7 @@
       "comment": "Validation: non-empty ASCII; constant per boot. Drift between samples implies BIOS update or board swap -- log as identity change. null/suppressed on unsupported hosts (no driver)."
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoManufacturer;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoManufacturer;1",
       "@type": "Telemetry",
       "name": "HwinfoManufacturer",
       "displayName": "Manufacturer",
@@ -77,7 +77,7 @@
       "comment": "Validation: non-empty ASCII; constant per boot. Used for fleet-side filtering by vendor."
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoBiosRevision;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoBiosRevision;1",
       "@type": "Telemetry",
       "name": "HwinfoBiosRevision",
       "displayName": "BIOS Revision",
@@ -86,7 +86,7 @@
       "comment": "Validation: non-empty string matching vendor versioning scheme (e.g. 'Vd.dd'). Change between samples implies a BIOS flash -- log as identity change."
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoDriverVersion;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoDriverVersion;1",
       "@type": "Telemetry",
       "name": "HwinfoDriverVersion",
       "displayName": "Driver Version",
@@ -95,7 +95,7 @@
       "comment": "Validation: non-empty 'd.d.dd' style string. Change between samples implies a driver reload -- log as identity change."
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoLibraryVersion;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoLibraryVersion;1",
       "@type": "Telemetry",
       "name": "HwinfoLibraryVersion",
       "displayName": "Library Version",
@@ -104,7 +104,7 @@
       "comment": "Validation: non-empty string; constant per binary. Change between samples implies the agent was redeployed."
     },
     {
-      "@id": "dtmi:advantech:WEDA:SystemInfo:HwinfoEcRevision;1",
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoEcRevision;1",
       "@type": "Telemetry",
       "name": "HwinfoEcRevision",
       "displayName": "EC Revision",

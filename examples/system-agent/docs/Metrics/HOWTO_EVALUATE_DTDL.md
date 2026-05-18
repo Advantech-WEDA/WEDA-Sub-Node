@@ -4,9 +4,10 @@ This guide shows how to (1) validate that the five DTDL Interfaces in `docs/Metr
 
 The same workflow runs locally (developer laptop), in CI, or as a one-off check before shipping a DTDL change.
 
-> **Two layers of validation — keep them separate.**
+> **Three layers of validation — keep them separate.**
 > - **Schema-level** — does the DTDL file parse? This is what the official Microsoft DTDL parser checks. Pure JSON-structure + identifier-resolution validation; no value-level checks.
 > - **Instance-level** — does a published `TelemetryMeasure { ResourceId, Value }` payload satisfy the range / monotonicity / enum rule encoded in the Telemetry's `comment`? The parser does **not** do this; consumer code does, driven by the documented rule.
+> - **Config-level** — does a `devicecfg.json` Sensor entry satisfy the per-`MetricType` config shape rules (`Parameters.Interfaces` is string or `string[]`; `Interface` is non-empty; the two are mutually exclusive; etc.)? Neither the DTDL parser nor the telemetry validator checks this — `dtdl-validate/scripts/config-rules.js` does.
 
 ---
 
@@ -28,13 +29,20 @@ npm run validate:dtdl
 npm run validate:samples
 #   Expected:  every sample reported 'OK', final 'ALL 91 SAMPLES PASSED'.
 
-# Both in one go:
+# 4. Config-level validation — Parameters.* shape rules for sensor configs.
+npm run validate:configs
+#   Expected:  every sensor reported 'OK', final 'ALL 10 CONFIGS PASSED'.
+
+# All three in one go:
 npm run validate
 ```
 
-Green output means **the schemas parse cleanly AND every fixture sample lands on its declared verdict** (`valid` samples accepted, `invalid` samples rejected). Add new fixtures under `docs/Metrics/samples/*.samples.json` to extend coverage; each new Telemetry also needs a predicate in `scripts/predicates.js`.
+Green output means **the schemas parse cleanly, every telemetry fixture lands on its declared verdict, AND every sensor-config fixture passes its shape rules** (`valid` samples accepted, `invalid` samples rejected). Extend by:
 
-Confirmed working on the current tree — 5 DTDL interfaces, 51 telemetries, 219 entities, 91 fixture samples.
+- Adding telemetry fixtures under `docs/Metrics/samples/*.samples.json` and predicates in `scripts/predicates.js`.
+- Adding sensor-config fixtures under `docs/Metrics/samples-config/*.configs.json` and rules in `scripts/config-rules.js`.
+
+Confirmed working on the current tree — 5 DTDL interfaces, 51 telemetries, 219 entities, 91 telemetry fixtures, 10 config fixtures.
 
 ---
 
@@ -186,12 +194,12 @@ Each fixture is a JSON array of `{ResourceId, Value, expect}` objects:
 ```json
 [
   {
-    "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",
+    "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",
     "Value": 45.67,
     "expect": "valid"
   },
   {
-    "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",
+    "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",
     "Value": 108.4,
     "expect": "invalid",
     "reason": "out of [0, 100] range"
@@ -209,18 +217,18 @@ The validator script ships with predicates that mirror every Telemetry's `commen
 // Excerpt from dtdl-validate/scripts/predicates.js
 module.exports = {
   // === 01 CPU & Network ===
-  'dtmi:advantech:WEDA:SystemInfo:CpuUsage;1':
+  'dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1':
     v => typeof v === 'number' && v >= 0 && v <= 100 && Number.isFinite(v),
-  'dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1':
+  'dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1':
     v => typeof v === 'number' && v >= 0,
-  'dtmi:advantech:WEDA:SystemInfo:CpuLoad5;1':
+  'dtmi:advantech:EdgeSync:SystemInfo:CpuLoad5;1':
     v => typeof v === 'number' && v >= 0,
-  'dtmi:advantech:WEDA:SystemInfo:CpuLoad15;1':
+  'dtmi:advantech:EdgeSync:SystemInfo:CpuLoad15;1':
     v => typeof v === 'number' && v >= 0,
-  'dtmi:advantech:WEDA:SystemInfo:CpuContextSwitches;1':
+  'dtmi:advantech:EdgeSync:SystemInfo:CpuContextSwitches;1':
     v => Number.isInteger(v) && v >= 0,
 
-  'dtmi:advantech:WEDA:SystemInfo:NetworkBytesSent;1':
+  'dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1':
     v => Number.isInteger(v) && v >= 0,
   // ... one per Telemetry across all 5 Interfaces (full list in scripts/predicates.js)
 };
@@ -269,16 +277,104 @@ process.exit(failed === 0 ? 0 : 1);
 
 ```
 --- 01_CPU_NETWORK.samples.json (10 samples) ---
-  OK  valid   dtmi:advantech:WEDA:SystemInfo:CpuUsage;1 = 45.67
-  OK  invalid dtmi:advantech:WEDA:SystemInfo:CpuUsage;1 = 108.4
-  OK  invalid dtmi:advantech:WEDA:SystemInfo:CpuUsage;1 = "NaN"
-  OK  valid   dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1 = 1.25
-  OK  invalid dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1 = -0.1
+  OK  valid   dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1 = 45.67
+  OK  invalid dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1 = 108.4
+  OK  invalid dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1 = "NaN"
+  OK  valid   dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1 = 1.25
+  OK  invalid dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1 = -0.1
   ...
 ALL PASSED
 ```
 
 A fixture sample marked `"expect": "invalid"` *should* fail the predicate. The validator passes when **every sample lands on its declared verdict** — so an `invalid` sample that incorrectly passes the predicate is a regression that needs investigation.
+
+---
+
+## 2a. Config-level validation (`Parameters.*` shape rules)
+
+The DTDL parser checks the schema; the predicates check published values; neither checks whether a *sensor entry in `devicecfg.json`* is well-formed. That's what `validate-configs.js` (and its .NET twin `ConfigsValidator.cs`) is for.
+
+The first ruleset ships with the `network` MetricType and covers the v1.0 / v1.1 `Parameters.Interface` / `Parameters.Interfaces` contract documented in `01_CPU_NETWORK_FIELDS.md`:
+
+| Rule | Pass | Fail |
+|------|------|------|
+| `Parameters.Interfaces`, when present, is `string` or `array<string>` | `[]`, `""`, `["eth0","eth1"]`, `"eth0,eth1"` | `42`, `["eth0", 17]`, `{ "eth0": true }` |
+| `Parameters.Interface`, when present, is a **non-empty** string | `"eth0"`, omitted | `""`, `0`, `true` |
+| `Interface` and `Interfaces` are **mutually exclusive** when both are non-empty | only `Interface` set; only `Interfaces` set; neither set (auto-detect) | both set non-empty |
+
+### 2a.1 Fixture shape
+
+Each fixture is a JSON array of full Sensor entries (same schema as `devicecfg.json` Sensors[]) plus two test-metadata fields:
+
+```json
+{
+  "Name": "network_bytes_sent_ambiguous",
+  "SensorGroup": "SYS",
+  "Parameters": { "MetricType": "network", "MetricName": "bytes_sent",
+                  "Interface": "eth0", "Interfaces": ["eth1"] },
+  "Report":     { "Enabled": true, "Interval": 5000 },
+  "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+
+  "expect": "invalid",
+  "reason": "both Interface and Interfaces set -- ambiguous"
+}
+```
+
+Fixtures live in `docs/Metrics/samples-config/`. The first file shipped is `01_CPU_NETWORK.configs.json` (10 sensors: 6 valid, 4 invalid).
+
+### 2a.2 Running
+
+```bash
+# Local Node
+cd dtdl-validate/scripts && npm run validate:configs
+
+# Docker -- both Node and .NET containers chain configs after dtdl + samples
+cd dtdl-validate
+docker compose run --rm validate            # Node
+docker compose run --rm validate-dotnet     # .NET
+docker compose run --rm validate-dotnet configs   # config-only subcommand
+```
+
+Expected tail of any run:
+
+```
+--- 01_CPU_NETWORK.configs.json (10 sensors) ---
+  OK  valid   network_eth0_bytes_sent
+  OK  valid   network_bytes_sent_list
+  OK  valid   network_bytes_sent_csv
+  OK  valid   network_bytes_sent_auto_arr
+  OK  valid   network_bytes_sent_auto_str
+  OK  valid   network_bytes_sent_auto_missing
+  OK  invalid network_bytes_sent_ambiguous
+  OK  invalid network_bytes_sent_iface_empty
+  OK  invalid network_bytes_sent_ifaces_number
+  OK  invalid network_bytes_sent_ifaces_mixed
+
+ALL 10 CONFIGS PASSED
+```
+
+### 2a.3 Adding a rule (e.g. require `MountPoint` for `disk`)
+
+The rules table in `config-rules.js` (and `ConfigRules.cs`) is keyed by `MetricType`. To add `disk`-specific checks:
+
+```javascript
+// dtdl-validate/scripts/config-rules.js
+const rules = {
+  network: [ /* …existing… */ ],
+
+  disk: [
+    sensor => {
+      const mp = sensor.Parameters?.MountPoint;
+      if (typeof mp === 'string' && mp.length > 0) return { ok: true };
+      return { ok: false, reason: 'disk sensors require a non-empty Parameters.MountPoint' };
+    },
+  ],
+};
+```
+
+Then drop a matching fixture file under `samples-config/02_MEMORY_DISK_SYSTEM_GPU.configs.json` and CI picks it up automatically.
+
+The same pattern in `ConfigRules.cs` is one entry in the `Rules` dictionary plus the rule function — keep the two languages in lock-step (the test fixtures are shared, so they must produce identical verdicts).
 
 ---
 
@@ -290,16 +386,16 @@ Five fixture files cover the five Interfaces. Each captures the canonical valid 
 
 ```json
 [
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",            "Value": 45.67,        "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",            "Value": 0.0,          "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",            "Value": 100.0,        "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",            "Value": 108.4,        "expect": "invalid", "reason": "out of [0, 100]" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",            "Value": -0.5,         "expect": "invalid", "reason": "out of [0, 100]" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1",            "Value": "NaN",        "expect": "invalid", "reason": "wrong type / NaN" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1",            "Value": 1.25,         "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1",            "Value": -0.1,         "expect": "invalid", "reason": "negative load" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:CpuContextSwitches;1",  "Value": 9876543210,   "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:NetworkBytesSent;1",    "Value": 17592186044, "expect": "valid" }
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "Value": 45.67,        "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "Value": 0.0,          "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "Value": 100.0,        "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "Value": 108.4,        "expect": "invalid", "reason": "out of [0, 100]" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "Value": -0.5,         "expect": "invalid", "reason": "out of [0, 100]" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "Value": "NaN",        "expect": "invalid", "reason": "wrong type / NaN" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1",            "Value": 1.25,         "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1",            "Value": -0.1,         "expect": "invalid", "reason": "negative load" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:CpuContextSwitches;1",  "Value": 9876543210,   "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1",    "Value": 17592186044, "expect": "valid" }
 ]
 ```
 
@@ -307,16 +403,16 @@ Five fixture files cover the five Interfaces. Each captures the canonical valid 
 
 ```json
 [
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:MemoryTotal;1",        "Value": 16777216000, "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:MemoryUsed;1",         "Value": 4294967296,  "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:MemoryUsed;1",         "Value": -1,          "expect": "invalid", "reason": "negative" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:DiskUsagePercent;1",   "Value": 73.4,        "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:DiskUsagePercent;1",   "Value": 100.01,      "expect": "invalid", "reason": "> 100" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:SystemTime;1",         "Value": 1747084800,  "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:SystemTime;1",         "Value": 5000000000,  "expect": "invalid", "reason": "year > 2100" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:SystemProcsRunning;1", "Value": 4,           "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpuUtilization;1",     "Value": 87,          "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpuUtilization;1",     "Value": 150,         "expect": "invalid", "reason": "> 100" }
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:MemoryTotal;1",        "Value": 16777216000, "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1",         "Value": 4294967296,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1",         "Value": -1,          "expect": "invalid", "reason": "negative" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1",   "Value": 73.4,        "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1",   "Value": 100.01,      "expect": "invalid", "reason": "> 100" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:SystemTime;1",         "Value": 1747084800,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:SystemTime;1",         "Value": 5000000000,  "expect": "invalid", "reason": "year > 2100" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:SystemProcsRunning;1", "Value": 4,           "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpuUtilization;1",     "Value": 87,          "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpuUtilization;1",     "Value": 150,         "expect": "invalid", "reason": "> 100" }
 ]
 ```
 
@@ -324,11 +420,11 @@ Five fixture files cover the five Interfaces. Each captures the canonical valid 
 
 ```json
 [
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:HwinfoMotherboardName;1", "Value": "AIMB-588",  "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:HwinfoManufacturer;1",    "Value": "Advantech", "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:HwinfoBiosRevision;1",    "Value": "V1.05",     "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:HwinfoBiosRevision;1",    "Value": "",          "expect": "invalid", "reason": "empty string" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:HwinfoDriverVersion;1",   "Value": null,        "expect": "valid",   "reason": "null is suppressed, considered OK" }
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoMotherboardName;1", "Value": "AIMB-588",  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoManufacturer;1",    "Value": "Advantech", "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoBiosRevision;1",    "Value": "V1.05",     "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoBiosRevision;1",    "Value": "",          "expect": "invalid", "reason": "empty string" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoDriverVersion;1",   "Value": null,        "expect": "valid",   "reason": "null is suppressed, considered OK" }
 ]
 ```
 
@@ -336,12 +432,12 @@ Five fixture files cover the five Interfaces. Each captures the canonical valid 
 
 ```json
 [
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1",  "Value": 42.5,   "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1",  "Value": 200.0,  "expect": "invalid", "reason": "out of [-40, 125]" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Temperature;1",  "Value": -50.0,  "expect": "invalid", "reason": "out of [-40, 125]" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:Voltage;1",      "Value": 5.05,   "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1",     "Value": 2400.0, "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1",     "Value": -100,   "expect": "invalid", "reason": "negative RPM" }
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:Temperature;1",  "Value": 42.5,   "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:Temperature;1",  "Value": 200.0,  "expect": "invalid", "reason": "out of [-40, 125]" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:Temperature;1",  "Value": -50.0,  "expect": "invalid", "reason": "out of [-40, 125]" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:Voltage;1",      "Value": 5.05,   "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:FanSpeed;1",     "Value": 2400.0, "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:FanSpeed;1",     "Value": -100,   "expect": "invalid", "reason": "negative RPM" }
 ]
 ```
 
@@ -349,13 +445,13 @@ Five fixture files cover the five Interfaces. Each captures the canonical valid 
 
 ```json
 [
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",              "Value": true,  "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1",              "Value": "yes", "expect": "invalid", "reason": "not boolean" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": 0,     "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": 1,     "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1",                 "Value": 2,     "expect": "invalid", "reason": "not in {0, 1}" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:WatchdogIsSupported;1",          "Value": false, "expect": "valid" },
-  { "ResourceId": "dtmi:advantech:WEDA:SystemInfo:ThermalProtectionIsSupported;1", "Value": true,  "expect": "valid" }
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpioIsSupported;1",              "Value": true,  "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpioIsSupported;1",              "Value": "yes", "expect": "invalid", "reason": "not boolean" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpioPinState;1",                 "Value": 0,     "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpioPinState;1",                 "Value": 1,     "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:GpioPinState;1",                 "Value": 2,     "expect": "invalid", "reason": "not in {0, 1}" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:WatchdogIsSupported;1",          "Value": false, "expect": "valid" },
+  { "ResourceId": "dtmi:advantech:EdgeSync:SystemInfo:ThermalProtectionIsSupported;1", "Value": true,  "expect": "valid" }
 ]
 ```
 

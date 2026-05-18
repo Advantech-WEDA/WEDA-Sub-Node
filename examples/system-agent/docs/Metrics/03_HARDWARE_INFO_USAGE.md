@@ -43,24 +43,24 @@ namespace SystemAgentExample.Schema;
 public static class HardwareInfoDtmis
 {
     public const string Interface =
-        "dtmi:advantech:WEDA:SystemAgent:HardwareInfo;1";
+        "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo;1";
 
     public static class Telemetries
     {
-        public const string HwinfoMotherboardName = "dtmi:advantech:WEDA:SystemInfo:HwinfoMotherboardName;1";
-        public const string HwinfoManufacturer    = "dtmi:advantech:WEDA:SystemInfo:HwinfoManufacturer;1";
-        public const string HwinfoBiosRevision    = "dtmi:advantech:WEDA:SystemInfo:HwinfoBiosRevision;1";
-        public const string HwinfoDriverVersion   = "dtmi:advantech:WEDA:SystemInfo:HwinfoDriverVersion;1";
-        public const string HwinfoLibraryVersion  = "dtmi:advantech:WEDA:SystemInfo:HwinfoLibraryVersion;1";
-        public const string HwinfoEcRevision      = "dtmi:advantech:WEDA:SystemInfo:HwinfoEcRevision;1";
+        public const string HwinfoMotherboardName = "dtmi:advantech:EdgeSync:SystemInfo:HwinfoMotherboardName;1";
+        public const string HwinfoManufacturer    = "dtmi:advantech:EdgeSync:SystemInfo:HwinfoManufacturer;1";
+        public const string HwinfoBiosRevision    = "dtmi:advantech:EdgeSync:SystemInfo:HwinfoBiosRevision;1";
+        public const string HwinfoDriverVersion   = "dtmi:advantech:EdgeSync:SystemInfo:HwinfoDriverVersion;1";
+        public const string HwinfoLibraryVersion  = "dtmi:advantech:EdgeSync:SystemInfo:HwinfoLibraryVersion;1";
+        public const string HwinfoEcRevision      = "dtmi:advantech:EdgeSync:SystemInfo:HwinfoEcRevision;1";
     }
 
     public static class Enums
     {
-        public const string MetricType        = "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:MetricType;1";
-        public const string HwinfoMetricName  = "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:HwinfoMetricName;1";
-        public const string SensorGroup       = "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:SensorGroup;1";
-        public const string SensorInfoSchema  = "dtmi:advantech:WEDA:SystemAgent:HardwareInfo:SensorInfoSchema;1";
+        public const string MetricType        = "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:MetricType;1";
+        public const string HwinfoMetricName  = "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:HwinfoMetricName;1";
+        public const string SensorGroup       = "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:SensorGroup;1";
+        public const string SensorInfoSchema  = "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:SensorInfoSchema;1";
     }
 }
 ```

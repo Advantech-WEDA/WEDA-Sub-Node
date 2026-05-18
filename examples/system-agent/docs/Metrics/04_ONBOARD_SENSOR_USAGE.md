@@ -41,23 +41,23 @@ namespace SystemAgentExample.Schema;
 public static class OnboardSensorDtmis
 {
     public const string Interface =
-        "dtmi:advantech:WEDA:SystemAgent:OnboardSensor;1";
+        "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor;1";
 
     public static class Telemetries
     {
-        public const string Temperature = "dtmi:advantech:WEDA:SystemInfo:Temperature;1";
-        public const string Voltage     = "dtmi:advantech:WEDA:SystemInfo:Voltage;1";
-        public const string FanSpeed    = "dtmi:advantech:WEDA:SystemInfo:FanSpeed;1";
+        public const string Temperature = "dtmi:advantech:EdgeSync:SystemInfo:Temperature;1";
+        public const string Voltage     = "dtmi:advantech:EdgeSync:SystemInfo:Voltage;1";
+        public const string FanSpeed    = "dtmi:advantech:EdgeSync:SystemInfo:FanSpeed;1";
     }
 
     public static class Enums
     {
-        public const string MetricType             = "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:MetricType;1";
-        public const string TemperatureMetricName  = "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:TemperatureMetricName;1";
-        public const string VoltageMetricName      = "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:VoltageMetricName;1";
-        public const string FanspeedMetricName     = "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:FanspeedMetricName;1";
-        public const string SensorGroup            = "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:SensorGroup;1";
-        public const string SensorInfoSchema       = "dtmi:advantech:WEDA:SystemAgent:OnboardSensor:SensorInfoSchema;1";
+        public const string MetricType             = "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:MetricType;1";
+        public const string TemperatureMetricName  = "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:TemperatureMetricName;1";
+        public const string VoltageMetricName      = "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:VoltageMetricName;1";
+        public const string FanspeedMetricName     = "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:FanspeedMetricName;1";
+        public const string SensorGroup            = "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorGroup;1";
+        public const string SensorInfoSchema       = "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorInfoSchema;1";
     }
 }
 ```

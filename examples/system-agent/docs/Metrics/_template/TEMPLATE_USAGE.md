@@ -41,21 +41,21 @@ namespace SystemAgentExample.Schema;
 public static class {{Name_Pascal}}Dtmis
 {
     public const string Interface =
-        "dtmi:advantech:WEDA:SystemAgent:{{Name_Pascal}};1";
+        "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}};1";
 
     public static class Telemetries
     {
-        public const string {{MetricType1Pascal}}{{MetricNameAPascal}} = "dtmi:advantech:WEDA:SystemInfo:{{MetricType1Pascal}}{{MetricNameAPascal}};1";
-        public const string {{MetricType1Pascal}}{{MetricNameBPascal}} = "dtmi:advantech:WEDA:SystemInfo:{{MetricType1Pascal}}{{MetricNameBPascal}};1";
+        public const string {{MetricType1Pascal}}{{MetricNameAPascal}} = "dtmi:advantech:EdgeSync:SystemInfo:{{MetricType1Pascal}}{{MetricNameAPascal}};1";
+        public const string {{MetricType1Pascal}}{{MetricNameBPascal}} = "dtmi:advantech:EdgeSync:SystemInfo:{{MetricType1Pascal}}{{MetricNameBPascal}};1";
         // ... one per Telemetry in the DTDL file
     }
 
     public static class Enums
     {
-        public const string MetricType                  = "dtmi:advantech:WEDA:SystemAgent:{{Name_Pascal}}:MetricType;1";
-        public const string {{MetricType1Pascal}}MetricName = "dtmi:advantech:WEDA:SystemAgent:{{Name_Pascal}}:{{MetricType1Pascal}}MetricName;1";
-        public const string SensorGroup                 = "dtmi:advantech:WEDA:SystemAgent:{{Name_Pascal}}:SensorGroup;1";
-        public const string SensorInfoSchema            = "dtmi:advantech:WEDA:SystemAgent:{{Name_Pascal}}:SensorInfoSchema;1";
+        public const string MetricType                  = "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:MetricType;1";
+        public const string {{MetricType1Pascal}}MetricName = "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:{{MetricType1Pascal}}MetricName;1";
+        public const string SensorGroup                 = "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:SensorGroup;1";
+        public const string SensorInfoSchema            = "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:SensorInfoSchema;1";
     }
 }
 ```

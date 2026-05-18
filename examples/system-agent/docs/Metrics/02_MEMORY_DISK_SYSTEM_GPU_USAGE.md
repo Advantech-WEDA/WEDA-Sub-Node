@@ -41,60 +41,60 @@ dotnet add package DTDLParser
 namespace SystemAgentExample.Schema;
 
 /// <summary>
-/// DTMI constants for dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu;1.
+/// DTMI constants for dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu;1.
 /// Keep in sync with docs/Metrics/02_MEMORY_DISK_SYSTEM_GPU.dtdl.json.
 /// </summary>
 public static class MemoryDiskSystemGpuDtmis
 {
     public const string Interface =
-        "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu;1";
+        "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu;1";
 
     public static class Telemetries
     {
         // Memory
-        public const string MemoryTotal      = "dtmi:advantech:WEDA:SystemInfo:MemoryTotal;1";
-        public const string MemoryAvailable  = "dtmi:advantech:WEDA:SystemInfo:MemoryAvailable;1";
-        public const string MemoryUsed       = "dtmi:advantech:WEDA:SystemInfo:MemoryUsed;1";
-        public const string MemoryFree       = "dtmi:advantech:WEDA:SystemInfo:MemoryFree;1";
-        public const string MemoryCached     = "dtmi:advantech:WEDA:SystemInfo:MemoryCached;1";
-        public const string MemoryBuffers    = "dtmi:advantech:WEDA:SystemInfo:MemoryBuffers;1";
-        public const string MemorySwapTotal  = "dtmi:advantech:WEDA:SystemInfo:MemorySwapTotal;1";
-        public const string MemorySwapFree   = "dtmi:advantech:WEDA:SystemInfo:MemorySwapFree;1";
+        public const string MemoryTotal      = "dtmi:advantech:EdgeSync:SystemInfo:MemoryTotal;1";
+        public const string MemoryAvailable  = "dtmi:advantech:EdgeSync:SystemInfo:MemoryAvailable;1";
+        public const string MemoryUsed       = "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1";
+        public const string MemoryFree       = "dtmi:advantech:EdgeSync:SystemInfo:MemoryFree;1";
+        public const string MemoryCached     = "dtmi:advantech:EdgeSync:SystemInfo:MemoryCached;1";
+        public const string MemoryBuffers    = "dtmi:advantech:EdgeSync:SystemInfo:MemoryBuffers;1";
+        public const string MemorySwapTotal  = "dtmi:advantech:EdgeSync:SystemInfo:MemorySwapTotal;1";
+        public const string MemorySwapFree   = "dtmi:advantech:EdgeSync:SystemInfo:MemorySwapFree;1";
 
         // Disk
-        public const string DiskTotal            = "dtmi:advantech:WEDA:SystemInfo:DiskTotal;1";
-        public const string DiskAvailable        = "dtmi:advantech:WEDA:SystemInfo:DiskAvailable;1";
-        public const string DiskFree             = "dtmi:advantech:WEDA:SystemInfo:DiskFree;1";
-        public const string DiskUsed             = "dtmi:advantech:WEDA:SystemInfo:DiskUsed;1";
-        public const string DiskUsagePercent     = "dtmi:advantech:WEDA:SystemInfo:DiskUsagePercent;1";
-        public const string DiskReadsCompleted   = "dtmi:advantech:WEDA:SystemInfo:DiskReadsCompleted;1";
-        public const string DiskWritesCompleted  = "dtmi:advantech:WEDA:SystemInfo:DiskWritesCompleted;1";
-        public const string DiskReadBytes        = "dtmi:advantech:WEDA:SystemInfo:DiskReadBytes;1";
-        public const string DiskWrittenBytes     = "dtmi:advantech:WEDA:SystemInfo:DiskWrittenBytes;1";
+        public const string DiskTotal            = "dtmi:advantech:EdgeSync:SystemInfo:DiskTotal;1";
+        public const string DiskAvailable        = "dtmi:advantech:EdgeSync:SystemInfo:DiskAvailable;1";
+        public const string DiskFree             = "dtmi:advantech:EdgeSync:SystemInfo:DiskFree;1";
+        public const string DiskUsed             = "dtmi:advantech:EdgeSync:SystemInfo:DiskUsed;1";
+        public const string DiskUsagePercent     = "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1";
+        public const string DiskReadsCompleted   = "dtmi:advantech:EdgeSync:SystemInfo:DiskReadsCompleted;1";
+        public const string DiskWritesCompleted  = "dtmi:advantech:EdgeSync:SystemInfo:DiskWritesCompleted;1";
+        public const string DiskReadBytes        = "dtmi:advantech:EdgeSync:SystemInfo:DiskReadBytes;1";
+        public const string DiskWrittenBytes     = "dtmi:advantech:EdgeSync:SystemInfo:DiskWrittenBytes;1";
 
         // System
-        public const string SystemTime            = "dtmi:advantech:WEDA:SystemInfo:SystemTime;1";
-        public const string SystemTimexOffset     = "dtmi:advantech:WEDA:SystemInfo:SystemTimexOffset;1";
-        public const string SystemBootTime        = "dtmi:advantech:WEDA:SystemInfo:SystemBootTime;1";
-        public const string SystemFilefdAllocated = "dtmi:advantech:WEDA:SystemInfo:SystemFilefdAllocated;1";
-        public const string SystemFilefdMaximum   = "dtmi:advantech:WEDA:SystemInfo:SystemFilefdMaximum;1";
-        public const string SystemProcsRunning    = "dtmi:advantech:WEDA:SystemInfo:SystemProcsRunning;1";
-        public const string SystemProcsBlocked    = "dtmi:advantech:WEDA:SystemInfo:SystemProcsBlocked;1";
-        public const string SystemIntrTotal       = "dtmi:advantech:WEDA:SystemInfo:SystemIntrTotal;1";
+        public const string SystemTime            = "dtmi:advantech:EdgeSync:SystemInfo:SystemTime;1";
+        public const string SystemTimexOffset     = "dtmi:advantech:EdgeSync:SystemInfo:SystemTimexOffset;1";
+        public const string SystemBootTime        = "dtmi:advantech:EdgeSync:SystemInfo:SystemBootTime;1";
+        public const string SystemFilefdAllocated = "dtmi:advantech:EdgeSync:SystemInfo:SystemFilefdAllocated;1";
+        public const string SystemFilefdMaximum   = "dtmi:advantech:EdgeSync:SystemInfo:SystemFilefdMaximum;1";
+        public const string SystemProcsRunning    = "dtmi:advantech:EdgeSync:SystemInfo:SystemProcsRunning;1";
+        public const string SystemProcsBlocked    = "dtmi:advantech:EdgeSync:SystemInfo:SystemProcsBlocked;1";
+        public const string SystemIntrTotal       = "dtmi:advantech:EdgeSync:SystemInfo:SystemIntrTotal;1";
 
         // GPU
-        public const string GpuUtilization = "dtmi:advantech:WEDA:SystemInfo:GpuUtilization;1";
+        public const string GpuUtilization = "dtmi:advantech:EdgeSync:SystemInfo:GpuUtilization;1";
     }
 
     public static class Enums
     {
-        public const string MetricType        = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:MetricType;1";
-        public const string MemoryMetricName  = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:MemoryMetricName;1";
-        public const string DiskMetricName    = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:DiskMetricName;1";
-        public const string SystemMetricName  = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:SystemMetricName;1";
-        public const string GpuMetricName     = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:GpuMetricName;1";
-        public const string SensorGroup       = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:SensorGroup;1";
-        public const string SensorInfoSchema  = "dtmi:advantech:WEDA:SystemAgent:MemoryDiskSystemGpu:SensorInfoSchema;1";
+        public const string MetricType        = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:MetricType;1";
+        public const string MemoryMetricName  = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:MemoryMetricName;1";
+        public const string DiskMetricName    = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:DiskMetricName;1";
+        public const string SystemMetricName  = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:SystemMetricName;1";
+        public const string GpuMetricName     = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:GpuMetricName;1";
+        public const string SensorGroup       = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:SensorGroup;1";
+        public const string SensorInfoSchema  = "dtmi:advantech:EdgeSync:SystemAgent:MemoryDiskSystemGpu:SensorInfoSchema;1";
     }
 }
 ```

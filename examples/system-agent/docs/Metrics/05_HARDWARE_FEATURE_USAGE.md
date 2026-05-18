@@ -42,25 +42,25 @@ namespace SystemAgentExample.Schema;
 public static class HardwareFeatureDtmis
 {
     public const string Interface =
-        "dtmi:advantech:WEDA:SystemAgent:HardwareFeature;1";
+        "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature;1";
 
     public static class Telemetries
     {
-        public const string GpioIsSupported              = "dtmi:advantech:WEDA:SystemInfo:GpioIsSupported;1";
-        public const string GpioPinState                 = "dtmi:advantech:WEDA:SystemInfo:GpioPinState;1";
-        public const string WatchdogIsSupported          = "dtmi:advantech:WEDA:SystemInfo:WatchdogIsSupported;1";
-        public const string ThermalProtectionIsSupported = "dtmi:advantech:WEDA:SystemInfo:ThermalProtectionIsSupported;1";
+        public const string GpioIsSupported              = "dtmi:advantech:EdgeSync:SystemInfo:GpioIsSupported;1";
+        public const string GpioPinState                 = "dtmi:advantech:EdgeSync:SystemInfo:GpioPinState;1";
+        public const string WatchdogIsSupported          = "dtmi:advantech:EdgeSync:SystemInfo:WatchdogIsSupported;1";
+        public const string ThermalProtectionIsSupported = "dtmi:advantech:EdgeSync:SystemInfo:ThermalProtectionIsSupported;1";
     }
 
     public static class Enums
     {
-        public const string MetricType                  = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:MetricType;1";
-        public const string GpioMetricName              = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:GpioMetricName;1";
-        public const string WatchdogMetricName          = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:WatchdogMetricName;1";
-        public const string ThermalProtectionMetricName = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:ThermalProtectionMetricName;1";
-        public const string GpioPinLevel                = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:GpioPinLevel;1";
-        public const string SensorGroup                 = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:SensorGroup;1";
-        public const string SensorInfoSchema            = "dtmi:advantech:WEDA:SystemAgent:HardwareFeature:SensorInfoSchema;1";
+        public const string MetricType                  = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:MetricType;1";
+        public const string GpioMetricName              = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioMetricName;1";
+        public const string WatchdogMetricName          = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:WatchdogMetricName;1";
+        public const string ThermalProtectionMetricName = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:ThermalProtectionMetricName;1";
+        public const string GpioPinLevel                = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioPinLevel;1";
+        public const string SensorGroup                 = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorGroup;1";
+        public const string SensorInfoSchema            = "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorInfoSchema;1";
     }
 }
 ```

@@ -32,13 +32,16 @@ WORKDIR /app
 USER node
 
 COPY --chown=node:node --from=deps /app/node_modules ./node_modules
-COPY --chown=node:node validate-dtdl.js validate-samples.js predicates.js ./
+COPY --chown=node:node \
+     validate-dtdl.js validate-samples.js validate-configs.js \
+     predicates.js config-rules.js \
+     ./
 
-# Validators read DTDLs / samples relative to this path.
+# Validators read DTDLs / samples / samples-config relative to this path.
 ENV DTDL_BASE=/work
 
 # Bind-mount your docs/Metrics/ at /work when running.
 WORKDIR /work
 
-# Default: run both validators in sequence; non-zero exit if either fails.
-CMD ["sh", "-c", "node /app/validate-dtdl.js && node /app/validate-samples.js"]
+# Default: run all three validators in sequence; non-zero exit if any fails.
+CMD ["sh", "-c", "node /app/validate-dtdl.js && node /app/validate-samples.js && node /app/validate-configs.js"]

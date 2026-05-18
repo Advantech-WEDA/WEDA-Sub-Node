@@ -187,9 +187,9 @@ The standalone Interface file is published alongside this doc as [`01_CPU_NETWOR
 
 ### Identifier conventions
 
-- **Interface DTMI**: `dtmi:advantech:WEDA:SystemAgent:CpuNetwork;1`.
-- **Telemetry DTMI**: `dtmi:advantech:WEDA:SystemInfo:<TelemetryName>;1` — the `SystemInfo` namespace is shared with `02_MEMORY_DISK_SYSTEM_GPU_FIELDS.md` so consumers can mix metrics from both files without DTMI collisions.
-- **Reusable schema DTMI**: `dtmi:advantech:WEDA:SystemAgent:CpuNetwork:<SchemaName>;1` — scoped to this Interface so additions in other field-reference docs do not clash.
+- **Interface DTMI**: `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork;1`.
+- **Telemetry DTMI**: `dtmi:advantech:EdgeSync:SystemInfo:<TelemetryName>;1` — the `SystemInfo` namespace is shared with `02_MEMORY_DISK_SYSTEM_GPU_FIELDS.md` so consumers can mix metrics from both files without DTMI collisions.
+- **Reusable schema DTMI**: `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:<SchemaName>;1` — scoped to this Interface so additions in other field-reference docs do not clash.
 - **Telemetry `name`**: PascalCase derivation of the `(MetricType, MetricName)` pair — `cpu.usage` → `CpuUsage`, `network.errors_in` → `NetworkErrorsIn`.
 - **DTDL `schema`**: matches the `SensorInfo.Schema` column in §"Field Table" of each metric type. A schema mismatch between this DTDL and the deployed `devicecfg.json` raises a startup error.
 
@@ -197,23 +197,23 @@ The standalone Interface file is published alongside this doc as [`01_CPU_NETWOR
 
 | `MetricType.MetricName` | DTDL `name` | DTDL `schema` | DTMI |
 |--------------------------|-------------|---------------|------|
-| `cpu.usage` | `CpuUsage` | `double` | `dtmi:advantech:WEDA:SystemInfo:CpuUsage;1` |
-| `cpu.load1` | `CpuLoad1` | `double` | `dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1` |
-| `cpu.load5` | `CpuLoad5` | `double` | `dtmi:advantech:WEDA:SystemInfo:CpuLoad5;1` |
-| `cpu.load15` | `CpuLoad15` | `double` | `dtmi:advantech:WEDA:SystemInfo:CpuLoad15;1` |
-| `cpu.context_switches` | `CpuContextSwitches` | `long` | `dtmi:advantech:WEDA:SystemInfo:CpuContextSwitches;1` |
+| `cpu.usage` | `CpuUsage` | `double` | `dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1` |
+| `cpu.load1` | `CpuLoad1` | `double` | `dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1` |
+| `cpu.load5` | `CpuLoad5` | `double` | `dtmi:advantech:EdgeSync:SystemInfo:CpuLoad5;1` |
+| `cpu.load15` | `CpuLoad15` | `double` | `dtmi:advantech:EdgeSync:SystemInfo:CpuLoad15;1` |
+| `cpu.context_switches` | `CpuContextSwitches` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:CpuContextSwitches;1` |
 
 ### Network MetricName → DTMI / DTDL Telemetry mapping
 
 | `MetricType.MetricName` | DTDL `name` | DTDL `schema` | DTMI |
 |--------------------------|-------------|---------------|------|
-| `network.bytes_sent` | `NetworkBytesSent` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkBytesSent;1` |
-| `network.bytes_received` | `NetworkBytesReceived` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkBytesReceived;1` |
-| `network.packets_sent` | `NetworkPacketsSent` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkPacketsSent;1` |
-| `network.packets_received` | `NetworkPacketsReceived` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkPacketsReceived;1` |
-| `network.errors` | `NetworkErrors` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkErrors;1` |
-| `network.errors_in` | `NetworkErrorsIn` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkErrorsIn;1` |
-| `network.errors_out` | `NetworkErrorsOut` | `long` | `dtmi:advantech:WEDA:SystemInfo:NetworkErrorsOut;1` |
+| `network.bytes_sent` | `NetworkBytesSent` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1` |
+| `network.bytes_received` | `NetworkBytesReceived` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesReceived;1` |
+| `network.packets_sent` | `NetworkPacketsSent` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsSent;1` |
+| `network.packets_received` | `NetworkPacketsReceived` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsReceived;1` |
+| `network.errors` | `NetworkErrors` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkErrors;1` |
+| `network.errors_in` | `NetworkErrorsIn` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkErrorsIn;1` |
+| `network.errors_out` | `NetworkErrorsOut` | `long` | `dtmi:advantech:EdgeSync:SystemInfo:NetworkErrorsOut;1` |
 
 > **Per-interface expansion (v1.1).** When `Parameters.Interfaces` or auto-detect is used, the runtime appends the interface name to the sensor `Name` and to the DTDL `description` / `displayName` so each interface gets its own twin property. The DTMI itself does **not** change — every expanded sensor for `network.bytes_sent` continues to publish against the same Telemetry id. Differentiate by sensor `name` or by `Parameters.Interface` in the message payload.
 
@@ -223,11 +223,11 @@ Five Enum schemas live in the Interface's `schemas[]` array. Consumer code (conf
 
 | Enum DTMI | `valueSchema` | Allowed `enumValue`s | Applied to |
 |-----------|---------------|----------------------|-----------|
-| `dtmi:advantech:WEDA:SystemAgent:CpuNetwork:MetricType;1` | `string` | `"cpu"`, `"network"` | `Sensor.Parameters.MetricType` |
-| `dtmi:advantech:WEDA:SystemAgent:CpuNetwork:CpuMetricName;1` | `string` | `"usage"`, `"load1"`, `"load5"`, `"load15"`, `"context_switches"` | `Sensor.Parameters.MetricName` when `MetricType == "cpu"` |
-| `dtmi:advantech:WEDA:SystemAgent:CpuNetwork:NetworkMetricName;1` | `string` | `"bytes_sent"`, `"bytes_received"`, `"packets_sent"`, `"packets_received"`, `"errors"`, `"errors_in"`, `"errors_out"` | `Sensor.Parameters.MetricName` when `MetricType == "network"` |
-| `dtmi:advantech:WEDA:SystemAgent:CpuNetwork:SensorGroup;1` | `string` | `"AI"`, `"AO"`, `"DI"`, `"DO"`, `"TEMP"`, `"PWR"`, `"SYS"` | `Sensor.SensorGroup` |
-| `dtmi:advantech:WEDA:SystemAgent:CpuNetwork:SensorInfoSchema;1` | `string` | `"double"`, `"long"`, `"integer"`, `"boolean"`, `"string"` | `Sensor.SensorInfo.Schema` (must additionally agree with the per-Telemetry schema column above) |
+| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:MetricType;1` | `string` | `"cpu"`, `"network"` | `Sensor.Parameters.MetricType` |
+| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:CpuMetricName;1` | `string` | `"usage"`, `"load1"`, `"load5"`, `"load15"`, `"context_switches"` | `Sensor.Parameters.MetricName` when `MetricType == "cpu"` |
+| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:NetworkMetricName;1` | `string` | `"bytes_sent"`, `"bytes_received"`, `"packets_sent"`, `"packets_received"`, `"errors"`, `"errors_in"`, `"errors_out"` | `Sensor.Parameters.MetricName` when `MetricType == "network"` |
+| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorGroup;1` | `string` | `"AI"`, `"AO"`, `"DI"`, `"DO"`, `"TEMP"`, `"PWR"`, `"SYS"` | `Sensor.SensorGroup` |
+| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorInfoSchema;1` | `string` | `"double"`, `"long"`, `"integer"`, `"boolean"`, `"string"` | `Sensor.SensorInfo.Schema` (must additionally agree with the per-Telemetry schema column above) |
 
 ### Validation rules embedded in DTDL
 

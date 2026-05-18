@@ -45,37 +45,37 @@ Generate constants by hand (or with a source generator) so consumer code never h
 namespace SystemAgentExample.Schema;
 
 /// <summary>
-/// DTMI constants for dtmi:advantech:WEDA:SystemAgent:CpuNetwork;1.
+/// DTMI constants for dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork;1.
 /// Keep in sync with docs/Metrics/01_CPU_NETWORK.dtdl.json.
 /// </summary>
 public static class CpuNetworkDtmis
 {
     public const string Interface =
-        "dtmi:advantech:WEDA:SystemAgent:CpuNetwork;1";
+        "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork;1";
 
     public static class Telemetries
     {
-        public const string CpuUsage              = "dtmi:advantech:WEDA:SystemInfo:CpuUsage;1";
-        public const string CpuLoad1              = "dtmi:advantech:WEDA:SystemInfo:CpuLoad1;1";
-        public const string CpuLoad5              = "dtmi:advantech:WEDA:SystemInfo:CpuLoad5;1";
-        public const string CpuLoad15             = "dtmi:advantech:WEDA:SystemInfo:CpuLoad15;1";
-        public const string CpuContextSwitches    = "dtmi:advantech:WEDA:SystemInfo:CpuContextSwitches;1";
-        public const string NetworkBytesSent      = "dtmi:advantech:WEDA:SystemInfo:NetworkBytesSent;1";
-        public const string NetworkBytesReceived  = "dtmi:advantech:WEDA:SystemInfo:NetworkBytesReceived;1";
-        public const string NetworkPacketsSent    = "dtmi:advantech:WEDA:SystemInfo:NetworkPacketsSent;1";
-        public const string NetworkPacketsReceived= "dtmi:advantech:WEDA:SystemInfo:NetworkPacketsReceived;1";
-        public const string NetworkErrors         = "dtmi:advantech:WEDA:SystemInfo:NetworkErrors;1";
-        public const string NetworkErrorsIn       = "dtmi:advantech:WEDA:SystemInfo:NetworkErrorsIn;1";
-        public const string NetworkErrorsOut      = "dtmi:advantech:WEDA:SystemInfo:NetworkErrorsOut;1";
+        public const string CpuUsage              = "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1";
+        public const string CpuLoad1              = "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1";
+        public const string CpuLoad5              = "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad5;1";
+        public const string CpuLoad15             = "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad15;1";
+        public const string CpuContextSwitches    = "dtmi:advantech:EdgeSync:SystemInfo:CpuContextSwitches;1";
+        public const string NetworkBytesSent      = "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1";
+        public const string NetworkBytesReceived  = "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesReceived;1";
+        public const string NetworkPacketsSent    = "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsSent;1";
+        public const string NetworkPacketsReceived= "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsReceived;1";
+        public const string NetworkErrors         = "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrors;1";
+        public const string NetworkErrorsIn       = "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrorsIn;1";
+        public const string NetworkErrorsOut      = "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrorsOut;1";
     }
 
     public static class Enums
     {
-        public const string MetricType        = "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:MetricType;1";
-        public const string CpuMetricName     = "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:CpuMetricName;1";
-        public const string NetworkMetricName = "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:NetworkMetricName;1";
-        public const string SensorGroup       = "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:SensorGroup;1";
-        public const string SensorInfoSchema  = "dtmi:advantech:WEDA:SystemAgent:CpuNetwork:SensorInfoSchema;1";
+        public const string MetricType        = "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:MetricType;1";
+        public const string CpuMetricName     = "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:CpuMetricName;1";
+        public const string NetworkMetricName = "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:NetworkMetricName;1";
+        public const string SensorGroup       = "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorGroup;1";
+        public const string SensorInfoSchema  = "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorInfoSchema;1";
     }
 }
 ```

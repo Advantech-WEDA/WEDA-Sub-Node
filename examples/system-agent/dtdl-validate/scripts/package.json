@@ -2,11 +2,12 @@
   "name": "weda-system-agent-dtdl-validators",
   "version": "1.0.0",
   "private": true,
-  "description": "Schema-level and instance-level validators for the WEDA System-Agent DTDL Interfaces in docs/Metrics/.",
+  "description": "Schema-level, instance-level, and config-level validators for the WEDA System-Agent DTDL Interfaces in docs/Metrics/.",
   "scripts": {
     "validate:dtdl":    "node validate-dtdl.js",
     "validate:samples": "node validate-samples.js",
-    "validate":         "node validate-dtdl.js && node validate-samples.js"
+    "validate:configs": "node validate-configs.js",
+    "validate":         "node validate-dtdl.js && node validate-samples.js && node validate-configs.js"
   },
   "dependencies": {
     "@azure/dtdl-parser": "1.0.0-beta.2"
