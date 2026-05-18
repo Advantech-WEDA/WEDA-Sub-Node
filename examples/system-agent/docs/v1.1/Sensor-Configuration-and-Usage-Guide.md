@@ -36,7 +36,7 @@
 
 ## 需要額外參數的組合（v1.1 更新）
 
-v1.1 新增列表參數支援 Sensor Expansion，原有的單一參數仍然有效（已綁定模式）。
+v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一參數仍然有效（Bound mode）。
 
 | MetricType + MetricName | v1.0 參數 | v1.1 新增 | 說明 |
 |------------------------|-----------|----------|------|

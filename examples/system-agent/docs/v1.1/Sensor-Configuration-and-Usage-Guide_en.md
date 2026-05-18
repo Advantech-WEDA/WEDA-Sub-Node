@@ -36,7 +36,7 @@
 
 ## Additional Parameters (v1.1 Updates)
 
-v1.1 adds list parameters for Sensor Expansion. Existing single parameters remain valid (bound mode).
+v1.1 adds list parameters for Explicit list / Auto-detect mode. Existing single parameters remain valid (Bound mode).
 
 | MetricType + MetricName | v1.0 Parameter | v1.1 Addition | Description |
 |------------------------|-----------|----------|------|
@@ -49,7 +49,7 @@ v1.1 adds list parameters for Sensor Expansion. Existing single parameters remai
 >
 > **Format**: List parameters support JSON arrays (e.g., `["eth0", "eth1"]`) or comma-separated strings (e.g., `"eth0,eth1"`).
 
-> For expansion naming rules and edge cases, see [METRIC-TYPES v1.1](METRIC-TYPES_en.md#naming-rules-after-expansion).
+> For naming rules and edge cases, see [METRIC-TYPES v1.1](METRIC-TYPES_en.md#naming-rules-after-expansion).
 
 ---
 

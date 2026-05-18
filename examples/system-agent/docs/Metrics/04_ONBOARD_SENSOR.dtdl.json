@@ -3,7 +3,7 @@
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
   "displayName": "System Agent \u2014 Onboard Sensor Telemetry",
-  "description": "DTDL v2 schema for the temperature, voltage, and fanspeed MetricTypes documented in docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md. All three are platform-dependent (e.g. Advantech SUSI). Temperature supports v1.1 Sensor Expansion via Parameters.Source / Parameters.Sources; expanded sensors share the Temperature Telemetry DTMI and differentiate by ResourceId suffix at publish time.",
+  "description": "DTDL v2 schema for the temperature, voltage, and fanspeed MetricTypes documented in docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md. All three are platform-dependent (e.g. Advantech SUSI). Temperature supports v1.1 Explicit list / Auto-detect mode via Parameters.Source / Parameters.Sources; expanded sensors share the Temperature Telemetry DTMI and differentiate by ResourceId suffix at publish time.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:MetricType;1",

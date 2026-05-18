@@ -10,7 +10,7 @@ End-to-end examples for consuming [`{{NN}}_{{NAME_UPPER}}.dtdl.json`](./{{NN}}_{
 Key things to mention here (delete what doesn't apply):
 
 - {{Type-specific extra parameter ({{extra_param_name}}, e.g. MountPoint) — validator must enforce it.}}
-- {{v1.1 Sensor Expansion via {{expansion_param_singular}} / {{expansion_param_plural}} — uses ResourceId discriminator suffix at publish time.}}
+- {{v1.1 Explicit list / Auto-detect mode via {{expansion_param_singular}} / {{expansion_param_plural}} — uses ResourceId discriminator suffix at publish time.}}
 - {{Platform-dependent — null-suppressed on unsupported hosts; SIL2 fail-safe.}}
 - {{Semantic types {{SemanticType1}} (unit {{unit1}}) applied to the byte/temperature/voltage/etc. Telemetries.}}
 

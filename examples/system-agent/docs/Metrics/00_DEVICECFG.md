@@ -188,6 +188,6 @@ dotnet test --filter "FullyQualifiedName~DevicecfgSchemaTests"
 
 - [`_template/README.md`](_template/README.md) — how to add a new `MetricType` (template files + step-by-step + checklist).
 - [`HOWTO_EVALUATE_DTDL.md`](HOWTO_EVALUATE_DTDL.md) — running the Microsoft DTDL parser against the auto-generated Interface.
-- `docs/02_METRIC_TYPES_v1.0.md`, `docs/02_METRIC_TYPES_v1.1.md` — Sensor Expansion semantics (`Interface`, `MountPoint`, etc.) for the v1.1 metric types.
+- `docs/02_METRIC_TYPES_v1.0.md`, `docs/02_METRIC_TYPES_v1.1.md` — Explicit list / Auto-detect mode semantics (`Interface`, `MountPoint`, etc.) for the v1.1 metric types.
 - `Models/SystemMetricsRawData.cs` — raw collector contract; every `MetricType` needs a backing property here.
 - `Protocols/SystemMetricsParser.cs` — runtime dispatch; a new MetricType won't publish anything until you add a branch.

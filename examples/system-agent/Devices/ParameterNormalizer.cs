@@ -9,7 +9,7 @@ namespace SystemAgentExample.Devices;
 /// <summary>
 /// Normalizes sensor Parameters values from various source formats
 /// (IConfiguration binding, JsonElement, raw strings) into clean typed values
-/// that SensorExpander can consume without knowing the data source.
+/// that SensorResolver can consume without knowing the data source.
 ///
 /// IConfiguration binding behavior for Dictionary&lt;string, object&gt;:
 /// - Scalar values ("MetricType": "cpu") → string
@@ -74,7 +74,7 @@ internal static class ParameterNormalizer
                     if (recovered != null)
                         sensor.Parameters[key] = recovered;
                     else
-                        sensor.Parameters.Remove(key); // Truly unrecoverable — remove so SensorExpander sees "not configured"
+                        sensor.Parameters.Remove(key); // Truly unrecoverable — remove so SensorResolver sees "not configured"
                 }
             }
         }

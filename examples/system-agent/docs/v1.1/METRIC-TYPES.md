@@ -1,14 +1,14 @@
 # MetricType 配置說明 (v1.1)
 
-> 本文件描述 v1.1 新增的 **Sensor Expansion** 功能。
+> 本文件描述 v1.1 新增的 **Explicit list / Auto-detect** 兩種 Sensor 解析模式。
 > v1.0 已有的 MetricType 分類、Sensor 配置結構、安全性檢查等基礎說明，請參閱 [METRIC-TYPES v1.0](../v1.0/METRIC-TYPES.md)。
 > Sensor 配置欄位快速參考與 v1.1 參數變更對照，請參閱 [Sensor 配置快速參考 v1.1](Sensor-Configuration-and-Usage-Guide.md)。
 
 ---
 
-## v1.1 新增功能：Sensor Expansion
+## v1.1 新增功能：Explicit list / Auto-detect mode
 
-v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Interface`、`PinId`、`MetricName`）。v1.1 引入 **Sensor Expansion** 機制，允許定義「泛用 Sensor」，系統啟動時自動偵測硬體資源並展開為多個具體 Sensor。
+v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Interface`、`PinId`、`MetricName`），即 **Bound mode**。v1.1 新增 **Explicit list mode** 與 **Auto-detect mode**，允許定義「泛用 Sensor」，系統啟動時根據模式自動偵測硬體資源並產生對應的具體 Sensor。
 
 ### 核心概念
 
@@ -27,9 +27,9 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 
 ---
 
-## 支援 Sensor Expansion 的 MetricType
+## 支援 Explicit list / Auto-detect mode 的 MetricType
 
-僅以下三種 MetricType 支援 Sensor Expansion，其餘 MetricType（`cpu`、`memory`、`disk`、`system`、`gpu`、`hwinfo`、`voltage`、`fanspeed`、`watchdog`、`thermalprotection`、`health`）行為與 v1.0 完全一致。
+僅以下三種 MetricType 支援 Explicit list / Auto-detect mode，其餘 MetricType（`cpu`、`memory`、`disk`、`system`、`gpu`、`hwinfo`、`voltage`、`fanspeed`、`watchdog`、`thermalprotection`、`health`）行為與 v1.0 完全一致。
 
 | MetricType | 單一資源參數（v1.0） | 單一資源參數（v1.1） | 列表參數（v1.1） | 自動偵測觸發條件（v1.1） |
 |------------|---------------------|---------------------|------------------|----------------|
@@ -41,7 +41,7 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 
 ---
 
-## 一、network Sensor Expansion
+## 一、network（Explicit list / Auto-detect mode）
 
 ### 自動偵測模式（不帶列表）
 
@@ -118,7 +118,7 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 
 ---
 
-## 二、gpio Sensor Expansion
+## 二、gpio（Explicit list / Auto-detect mode）
 
 僅當 `MetricName` 為 `pinState` 時觸發展開。`isSupported` 等其他 MetricName 不受影響。
 
@@ -196,7 +196,7 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 
 ---
 
-## 三、temperature Sensor Expansion
+## 三、temperature（Explicit list / Auto-detect mode）
 
 > **v1.1 變更**：v1.0 中 `MetricName` 同時作為指標名稱和感測器來源識別符。v1.1 將來源識別拆分到獨立的 `Source`（單一）/ `Sources`（列表）參數，`MetricName` 固定為 `"therm"`。v1.0 配置（僅設定 `MetricName` 為來源名稱）仍然相容。
 

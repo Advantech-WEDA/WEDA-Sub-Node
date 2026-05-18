@@ -3,7 +3,7 @@
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
   "displayName": "System Agent \u2014 CPU & Network Telemetry",
-  "description": "DTDL v2 schema for the CPU and Network MetricTypes (see docs/Metrics/01_CPU_NETWORK_FIELDS.md). Each Telemetry corresponds to one (MetricType, MetricName) pair. Network sensors support v1.1 Sensor Expansion via Parameters.Interface (bound) or Parameters.Interfaces (list / auto-detect); expanded sensors share the Telemetry DTMI and differentiate by ResourceId suffix. schemas[] publishes reusable Enums; every Telemetry's comment carries its validation rule.",
+  "description": "DTDL v2 schema for the CPU and Network MetricTypes (see docs/Metrics/01_CPU_NETWORK_FIELDS.md). Each Telemetry corresponds to one (MetricType, MetricName) pair. Network sensors support v1.1 Explicit list / Auto-detect mode via Parameters.Interface (bound) or Parameters.Interfaces (list / auto-detect); expanded sensors share the Telemetry DTMI and differentiate by ResourceId suffix. schemas[] publishes reusable Enums; every Telemetry's comment carries its validation rule.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:MetricType;1",

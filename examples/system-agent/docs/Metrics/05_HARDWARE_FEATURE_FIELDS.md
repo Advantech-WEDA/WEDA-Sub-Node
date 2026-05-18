@@ -4,7 +4,7 @@ This wiki page enumerates every JSON field of a Sensor entry in `devicecfg` of W
 
 All three are **platform-dependent** and require the host to ship a hardware-platform driver (e.g., Advantech SUSI Driver). On hosts without the driver, sensors remain defined but emit no value.
 
-Of these, only `gpio` (specifically `MetricName = pinState`) differs between v1.0 and v1.1 — v1.1 introduces Sensor Expansion. The `gpio` MetricName `isSupported`, plus `watchdog` and `thermalprotection`, are identical between versions.
+Of these, only `gpio` (specifically `MetricName = pinState`) differs between v1.0 and v1.1 — v1.1 introduces Explicit list / Auto-detect mode. The `gpio` MetricName `isSupported`, plus `watchdog` and `thermalprotection`, are identical between versions.
 
 ---
 

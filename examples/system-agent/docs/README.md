@@ -11,7 +11,7 @@
 | 1 | [01_QUICK_START.md](01_QUICK_START.md) | 部署與啟動 |
 | 2 | [Metrics/00_DEVICECFG.md](Metrics/00_DEVICECFG.md) | `devicecfg.json` 結構總覽（一頁式） |
 | 3 | [v1.0/Sensor-Configuration-and-Usage-Guide.md](v1.0/Sensor-Configuration-and-Usage-Guide.md) | Sensor 配置完整參考（v1.0） |
-| 4 | [v1.1/Sensor-Configuration-and-Usage-Guide.md](v1.1/Sensor-Configuration-and-Usage-Guide.md) | v1.1 差異：Sensor Expansion（自動偵測/明確列表） |
+| 4 | [v1.1/Sensor-Configuration-and-Usage-Guide.md](v1.1/Sensor-Configuration-and-Usage-Guide.md) | v1.1 差異：Auto-detect / Explicit list / Bound mode |
 | 5 | [03_DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) | Docker 部署指南 |
 | 6 | [04_TESTING_GUIDE.md](04_TESTING_GUIDE.md) | 測試指南 |
 
@@ -57,9 +57,9 @@ docs/
 │   └── METRIC-TYPES_en.md
 │
 ├── v1.1/                              — v1.1 差異文件
-│   ├── Sensor-Configuration-and-Usage-Guide.md     — 欄位修改規則 + Sensor Expansion
+│   ├── Sensor-Configuration-and-Usage-Guide.md     — 欄位修改規則 + 三種解析模式
 │   ├── Sensor-Configuration-and-Usage-Guide_en.md
-│   ├── METRIC-TYPES.md                             — Expansion 詳細行為
+│   ├── METRIC-TYPES.md                             — 解析模式詳細行為
 │   └── METRIC-TYPES_en.md
 │
 └── Metrics/                           — 按 MetricType 分組的詳細技術文件

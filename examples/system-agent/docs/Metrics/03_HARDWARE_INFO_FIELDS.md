@@ -4,7 +4,7 @@ This wiki page enumerates every JSON field of a Sensor entry in `devicecfg` of W
 
 The `hwinfo` MetricType is **platform-dependent** and requires the host to ship a hardware-platform driver (e.g., Advantech SUSI Driver). On hosts without the driver, sensors remain defined but emit no value.
 
-`hwinfo` behaves **identically between v1.0 and v1.1** and does not support Sensor Expansion.
+`hwinfo` behaves **identically between v1.0 and v1.1** and does not support Explicit list / Auto-detect mode.
 
 ---
 

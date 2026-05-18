@@ -277,7 +277,7 @@ public class LocalSystemResourceCollector
     }
 
     /// <summary>
-    /// Discovers available resource names for sensor auto-expansion.
+    /// Discovers available resource names for sensor resolution (Auto-detect mode).
     /// Returns network interface names, GPIO pin names, and temperature source names.
     /// </summary>
     public DiscoveredResources DiscoverAvailableResources()

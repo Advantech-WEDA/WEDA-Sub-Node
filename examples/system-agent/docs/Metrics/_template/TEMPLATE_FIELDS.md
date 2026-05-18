@@ -7,8 +7,8 @@ This wiki page enumerates every JSON field of a Sensor entry in `devicecfg` of W
 {{Platform-dependent — requires the host to ship a hardware-platform driver (e.g., Advantech SUSI Driver). On hosts without the driver, sensors remain defined but emit no value.}}
 
 {{v1.x behaviour — keep the relevant line, delete the rest:}}
-{{All MetricTypes in this file behave identically between v1.0 and v1.1 and do not support Sensor Expansion.}}
-{{`{{metric_type_1}}` supports v1.1 Sensor Expansion via `{{expansion_param_singular}}` / `{{expansion_param_plural}}`. The remaining MetricTypes are identical between v1.0 and v1.1.}}
+{{All MetricTypes in this file behave identically between v1.0 and v1.1 and do not support Explicit list / Auto-detect mode.}}
+{{`{{metric_type_1}}` supports v1.1 Explicit list / Auto-detect mode via `{{expansion_param_singular}}` / `{{expansion_param_plural}}`. The remaining MetricTypes are identical between v1.0 and v1.1.}}
 
 ---
 

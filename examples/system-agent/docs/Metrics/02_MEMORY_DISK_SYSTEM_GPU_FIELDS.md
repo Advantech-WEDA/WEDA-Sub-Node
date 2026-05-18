@@ -2,7 +2,7 @@
 
 This wiki page enumerates every JSON field of a Sensor entry in `devicecfg` of WEDA Node System-Agent for the **Memory**, **Disk**, **System**, and **GPU** MetricTypes — the remaining System-Resources metrics after [CPU & Network](01_CPU_NETWORK_FIELDS.md).
 
-All four metric types are platform-portable (Linux / Windows / macOS) and behave **identically between v1.0 and v1.1**. None of them support Sensor Expansion.
+All four metric types are platform-portable (Linux / Windows / macOS) and behave **identically between v1.0 and v1.1**. None of them support Explicit list / Auto-detect mode.
 
 ---
 

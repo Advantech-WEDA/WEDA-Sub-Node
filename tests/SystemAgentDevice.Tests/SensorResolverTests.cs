@@ -16,7 +16,7 @@ using Xunit.Abstractions;
 
 namespace SystemAgentDevice.Tests;
 
-public class SensorExpanderTests
+public class SensorResolverTests
 {
     private readonly ILogger _logger = Substitute.For<ILogger>();
 
@@ -79,7 +79,7 @@ public class SensorExpanderTests
         };
     }
 
-    // --- Network expansion ---
+    // --- Network resolution ---
 
     [Fact]
     public void Expand_NetworkSensor_WithoutInterface_ExpandsToDiscoveredInterfaces()
@@ -87,7 +87,7 @@ public class SensorExpanderTests
         var sensor = MakeNetworkSensor();
         var resources = new DiscoveredResources(["eth0", "eth1"], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("net_bytes_sent_eth0", result[0].Name);
@@ -102,7 +102,7 @@ public class SensorExpanderTests
         var sensor = MakeNetworkSensor(extraParams: new() { ["Interface"] = "eth0" });
         var resources = new DiscoveredResources(["eth0", "eth1"], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
@@ -114,13 +114,13 @@ public class SensorExpanderTests
         var sensor = MakeNetworkSensor();
         var resources = new DiscoveredResources([], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
     }
 
-    // --- GPIO expansion ---
+    // --- GPIO resolution ---
 
     [Fact]
     public void Expand_GpioSensor_WithoutPinId_ExpandsToDiscoveredPins()
@@ -128,7 +128,7 @@ public class SensorExpanderTests
         var sensor = MakeGpioSensor();
         var resources = new DiscoveredResources([], ["DI_0", "DI_1"], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("gpio_pin_DI_0", result[0].Name);
@@ -145,13 +145,13 @@ public class SensorExpanderTests
         });
         var resources = new DiscoveredResources([], ["DI_0", "DI_1", "DO_0"], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("gpio_pin_0", result[0].Name);
         Assert.Equal("0", result[0].Parameters!["PinId"]);
         Assert.Equal("1", result[1].Parameters!["PinId"]);
-        // PinIds array should be removed from expanded sensor
+        // PinIds array should be removed from resolved sensor
         Assert.False(result[0].Parameters!.ContainsKey("PinIds"));
     }
 
@@ -161,7 +161,7 @@ public class SensorExpanderTests
         var sensor = MakeGpioSensor(extraParams: new() { ["PinId"] = "DI_0" });
         var resources = new DiscoveredResources([], ["DI_0", "DI_1"], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
@@ -183,13 +183,13 @@ public class SensorExpanderTests
         };
         var resources = new DiscoveredResources([], ["DI_0"], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
     }
 
-    // --- Temperature expansion ---
+    // --- Temperature resolution ---
 
     [Fact]
     public void Expand_TemperatureSensor_WithoutSourceOrMetricName_ExpandsToDiscoveredSources()
@@ -197,7 +197,7 @@ public class SensorExpanderTests
         var sensor = MakeTemperatureSensor();
         var resources = new DiscoveredResources([], [], ["cpu_temp", "board_temp"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("temp_all_cpu_temp", result[0].Name);
@@ -215,7 +215,7 @@ public class SensorExpanderTests
         });
         var resources = new DiscoveredResources([], [], ["cpu_temp", "board_temp"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Equal("temp_all_cpu_temp", result[0].Name);
@@ -233,7 +233,7 @@ public class SensorExpanderTests
         });
         var resources = new DiscoveredResources([], [], ["cpu_temp", "board_temp"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("cpu_temp", result[0].Parameters!["Source"]);
@@ -245,7 +245,7 @@ public class SensorExpanderTests
         var sensor = MakeTemperatureSensor(extraParams: new() { ["Source"] = "cpu_temp" });
         var resources = new DiscoveredResources([], [], ["cpu_temp", "board_temp"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
@@ -258,13 +258,13 @@ public class SensorExpanderTests
         var sensor = MakeTemperatureSensor(extraParams: new() { ["MetricName"] = "cpU-therm" });
         var resources = new DiscoveredResources([], [], ["cpU-therm", "gpU-therm"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
     }
 
-    // --- Normalizer + Expander combined scenarios ---
+    // --- Normalizer + Resolver combined scenarios ---
 
     [Fact]
     public void NormalizeAndExpand_EmptyStringInterfaces_ExpandsToDiscovered()
@@ -273,7 +273,7 @@ public class SensorExpanderTests
         ParameterNormalizer.Normalize([sensor]);
         var resources = new DiscoveredResources(["eth0", "eth1"], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("net_bytes_sent_eth0", result[0].Name);
@@ -286,7 +286,7 @@ public class SensorExpanderTests
         ParameterNormalizer.Normalize([sensor]);
         var resources = new DiscoveredResources([], ["DI_0", "DI_1"], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("gpio_pin_DI_0", result[0].Name);
@@ -303,7 +303,7 @@ public class SensorExpanderTests
         ParameterNormalizer.Normalize([sensor]);
         var resources = new DiscoveredResources([], [], ["cpu_temp", "board_temp"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("cpu_temp", result[0].Parameters!["Source"]);
@@ -316,7 +316,7 @@ public class SensorExpanderTests
         ParameterNormalizer.Normalize([sensor]);
         var resources = new DiscoveredResources(["eth0", "wlan0", "docker0"], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("net_bytes_sent_eth0", result[0].Name);
@@ -331,9 +331,9 @@ public class SensorExpanderTests
         ParameterNormalizer.Normalize([sensor]);
         var resources = new DiscoveredResources(["eth0", "eth1"], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        // Normalizer removes unrecoverable key → SensorExpander sees "not configured" → auto-detect
+        // Normalizer removes unrecoverable key → SensorResolver sees "not configured" → auto-detect
         Assert.Equal(2, result.Count);
     }
 
@@ -355,7 +355,7 @@ public class SensorExpanderTests
         };
         var resources = new DiscoveredResources(["eth0"], ["DI_0"], ["cpu_temp"]);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.Same(sensor, result[0]);
@@ -370,7 +370,7 @@ public class SensorExpanderTests
         sensor.Report = new SensorReport { Enabled = true, Interval = 3000, Unit = "ms" };
         var resources = new DiscoveredResources(["eth0"], [], []);
 
-        var result = SensorExpander.Expand([sensor], resources, _logger);
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         Assert.Single(result);
         Assert.True(result[0].Report.Enabled);
@@ -380,10 +380,10 @@ public class SensorExpanderTests
 }
 
 /// <summary>
-/// Tests that verify SensorExpander works correctly when config is loaded
+/// Tests that verify SensorResolver works correctly when config is loaded
 /// through IConfiguration (the actual runtime path), not just in-memory objects.
 /// </summary>
-public class SensorExpanderIConfigurationTests(ITestOutputHelper output)
+public class SensorResolverIConfigurationTests(ITestOutputHelper output)
 {
     private readonly ILogger _logger = Substitute.For<ILogger>();
 
@@ -524,7 +524,7 @@ public class SensorExpanderIConfigurationTests(ITestOutputHelper output)
             ["CPU-therm", "GPU-therm"]);
 
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
-        var result = SensorExpander.Expand(deviceConfig.Sensors, resources, _logger);
+        var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
         // Network: 1 template → 2 expanded
         var networkSensors = result
@@ -590,7 +590,7 @@ public class SensorExpanderIConfigurationTests(ITestOutputHelper output)
             ["CPU-therm", "GPU-therm"]);
 
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
-        var result = SensorExpander.Expand(deviceConfig.Sensors, resources, _logger);
+        var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
         // Network: explicit "eth0" → only 1 expanded
         var networkSensors = result
@@ -661,7 +661,7 @@ public class SensorExpanderIConfigurationTests(ITestOutputHelper output)
             ["CPU-therm", "GPU-therm"]);
 
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
-        var result = SensorExpander.Expand(deviceConfig.Sensors, resources, _logger);
+        var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
         // Network: explicit ["eth0", "wlan0"] → 2 expanded (not 3, docker0 excluded)
         var networkSensors = result
@@ -719,7 +719,7 @@ public class SensorExpanderIConfigurationTests(ITestOutputHelper output)
             []);
 
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
-        var result = SensorExpander.Expand(deviceConfig.Sensors, resources, _logger);
+        var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
         // Empty array triggers auto-detect → expands to all discovered interfaces
         var networkSensors = result

@@ -19,7 +19,7 @@ The **Schema** column gives the JSON value type (`string`, `integer`, `boolean`,
 
 ## CPU Metric
 
-The CPU MetricType does **not** support Sensor Expansion. The schema is identical between v1.0 and v1.1.
+The CPU MetricType does **not** support Explicit list / Auto-detect mode. The schema is identical between v1.0 and v1.1.
 
 ### Example
 
@@ -78,7 +78,7 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 **v1.0 model**: every network sensor must be explicitly bound to a single interface via the required `Parameters.Interface`. No expansion.
 
-**v1.1 model**: introduces **Sensor Expansion** with three resolution modes —
+**v1.1 model**: supports three resolution modes —
 
 1. **Bound mode** — `Parameters.Interface` set. No expansion.
 2. **Explicit list mode** — `Parameters.Interfaces` set to a JSON array or comma-separated string.

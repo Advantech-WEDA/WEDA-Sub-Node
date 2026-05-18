@@ -1,14 +1,14 @@
 # MetricType Configuration Guide (v1.1)
 
-> This document describes the **Sensor Expansion** feature added in v1.1.
+> This document describes the **Explicit list / Auto-detect** sensor resolution modes added in v1.1.
 > For MetricType categories, Sensor configuration structure, and safety checks from v1.0, see [METRIC-TYPES v1.0](../v1.0/METRIC-TYPES_en.md).
 > For Sensor configuration field quick reference and v1.1 parameter changes, see [Sensor Configuration Quick Reference v1.1](Sensor-Configuration-and-Usage-Guide_en.md).
 
 ---
 
-## v1.1 New Feature: Sensor Expansion
+## v1.1 New Feature: Explicit list / Auto-detect Mode
 
-In v1.0, each Sensor must be explicitly bound to a specific resource (e.g., specifying `Interface`, `PinId`, `MetricName`). v1.1 introduces the **Sensor Expansion** mechanism, allowing definition of "generic Sensors" that are automatically expanded into multiple concrete Sensors at system startup by detecting hardware resources.
+In v1.0, each Sensor must be explicitly bound to a specific resource (e.g., specifying `Interface`, `PinId`, `MetricName`) — this is **Bound mode**. v1.1 adds **Explicit list mode** and **Auto-detect mode**, allowing definition of "generic Sensors" that are resolved into per-resource Sensors at system startup.
 
 ### Core Concepts
 
@@ -27,9 +27,9 @@ Bound single resource parameter (v1.0 mode) > Explicit list parameter (e.g., Int
 
 ---
 
-## MetricTypes Supporting Sensor Expansion
+## MetricTypes Supporting Explicit list / Auto-detect Mode
 
-Only the following three MetricTypes support Sensor Expansion. All other MetricTypes (`cpu`, `memory`, `disk`, `system`, `gpu`, `hwinfo`, `voltage`, `fanspeed`, `watchdog`, `thermalprotection`, `health`) behave identically to v1.0.
+Only the following three MetricTypes support Explicit list / Auto-detect mode. All other MetricTypes (`cpu`, `memory`, `disk`, `system`, `gpu`, `hwinfo`, `voltage`, `fanspeed`, `watchdog`, `thermalprotection`, `health`) behave identically to v1.0.
 
 | MetricType | Single Resource Param (v1.0) | Single Resource Param (v1.1) | List Param (v1.1) | Auto-detect Trigger (v1.1) |
 |------------|---------------------|---------------------|------------------|----------------|
@@ -41,7 +41,7 @@ Only the following three MetricTypes support Sensor Expansion. All other MetricT
 
 ---
 
-## 1. network Sensor Expansion
+## 1. network (Explicit list / Auto-detect mode)
 
 ### Auto-detect Mode (no list)
 
@@ -118,7 +118,7 @@ If `Interface` is already specified, behavior is identical to v1.0 — no expans
 
 ---
 
-## 2. gpio Sensor Expansion
+## 2. gpio (Explicit list / Auto-detect mode)
 
 Expansion only triggers when `MetricName` is `pinState`. Other MetricNames like `isSupported` are unaffected.
 
@@ -196,7 +196,7 @@ If `PinId` is already specified, behavior is identical to v1.0:
 
 ---
 
-## 3. temperature Sensor Expansion
+## 3. temperature (Explicit list / Auto-detect mode)
 
 > **v1.1 Change**: In v1.0, `MetricName` served as both metric name and sensor source identifier. v1.1 separates source identification into independent `Source` (single) / `Sources` (list) parameters, and `MetricName` is fixed to `"therm"`. v1.0 configurations (only setting `MetricName` as source name) remain compatible.
 
