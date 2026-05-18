@@ -28,7 +28,7 @@ The `gpio` MetricType supports two MetricNames with different parameter shapes. 
 | MetricName | Returns | Additional Parameters (v1.0) | Additional Parameters (v1.1) | Expansion (v1.1) |
 |------------|---------|------------------------------|------------------------------|------------------|
 | `isSupported` | boolean | None | None | ❌ Not supported |
-| `pinState` | integer (0=Low, 1=High) | `PinId` (required) | `PinId` (single) or `PinIds` (list / auto-detect) | ✅ Supported |
+| `pinState` | integer (0=Low, 1=High) | `PinId` (integer, required) | `PinId` (integer, single) or `PinIds` (`array<integer>` / auto-detect) | ✅ Supported |
 
 ---
 
@@ -91,27 +91,27 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 ### Examples
 
-**Explicit binding (only mode)** — single pin via `PinId`; works in both v1.0 and v1.1:
+**Explicit binding (only mode)** — single pin via `PinId` (integer index); works in both v1.0 and v1.1:
 
 ```json
 {
-  "Name": "gpio_pin_UIO_GPIO2",
+  "Name": "gpio_pin_4",
   "SensorGroup": "DI",
   "Parameters": {
     "MetricType": "gpio",
     "MetricName": "pinState",
-    "PinId": "UIO_GPIO2"
+    "PinId": 4
   },
   "Report": { "Enabled": true, "Interval": 6000 },
   "SensorInfo": {
     "Schema": "integer",
-    "Description": "GPIO pin state for UIO_GPIO2",
-    "DisplayName": "UIO_GPIO2 State"
+    "Description": "GPIO pin state at index 4",
+    "DisplayName": "Pin 4 State"
   }
 }
 ```
 
-**Explicit list mode** (v1.1):
+**Explicit list mode** (v1.1) — integer indices:
 
 ```json
 {
@@ -120,7 +120,7 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
   "Parameters": {
     "MetricType": "gpio",
     "MetricName": "pinState",
-    "PinIds": ["DI_0", "DI_1"]
+    "PinIds": [4, 17, 27]
   },
   "Report": { "Enabled": true, "Interval": 6000 },
   "SensorInfo": {
@@ -155,13 +155,13 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 | Hierarchy Key Name | Schema | Changeable | Required (v1.0 / v1.1) | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|------------------------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<pin>` (e.g., `gpio_pin_DI_0`). | Free-form, e.g., `gpio_pin_UIO_GPIO2` (bound) or `gpio_pinState` (generic in v1.1). | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64` (after expansion suffix in v1.1); unique. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<index>` (e.g., `gpio_pinState_4`). | Free-form, e.g., `gpio_pin_4` (bound) or `gpio_pinState` (generic in v1.1). | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64` (after expansion suffix in v1.1); unique. |
 | `SensorGroup` | string | ❌ | ✅ | Logical grouping. `pinState` conventionally uses `DI`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | v1.0: must contain `MetricType`, `MetricName`, `PinId`. v1.1: must contain `MetricType`, `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `gpio` | Must equal `gpio` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific GPIO query. | `pinState` | Must equal `pinState` (const) for this sub-section. |
-| `Parameters.PinId` | string | ❌ | ✅ / ❌ | GPIO pin name or numeric index (single binding). v1.0: required. v1.1: bound mode only — overrides `PinIds` when present. | e.g., `UIO_GPIO2`, `DI_0`, `4`. | Non-empty string. Must resolve to a pin present on the host at startup. v1.1: semantically mutually exclusive with `PinIds`. |
-| `Parameters.PinIds` | `oneOf: [array<string>, string]` | ❌ | n/a / ❌ | **v1.1 only.** List of pin names/indices, or empty for auto-detect. | JSON array `[4, 17]` or `["DI_0","DI_1"]`; CSV `"DI_0,DI_1"`; `[]`; `""`. | Array of strings or a single string. Empty array/string → auto-detect. |
+| `Parameters.PinId` | integer | ❌ | ✅ / ❌ | GPIO pin index (single binding). v1.0: required. v1.1: bound mode only — overrides `PinIds` when present. | non-negative integer, e.g. `4`, `17`, `27`. | Non-negative integer. Resolved via `GpioMetrics.PinIndexToName[index]` at runtime. v1.1: semantically mutually exclusive with `PinIds`. |
+| `Parameters.PinIds` | `array<integer>` | ❌ | n/a / ❌ | **v1.1 only.** Array of pin indices, or empty for auto-detect. | JSON array `[4, 17, 27]`; `[]` (auto-detect). | Array of non-negative integers. Empty array → auto-detect. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
 | `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | `> 0`. |

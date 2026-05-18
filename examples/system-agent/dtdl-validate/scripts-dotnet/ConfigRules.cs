@@ -37,7 +37,18 @@ public static class ConfigRules
                 MutualExclusivity,
             },
 
-            // Extension points: add disk / temperature / gpio rules here.
+            // ============================================================
+            // gpio -- Parameters.PinId / Parameters.PinIds (INTEGER-ONLY)
+            // ============================================================
+            ["gpio"] = new Rule[]
+            {
+                PinIdShape,
+                PinIdsShape,
+                PinIdsMutualExclusivity,
+                IsSupportedMustNotCarryPinFields,
+            },
+
+            // Extension points: add disk / temperature rules here.
         };
 
     public static RuleResult Validate(JsonElement sensor)
@@ -116,6 +127,93 @@ public static class ConfigRules
 
         return RuleResult.OkResult;
     }
+
+    // ---------- gpio rules ----------
+
+    private static RuleResult PinIdShape(JsonElement sensor)
+    {
+        if (!IsMetricName(sensor, "pinState")) return RuleResult.OkResult;
+        if (!TryGetParameter(sensor, "PinId", out var pinId)) return RuleResult.OkResult;
+
+        if (TryGetNonNegativeInt(pinId, out _)) return RuleResult.OkResult;
+        return RuleResult.Fail(
+            $"Parameters.PinId must be a non-negative integer; got {DescribeValue(pinId)}");
+    }
+
+    private static RuleResult PinIdsShape(JsonElement sensor)
+    {
+        if (!IsMetricName(sensor, "pinState")) return RuleResult.OkResult;
+        if (!TryGetParameter(sensor, "PinIds", out var pinIds)) return RuleResult.OkResult;
+
+        if (pinIds.ValueKind != JsonValueKind.Array)
+            return RuleResult.Fail(
+                $"Parameters.PinIds must be an array of non-negative integers; got {pinIds.ValueKind}");
+
+        foreach (var item in pinIds.EnumerateArray())
+        {
+            if (!TryGetNonNegativeInt(item, out _))
+                return RuleResult.Fail(
+                    $"Parameters.PinIds element {DescribeValue(item)} is not a non-negative integer");
+        }
+        return RuleResult.OkResult;
+    }
+
+    private static RuleResult PinIdsMutualExclusivity(JsonElement sensor)
+    {
+        if (!IsMetricName(sensor, "pinState")) return RuleResult.OkResult;
+
+        var hasPinId = TryGetParameter(sensor, "PinId", out _);
+        var hasPinIds = false;
+        if (TryGetParameter(sensor, "PinIds", out var pinIds) &&
+            pinIds.ValueKind == JsonValueKind.Array)
+        {
+            hasPinIds = pinIds.GetArrayLength() > 0;
+        }
+
+        if (hasPinId && hasPinIds)
+            return RuleResult.Fail(
+                "Parameters.PinId and Parameters.PinIds both set non-empty; runtime would pick 'PinId' but the config is ambiguous");
+
+        return RuleResult.OkResult;
+    }
+
+    private static RuleResult IsSupportedMustNotCarryPinFields(JsonElement sensor)
+    {
+        if (!IsMetricName(sensor, "isSupported")) return RuleResult.OkResult;
+        if (TryGetParameter(sensor, "PinId", out _) ||
+            TryGetParameter(sensor, "PinIds", out _))
+        {
+            return RuleResult.Fail(
+                "metricName=isSupported sensors must not carry PinId or PinIds");
+        }
+        return RuleResult.OkResult;
+    }
+
+    private static bool IsMetricName(JsonElement sensor, string expected)
+    {
+        if (!TryGetParameter(sensor, "MetricName", out var mn)) return false;
+        return mn.ValueKind == JsonValueKind.String &&
+               string.Equals(mn.GetString(), expected, StringComparison.Ordinal);
+    }
+
+    private static bool TryGetNonNegativeInt(JsonElement v, out long value)
+    {
+        value = 0;
+        if (v.ValueKind != JsonValueKind.Number) return false;
+        if (!v.TryGetInt64(out value)) return false;
+        if (value < 0) return false;
+        // Reject decimals like 4.5 (TryGetInt64 returns false anyway but be explicit).
+        var raw = v.GetRawText();
+        if (raw.Contains('.') || raw.Contains('e') || raw.Contains('E')) return false;
+        return true;
+    }
+
+    private static string DescribeValue(JsonElement v) => v.ValueKind switch
+    {
+        JsonValueKind.String => $"string \"{v.GetString()}\"",
+        JsonValueKind.Null   => "null",
+        _                    => $"{v.ValueKind} {v.GetRawText()}",
+    };
 
     // ---------- helpers ----------
 

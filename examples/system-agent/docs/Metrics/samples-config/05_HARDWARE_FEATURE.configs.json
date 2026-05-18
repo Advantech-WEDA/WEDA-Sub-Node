@@ -1,0 +1,110 @@
+[
+  {
+    "Name": "gpio_pin_4",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinId": 4 },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "GPIO pin state at index 4", "DisplayName": "Pin 4 State" },
+    "expect": "valid",
+    "reason": "v1.0 bound mode -- PinId is a non-negative integer"
+  },
+  {
+    "Name": "gpio_pinState_list",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinIds": [4, 17, 27] },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "GPIO pin state", "DisplayName": "Pin State" },
+    "expect": "valid",
+    "reason": "v1.1 explicit list -- PinIds is an array of non-negative integers"
+  },
+  {
+    "Name": "gpio_pinState_auto",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinIds": [] },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "GPIO pin state", "DisplayName": "Pin State" },
+    "expect": "valid",
+    "reason": "v1.1 auto-detect -- empty array"
+  },
+  {
+    "Name": "gpio_pinState_auto_missing",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState" },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "GPIO pin state", "DisplayName": "Pin State" },
+    "expect": "valid",
+    "reason": "v1.1 auto-detect -- both PinId and PinIds omitted"
+  },
+  {
+    "Name": "gpio_isSupported",
+    "SensorGroup": "SYS",
+    "Parameters": { "MetricType": "gpio", "MetricName": "isSupported" },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "boolean", "Description": "GPIO support flag", "DisplayName": "GPIO Supported" },
+    "expect": "valid",
+    "reason": "isSupported takes no extra parameters"
+  },
+  {
+    "Name": "gpio_pinState_str",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinId": "UIO_GPIO2" },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "PinId is a string (named pin); strict integer-only rejects this"
+  },
+  {
+    "Name": "gpio_pinState_str_index",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinId": "4" },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "PinId is string-encoded integer; strict integer-only rejects this"
+  },
+  {
+    "Name": "gpio_pinState_negative",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinId": -1 },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "PinId is negative"
+  },
+  {
+    "Name": "gpio_pinState_pinids_mixed",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinIds": [4, "DI_0"] },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "PinIds contains a non-integer element"
+  },
+  {
+    "Name": "gpio_pinState_pinids_csv",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinIds": "4,17,27" },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "PinIds is a CSV string; strict integer-only rejects this -- use a JSON array"
+  },
+  {
+    "Name": "gpio_pinState_ambiguous",
+    "SensorGroup": "DI",
+    "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinId": 4, "PinIds": [17] },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "integer", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "both PinId and PinIds set non-empty -- ambiguous"
+  },
+  {
+    "Name": "gpio_isSupported_with_pinid",
+    "SensorGroup": "SYS",
+    "Parameters": { "MetricType": "gpio", "MetricName": "isSupported", "PinId": 4 },
+    "Report": { "Enabled": true, "Interval": 6000 },
+    "SensorInfo": { "Schema": "boolean", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "isSupported sensor must not carry PinId"
+  }
+]

@@ -165,6 +165,42 @@
           "displayName": "string"
         }
       ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioSensorParameters;1",
+      "@type": "Object",
+      "displayName": "GPIO Sensor Parameters",
+      "description": "Reusable Object schema for the Parameters block of every gpio Sensor in devicecfg.json. Field names use camelCase here; on-the-wire keys are PascalCase (the agent matches case-insensitively).",
+      "comment": "Pin identifiers are integer indices only; resolved at runtime via PinIndexToName[index]. DTDL v2 has no cross-field constraints, so one rule lives outside the schema (enforced by config-rules.js): pinId and pinIds are mutually exclusive when both non-empty. pinId and pinIds apply only when metricName == 'pinState'.",
+      "fields": [
+        {
+          "name": "metricType",
+          "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:MetricType;1",
+          "description": "Metric-family discriminator. For this Object MUST equal 'gpio'."
+        },
+        {
+          "name": "metricName",
+          "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioMetricName;1",
+          "description": "Specific GPIO query (see GpioMetricName enum). 'isSupported' takes no extra parameters; 'pinState' uses pinId / pinIds."
+        },
+        {
+          "name": "pinId",
+          "displayName": "Bound Pin Index (v1.0)",
+          "schema": "integer",
+          "description": "Single GPIO pin INDEX (e.g. 4). Non-negative integer; resolved via GpioMetrics.PinIndexToName[index] to a pin name, then looked up in PinStateDetails. v1.0 mode: required for metricName=pinState. v1.1 mode: optional; when set disables expansion."
+        },
+        {
+          "name": "pinIds",
+          "displayName": "Pin Index List (v1.1)",
+          "schema": {
+            "@type": "Array",
+            "elementSchema": "integer"
+          },
+          "description": "Array of GPIO pin INDICES (e.g. [4, 17, 27]). All entries non-negative. v1.1 only. Each entry becomes one expanded sensor sharing the GpioPinState Telemetry DTMI; resolved via PinIndexToName[index]. Empty array means auto-detect across every entry of GpioMetrics.PinNames."
+        }
+      ]
     }
   ],
   "contents": [
