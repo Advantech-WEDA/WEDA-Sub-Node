@@ -1,53 +1,53 @@
-# MetricType 配置說明 (v1.1)
+# MetricType Configuration Guide (v1.1)
 
-> 本文件描述 v1.1 新增的 **Explicit list / Auto-detect** 兩種 Sensor 解析模式。
-> v1.0 已有的 MetricType 分類、Sensor 配置結構、安全性檢查等基礎說明，請參閱 [METRIC-TYPES v1.0](../v1.0/METRIC-TYPES.md)。
-> Sensor 配置欄位快速參考與 v1.1 參數變更對照，請參閱 [Sensor 配置快速參考 v1.1](Sensor-Configuration-and-Usage-Guide.md)。
+> This document describes the **Explicit list / Auto-detect** sensor resolution modes added in v1.1.
+> For MetricType categories, Sensor configuration structure, and safety checks from v1.0, see [METRIC-TYPES v1.0](../v1.0/METRIC-TYPES.md).
+> For Sensor configuration field quick reference and v1.1 parameter changes, see [Sensor Configuration Quick Reference v1.1](Sensor-Configuration-and-Usage-Guide.md).
 
 ---
 
-## v1.1 新增功能：Explicit list / Auto-detect mode
+## v1.1 New Feature: Explicit list / Auto-detect Mode
 
-v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Interface`、`PinId`、`MetricName`），即 **Bound mode**。v1.1 新增 **Explicit list mode** 與 **Auto-detect mode**，允許定義「泛用 Sensor」，系統啟動時根據模式自動偵測硬體資源並產生對應的具體 Sensor。
+In v1.0, each Sensor must be explicitly bound to a specific resource (e.g., specifying `Interface`, `PinId`, `MetricName`) — this is **Bound mode**. v1.1 adds **Explicit list mode** and **Auto-detect mode**, allowing definition of "generic Sensors" that are resolved into per-resource Sensors at system startup.
 
-### 核心概念
+### Core Concepts
 
-| 概念 | 說明 |
+| Concept | Description |
 |------|------|
-| **泛用 Sensor** | 不指定具體資源識別參數的 Sensor 定義 |
-| **自動偵測模式** | 完全不帶列表（或設為空陣列 `[]` / 空字串 `""`），系統自動探索所有可用資源並展開 |
-| **明確列表模式** | 透過 JSON 陣列或逗號分隔字串指定要展開的資源子集 |
-| **指定 Sensor** | 已指定單一資源參數（如 `Interface`）的 Sensor，不會被展開（與 v1.0 行為一致） |
+| **Generic Sensor** | A Sensor definition without specific resource identifier parameters |
+| **Auto-detect Mode** | No list provided (or set to empty array `[]` / empty string `""`), system automatically discovers all available resources and expands |
+| **Explicit List Mode** | Specify a subset of resources to expand via JSON array or comma-separated string |
+| **Bound Sensor** | A Sensor with a single resource parameter already specified (e.g., `Interface`), will not be expanded (same as v1.0 behavior) |
 
-### 優先順序
+### Priority Order
 
 ```
-已綁定單一資源參數（v1.0 模式） > 明確列表參數（如 Interfaces） > 自動偵測
+Bound single resource parameter (v1.0 mode) > Explicit list parameter (e.g., Interfaces) > Auto-detect
 ```
 
 ---
 
-## 支援 Explicit list / Auto-detect mode 的 MetricType
+## MetricTypes Supporting Explicit list / Auto-detect Mode
 
-僅以下三種 MetricType 支援 Explicit list / Auto-detect mode，其餘 MetricType（`cpu`、`memory`、`disk`、`system`、`gpu`、`hwinfo`、`voltage`、`fanspeed`、`watchdog`、`thermalprotection`、`health`）行為與 v1.0 完全一致。
+Only the following three MetricTypes support Explicit list / Auto-detect mode. All other MetricTypes (`cpu`, `memory`, `disk`, `system`, `gpu`, `hwinfo`, `voltage`, `fanspeed`, `watchdog`, `thermalprotection`, `health`) behave identically to v1.0.
 
-| MetricType | 單一資源參數（v1.0） | 單一資源參數（v1.1） | 列表參數（v1.1） | 自動偵測觸發條件（v1.1） |
+| MetricType | Single Resource Param (v1.0) | Single Resource Param (v1.1) | List Param (v1.1) | Auto-detect Trigger (v1.1) |
 |------------|---------------------|---------------------|------------------|----------------|
-| `network` | `Interface` | `Interface` | `Interfaces`（陣列或逗號分隔） | 未設定 `Interface` 且未設定 `Interfaces` |
-| `gpio`（`pinState`） | `PinId` | `PinId` | `PinIds`（陣列或逗號分隔） | 未設定 `PinId` 且未設定 `PinIds` |
-| `temperature` | `MetricName`（兼任來源名稱） | `Source` | `Sources`（陣列或逗號分隔） | 未設定 `Source` 且未設定 `Sources` 且未設定 `MetricName` |
+| `network` | `Interface` | `Interface` | `Interfaces` (array or comma-separated) | Neither `Interface` nor `Interfaces` is set |
+| `gpio` (`pinState`) | `PinId` | `PinId` | `PinIds` (array or comma-separated) | Neither `PinId` nor `PinIds` is set |
+| `temperature` | `MetricName` (doubles as source name) | `Source` | `Sources` (array or comma-separated) | Neither `Source` nor `Sources` nor `MetricName` is set |
 
-> **temperature 的 v1.0 → v1.1 變更**：v1.0 中 `MetricName` 同時作為「指標名稱」和「感測器來源識別符」。v1.1 將來源識別拆分到獨立的 `Source` / `Sources` 參數，`MetricName` 回歸為固定的指標名稱（建議使用 `"therm"`）。v1.0 配置（僅設定 `MetricName`）仍然相容。
+> **temperature v1.0 → v1.1 change**: In v1.0, `MetricName` served as both "metric name" and "sensor source identifier". v1.1 separates source identification into independent `Source` / `Sources` parameters, and `MetricName` reverts to a fixed metric name (recommended: `"therm"`). v1.0 configurations (only setting `MetricName`) remain compatible.
 
 ---
 
-## 一、network（Explicit list / Auto-detect mode）
+## 1. network (Explicit list / Auto-detect mode)
 
-### 自動偵測模式（不帶列表）
+### Auto-detect Mode (no list)
 
-省略 `Interface` 參數，系統啟動時自動偵測所有網路介面並展開。
+Omit the `Interface` parameter; the system automatically detects all network interfaces at startup and expands.
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "network_bytes_sent",
@@ -68,16 +68,16 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-若系統偵測到 `eth0`、`wlan0` 兩個介面，自動展開為：
+If the system detects `eth0` and `wlan0`, it auto-expands to:
 
-| 展開後 Name | Interface | DisplayName |
+| Expanded Name | Interface | DisplayName |
 |-------------|-----------|-------------|
 | `network_bytes_sent_eth0` | `eth0` | `eth0 Network bytes sent` |
 | `network_bytes_sent_wlan0` | `wlan0` | `wlan0 Network bytes sent` |
 
-### 明確列表模式（帶列表）
+### Explicit List Mode (with list)
 
-使用 `Interfaces` 陣列或逗號分隔字串指定要監控的介面子集：
+Use the `Interfaces` array or comma-separated string to specify a subset of interfaces to monitor:
 
 ```json
 {
@@ -100,11 +100,11 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-即使系統存在 `wlan0`、`lo` 等其他介面，也只會展開為 `eth0` 和 `eth1` 兩個 Sensor。
+Even if `wlan0`, `lo`, or other interfaces exist on the system, only `eth0` and `eth1` Sensors will be created.
 
-### 已綁定模式（v1.0 相容）
+### Bound Mode (v1.0 compatible)
 
-若已指定 `Interface`，行為與 v1.0 完全一致，不進行展開：
+If `Interface` is already specified, behavior is identical to v1.0 — no expansion occurs:
 
 ```json
 {
@@ -118,15 +118,15 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 
 ---
 
-## 二、gpio（Explicit list / Auto-detect mode）
+## 2. gpio (Explicit list / Auto-detect mode)
 
-僅當 `MetricName` 為 `pinState` 時觸發展開。`isSupported` 等其他 MetricName 不受影響。
+Expansion only triggers when `MetricName` is `pinState`. Other MetricNames like `isSupported` are unaffected.
 
-### 自動偵測模式（不帶列表）
+### Auto-detect Mode (no list)
 
-省略 `PinId` 參數，系統自動偵測所有 GPIO 腳位並展開。
+Omit the `PinId` parameter; the system automatically detects all GPIO pins and expands.
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "gpio_pin",
@@ -146,17 +146,17 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-若系統偵測到 `DI_0`、`DI_1`、`DO_0` 三個腳位，自動展開為：
+If the system detects `DI_0`, `DI_1`, `DO_0`, it auto-expands to:
 
-| 展開後 Name | PinId | DisplayName |
+| Expanded Name | PinId | DisplayName |
 |-------------|-------|-------------|
 | `gpio_pin_DI_0` | `DI_0` | `DI_0 Pin state` |
 | `gpio_pin_DI_1` | `DI_1` | `DI_1 Pin state` |
 | `gpio_pin_DO_0` | `DO_0` | `DO_0 Pin state` |
 
-### 明確列表模式（帶列表）
+### Explicit List Mode (with list)
 
-使用 `PinIds` 陣列或逗號分隔字串指定要監控的腳位子集：
+Use the `PinIds` array or comma-separated string to specify a subset of pins to monitor:
 
 ```json
 {
@@ -178,11 +178,11 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-即使系統存在 `DO_0` 等其他腳位，也只會展開為 `DI_0` 和 `DI_1` 兩個 Sensor。
+Even if `DO_0` or other pins exist on the system, only `DI_0` and `DI_1` Sensors will be created.
 
-### 已綁定模式（v1.0 相容）
+### Bound Mode (v1.0 compatible)
 
-若已指定 `PinId`，行為與 v1.0 完全一致：
+If `PinId` is already specified, behavior is identical to v1.0:
 
 ```json
 {
@@ -196,15 +196,15 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 
 ---
 
-## 三、temperature（Explicit list / Auto-detect mode）
+## 3. temperature (Explicit list / Auto-detect mode)
 
-> **v1.1 變更**：v1.0 中 `MetricName` 同時作為指標名稱和感測器來源識別符。v1.1 將來源識別拆分到獨立的 `Source`（單一）/ `Sources`（列表）參數，`MetricName` 固定為 `"therm"`。v1.0 配置（僅設定 `MetricName` 為來源名稱）仍然相容。
+> **v1.1 Change**: In v1.0, `MetricName` served as both metric name and sensor source identifier. v1.1 separates source identification into independent `Source` (single) / `Sources` (list) parameters, and `MetricName` is fixed to `"therm"`. v1.0 configurations (only setting `MetricName` as source name) remain compatible.
 
-### 自動偵測模式（不帶列表）
+### Auto-detect Mode (no list)
 
-省略 `Source` 參數，使用 `Sources: []` 或完全不帶，系統啟動時自動偵測所有溫度感測器來源並展開。
+Omit the `Source` parameter, use `Sources: []` or leave it out entirely; the system automatically detects all temperature sensor sources at startup and expands.
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "temperature",
@@ -226,16 +226,16 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-若系統偵測到 `cpU-therm`、`gpU-therm` 兩個溫度來源，自動展開為：
+If the system detects `cpU-therm` and `gpU-therm`, it auto-expands to:
 
-| 展開後 Name | Source | DisplayName |
+| Expanded Name | Source | DisplayName |
 |-------------|--------|-------------|
 | `temperature_cpU-therm` | `cpU-therm` | `cpU-therm Temperature` |
 | `temperature_gpU-therm` | `gpU-therm` | `gpU-therm Temperature` |
 
-### 明確列表模式（帶列表）
+### Explicit List Mode (with list)
 
-使用 `Sources` 陣列或逗號分隔字串指定要監控的溫度來源子集：
+Use the `Sources` array or comma-separated string to specify a subset of temperature sources:
 
 ```json
 {
@@ -258,11 +258,11 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-即使系統存在其他溫度感測器，也只會展開為指定的來源。
+Even if other temperature sensors exist on the system, only the specified sources will be expanded.
 
-### 已綁定模式（指定單一來源）
+### Bound Mode (single source specified)
 
-若已指定 `Source`，不進行展開：
+If `Source` is specified, no expansion occurs:
 
 ```json
 {
@@ -274,9 +274,9 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-### v1.0 相容模式
+### v1.0 Compatible Mode
 
-若僅設定 `MetricName`（不帶 `Source` 或 `Sources`），行為與 v1.0 完全一致——`MetricName` 作為感測器來源名稱使用：
+If only `MetricName` is set (without `Source` or `Sources`), behavior is identical to v1.0 — `MetricName` is used as the sensor source name:
 
 ```json
 {
@@ -287,36 +287,36 @@ v1.0 中，每個 Sensor 必須明確綁定到特定資源（例如指定 `Inter
 }
 ```
 
-### v1.0 與 v1.1 對照
+### v1.0 vs v1.1 Comparison
 
 | | v1.0 | v1.1 |
 |------|------|------|
-| **MetricName** | 感測器來源名稱（如 `cpU-therm`） | 固定為 `"therm"` |
-| **來源識別** | 由 `MetricName` 兼任 | 獨立的 `Source` 參數 |
-| **列表展開** | ❌ 不支援 | `Sources` 陣列或逗號分隔字串 |
-| **自動偵測** | ❌ 不支援 | 省略 `Source` + `Sources: []` |
+| **MetricName** | Sensor source name (e.g., `cpU-therm`) | Fixed to `"therm"` |
+| **Source Identification** | Handled by `MetricName` | Independent `Source` parameter |
+| **List Expansion** | ❌ Not supported | `Sources` array or comma-separated string |
+| **Auto-detect** | ❌ Not supported | Omit `Source` + `Sources: []` |
 
 ---
 
-## 展開後的命名規則
+## Naming Rules After Expansion
 
-當泛用 Sensor 被展開時，產生的 Sensor 屬性按以下規則生成：
+When a generic Sensor is expanded, the generated Sensor properties follow these rules:
 
-| 屬性 | 規則 | 範例 |
+| Property | Rule | Example |
 |------|------|------|
-| `Name` | `{泛用Name}_{resourceName}` | `network_bytes_sent_eth0` |
-| `DisplayName` | `{resourceName} {泛用DisplayName}` | `eth0 Network bytes sent` |
-| `Description` | `{泛用Description} ({resourceName})` | `Network bytes sent (eth0)` |
+| `Name` | `{genericName}_{resourceName}` | `network_bytes_sent_eth0` |
+| `DisplayName` | `{resourceName} {genericDisplayName}` | `eth0 Network bytes sent` |
+| `Description` | `{genericDescription} ({resourceName})` | `Network bytes sent (eth0)` |
 
-展開後的 Sensor 會移除列表參數（如 `Interfaces`），並新增單一資源參數（如 `Interface`）。其餘設定（`Report`、`SensorGroup`、`Schema` 等）從泛用 Sensor 繼承。
+After expansion, the list parameter (e.g., `Interfaces`) is removed and a single resource parameter (e.g., `Interface`) is added. All other settings (`Report`, `SensorGroup`, `Schema`, etc.) are inherited from the generic Sensor.
 
 ---
 
-## 邊界行為
+## Edge Cases
 
-| 情境 | 行為 |
+| Scenario | Behavior |
 |------|------|
-| 自動偵測模式但無發現任何資源 | 保持泛用 Sensor 原樣不展開，輸出警告日誌 |
-| 明確列表為空陣列 `[]` 或空字串 `""` | 退回自動偵測模式 |
-| 在不支援硬體上使用 GPIO/Temperature 自動偵測 | 無發現資源，保持原樣（與 v1.0 行為一致） |
-| 非展開類型（cpu、memory 等）設定列表參數 | 列表參數被忽略，行為與 v1.0 一致 |
+| Auto-detect mode but no resources found | Generic Sensor is kept as-is without expansion, warning log emitted |
+| Explicit list is empty array `[]` or empty string `""` | Falls back to auto-detect mode |
+| Using GPIO/Temperature auto-detect on unsupported hardware | No resources found, kept as-is (same as v1.0 behavior) |
+| Non-expansion types (cpu, memory, etc.) with list parameters set | List parameters are ignored, behavior identical to v1.0 |

@@ -118,6 +118,6 @@ If the natural unit isn't on the list (RPM, packets, dimensionless ratios, count
 ## Related references
 
 - `05_DEVICECFG.md` (top level) — the canonical schema reference; mirrors the four-block (`identity` / `parameters` / `report` / `sensorInfo`) layout this template uses.
-- `02_METRIC_TYPES_v1.0.md`, `02_METRIC_TYPES_v1.1.md` — explain the Explicit list / Auto-detect mode semantics that v1.1 metric types must honour.
+- `docs/v1.1/METRIC-TYPES.md` — explains the Explicit list / Auto-detect mode semantics that v1.1 metric types must honour.
 - `Protocols/SystemMetricsParser.cs` — the runtime parser dispatch; a new MetricType won't actually publish anything until you wire a branch in here.
 - `Models/SystemMetricsRawData.cs` — the raw collector contract; new metric types need a new property here (or a new collector).

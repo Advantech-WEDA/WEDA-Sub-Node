@@ -1,63 +1,63 @@
-# Sensor 配置參考 — v1.1 差異
+# Sensor Configuration Quick Reference — v1.1 Differences
 
-> 本文件僅說明 v1.1 與 v1.0 的差異。完整欄位說明請參閱 [v1.0 Sensor-Configuration-and-Usage-Guide](../v1.0/Sensor-Configuration-and-Usage-Guide.md)。
+> This document only covers changes between v1.1 and v1.0. For full field descriptions, see [v1.0 Sensor-Configuration-and-Usage-Guide](../v1.0/Sensor-Configuration-and-Usage-Guide.md).
 
 ---
 
-## Sensor 欄位修改規則
+## Sensor Field Modification Rules
 
-### 可修改的欄位
+### Modifiable Fields
 
-| 欄位 | 適用類型 | 可設定的值 |
-|------|----------|------------|
-| `Report.Enabled` | 所有 | `true` / `false` |
-| `Report.Interval` | 所有 | 正整數（毫秒） |
-| `SensorInfo.Description` | 所有 | 任意字串 |
-| `SensorInfo.DisplayName` | 所有 | 任意字串 |
-| `Parameters.MountPoint` | MetricType : `disk` + 任意 MetricName | 字串，如 `/`、`/home` |
-| `Parameters.Interface` | MetricType : `network` + 任意 MetricName | 字串，如 `eth0` |
-| `Parameters.Interfaces` | MetricType : `network` + 任意 MetricName | 陣列，如 []、[`eth0`、`eth1`]  |
-| `Parameters.PinId` | MetricType : `gpio` + MetricName:`pinState` | 字串，如 `gpio4`、`4`（支援名稱或數字編號） |
-| `Parameters.PinIds` | MetricType : `gpio` + MetricName:`pinState` | 陣列，如 `[]`、`[4, 17, 27]`、`["gpio4", "gpio17"]`（支援名稱或數字編號） |
-| `Parameters.Source` | MetricType : `temperature` + MetricName:`therm` | 字串，如 `cpu-therm` |
-| `Parameters.Sources` | MetricType : `temperature` + MetricName:`therm` | 陣列，如 `[]`、`["cpu-therm", "gpu-therm"]` |
+| Field | Applicable Types | Allowed Values |
+|------|-----------------|----------------|
+| `Report.Enabled` | All | `true` / `false` |
+| `Report.Interval` | All | Positive integer (milliseconds) |
+| `SensorInfo.Description` | All | Any string |
+| `SensorInfo.DisplayName` | All | Any string |
+| `Parameters.MountPoint` | MetricType: `disk` + any MetricName | String, e.g., `/`, `/home` |
+| `Parameters.Interface` | MetricType: `network` + any MetricName | String, e.g., `eth0` |
+| `Parameters.Interfaces` | MetricType: `network` + any MetricName | Array, e.g., `[]`, `["eth0", "eth1"]` |
+| `Parameters.PinId` | MetricType: `gpio` + MetricName: `pinState` | String, e.g., `gpio4`, `4` (name or numeric index) |
+| `Parameters.PinIds` | MetricType: `gpio` + MetricName: `pinState` | Array, e.g., `[]`, `[4, 17, 27]`, `["gpio4", "gpio17"]` (name or numeric index) |
+| `Parameters.Source` | MetricType: `temperature` + MetricName: `therm` | String, e.g., `cpu-therm` |
+| `Parameters.Sources` | MetricType: `temperature` + MetricName: `therm` | Array, e.g., `[]`, `["cpu-therm", "gpu-therm"]` |
 
-### 不可修改的欄位
+### Non-modifiable Fields
 
-| 欄位 | 說明 |
+| Field | Description |
 |------|------|
-| `Name` | Sensor 唯一識別名稱，建立後不可變更 |
-| `SensorGroup` | Sensor 分組（`AI`/`AO`/`DI`/`DO`/`TEMP`/`PWR`/`SYS`） |
-| `SensorInfo.Schema` | 資料類型（`double`/`long`/`integer`/`boolean`/`string`） |
-| `Parameters.MetricType` | 指標類型（`cpu`/`memory`/`disk`/`network`/`gpu`/`system`/`hwinfo`/`temperature`/`voltage`/`fanspeed`/`gpio`/`watchdog`/`thermalprotection`） |
-| `Parameters.MetricName` | 指標名稱（對應 MetricType 的固定列舉值） |
+| `Name` | Unique sensor identifier, cannot be changed after creation |
+| `SensorGroup` | Sensor group (`AI`/`AO`/`DI`/`DO`/`TEMP`/`PWR`/`SYS`) |
+| `SensorInfo.Schema` | Data type (`double`/`long`/`integer`/`boolean`/`string`) |
+| `Parameters.MetricType` | Metric type (`cpu`/`memory`/`disk`/`network`/`gpu`/`system`/`hwinfo`/`temperature`/`voltage`/`fanspeed`/`gpio`/`watchdog`/`thermalprotection`) |
+| `Parameters.MetricName` | Metric name (fixed enum values per MetricType) |
 
 ---
 
-## 需要額外參數的組合（v1.1 更新）
+## Additional Parameters (v1.1 Updates)
 
-v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一參數仍然有效（Bound mode）。
+v1.1 adds list parameters for Explicit list / Auto-detect mode. Existing single parameters remain valid (Bound mode).
 
-| MetricType + MetricName | v1.0 參數 | v1.1 新增 | 說明 |
+| MetricType + MetricName | v1.0 Parameter | v1.1 Addition | Description |
 |------------------------|-----------|----------|------|
-| `disk` + 任意 | `MountPoint`（必填） | — | 無變更 |
-| `network` + 任意 | `Interface`（單一介面） | `Interfaces`（陣列、逗號分隔或 `[]` 自動偵測） | 展開為多個網路介面感測器 |
-| `gpio` + `pinState` | `PinId`（單一腳位） | `PinIds`（陣列、逗號分隔或 `[]` 自動偵測） | 展開為多個 GPIO 腳位感測器 |
-| `temperature` + `therm` | `MetricName`（來源名稱） | `Source`（單一）/ `Sources`（陣列、逗號分隔或 `[]` 自動偵測） | `MetricName` 固定為 `"therm"`，來源識別改用 `Source`/`Sources` |
+| `disk` + any | `MountPoint` (required) | — | No change |
+| `network` + any | `Interface` (single) | `Interfaces` (array, comma-separated, or `[]` for auto-detect) | Expands to multiple network interface sensors |
+| `gpio` + `pinState` | `PinId` (single) | `PinIds` (array, comma-separated, or `[]` for auto-detect) | Expands to multiple GPIO pin sensors |
+| `temperature` + `therm` | `MetricName` (source name) | `Source` (single) / `Sources` (array, comma-separated, or `[]` for auto-detect) | `MetricName` fixed to `"therm"`, source identification via `Source`/`Sources` |
 
-> **注意**：`[]`（空陣列）、`""`（空字串）與省略該參數效果相同，都會觸發自動偵測。
+> **Note**: `[]` (empty array), `""` (empty string), and omitting the parameter all trigger auto-detect.
 >
-> **格式說明**：列表參數支援 JSON 陣列（如 `["eth0", "eth1"]`）或逗號分隔字串（如 `"eth0,eth1"`）兩種格式。
+> **Format**: List parameters support JSON arrays (e.g., `["eth0", "eth1"]`) or comma-separated strings (e.g., `"eth0,eth1"`).
 
-> 展開後的命名規則、邊界行為等細節請參閱 [METRIC-TYPES v1.1](METRIC-TYPES.md#展開後的命名規則)。
+> For naming rules and edge cases, see [METRIC-TYPES v1.1](METRIC-TYPES.md#naming-rules-after-expansion).
 
 ---
 
-## 變更的範例
+## Examples of Changes
 
-### 板載感測器 — 溫度（v1.1）
+### Onboard Sensors — Temperature (v1.1)
 
-**v1.0 寫法**（仍然相容）：
+**v1.0 syntax** (still compatible):
 ```json
 {
   "Name": "temperature_cpu_therm",
@@ -69,7 +69,7 @@ v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一
 }
 ```
 
-**v1.1 寫法**（已綁定單一來源）：
+**v1.1 syntax** (bound to single source):
 ```json
 {
   "Name": "temperature_cpu_therm",
@@ -82,7 +82,7 @@ v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一
 }
 ```
 
-**v1.1 寫法**（自動偵測所有來源）：
+**v1.1 syntax** (auto-detect all sources):
 ```json
 {
   "Name": "temperature",
@@ -104,7 +104,7 @@ v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一
 }
 ```
 
-### 網路流量 — 自動偵測所有介面（v1.1 新增）
+### Network Traffic — Auto-detect All Interfaces (v1.1 new)
 
 ```json
 {
@@ -127,7 +127,7 @@ v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一
 }
 ```
 
-### GPIO 腳位 — 自動偵測所有腳位（v1.1 新增）
+### GPIO Pins — Auto-detect All Pins (v1.1 new)
 
 ```json
 {
@@ -152,12 +152,13 @@ v1.1 新增列表參數支援 Explicit list / Auto-detect mode，原有的單一
 
 ---
 
-## 未變更的部分
+## Unchanged Parts
 
-以下內容與 v1.0 完全一致，請參閱 [v1.0 文件](../v1.0/Sensor-Configuration-and-Usage-Guide.md)：
+The following remain identical to v1.0. See [v1.0 documentation](../v1.0/Sensor-Configuration-and-Usage-Guide.md):
 
-- 欄位總覽表（各欄位可否修改）
-- SensorGroup 列舉值
-- Schema 支援的值
-- 支援的 MetricType 列表
-- `cpu`、`memory`、`disk`、`gpu`、`system`、`hwinfo`、`voltage`、`fanspeed`、`watchdog`、`thermalprotection` 的配置方式
+- Field overview table (which fields are modifiable)
+- SensorGroup enum values
+- Supported Schema values
+- Supported MetricType list
+- Configuration for `cpu`, `memory`, `disk`, `gpu`, `system`, `hwinfo`, `voltage`, `fanspeed`, `watchdog`, `thermalprotection`
+

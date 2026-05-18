@@ -1,10 +1,10 @@
-# MetricType 配置說明
+# MetricType Configuration Guide
 
-使用者透過設定 `MetricType` 指定 System Agent 的採集指標。即使硬體不支援該指標，System Agent 也不會產生異常，只是無法採集對應指標資料。
+Users configure `MetricType` to specify the metrics that System Agent collects. Even if the hardware does not support a metric, System Agent will not throw an exception — it simply cannot collect the corresponding data.
 
-## Sensor 配置結構
+## Sensor Configuration Structure
 
-每個 Sensor 在 `devicecfg.json` 中的配置結構如下，Parameters 會因為不同的 Sensor 有不同的欄位：
+Each Sensor in `devicecfg.json` has the following structure. The Parameters section varies depending on the Sensor type:
 
 ```json
 {
@@ -26,37 +26,37 @@
 }
 ```
 
-| 必填欄位 | 說明 |
+| Required Field | Description |
 |------|------|
-| `Name` | Sensor 唯一識別名稱 |
-| `SensorGroup` | Sensor 分組 |
-| `Report.Enabled` | 是否啟用上報 |
-| `Report.Interval` | 上報間隔（毫秒） |
-| `SensorInfo.Schema` | 預期回傳資料類型（`double`、`long`、`string`、`boolean`、`integer`） |
-| `SensorInfo.Description` | Sensor 描述 |
-| `SensorInfo.DisplayName` | Sensor 顯示名稱 |
-| `Parameters.MetricType` | 指標類型 |
-| `Parameters.MetricName` | 指標名稱 |
+| `Name` | Unique sensor identifier |
+| `SensorGroup` | Sensor group |
+| `Report.Enabled` | Whether reporting is enabled |
+| `Report.Interval` | Reporting interval (milliseconds) |
+| `SensorInfo.Schema` | Expected data type (`double`, `long`, `string`, `boolean`, `integer`) |
+| `SensorInfo.Description` | Sensor description |
+| `SensorInfo.DisplayName` | Sensor display name |
+| `Parameters.MetricType` | Metric type |
+| `Parameters.MetricName` | Metric name |
 
 ---
 
-## MetricType 分類與設計原則
+## MetricType Categories and Design Principles
 
-## 一、系統資源類
+## 1. System Resources
 
-支援跨平台（Linux、Windows、macOS），使用標準作業系統 API 獲取
+Cross-platform support (Linux, Windows, macOS) using standard OS APIs.
 
 ### cpu
 
-| MetricName | 說明 | 資料類型 | 單位 |
+| MetricName | Description | Data Type | Unit |
 |-----------|------|---------|------|
-| `usage` | 整體 CPU 使用率（由各核心時間計算） | double | % (0-100) |
-| `load1` | 1 分鐘負載平均值 | double | - |
-| `load5` | 5 分鐘負載平均值 | double | - |
-| `load15` | 15 分鐘負載平均值 | double | - |
-| `context_switches` | 上下文切換總數 | long | 次數 |
+| `usage` | Overall CPU usage (calculated from per-core time) | double | % (0-100) |
+| `load1` | 1-minute load average | double | - |
+| `load5` | 5-minute load average | double | - |
+| `load15` | 15-minute load average | double | - |
+| `context_switches` | Total context switches | long | count |
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "cpu_usage",
@@ -79,34 +79,34 @@
 
 ### memory
 
-| MetricName | 說明 | 資料類型 | 單位 |
+| MetricName | Description | Data Type | Unit |
 |-----------|------|---------|------|
-| `total` | 總記憶體 | long | bytes |
-| `available` | 可用記憶體（含可回收快取） | long | bytes |
-| `used` | 已使用記憶體（total - available） | long | bytes |
-| `free` | 空閒記憶體 | long | bytes |
-| `cached` | 快取記憶體 | long | bytes |
-| `buffers` | 緩衝區記憶體 | long | bytes |
-| `swap_total` | Swap 總容量 | long | bytes |
-| `swap_free` | Swap 可用容量 | long | bytes |
+| `total` | Total memory | long | bytes |
+| `available` | Available memory (including reclaimable cache) | long | bytes |
+| `used` | Used memory (total - available) | long | bytes |
+| `free` | Free memory | long | bytes |
+| `cached` | Cached memory | long | bytes |
+| `buffers` | Buffer memory | long | bytes |
+| `swap_total` | Total swap | long | bytes |
+| `swap_free` | Available swap | long | bytes |
 
 ### disk
 
-需要額外參數 `MountPoint`（例如 `/` 或 `C:\`）
+Requires additional parameter `MountPoint` (e.g., `/` or `C:\`)
 
-| MetricName | 說明 | 資料類型 | 單位 |
+| MetricName | Description | Data Type | Unit |
 |-----------|------|---------|------|
-| `total` | 磁碟總容量 | long | bytes |
-| `available` | 可用容量（非特權使用者） | long | bytes |
-| `free` | 空閒容量 | long | bytes |
-| `used` | 已使用容量 | long | bytes |
-| `usage_percent` | 使用率百分比 | double | % (0-100) |
-| `reads_completed` | 讀取操作總數 | long | 次數 |
-| `writes_completed` | 寫入操作總數 | long | 次數 |
-| `read_bytes` | 讀取位元組總數 | long | bytes |
-| `written_bytes` | 寫入位元組總數 | long | bytes |
+| `total` | Total disk capacity | long | bytes |
+| `available` | Available capacity (non-privileged user) | long | bytes |
+| `free` | Free capacity | long | bytes |
+| `used` | Used capacity | long | bytes |
+| `usage_percent` | Usage percentage | double | % (0-100) |
+| `reads_completed` | Total read operations | long | count |
+| `writes_completed` | Total write operations | long | count |
+| `read_bytes` | Total bytes read | long | bytes |
+| `written_bytes` | Total bytes written | long | bytes |
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "disk_root_usage_percent",
@@ -130,19 +130,19 @@
 
 ### network
 
-需要額外參數 `Interface`（例如 `eth0`、`en0`）
+Requires additional parameter `Interface` (e.g., `eth0`, `en0`)
 
-| MetricName | 說明 | 資料類型 | 單位 |
+| MetricName | Description | Data Type | Unit |
 |-----------|------|---------|------|
-| `bytes_sent` | 傳送位元組總數 | long | bytes |
-| `bytes_received` | 接收位元組總數 | long | bytes |
-| `packets_sent` | 傳送封包總數 | long | 封包數 |
-| `packets_received` | 接收封包總數 | long | 封包數 |
-| `errors` | 收發錯誤總數（errors_in + errors_out） | long | 次數 |
-| `errors_in` | 接收錯誤數 | long | 次數 |
-| `errors_out` | 傳送錯誤數 | long | 次數 |
+| `bytes_sent` | Total bytes sent | long | bytes |
+| `bytes_received` | Total bytes received | long | bytes |
+| `packets_sent` | Total packets sent | long | packets |
+| `packets_received` | Total packets received | long | packets |
+| `errors` | Total send/receive errors (errors_in + errors_out) | long | count |
+| `errors_in` | Receive errors | long | count |
+| `errors_out` | Send errors | long | count |
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "network_en0_bytes_sent",
@@ -166,43 +166,43 @@
 
 ### system
 
-| MetricName | 說明 | 資料類型 | 單位 |
+| MetricName | Description | Data Type | Unit |
 |-----------|------|---------|------|
-| `time` | 當前系統時間 | long | Unix timestamp (秒) |
-| `timex_offset` | NTP 時間偏移 | double | 秒 |
-| `boot_time` | 系統啟動時間 | long | Unix timestamp (秒) |
-| `filefd_allocated` | 已分配的檔案描述符數量 | long | 數量 |
-| `filefd_maximum` | 檔案描述符最大數量 | long | 數量 |
-| `procs_running` | 運行中的處理程序數 | int | 數量 |
-| `procs_blocked` | 被阻塞的處理程序數 | int | 數量 |
-| `intr_total` | 中斷處理總數 | long | 次數 |
+| `time` | Current system time | long | Unix timestamp (seconds) |
+| `timex_offset` | NTP time offset | double | seconds |
+| `boot_time` | System boot time | long | Unix timestamp (seconds) |
+| `filefd_allocated` | Allocated file descriptors | long | count |
+| `filefd_maximum` | Maximum file descriptors | long | count |
+| `procs_running` | Running processes | int | count |
+| `procs_blocked` | Blocked processes | int | count |
+| `intr_total` | Total interrupts | long | count |
 
 ### gpu
 
-使用 NVIDIA NVML 函式庫，需安裝 NVIDIA 驅動。
+Uses NVIDIA NVML library. Requires NVIDIA driver.
 
-| MetricName | 說明 | 資料類型 | 單位 |
+| MetricName | Description | Data Type | Unit |
 |-----------|------|---------|------|
-| `utilization` | GPU 使用率百分比 | int | % (0-100) |
+| `utilization` | GPU utilization percentage | int | % (0-100) |
 
 ---
 
-## 二、硬體資訊類
+## 2. Hardware Information
 
-適用平台：工業電腦（需硬體平台驅動，如 Advantech SUSI Driver）
+Applicable platforms: Industrial PCs (requires hardware platform driver, e.g., Advantech SUSI Driver)
 
 ### hwinfo
 
-| MetricName | 說明 | 資料類型 |
+| MetricName | Description | Data Type |
 |-----------|------|---------|
-| `motherboardname` | 主機板名稱 | string |
-| `manufacturer` | 製造商 | string |
-| `biosrevision` | BIOS 版本 | string |
-| `driverversion` | 驅動程式版本 | string |
-| `libraryversion` | SDK 庫版本 | string |
-| `ecrevision` | 嵌入式控制器版本 | string |
+| `motherboardname` | Motherboard name | string |
+| `manufacturer` | Manufacturer | string |
+| `biosrevision` | BIOS revision | string |
+| `driverversion` | Driver version | string |
+| `libraryversion` | SDK library version | string |
+| `ecrevision` | Embedded controller revision | string |
 
-**配置範例**：
+**Configuration Example**:
 ```json
 {
   "Name": "hwinfo_motherboard",
@@ -224,15 +224,15 @@
 
 ---
 
-## 三、板載感測器類
+## 3. Onboard Sensors
 
-適用平台：工業電腦（需硬體平台驅動，如 Advantech SUSI Driver）
+Applicable platforms: Industrial PCs (requires hardware platform driver, e.g., Advantech SUSI Driver)
 
 ### temperature
 
-設定 `MetricName` 為感測器名稱（如 `cpU-therm`、`gpU-therm`），返回該感測器的溫度值（`double`，單位 °C）。支援不區分大小寫的比對。
+Set `MetricName` to the sensor source name (e.g., `cpU-therm`, `gpU-therm`). Returns the temperature value (`double`, unit: °C). Supports case-insensitive matching.
 
-**配置範例**（指定感測器）：
+**Configuration Example** (specifying sensor):
 ```json
 {
   "Name": "temperature_cpU_therm",
@@ -254,20 +254,20 @@
 
 ---
 
-## 四、硬體功能類
+## 4. Hardware Features
 
-適用平台：工業電腦（需硬體平台驅動，如 Advantech SUSI Driver）
+Applicable platforms: Industrial PCs (requires hardware platform driver, e.g., Advantech SUSI Driver)
 
 ### gpio
 
-支援以下 MetricName：
+Supported MetricNames:
 
-| MetricName | 說明 | 額外參數 | 資料類型 |
+| MetricName | Description | Additional Parameters | Data Type |
 |-----------|------|---------|---------|
-| `isSupported` | GPIO 功能是否受支援 | 無 | boolean |
-| `pinState` | 指定腳位的電位狀態（0=Low, 1=High） | `PinId`（必填） | integer |
+| `isSupported` | Whether GPIO is supported | None | boolean |
+| `pinState` | Pin state (0=Low, 1=High) | `PinId` (required) | integer |
 
-**配置範例**（查詢支援狀態）：
+**Configuration Example** (query support status):
 ```json
 {
   "Name": "gpio_isSupported",
@@ -287,37 +287,30 @@
 }
 ```
 
-**配置範例**（查詢腳位狀態）：
-```json
-{
-  "Name": "gpio_pin_UIO_GPIO2",
-  "Parameters": {
-    "MetricType": "gpio",
-    "MetricName": "pinState",
-    "PinId": "UIO_GPIO2"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 6000
-  },
-  "SensorInfo": {
-    "Schema": "integer",
-    "Description": "GPIO pin state for UIO_GPIO2",
-    "DisplayName": "UIO_GPIO2 State"
-  }
-}
-```
+### voltage
 
----
+Returns voltage readings (`double`, unit: V).
 
-## 在不支援硬體上的行為
+| MetricName | Description | Data Type | Unit |
+|-----------|------|---------|------|
+| `voltage` | Voltage reading | double | V |
 
-在不支援的硬體上（例如沒有對應硬體平台驅動）會：
+### fanspeed
 
-1. **程式不會崩潰**：捕獲驅動載入失敗的異常並繼續運行
-2. **顯示警告日誌**：
-   ```
-   [WRN] Advantech driver DLL not found. Hardware metrics unavailable.
-   ```
-3. **通用指標不受影響**：系統資源類指標正常採集
-4. **硬體指標無資料**：相關 sensors 無法採集資料
+Returns fan speed readings (`double`, unit: RPM).
+
+| MetricName | Description | Data Type | Unit |
+|-----------|------|---------|------|
+| `fanspeed` | Fan speed | double | RPM |
+
+### watchdog
+
+| MetricName | Description | Data Type |
+|-----------|------|---------|
+| `isSupported` | Whether watchdog is supported | boolean |
+
+### thermalprotection
+
+| MetricName | Description | Data Type |
+|-----------|------|---------|
+| `isSupported` | Whether thermal protection is supported | boolean |
