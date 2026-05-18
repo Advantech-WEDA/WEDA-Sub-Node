@@ -294,6 +294,8 @@ A fixture sample marked `"expect": "invalid"` *should* fail the predicate. The v
 
 The DTDL parser checks the schema; the predicates check published values; neither checks whether a *sensor entry in `devicecfg.json`* is well-formed. That's what `validate-configs.js` (and its .NET twin `ConfigsValidator.cs`) is for.
 
+> **Now also formally declared in the DTDL.** `01_CPU_NETWORK.dtdl.json` `schemas[]` includes a reusable Object schema **`NetworkSensorParameters`** with named fields `metricType` (Enum), `metricName` (Enum), `interface` (`string`), `interfaces` (`Array<string>`). That makes `Parameters.Interfaces` machine-discoverable through the official DTDL parser — every consumer that walks `schemas[]` can introspect the parameter shape without resorting to text-mining the prose. The Object schema **describes the wire shape**; the runtime rules that DTDL v2 can't express (the CSV-string variant of `interfaces`, mutual exclusivity with `interface`) live in this validator's `config-rules.js` and are documented in the Object's `comment` field.
+
 The first ruleset ships with the `network` MetricType and covers the v1.0 / v1.1 `Parameters.Interface` / `Parameters.Interfaces` contract documented in `01_CPU_NETWORK_FIELDS.md`:
 
 | Rule | Pass | Fail |
