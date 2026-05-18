@@ -13,9 +13,9 @@
 #       node /app/validate-dtdl.js
 #
 # The image bakes in the parser (~12 MB on top of node:20-alpine) and the
-# three validator scripts. The DTDL files and sample fixtures are NEVER
-# baked in -- mount them at runtime so the same image evaluates any branch
-# without rebuilds.
+# two validator scripts (schema + config). The DTDL files and sample-config
+# fixtures are NEVER baked in -- mount them at runtime so the same image
+# evaluates any branch without rebuilds.
 
 # --- Stage 1: install deps in a separate layer so script edits don't bust
 # the npm cache ---
@@ -33,15 +33,15 @@ USER node
 
 COPY --chown=node:node --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node \
-     validate-dtdl.js validate-samples.js validate-configs.js \
-     predicates.js config-rules.js \
+     validate-dtdl.js validate-configs.js \
+     config-rules.js \
      ./
 
-# Validators read DTDLs / samples / samples-config relative to this path.
+# Validators read DTDLs / samples-config relative to this path.
 ENV DTDL_BASE=/work
 
 # Bind-mount your docs/Metrics/ at /work when running.
 WORKDIR /work
 
-# Default: run all three validators in sequence; non-zero exit if any fails.
-CMD ["sh", "-c", "node /app/validate-dtdl.js && node /app/validate-samples.js && node /app/validate-configs.js"]
+# Default: run both validators in sequence; non-zero exit if either fails.
+CMD ["sh", "-c", "node /app/validate-dtdl.js && node /app/validate-configs.js"]

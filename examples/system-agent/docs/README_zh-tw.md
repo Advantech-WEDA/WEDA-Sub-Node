@@ -25,8 +25,8 @@
 
 ```
 # 欄位定義（含 Auto-detect / Explicit list / Bound mode 完整規格）
-docs/Metrics/01_CPU_NETWORK_FIELDS.md
-docs/Metrics/02_MEMORY_DISK_SYSTEM_GPU_FIELDS.md
+docs/Metrics/01_SYS_RES_CPU_NETWORK_FIELDS.md
+docs/Metrics/01_SYS_RES_MEMORY_DISK_FIELDS.md
 docs/Metrics/03_HARDWARE_INFO_FIELDS.md
 docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md
 docs/Metrics/05_HARDWARE_FEATURE_FIELDS.md
@@ -65,9 +65,9 @@ docs/
 │
 └── Metrics/                           — 按 MetricType 分組的詳細技術文件
     ├── 00_DEVICECFG.md                — devicecfg.json 結構總覽
-    ├── 01_CPU_NETWORK_FIELDS.md       — cpu + network 欄位定義
+    ├── 01_SYS_RES_CPU_NETWORK_FIELDS.md       — cpu + network 欄位定義
     ├── 01_CPU_NETWORK.dtdl.json       — DTDL Interface
-    ├── 01_CPU_NETWORK_USAGE.md        — 使用情境與範例
+    ├── 01_SYS_RES_CPU_NETWORK_USAGE.md        — 使用情境與範例
     ├── 02_MEMORY_DISK_SYSTEM_GPU_*    — memory + disk + system + gpu
     ├── 03_HARDWARE_INFO_*             — hwinfo
     ├── 04_ONBOARD_SENSOR_*            — temperature + voltage + fanspeed

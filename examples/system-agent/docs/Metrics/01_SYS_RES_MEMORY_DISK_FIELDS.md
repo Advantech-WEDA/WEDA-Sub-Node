@@ -1,14 +1,14 @@
-# Sensor Field Reference — Memory · Disk · System · GPU
+# Sensor Field Reference — Memory · Disk · System
 
-This wiki page enumerates every JSON field of a Sensor entry in `devicecfg` of WEDA Node System-Agent for the **Memory**, **Disk**, **System**, and **GPU** MetricTypes — the remaining System-Resources metrics after [CPU & Network](01_CPU_NETWORK_FIELDS.md).
+This wiki page enumerates every JSON field of a Sensor entry in `devicecfg` of WEDA Node System-Agent for the **Memory**, **Disk**, and **System** MetricTypes. Together with [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](01_SYS_RES_CPU_NETWORK_FIELDS.md) these complete the **System Resource** category (Interface DTMI `dtmi:advantech:EdgeSync:SystemAgent:SystemResource;1`).
 
-All four metric types are platform-portable (Linux / Windows / macOS) and behave **identically between v1.0 and v1.1**. None of them support Explicit list / Auto-detect mode.
+> File-name note: per repository convention, `01_SYS_RES_MEMORY_DISK_*` covers Memory + Disk + System. GPU has moved to its own [`02_GPU_*.md`](02_GPU_FIELDS.md) under the `GpuResource` Interface.
+
+All three metric types are platform-portable (Linux / Windows / macOS) and behave **identically between v1.0 and v1.1**. None of them support Explicit-list / Auto-detect mode.
 
 ---
 
 ## Legend
-
-Flag columns:
 
 | Symbol | Changeable Flag | Required Flag |
 |--------|------------------|---------------|
@@ -196,57 +196,6 @@ The System MetricType has no additional Parameters. Exposes OS-level system coun
 
 ---
 
-## GPU Metric
-
-The GPU MetricType uses the NVIDIA NVML library and requires the NVIDIA driver to be installed on the host. On hosts without a supported GPU/driver, the sensor remains defined but emits no value.
-
-### Example
-
-```json
-{
-  "Name": "gpu_utilization",
-  "SensorGroup": "SYS",
-  "Parameters": {
-    "MetricType": "gpu",
-    "MetricName": "utilization"
-  },
-  "Report": {
-    "Enabled": true,
-    "Interval": 5000
-  },
-  "SensorInfo": {
-    "Schema": "integer",
-    "Description": "GPU utilization percentage",
-    "DisplayName": "GPU Utilization"
-  }
-}
-```
-
-### Field Table
-
-| Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
-|--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `gpu_utilization`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. GPU uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
-| `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
-| `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `gpu` | Must equal `gpu` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific GPU metric. | `utilization` | Enum constraint above. |
-| `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
-| `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | `> 0`. |
-| `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
-| `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For GPU: `integer`. | Must equal `integer`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
-
-### GPU MetricName → Schema Mapping
-
-| MetricName | `SensorInfo.Schema` | Unit |
-|------------|---------------------|------|
-| `utilization` | `integer` | % (0–100) |
-
----
-
 ## Notes on Changeable Flag Semantics
 
 - ❌ **Immutable fields** (`Name`, `SensorGroup`, `Parameters.MetricType`, `Parameters.MetricName`, `Parameters.MountPoint` for disk, `SensorInfo.Schema`): Cannot be modified after creation; changing them is equivalent to defining a different sensor.
@@ -257,3 +206,12 @@ The GPU MetricType uses the NVIDIA NVML library and requires the NVIDIA driver t
 - Required ✅ → MUST appear in the JSON.
 - Container objects (`Parameters`, `Report`, `SensorInfo`) are required even though their own values are objects.
 - `Parameters.MountPoint` is required for every disk sensor; there is no auto-detect mode for disks.
+
+---
+
+## Related
+
+- [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](01_SYS_RES_CPU_NETWORK_FIELDS.md) — the other half of the System Resource Interface (CPU + Network)
+- [`02_GPU_FIELDS.md`](02_GPU_FIELDS.md) — GPU MetricType (own Interface `GpuResource`)
+- [`01_SYS_RES_MEMORY_DISK_USAGE.md`](01_SYS_RES_MEMORY_DISK_USAGE.md) — .NET / C# consumption guide
+- [`01_SYSTEM_RESOURCE.dtdl.json`](01_SYSTEM_RESOURCE.dtdl.json) — the DTDL v2 Interface

@@ -1,6 +1,6 @@
 # Using `03_HARDWARE_INFO.dtdl.json` from .NET / C#
 
-End-to-end examples for consuming [`03_HARDWARE_INFO.dtdl.json`](./03_HARDWARE_INFO.dtdl.json) from a C# application. Targets **.NET 8+** with the `DTDLParser` package. Same overall shape as [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md) and [`02_MEMORY_DISK_SYSTEM_GPU_USAGE.md`](./02_MEMORY_DISK_SYSTEM_GPU_USAGE.md) — read either of those first if you haven't.
+End-to-end examples for consuming [`03_HARDWARE_INFO.dtdl.json`](./03_HARDWARE_INFO.dtdl.json) from a C# application. Targets **.NET 8+** with the `DTDLParser` package. Same overall shape as [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md) and [`01_SYS_RES_MEMORY_DISK_USAGE.md`](./01_SYS_RES_MEMORY_DISK_USAGE.md) — read either of those first if you haven't.
 
 The DTDL file ships **two** things you can leverage:
 
@@ -356,4 +356,4 @@ var entities = await new ModelParser().ParseAsync(dtdls);
 
 - [`03_HARDWARE_INFO_FIELDS.md`](./03_HARDWARE_INFO_FIELDS.md) — the configuration field reference this code consumes.
 - [`03_HARDWARE_INFO.dtdl.json`](./03_HARDWARE_INFO.dtdl.json) — the source-of-truth DTDL Interface.
-- [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md), [`02_MEMORY_DISK_SYSTEM_GPU_USAGE.md`](./02_MEMORY_DISK_SYSTEM_GPU_USAGE.md) — the equivalent guides for the other metric categories; share the `GetStringEnumValues` helper.
+- [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md), [`01_SYS_RES_MEMORY_DISK_USAGE.md`](./01_SYS_RES_MEMORY_DISK_USAGE.md) — the equivalent guides for the other metric categories; share the `GetStringEnumValues` helper.

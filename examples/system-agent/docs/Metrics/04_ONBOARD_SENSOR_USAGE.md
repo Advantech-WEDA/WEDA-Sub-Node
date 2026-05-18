@@ -1,6 +1,6 @@
 # Using `04_ONBOARD_SENSOR.dtdl.json` from .NET / C#
 
-End-to-end examples for consuming [`04_ONBOARD_SENSOR.dtdl.json`](./04_ONBOARD_SENSOR.dtdl.json) from a C# application. Targets **.NET 8+** with the `DTDLParser` package. Read [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md) first for the parser setup pattern.
+End-to-end examples for consuming [`04_ONBOARD_SENSOR.dtdl.json`](./04_ONBOARD_SENSOR.dtdl.json) from a C# application. Targets **.NET 8+** with the `DTDLParser` package. Read [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md) first for the parser setup pattern.
 
 The DTDL file ships **two** things you can leverage:
 

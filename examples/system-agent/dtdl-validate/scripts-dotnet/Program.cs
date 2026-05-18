@@ -2,9 +2,8 @@
 //
 // Usage:
 //   dotnet run -- dtdl          # schema-level only
-//   dotnet run -- samples       # instance-level only
 //   dotnet run -- configs       # config-level only (Parameters.* shape checks)
-//   dotnet run -- both          # all three (default; alias: no args)
+//   dotnet run -- both          # both (default; alias: no args)
 //
 // Paths:
 //   DTDL_BASE env var when set; else parent of AppContext.BaseDirectory.
@@ -20,34 +19,31 @@ public static class Program
         return mode switch
         {
             "dtdl"    => await DtdlValidator.RunAsync(),
-            "samples" => await SamplesValidator.RunAsync(),
             "configs" => await ConfigsValidator.RunAsync(),
-            "both"    => await RunAllAsync(),
-            "all"     => await RunAllAsync(),
+            "both"    => await RunBothAsync(),
+            "all"     => await RunBothAsync(),
             _         => Unknown(mode),
         };
     }
 
-    private static async Task<int> RunAllAsync()
+    private static async Task<int> RunBothAsync()
     {
         var r1 = await DtdlValidator.RunAsync();
         if (r1 != 0) return r1;
-        var r2 = await SamplesValidator.RunAsync();
-        if (r2 != 0) return r2;
         return await ConfigsValidator.RunAsync();
     }
 
     private static int Unknown(string mode)
     {
         Console.Error.WriteLine(
-            $"ERR unknown mode '{mode}'. Use 'dtdl', 'samples', 'configs', or 'both'.");
+            $"ERR unknown mode '{mode}'. Use 'dtdl', 'configs', or 'both'.");
         return 2;
     }
 
     /// <summary>
     /// Returns the path to docs/Metrics/ (containing the *.dtdl.json files
-    /// and the samples/ subfolder). When DTDL_BASE is set it wins; otherwise
-    /// we walk up from the binary location.
+    /// and the samples-config/ subfolder). When DTDL_BASE is set it wins;
+    /// otherwise we walk up from the binary location.
     /// </summary>
     public static string ResolveBasePath()
     {

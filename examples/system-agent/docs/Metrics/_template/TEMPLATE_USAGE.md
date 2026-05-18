@@ -1,6 +1,6 @@
 # Using `{{NN}}_{{NAME_UPPER}}.dtdl.json` from .NET / C#
 
-End-to-end examples for consuming [`{{NN}}_{{NAME_UPPER}}.dtdl.json`](./{{NN}}_{{NAME_UPPER}}.dtdl.json) from a C# application. Targets **.NET 8+** with the official `DTDLParser` package. Read [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md) first for the shared helpers and overall pattern; this doc focuses on the deltas for {{name_human}}.
+End-to-end examples for consuming [`{{NN}}_{{NAME_UPPER}}.dtdl.json`](./{{NN}}_{{NAME_UPPER}}.dtdl.json) from a C# application. Targets **.NET 8+** with the official `DTDLParser` package. Read [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md) first for the shared helpers and overall pattern; this doc focuses on the deltas for {{name_human}}.
 
 | Asset | Where it lives in the JSON | Use in C# |
 |-------|---------------------------|-----------|
@@ -282,4 +282,4 @@ await host.RunAsync();
 
 - [`{{NN}}_{{NAME_UPPER}}_FIELDS.md`](./{{NN}}_{{NAME_UPPER}}_FIELDS.md) — the configuration field reference this code consumes.
 - [`{{NN}}_{{NAME_UPPER}}.dtdl.json`](./{{NN}}_{{NAME_UPPER}}.dtdl.json) — the source-of-truth DTDL Interface.
-- [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md) — the canonical USAGE doc with the shared helpers (`GetStringEnumValues`, `MonotonicCounterValidator`).
+- [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md) — the canonical USAGE doc with the shared helpers (`GetStringEnumValues`, `MonotonicCounterValidator`).

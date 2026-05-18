@@ -23,7 +23,7 @@ const rules = {
   // network -- Parameters.Interface / Parameters.Interfaces
   //
   // Covers the v1.0/v1.1 resolution modes documented in
-  // docs/Metrics/01_CPU_NETWORK_FIELDS.md:
+  // docs/Metrics/01_SYS_RES_CPU_NETWORK_FIELDS.md:
   //   - Bound mode (v1.0/v1.1): single 'Interface' (string) required.
   //   - Explicit list mode (v1.1): 'Interfaces' (string array or CSV string).
   //   - Auto-detect mode (v1.1): empty value / omitted → auto-detect.

@@ -571,6 +571,6 @@ The agent is now schema-locked: bad MetricNames, wrong `SensorInfo.Schema`, ille
 
 ## Related
 
-- [`01_CPU_NETWORK_FIELDS.md`](./01_CPU_NETWORK_FIELDS.md) — the configuration field reference and DTDL schema this code consumes.
+- [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](./01_SYS_RES_CPU_NETWORK_FIELDS.md) — the configuration field reference and DTDL schema this code consumes.
 - [`01_CPU_NETWORK.dtdl.json`](./01_CPU_NETWORK.dtdl.json) — the source-of-truth DTDL Interface.
 - `Protocols/SystemMetricsParser.cs` — the runtime parser that emits the `TelemetryMeasure` instances published by the examples above.

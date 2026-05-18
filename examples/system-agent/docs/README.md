@@ -25,8 +25,8 @@ Feed the following files to an AI assistant when adding sensors, modifying confi
 
 ```
 # Field definitions (includes Auto-detect / Explicit list / Bound mode specs per MetricType)
-docs/Metrics/01_CPU_NETWORK_FIELDS.md
-docs/Metrics/02_MEMORY_DISK_SYSTEM_GPU_FIELDS.md
+docs/Metrics/01_SYS_RES_CPU_NETWORK_FIELDS.md
+docs/Metrics/01_SYS_RES_MEMORY_DISK_FIELDS.md
 docs/Metrics/03_HARDWARE_INFO_FIELDS.md
 docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md
 docs/Metrics/05_HARDWARE_FEATURE_FIELDS.md
@@ -65,9 +65,9 @@ docs/
 │
 └── Metrics/                           — Per-MetricType technical docs
     ├── 00_DEVICECFG.md                — devicecfg.json structure overview
-    ├── 01_CPU_NETWORK_FIELDS.md       — cpu + network field definitions
+    ├── 01_SYS_RES_CPU_NETWORK_FIELDS.md       — cpu + network field definitions
     ├── 01_CPU_NETWORK.dtdl.json       — DTDL Interface
-    ├── 01_CPU_NETWORK_USAGE.md        — Usage scenarios & examples
+    ├── 01_SYS_RES_CPU_NETWORK_USAGE.md        — Usage scenarios & examples
     ├── 02_MEMORY_DISK_SYSTEM_GPU_*    — memory + disk + system + gpu
     ├── 03_HARDWARE_INFO_*             — hwinfo
     ├── 04_ONBOARD_SENSOR_*            — temperature + voltage + fanspeed

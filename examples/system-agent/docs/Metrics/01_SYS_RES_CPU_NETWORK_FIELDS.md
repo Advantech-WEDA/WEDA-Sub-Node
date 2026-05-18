@@ -175,7 +175,7 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 DTDL v2 Interface that models every `(MetricType, MetricName)` pair documented above as a Telemetry, with validation rules and reusable Enum schemas embedded directly in the DTDL document. Each Telemetry's `schema` matches the `SensorInfo.Schema` value the System Agent emits; each Telemetry carries a `comment` field describing the range / monotonicity rule downstream consumers should enforce. The auto-generation path in `SystemAgentDeviceConfig.Dtdl.AutoGenEnabled` produces a similar Interface at startup, but **without** the embedded Enums and comments — this file is the canonical reference for IoT Plug-and-Play registration, twin schema review, and validator generation.
 
-The standalone Interface file is published alongside this doc as [`01_CPU_NETWORK.dtdl.json`](./01_CPU_NETWORK.dtdl.json). For end-to-end **.NET / C# consumption examples** (parser setup, Enum extraction, Sensor validation, telemetry publishing), see [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md).
+The standalone Interface file is published alongside this doc as [`01_CPU_NETWORK.dtdl.json`](./01_CPU_NETWORK.dtdl.json). For end-to-end **.NET / C# consumption examples** (parser setup, Enum extraction, Sensor validation, telemetry publishing), see [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md).
 
 ### Document anatomy
 
@@ -188,7 +188,7 @@ The standalone Interface file is published alongside this doc as [`01_CPU_NETWOR
 ### Identifier conventions
 
 - **Interface DTMI**: `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork;1`.
-- **Telemetry DTMI**: `dtmi:advantech:EdgeSync:SystemInfo:<TelemetryName>;1` — the `SystemInfo` namespace is shared with `02_MEMORY_DISK_SYSTEM_GPU_FIELDS.md` so consumers can mix metrics from both files without DTMI collisions.
+- **Telemetry DTMI**: `dtmi:advantech:EdgeSync:SystemInfo:<TelemetryName>;1` — the `SystemInfo` namespace is shared with `01_SYS_RES_MEMORY_DISK_FIELDS.md` so consumers can mix metrics from both files without DTMI collisions.
 - **Reusable schema DTMI**: `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:<SchemaName>;1` — scoped to this Interface so additions in other field-reference docs do not clash.
 - **Telemetry `name`**: PascalCase derivation of the `(MetricType, MetricName)` pair — `cpu.usage` → `CpuUsage`, `network.errors_in` → `NetworkErrorsIn`.
 - **DTDL `schema`**: matches the `SensorInfo.Schema` column in §"Field Table" of each metric type. A schema mismatch between this DTDL and the deployed `devicecfg.json` raises a startup error.

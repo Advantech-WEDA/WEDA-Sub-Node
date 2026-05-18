@@ -1,0 +1,224 @@
+{
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource;1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent — System Resource Telemetry",
+  "description": "DTDL v2 schema for the System Resource MetricTypes: cpu, memory, disk, network, system. Each Telemetry corresponds to one (MetricType, MetricName) pair. Network sensors support v1.1 Sensor Expansion via Parameters.Interface (bound) or Parameters.Interfaces (list / auto-detect). schemas[] publishes reusable Enums + typed Parameters Object per MetricType; every Telemetry's comment carries its validation rule.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface.",
+      "enumValues": [
+        { "name": "Cpu",     "enumValue": "cpu",     "displayName": "CPU" },
+        { "name": "Memory",  "enumValue": "memory",  "displayName": "Memory" },
+        { "name": "Disk",    "enumValue": "disk",    "displayName": "Disk" },
+        { "name": "Network", "enumValue": "network", "displayName": "Network" },
+        { "name": "System",  "enumValue": "system",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:CpuMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'cpu'.",
+      "enumValues": [
+        { "name": "Usage",            "enumValue": "usage",            "displayName": "CPU Usage (%)" },
+        { "name": "Load1",            "enumValue": "load1",            "displayName": "1-Minute Load Average" },
+        { "name": "Load5",            "enumValue": "load5",            "displayName": "5-Minute Load Average" },
+        { "name": "Load15",           "enumValue": "load15",           "displayName": "15-Minute Load Average" },
+        { "name": "ContextSwitches",  "enumValue": "context_switches", "displayName": "Context Switches" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MemoryMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'memory'.",
+      "enumValues": [
+        { "name": "Total",     "enumValue": "total",      "displayName": "Total Physical Memory" },
+        { "name": "Available", "enumValue": "available",  "displayName": "Available Memory" },
+        { "name": "Used",      "enumValue": "used",       "displayName": "Used Memory" },
+        { "name": "Free",      "enumValue": "free",       "displayName": "Free Memory" },
+        { "name": "Cached",    "enumValue": "cached",     "displayName": "Cached Memory" },
+        { "name": "Buffers",   "enumValue": "buffers",    "displayName": "Buffer Memory" },
+        { "name": "SwapTotal", "enumValue": "swap_total", "displayName": "Total Swap" },
+        { "name": "SwapFree",  "enumValue": "swap_free",  "displayName": "Free Swap" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:DiskMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'disk'. Each disk sensor must also set Parameters.MountPoint.",
+      "enumValues": [
+        { "name": "Total",            "enumValue": "total",             "displayName": "Total Capacity" },
+        { "name": "Available",        "enumValue": "available",         "displayName": "Available Capacity" },
+        { "name": "Free",             "enumValue": "free",              "displayName": "Free Capacity" },
+        { "name": "Used",             "enumValue": "used",              "displayName": "Used Capacity" },
+        { "name": "UsagePercent",     "enumValue": "usage_percent",     "displayName": "Usage %" },
+        { "name": "ReadsCompleted",   "enumValue": "reads_completed",   "displayName": "Reads Completed" },
+        { "name": "WritesCompleted",  "enumValue": "writes_completed",  "displayName": "Writes Completed" },
+        { "name": "ReadBytes",        "enumValue": "read_bytes",        "displayName": "Read Bytes" },
+        { "name": "WrittenBytes",     "enumValue": "written_bytes",     "displayName": "Written Bytes" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:NetworkMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'network'.",
+      "enumValues": [
+        { "name": "BytesSent",        "enumValue": "bytes_sent",        "displayName": "Bytes Sent" },
+        { "name": "BytesReceived",    "enumValue": "bytes_received",    "displayName": "Bytes Received" },
+        { "name": "PacketsSent",      "enumValue": "packets_sent",      "displayName": "Packets Sent" },
+        { "name": "PacketsReceived",  "enumValue": "packets_received",  "displayName": "Packets Received" },
+        { "name": "Errors",           "enumValue": "errors",            "displayName": "Errors (Total)" },
+        { "name": "ErrorsIn",         "enumValue": "errors_in",         "displayName": "RX Errors" },
+        { "name": "ErrorsOut",        "enumValue": "errors_out",        "displayName": "TX Errors" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. System-resource sensors conventionally use 'SYS'.",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema; must additionally match the Telemetry's native DTDL schema.",
+      "enumValues": [
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:CpuSensorParameters;1",
+      "@type": "Object",
+      "displayName": "CPU Sensor Parameters",
+      "description": "Reusable Object schema for the Parameters block of every cpu Sensor in devicecfg.json. CPU sensors take no type-specific extra parameters.",
+      "fields": [
+        { "name": "metricType", "displayName": "Metric Type", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MetricType;1",      "description": "MUST equal 'cpu'." },
+        { "name": "metricName", "displayName": "Metric Name", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:CpuMetricName;1",   "description": "Specific CPU statistic (see CpuMetricName enum)." }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MemorySensorParameters;1",
+      "@type": "Object",
+      "displayName": "Memory Sensor Parameters",
+      "description": "Reusable Object schema for the Parameters block of every memory Sensor in devicecfg.json. Memory sensors take no type-specific extra parameters.",
+      "fields": [
+        { "name": "metricType", "displayName": "Metric Type", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MetricType;1",       "description": "MUST equal 'memory'." },
+        { "name": "metricName", "displayName": "Metric Name", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MemoryMetricName;1", "description": "Specific memory metric (see MemoryMetricName enum)." }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:DiskSensorParameters;1",
+      "@type": "Object",
+      "displayName": "Disk Sensor Parameters",
+      "description": "Reusable Object schema for the Parameters block of every disk Sensor in devicecfg.json. Disk sensors require Parameters.MountPoint.",
+      "fields": [
+        { "name": "metricType", "displayName": "Metric Type", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MetricType;1",      "description": "MUST equal 'disk'." },
+        { "name": "metricName", "displayName": "Metric Name", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:DiskMetricName;1",  "description": "Specific disk metric (see DiskMetricName enum)." },
+        { "name": "mountPoint", "displayName": "Mount Point", "schema": "string",                                                                "description": "Filesystem mount path to monitor (e.g. '/'). Required; defaults to '/' if omitted by the agent." }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:SystemMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'system'.",
+      "enumValues": [
+        { "name": "Time",            "enumValue": "time",             "displayName": "Wall-Clock Time" },
+        { "name": "TimexOffset",     "enumValue": "timex_offset",     "displayName": "NTP Offset" },
+        { "name": "BootTime",        "enumValue": "boot_time",        "displayName": "Boot Time" },
+        { "name": "FilefdAllocated", "enumValue": "filefd_allocated", "displayName": "Allocated File Descriptors" },
+        { "name": "FilefdMaximum",   "enumValue": "filefd_maximum",   "displayName": "Max File Descriptors" },
+        { "name": "ProcsRunning",    "enumValue": "procs_running",    "displayName": "Running Processes" },
+        { "name": "ProcsBlocked",    "enumValue": "procs_blocked",    "displayName": "Blocked Processes" },
+        { "name": "IntrTotal",       "enumValue": "intr_total",       "displayName": "Total Interrupts" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:SystemSensorParameters;1",
+      "@type": "Object",
+      "displayName": "System Sensor Parameters",
+      "description": "Reusable Object schema for the Parameters block of every system Sensor in devicecfg.json. System sensors take no type-specific extra parameters.",
+      "fields": [
+        { "name": "metricType", "displayName": "Metric Type", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MetricType;1",       "description": "MUST equal 'system'." },
+        { "name": "metricName", "displayName": "Metric Name", "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:SystemMetricName;1", "description": "Specific system metric (see SystemMetricName enum)." }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:NetworkSensorParameters;1",
+      "@type": "Object",
+      "displayName": "Network Sensor Parameters",
+      "description": "Reusable Object schema for the Parameters block of every network Sensor in devicecfg.json. Field names are camelCase; on-the-wire keys are PascalCase (the agent matches case-insensitively).",
+      "comment": "DTDL v2 lacks union types and cross-field constraints. Two runtime rules live outside this schema and are enforced by dtdl-validate/scripts/config-rules.js: (1) 'interfaces' may also appear on the wire as a CSV string; (2) 'interface' and 'interfaces' are mutually exclusive when both non-empty.",
+      "fields": [
+        { "name": "metricType", "displayName": "Metric Type",          "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:MetricType;1",         "description": "MUST equal 'network'." },
+        { "name": "metricName", "displayName": "Metric Name",          "schema": "dtmi:advantech:EdgeSync:SystemAgent:SystemResource:NetworkMetricName;1",  "description": "Specific network metric (see NetworkMetricName enum)." },
+        { "name": "interface",  "displayName": "Bound Interface (v1.0)","schema": "string",                                                                  "description": "Single OS-level interface name. v1.0 mode: required. v1.1 mode: optional; when set disables expansion." },
+        { "name": "interfaces", "displayName": "Interface List (v1.1)", "schema": { "@type": "Array", "elementSchema": "string" },                          "description": "Array of OS-level interface names. v1.1 only. Each entry expands to one sensor sharing the parent Telemetry DTMI. Empty array => auto-detect." }
+      ]
+    }
+  ],
+  "contents": [
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1",            "@type": "Telemetry", "name": "CpuUsage",            "displayName": "CPU Usage",            "schema": "double",  "description": "Overall CPU busy % across all cores (0.00-100.00). MetricType=cpu, MetricName=usage.",                                  "comment": "Validation: 0 <= v <= 100 (rounded to 2 dp); reject NaN / +-Inf as sensor faults; sustained v > 95 for >= 5 min indicates saturation. Unit: percent." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad1;1",            "@type": "Telemetry", "name": "CpuLoad1",            "displayName": "CPU Load (1m)",        "schema": "double",  "description": "1-minute load average from /proc/loadavg. MetricType=cpu, MetricName=load1.",                                            "comment": "Validation: v >= 0; unitless; v > 2 * nproc for >= 5 min indicates sustained overload. Returns 0.0 on non-Linux platforms." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad5;1",            "@type": "Telemetry", "name": "CpuLoad5",            "displayName": "CPU Load (5m)",        "schema": "double",  "description": "5-minute load average from /proc/loadavg. MetricType=cpu, MetricName=load5.",                                            "comment": "Validation: v >= 0; unitless. Same overload threshold as CpuLoad1." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuLoad15;1",           "@type": "Telemetry", "name": "CpuLoad15",           "displayName": "CPU Load (15m)",       "schema": "double",  "description": "15-minute load average from /proc/loadavg. MetricType=cpu, MetricName=load15.",                                          "comment": "Validation: v >= 0; unitless. Same overload threshold as CpuLoad1." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:CpuContextSwitches;1",  "@type": "Telemetry", "name": "CpuContextSwitches",  "displayName": "CPU Context Switches", "schema": "long",    "description": "Cumulative scheduler context-switch count since boot (/proc/stat ctxt). MetricType=cpu, MetricName=context_switches.",   "comment": "Validation: monotonic counter; 0 <= v <= 2^63-1; delta(v) >= 0 between samples; resets only on reboot. Always graph as rate." },
+
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryTotal;1",      "@type": ["Telemetry", "DataSize"], "name": "MemoryTotal",      "displayName": "Memory Total",      "schema": "long", "unit": "byte", "description": "Total physical RAM. MetricType=memory, MetricName=total.",                              "comment": "Validation: v > 0; constant across uptime (modulo hot-plug)." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryAvailable;1",  "@type": ["Telemetry", "DataSize"], "name": "MemoryAvailable",  "displayName": "Memory Available",  "schema": "long", "unit": "byte", "description": "Memory grantable without swapping (incl. reclaimable cache). MetricType=memory, MetricName=available.", "comment": "Validation: 0 <= v <= MemoryTotal. Prefer over MemoryFree for memory-pressure alerts." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryUsed;1",       "@type": ["Telemetry", "DataSize"], "name": "MemoryUsed",       "displayName": "Memory Used",       "schema": "long", "unit": "byte", "description": "Memory currently used (total - available). MetricType=memory, MetricName=used.",        "comment": "Validation: 0 <= v <= MemoryTotal; used + available = total." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryFree;1",       "@type": ["Telemetry", "DataSize"], "name": "MemoryFree",       "displayName": "Memory Free",       "schema": "long", "unit": "byte", "description": "Kernel's free-list size, excludes cache. MetricType=memory, MetricName=free.",          "comment": "Validation: 0 <= v <= MemoryTotal. Small MemoryFree alone is NOT a problem on Linux." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryCached;1",     "@type": ["Telemetry", "DataSize"], "name": "MemoryCached",     "displayName": "Memory Cached",     "schema": "long", "unit": "byte", "description": "Page cache. MetricType=memory, MetricName=cached.",                                     "comment": "Validation: 0 <= v <= MemoryTotal. Large sudden drops indicate memory pressure." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemoryBuffers;1",    "@type": ["Telemetry", "DataSize"], "name": "MemoryBuffers",    "displayName": "Memory Buffers",    "schema": "long", "unit": "byte", "description": "Buffer cache. MetricType=memory, MetricName=buffers.",                                  "comment": "Validation: 0 <= v <= MemoryTotal." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemorySwapTotal;1",  "@type": ["Telemetry", "DataSize"], "name": "MemorySwapTotal",  "displayName": "Swap Total",        "schema": "long", "unit": "byte", "description": "Total swap capacity. MetricType=memory, MetricName=swap_total.",                        "comment": "Validation: v >= 0; 0 is normal for embedded / containerised hosts." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:MemorySwapFree;1",   "@type": ["Telemetry", "DataSize"], "name": "MemorySwapFree",   "displayName": "Swap Free",         "schema": "long", "unit": "byte", "description": "Free swap capacity. MetricType=memory, MetricName=swap_free.",                          "comment": "Validation: 0 <= v <= MemorySwapTotal. Active swap-in/out indicates exhaustion." },
+
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskTotal;1",            "@type": ["Telemetry", "DataSize"], "name": "DiskTotal",            "displayName": "Disk Total",            "schema": "long", "unit": "byte", "description": "Total filesystem capacity at Parameters.MountPoint. MetricType=disk, MetricName=total.",                                   "comment": "Validation: v >= 0; effectively constant per filesystem." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskAvailable;1",        "@type": ["Telemetry", "DataSize"], "name": "DiskAvailable",        "displayName": "Disk Available",        "schema": "long", "unit": "byte", "description": "Free space for non-privileged processes. MetricType=disk, MetricName=available.",                                          "comment": "Validation: 0 <= v <= DiskTotal." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskFree;1",             "@type": ["Telemetry", "DataSize"], "name": "DiskFree",             "displayName": "Disk Free",             "schema": "long", "unit": "byte", "description": "Raw free space (includes root reserve). MetricType=disk, MetricName=free.",                                                "comment": "Validation: 0 <= v <= DiskTotal; DiskFree >= DiskAvailable." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsed;1",             "@type": ["Telemetry", "DataSize"], "name": "DiskUsed",             "displayName": "Disk Used",             "schema": "long", "unit": "byte", "description": "Used capacity = DiskTotal - DiskAvailable, floored at 0. MetricType=disk, MetricName=used.",                              "comment": "Validation: 0 <= v <= DiskTotal." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskUsagePercent;1",     "@type": "Telemetry",                "name": "DiskUsagePercent",     "displayName": "Disk Usage (%)",        "schema": "double",                 "description": "Canonical disk-fullness signal. MetricType=disk, MetricName=usage_percent.",                                            "comment": "Validation: 0 <= v <= 100 (rounded to 2 dp); reject NaN / +-Inf. Warn at 80, critical at 95." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskReadsCompleted;1",   "@type": "Telemetry",                "name": "DiskReadsCompleted",   "displayName": "Disk Reads Completed",  "schema": "long",                   "description": "Cumulative successful reads since boot. MetricType=disk, MetricName=reads_completed.",                                  "comment": "Validation: monotonic counter; delta(v) >= 0; resets only on reboot. Graph as IOPS." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskWritesCompleted;1",  "@type": "Telemetry",                "name": "DiskWritesCompleted",  "displayName": "Disk Writes Completed", "schema": "long",                   "description": "Cumulative successful writes since boot. MetricType=disk, MetricName=writes_completed.",                                "comment": "Validation: monotonic counter; delta(v) >= 0; resets only on reboot. Graph as IOPS." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskReadBytes;1",        "@type": ["Telemetry", "DataSize"], "name": "DiskReadBytes",        "displayName": "Disk Read Bytes",       "schema": "long", "unit": "byte", "description": "Cumulative bytes read from underlying block device since boot. MetricType=disk, MetricName=read_bytes.",                   "comment": "Validation: monotonic counter; delta(v) >= 0. Block-level; includes metadata / journal." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:DiskWrittenBytes;1",     "@type": ["Telemetry", "DataSize"], "name": "DiskWrittenBytes",     "displayName": "Disk Written Bytes",    "schema": "long", "unit": "byte", "description": "Cumulative bytes written to underlying block device since boot. MetricType=disk, MetricName=written_bytes.",              "comment": "Validation: monotonic counter; delta(v) >= 0. Graph as throughput." },
+
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesSent;1",         "@type": ["Telemetry", "DataSize"], "name": "NetworkBytesSent",         "displayName": "Network Bytes Sent",          "schema": "long", "unit": "byte", "description": "Cumulative L2 bytes transmitted on the interface since boot. MetricType=network, MetricName=bytes_sent. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).",          "comment": "Validation: monotonic counter; delta(v) >= 0; resets only on reboot. Graph as rate(...) [bps]." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkBytesReceived;1",     "@type": ["Telemetry", "DataSize"], "name": "NetworkBytesReceived",     "displayName": "Network Bytes Received",      "schema": "long", "unit": "byte", "description": "Cumulative L2 bytes received on the interface since boot. MetricType=network, MetricName=bytes_received. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).",         "comment": "Validation: monotonic counter; delta(v) >= 0; resets only on reboot. Graph as rate(...) [bps]." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsSent;1",       "@type": "Telemetry",                "name": "NetworkPacketsSent",       "displayName": "Network Packets Sent",        "schema": "long",                  "description": "Cumulative TX frame count on the interface since boot. MetricType=network, MetricName=packets_sent. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).",            "comment": "Validation: monotonic counter; delta(v) >= 0. Graph as rate(...) [pps]." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkPacketsReceived;1",   "@type": "Telemetry",                "name": "NetworkPacketsReceived",   "displayName": "Network Packets Received",    "schema": "long",                  "description": "Cumulative RX frame count on the interface since boot. MetricType=network, MetricName=packets_received. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).",         "comment": "Validation: monotonic counter; delta(v) >= 0. Graph as rate(...) [pps]." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrors;1",            "@type": "Telemetry",                "name": "NetworkErrors",            "displayName": "Network Errors",              "schema": "long",                  "description": "Cumulative total network errors (errors_in + errors_out) on the interface since boot. MetricType=network, MetricName=errors. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).", "comment": "Validation: monotonic counter; delta(v) >= 0. Any sustained non-zero rate on Ethernet is abnormal." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrorsIn;1",          "@type": "Telemetry",                "name": "NetworkErrorsIn",          "displayName": "Network RX Errors",           "schema": "long",                  "description": "Cumulative receive errors (CRC / framing / FIFO drops). MetricType=network, MetricName=errors_in. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).",                "comment": "Validation: monotonic counter; delta(v) >= 0. Non-zero rate typically signals layer-1 problems." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:NetworkErrorsOut;1",         "@type": "Telemetry",                "name": "NetworkErrorsOut",         "displayName": "Network TX Errors",           "schema": "long",                  "description": "Cumulative transmit errors (carrier loss / device failure). MetricType=network, MetricName=errors_out. Bind via Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1 array / auto-detect).",          "comment": "Validation: monotonic counter; delta(v) >= 0. Non-zero rate signals carrier loss or device-side TX failure." },
+
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemTime;1",            "@type": "Telemetry", "name": "SystemTime",            "displayName": "System Time",                "schema": "long",    "description": "Host wall-clock time at sampling instant (Unix epoch seconds). MetricType=system, MetricName=time.",                          "comment": "Validation: 1262304000 <= v < 4102444800 (2010-2100). Monotonic on healthy host; non-monotonic between samples indicates NTP step." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemTimexOffset;1",     "@type": "Telemetry", "name": "SystemTimexOffset",     "displayName": "NTP Offset",                 "schema": "double",  "description": "NTP offset between local clock and reference (seconds). MetricType=system, MetricName=timex_offset.",                        "comment": "Validation: finite double; healthy |v| < 0.05; alert when |v| > 1.0 indicates NTP desync." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemBootTime;1",        "@type": "Telemetry", "name": "SystemBootTime",        "displayName": "Boot Time",                  "schema": "long",    "description": "Host boot moment (Unix epoch seconds). MetricType=system, MetricName=boot_time.",                                             "comment": "Validation: 1262304000 <= v < 4102444800. Constant per boot; change between samples means the host rebooted." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemFilefdAllocated;1", "@type": "Telemetry", "name": "SystemFilefdAllocated", "displayName": "File Descriptors Allocated", "schema": "long",    "description": "Currently allocated kernel file descriptors. MetricType=system, MetricName=filefd_allocated.",                               "comment": "Validation: 0 <= v <= SystemFilefdMaximum; alert when v / max > 0.8." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemFilefdMaximum;1",   "@type": "Telemetry", "name": "SystemFilefdMaximum",   "displayName": "File Descriptors Maximum",   "schema": "long",    "description": "Kernel-wide max file descriptors. MetricType=system, MetricName=filefd_maximum.",                                            "comment": "Validation: v > 0; effectively constant." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemProcsRunning;1",    "@type": "Telemetry", "name": "SystemProcsRunning",    "displayName": "Running Processes",          "schema": "integer", "description": "Processes in R (runnable) state. MetricType=system, MetricName=procs_running.",                                               "comment": "Validation: v >= 0; sustained high indicates CPU contention." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemProcsBlocked;1",    "@type": "Telemetry", "name": "SystemProcsBlocked",    "displayName": "Blocked Processes",          "schema": "integer", "description": "Processes in D (uninterruptible) state. MetricType=system, MetricName=procs_blocked.",                                        "comment": "Validation: v >= 0; sustained high indicates disk / NFS / driver stall." },
+    { "@id": "dtmi:advantech:EdgeSync:SystemInfo:SystemIntrTotal;1",       "@type": "Telemetry", "name": "SystemIntrTotal",       "displayName": "Total Interrupts",           "schema": "long",    "description": "Cumulative hardware interrupts since boot. MetricType=system, MetricName=intr_total.",                                       "comment": "Validation: monotonic counter; delta(v) >= 0. Always graph as rate." }
+  ]
+}

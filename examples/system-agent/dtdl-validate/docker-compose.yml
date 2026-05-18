@@ -9,7 +9,7 @@
 #   docker compose run --rm validate node /app/validate-dtdl.js
 #
 #   # Run just the instance-level validator
-#   docker compose run --rm validate node /app/validate-samples.js
+#   docker compose run --rm validate node /app/validate-configs.js
 #
 # The project's docs/Metrics/ directory is mounted read-only at /work, so
 # editing a DTDL file or a sample fixture and re-running picks up the

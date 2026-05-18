@@ -508,4 +508,4 @@ await host.RunAsync();
 - [`05_HARDWARE_FEATURE_FIELDS.md`](./05_HARDWARE_FEATURE_FIELDS.md) — the configuration field reference this code consumes.
 - [`05_HARDWARE_FEATURE.dtdl.json`](./05_HARDWARE_FEATURE.dtdl.json) — the source-of-truth DTDL Interface.
 - [`04_ONBOARD_SENSOR_USAGE.md`](./04_ONBOARD_SENSOR_USAGE.md) — pair `ThermalProtectionIsSupported == false` with active `Temperature` sensors and require manned thermal monitoring.
-- [`01_CPU_NETWORK_USAGE.md`](./01_CPU_NETWORK_USAGE.md), [`02_MEMORY_DISK_SYSTEM_GPU_USAGE.md`](./02_MEMORY_DISK_SYSTEM_GPU_USAGE.md), [`03_HARDWARE_INFO_USAGE.md`](./03_HARDWARE_INFO_USAGE.md) — equivalent guides for the other metric categories.
+- [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md), [`01_SYS_RES_MEMORY_DISK_USAGE.md`](./01_SYS_RES_MEMORY_DISK_USAGE.md), [`03_HARDWARE_INFO_USAGE.md`](./03_HARDWARE_INFO_USAGE.md) — equivalent guides for the other metric categories.

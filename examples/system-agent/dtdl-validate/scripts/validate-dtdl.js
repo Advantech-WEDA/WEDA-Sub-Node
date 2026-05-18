@@ -22,8 +22,8 @@ const BASE = process.env.DTDL_BASE
   ? path.resolve(process.env.DTDL_BASE)
   : path.resolve(__dirname, '..', '..', 'docs', 'Metrics');
 const FILES = [
-  '01_CPU_NETWORK.dtdl.json',
-  '02_MEMORY_DISK_SYSTEM_GPU.dtdl.json',
+  '01_SYSTEM_RESOURCE.dtdl.json',
+  '02_GPU_RESOURCE.dtdl.json',
   '03_HARDWARE_INFO.dtdl.json',
   '04_ONBOARD_SENSOR.dtdl.json',
   '05_HARDWARE_FEATURE.dtdl.json',
