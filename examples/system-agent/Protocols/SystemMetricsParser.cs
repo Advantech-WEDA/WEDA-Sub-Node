@@ -195,17 +195,6 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         };
     }
 
-    private object? GetHealthMetric(HealthStatusMetrics health, string? metricName)
-    {
-        return metricName?.ToLowerInvariant() switch
-        {
-            "is_healthy" => health.IsHealthy ? 1 : 0,
-            "error_count" => health.ActiveErrors.Count,
-            "errors" => string.Join("; ", health.ActiveErrors.Select(e => $"{e.Key}:{e.Value}")),
-            _ => health.IsHealthy ? 1 : 0 // Default to boolean health status
-        };
-    }
-
     private object? GetCpuMetric(CpuMetrics cpu, string metricName)
     {
         return metricName.ToLowerInvariant() switch
@@ -270,18 +259,14 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             return null;
         }
 
-        var total = disk.FilesystemAvailBytes + (disk.FilesystemFreeBytes > 0
-            ? disk.FilesystemFreeBytes - disk.FilesystemAvailBytes + disk.FilesystemAvailBytes
-            : disk.FilesystemAvailBytes);
+        var total = disk.FilesystemTotalBytes;
 
-        // Estimate total from available (this is a simplification)
-        // In real implementation, we'd need to get total from statfs
         return metricName.ToLowerInvariant() switch
         {
-            "total" => total > 0 ? total : disk.FilesystemAvailBytes * 2, // Rough estimate
+            "total" => total,
             "available" => disk.FilesystemAvailBytes,
             "free" => disk.FilesystemFreeBytes,
-            "used" => total > disk.FilesystemAvailBytes ? total - disk.FilesystemAvailBytes : 0,
+            "used" => total > 0 ? total - disk.FilesystemAvailBytes : 0,
             "usage_percent" => total > 0 ? Math.Round((1 - (double)disk.FilesystemAvailBytes / total) * 100, 2) : 0,
             "reads_completed" => disk.ReadsCompletedTotal,
             "writes_completed" => disk.WritesCompletedTotal,
@@ -419,16 +404,30 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     {
         if (metrics == null || metrics.Voltages == null) return null;
 
-        // Return all voltages as dictionary
-        return metrics.Voltages;
+        // Look up specific voltage by metricName, fall back to first if only one exists
+        if (metrics.Voltages.TryGetValue(metricName, out var voltage))
+            return voltage;
+
+        // If metricName is "voltage" and there's exactly one entry, return it
+        if (metricName.Equals("voltage", StringComparison.OrdinalIgnoreCase) && metrics.Voltages.Count == 1)
+            return metrics.Voltages.Values.First();
+
+        return null;
     }
 
     private object? GetFanSpeedMetric(FanSpeedMetrics? metrics, string metricName, Sensor sensor)
     {
         if (metrics == null || metrics.FanSpeeds == null) return null;
 
-        // Return all fan speeds as dictionary
-        return metrics.FanSpeeds;
+        // Look up specific fan speed by metricName, fall back to first if only one exists
+        if (metrics.FanSpeeds.TryGetValue(metricName, out var fanSpeed))
+            return fanSpeed;
+
+        // If metricName is "fanspeed" and there's exactly one entry, return it
+        if (metricName.Equals("fanspeed", StringComparison.OrdinalIgnoreCase) && metrics.FanSpeeds.Count == 1)
+            return metrics.FanSpeeds.Values.First();
+
+        return null;
     }
 
     private object? GetGpioMetric(GpioMetrics? metrics, string? metricName, Sensor sensor)
