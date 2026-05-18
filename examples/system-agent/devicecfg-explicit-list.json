@@ -71,25 +71,6 @@
           }
         },
         {
-          "_comment": "=== gpio: v1.0 單一綁定模式 — 只監控一個腳位 ===",
-          "Name": "gpio_pinState_gpio4",
-          "SensorGroup": "DI",
-          "Parameters": {
-            "MetricType": "gpio",
-            "MetricName": "pinState",
-            "PinId": "gpio4"
-          },
-          "Report": {
-            "Enabled": true,
-            "Interval": 6000
-          },
-          "SensorInfo": {
-            "Schema": "integer",
-            "Description": "GPIO pin state for gpio4",
-            "DisplayName": "Pin State (gpio4)"
-          }
-        },
-        {
           "_comment": "=== temperature: 明確列表模式 — 只監控指定來源 ===",
           "Name": "temperature",
           "SensorGroup": "TEMP",
