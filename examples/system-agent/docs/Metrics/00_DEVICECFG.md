@@ -59,12 +59,16 @@ Every sensor entry has the same four-block layout. Keep all four blocks present 
   "SensorInfo": {                       // contract surfaced to consumers
     "Schema":      "double",            // double | long | integer | boolean | string
     "Description": "CPU usage percentage",
-    "DisplayName": "CPU Usage"
+    "DisplayName": "CPU Usage",
+    "IsReadable":  true,                // agent forwards readings as telemetry — always true
+    "IsWritable":  false                // agent rejects writes (SIL2 fail-safe) — always false
   }
 }
 ```
 
-`SensorInfo.Schema` **must** match the schema declared by the corresponding Telemetry in the DTDL Interface — the agent validates this at startup and refuses to publish on a mismatch.
+`SensorInfo.Schema` **must** match the wire type the agent emits for the chosen `(MetricType, MetricName)` pair — the agent validates this at startup and refuses to publish on a mismatch. The wire types are documented per metric in each `*_FIELDS.md` reference. The DTDL Interfaces in `docs/Metrics/*.dtdl.json` are config-only (no Telemetry declarations); they constrain `SensorInfo.Schema` to the `SensorInfoSchema` enum and the SensorInfo block shape via a per-Interface `SensorInfo` Object schema, but do not bind `Schema` to a per-metric value.
+
+`SensorInfo.IsReadable` and `SensorInfo.IsWritable` declare the read/write directionality of the sensor. For every MetricType shipped today, `IsReadable` is `true` and `IsWritable` is `false` — the agent is read-direction by design and rejects writes (`WriteSensorDataAsync` returns `false`) and commands (`ExecuteCommandAsync` returns `CommandNotSupported`) per the SIL2 fail-safe contract. A future writable extension (e.g. GPIO output) would ship as its own MetricType with `IsWritable: true`; existing MetricTypes never flip directionality.
 
 ---
 

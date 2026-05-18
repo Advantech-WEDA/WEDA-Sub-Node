@@ -199,82 +199,11 @@ public sealed class HardwareIdentityTracker
 }
 ```
 
-Telemetry value rule (the simplest of any metric type):
-
-```csharp
-public sealed class HardwareInfoValueValidator
-{
-    // Per the DTDL comment fields: non-empty ASCII string, or null (suppressed).
-    private static bool IsValid(string? v) =>
-        v is null || (v.Length > 0 && v.All(c => c < 128));
-
-    public bool Validate(string dtmi, object? value) =>
-        value is null || (value is string s && IsValid(s));
-}
-```
-
-> The DTDL `comment` field on every hwinfo Telemetry repeats the same rule: *non-empty ASCII, constant per boot*. There is no shared cross-field invariant.
+> Non-empty / ASCII / constant-per-boot value rules for the hwinfo telemetries are documented in `03_HARDWARE_INFO_FIELDS.md` and enforced ingest-side. The identity-drift tracker above is the only stateful check applied agent-side.
 
 ---
 
-## 6. Avoid republishing constant values (deduplication)
-
-Because every hwinfo Telemetry is constant per boot, sending the same value every 60 s wastes bandwidth and cloud-side storage. Wrap the publisher in a deduplicator:
-
-```csharp
-public sealed class HardwareInfoPublisher
-{
-    private readonly ICommunication _communication;
-    private readonly HardwareInfoValueValidator _validator;
-    private readonly HardwareIdentityTracker _tracker;
-    private readonly Dictionary<string, string?> _lastPublished = new();
-    private readonly ILogger<HardwareInfoPublisher> _logger;
-
-    public HardwareInfoPublisher(
-        ICommunication communication,
-        HardwareInfoValueValidator validator,
-        HardwareIdentityTracker tracker,
-        ILogger<HardwareInfoPublisher> logger)
-    {
-        _communication = communication;
-        _validator     = validator;
-        _tracker       = tracker;
-        _logger        = logger;
-    }
-
-    public async Task PublishAsync(string dtmi, string? value, CancellationToken ct = default)
-    {
-        if (!_validator.Validate(dtmi, value))
-        {
-            _logger.LogWarning("Dropping hwinfo {Dtmi}: invalid value", dtmi);
-            return;
-        }
-
-        _tracker.Observe(dtmi, value);
-
-        // Dedupe: only publish on first observation or on change.
-        if (_lastPublished.TryGetValue(dtmi, out var prev) &&
-            string.Equals(prev, value, StringComparison.Ordinal))
-            return;
-
-        _lastPublished[dtmi] = value;
-
-        if (value is null)
-        {
-            // SIL2 fail-safe: hwinfo unsupported on this host -- do not publish "".
-            _logger.LogDebug("Suppressing {Dtmi}: null (platform driver absent or partial)", dtmi);
-            return;
-        }
-
-        await _communication.PublishAsync(
-            new TelemetryMeasure { ResourceId = dtmi, Value = value }, ct);
-    }
-}
-```
-
----
-
-## 7. Integration test
+## 6. Integration test
 
 ```csharp
 using DTDLParser;
@@ -283,14 +212,14 @@ using Xunit;
 public sealed class HardwareInfoDtdlTests
 {
     [Fact]
-    public async Task Dtdl_parses_without_errors()
+    public async Task Dtdl_parses_and_declares_no_telemetries()
     {
         var json   = await File.ReadAllTextAsync("docs/Metrics/03_HARDWARE_INFO.dtdl.json");
         var parser = new ModelParser();
         var model  = await parser.ParseAsync(new[] { json });
 
         var iface = (DTInterfaceInfo)model[new Dtmi(HardwareInfoDtmis.Interface)];
-        Assert.Equal(6, iface.Contents.Values.OfType<DTTelemetryInfo>().Count());
+        Assert.Empty(iface.Contents.Values.OfType<DTTelemetryInfo>());
     }
 
     [Theory]
@@ -324,7 +253,7 @@ public sealed class HardwareInfoDtdlTests
 
 ---
 
-## 8. End-to-end sketch
+## 7. End-to-end sketch
 
 ```csharp
 // Program.cs
@@ -332,9 +261,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton(_ => HardwareInfoModel.LoadAsync().GetAwaiter().GetResult());
 builder.Services.AddSingleton<HardwareInfoSensorValidator>();
-builder.Services.AddSingleton<HardwareInfoValueValidator>();
 builder.Services.AddSingleton<HardwareIdentityTracker>();
-builder.Services.AddSingleton<HardwareInfoPublisher>();
 
 var host = builder.Build();
 await host.RunAsync();

@@ -48,7 +48,24 @@ public static class ConfigRules
                 IsSupportedMustNotCarryPinFields,
             },
 
-            // Extension points: add disk / temperature rules here.
+            // ============================================================
+            // disk -- Parameters.MountPoint required (non-empty string)
+            // ============================================================
+            ["disk"] = new Rule[]
+            {
+                MountPointRequired,
+            },
+
+            // ============================================================
+            // temperature -- Parameters.Source / Parameters.Sources
+            // ============================================================
+            ["temperature"] = new Rule[]
+            {
+                SourceShape,
+                SourcesShape,
+                SourceMutualExclusivity,
+                V10CompatMustNotCarrySourceFields,
+            },
         };
 
     public static RuleResult Validate(JsonElement sensor)
@@ -214,6 +231,91 @@ public static class ConfigRules
         JsonValueKind.Null   => "null",
         _                    => $"{v.ValueKind} {v.GetRawText()}",
     };
+
+    // ---------- disk rules ----------
+
+    private static RuleResult MountPointRequired(JsonElement sensor)
+    {
+        if (!TryGetParameter(sensor, "MountPoint", out var mp))
+            return RuleResult.Fail("disk sensors require Parameters.MountPoint (missing)");
+
+        if (mp.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(mp.GetString()))
+            return RuleResult.OkResult;
+
+        return RuleResult.Fail(
+            $"Parameters.MountPoint must be a non-empty string; got {DescribeValue(mp)}");
+    }
+
+    // ---------- temperature rules ----------
+
+    private static RuleResult SourceShape(JsonElement sensor)
+    {
+        if (!TryGetParameter(sensor, "Source", out var src)) return RuleResult.OkResult;
+
+        if (src.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrEmpty(src.GetString()))
+            return RuleResult.OkResult;
+
+        return RuleResult.Fail(
+            $"Parameters.Source must be a non-empty string; got {DescribeValue(src)}");
+    }
+
+    private static RuleResult SourcesShape(JsonElement sensor)
+    {
+        if (!TryGetParameter(sensor, "Sources", out var srcs)) return RuleResult.OkResult;
+
+        if (srcs.ValueKind != JsonValueKind.Array)
+            return RuleResult.Fail(
+                $"Parameters.Sources must be an array of non-empty strings; got {srcs.ValueKind}");
+
+        foreach (var item in srcs.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String ||
+                string.IsNullOrEmpty(item.GetString()))
+                return RuleResult.Fail(
+                    $"Parameters.Sources element {DescribeValue(item)} is not a non-empty string");
+        }
+        return RuleResult.OkResult;
+    }
+
+    private static RuleResult SourceMutualExclusivity(JsonElement sensor)
+    {
+        var hasSrc =
+            TryGetParameter(sensor, "Source", out var src) &&
+            src.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrEmpty(src.GetString());
+
+        var hasSrcs = false;
+        if (TryGetParameter(sensor, "Sources", out var srcs) &&
+            srcs.ValueKind == JsonValueKind.Array)
+        {
+            hasSrcs = srcs.GetArrayLength() > 0;
+        }
+
+        if (hasSrc && hasSrcs)
+            return RuleResult.Fail(
+                "Parameters.Source and Parameters.Sources both set non-empty; runtime would pick 'Source' but the config is ambiguous");
+
+        return RuleResult.OkResult;
+    }
+
+    private static RuleResult V10CompatMustNotCarrySourceFields(JsonElement sensor)
+    {
+        if (IsMetricName(sensor, "therm")) return RuleResult.OkResult;
+
+        var hasSrc = TryGetParameter(sensor, "Source", out _);
+        var hasSrcs = TryGetParameter(sensor, "Sources", out _);
+        if (!hasSrc && !hasSrcs) return RuleResult.OkResult;
+
+        string mnDescription = "<missing>";
+        if (TryGetParameter(sensor, "MetricName", out var mn) &&
+            mn.ValueKind == JsonValueKind.String)
+        {
+            mnDescription = $"\"{mn.GetString()}\"";
+        }
+        return RuleResult.Fail(
+            $"v1.0-compat temperature sensors (MetricName={mnDescription}) must not carry Source or Sources; the source name is the MetricName itself");
+    }
 
     // ---------- helpers ----------
 

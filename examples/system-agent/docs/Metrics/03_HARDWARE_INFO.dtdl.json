@@ -2,8 +2,8 @@
   "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo;1",
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
-  "displayName": "System Agent — Hardware Information Telemetry",
-  "description": "DTDL v2 schema for the hwinfo MetricType documented in docs/Metrics/03_HARDWARE_INFO_FIELDS.md. Every Telemetry is a constant-per-boot platform identity string read from the hardware-platform driver (e.g. Advantech SUSI). On unsupported hosts the values are suppressed (null), never empty strings.",
+  "displayName": "System Agent \u2014 Hardware Information Telemetry",
+  "description": "Config-only DTDL v2 schema for the hwinfo MetricType. contents[] is empty by design -- describes the devicecfg.json Sensor surface, not a telemetry contract. schemas[] publishes the reusable Enums consumed by config-rules.js.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:MetricType;1",
@@ -11,7 +11,11 @@
       "valueSchema": "string",
       "description": "Allowed MetricType discriminators in this Interface.",
       "enumValues": [
-        { "name": "Hwinfo", "enumValue": "hwinfo", "displayName": "Hardware Info" }
+        {
+          "name": "Hwinfo",
+          "enumValue": "hwinfo",
+          "displayName": "Hardware Info"
+        }
       ]
     },
     {
@@ -20,12 +24,36 @@
       "valueSchema": "string",
       "description": "Allowed values of Parameters.MetricName when MetricType == 'hwinfo'.",
       "enumValues": [
-        { "name": "MotherboardName", "enumValue": "motherboardname", "displayName": "Motherboard Name" },
-        { "name": "Manufacturer",    "enumValue": "manufacturer",    "displayName": "Manufacturer" },
-        { "name": "BiosRevision",    "enumValue": "biosrevision",    "displayName": "BIOS Revision" },
-        { "name": "DriverVersion",   "enumValue": "driverversion",   "displayName": "Driver Version" },
-        { "name": "LibraryVersion",  "enumValue": "libraryversion",  "displayName": "Library Version" },
-        { "name": "EcRevision",      "enumValue": "ecrevision",      "displayName": "EC Revision" }
+        {
+          "name": "MotherboardName",
+          "enumValue": "motherboardname",
+          "displayName": "Motherboard Name"
+        },
+        {
+          "name": "Manufacturer",
+          "enumValue": "manufacturer",
+          "displayName": "Manufacturer"
+        },
+        {
+          "name": "BiosRevision",
+          "enumValue": "biosrevision",
+          "displayName": "BIOS Revision"
+        },
+        {
+          "name": "DriverVersion",
+          "enumValue": "driverversion",
+          "displayName": "Driver Version"
+        },
+        {
+          "name": "LibraryVersion",
+          "enumValue": "libraryversion",
+          "displayName": "Library Version"
+        },
+        {
+          "name": "EcRevision",
+          "enumValue": "ecrevision",
+          "displayName": "EC Revision"
+        }
       ]
     },
     {
@@ -34,13 +62,41 @@
       "valueSchema": "string",
       "description": "Allowed values of SensorGroup. hwinfo sensors conventionally use 'SYS'.",
       "enumValues": [
-        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
-        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
-        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
-        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
-        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
-        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
-        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+        {
+          "name": "AI",
+          "enumValue": "AI",
+          "displayName": "Analog Input"
+        },
+        {
+          "name": "AO",
+          "enumValue": "AO",
+          "displayName": "Analog Output"
+        },
+        {
+          "name": "DI",
+          "enumValue": "DI",
+          "displayName": "Digital Input"
+        },
+        {
+          "name": "DO",
+          "enumValue": "DO",
+          "displayName": "Digital Output"
+        },
+        {
+          "name": "TEMP",
+          "enumValue": "TEMP",
+          "displayName": "Temperature"
+        },
+        {
+          "name": "PWR",
+          "enumValue": "PWR",
+          "displayName": "Power"
+        },
+        {
+          "name": "SYS",
+          "enumValue": "SYS",
+          "displayName": "System"
+        }
       ]
     },
     {
@@ -49,68 +105,70 @@
       "valueSchema": "string",
       "description": "Allowed values of SensorInfo.Schema. For hwinfo every MetricName resolves to 'string'.",
       "enumValues": [
-        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
-        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
-        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
-        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
-        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+        {
+          "name": "Double",
+          "enumValue": "double",
+          "displayName": "double"
+        },
+        {
+          "name": "Long",
+          "enumValue": "long",
+          "displayName": "long"
+        },
+        {
+          "name": "Integer",
+          "enumValue": "integer",
+          "displayName": "integer"
+        },
+        {
+          "name": "Boolean",
+          "enumValue": "boolean",
+          "displayName": "boolean"
+        },
+        {
+          "name": "String",
+          "enumValue": "string",
+          "displayName": "string"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:SensorInfo;1",
+      "@type": "Object",
+      "displayName": "Sensor Info",
+      "description": "Reusable Object schema for the SensorInfo block of every Sensor in devicecfg.json. Models the wire-output metadata: declared schema, operator-facing display strings, and the read/write directionality contract.",
+      "comment": "SIL2 read-only contract: every Sensor declared in devicecfg.json represents an agent-emitted reading. Consumers MUST set isReadable=true and isWritable=false; the agent rejects writes (WriteSensorDataAsync returns false) and commands (ExecuteCommandAsync returns CommandNotSupported) by design. A future writable GPIO-output extension would introduce its own MetricType with isWritable=true; existing read-direction MetricTypes never flip writability.",
+      "fields": [
+        {
+          "name": "schema",
+          "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareInfo:SensorInfoSchema;1",
+          "description": "On-the-wire JSON type the agent emits for this Sensor's Value (matches the per-MetricName schema documented in the *_FIELDS.md reference). The agent rejects startup if SensorInfo.Schema disagrees with the runtime type."
+        },
+        {
+          "name": "description",
+          "schema": "string",
+          "description": "Long-form operator-facing description shown in dashboards and audit logs."
+        },
+        {
+          "name": "displayName",
+          "schema": "string",
+          "description": "Short label for UI render (twin pages, alert subjects). Distinct from Sensor.Name, which is the wire identifier."
+        },
+        {
+          "name": "isReadable",
+          "displayName": "Is Readable",
+          "schema": "boolean",
+          "description": "True when the Sensor produces readings the agent forwards as telemetry. MUST be true for all sensors declared in this Interface (the agent is read-direction by design). Default: true."
+        },
+        {
+          "name": "isWritable",
+          "displayName": "Is Writable",
+          "schema": "boolean",
+          "description": "True when the Sensor accepts writes from the cloud. MUST be false for every sensor declared in this Interface; the agent rejects writes and commands per SIL2 fail-safe contract. Default: false."
+        }
       ]
     }
   ],
-  "contents": [
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoMotherboardName;1",
-      "@type": "Telemetry",
-      "name": "HwinfoMotherboardName",
-      "displayName": "Motherboard Name",
-      "schema": "string",
-      "description": "Mainboard model identifier from BIOS / platform driver. MetricType=hwinfo, MetricName=motherboardname.",
-      "comment": "Validation: non-empty ASCII; constant per boot. Drift between samples implies BIOS update or board swap -- log as identity change. null/suppressed on unsupported hosts (no driver)."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoManufacturer;1",
-      "@type": "Telemetry",
-      "name": "HwinfoManufacturer",
-      "displayName": "Manufacturer",
-      "schema": "string",
-      "description": "OEM string from SMBIOS / platform driver. MetricType=hwinfo, MetricName=manufacturer.",
-      "comment": "Validation: non-empty ASCII; constant per boot. Used for fleet-side filtering by vendor."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoBiosRevision;1",
-      "@type": "Telemetry",
-      "name": "HwinfoBiosRevision",
-      "displayName": "BIOS Revision",
-      "schema": "string",
-      "description": "BIOS firmware version. MetricType=hwinfo, MetricName=biosrevision.",
-      "comment": "Validation: non-empty string matching vendor versioning scheme (e.g. 'Vd.dd'). Change between samples implies a BIOS flash -- log as identity change."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoDriverVersion;1",
-      "@type": "Telemetry",
-      "name": "HwinfoDriverVersion",
-      "displayName": "Driver Version",
-      "schema": "string",
-      "description": "Loaded hardware-platform kernel driver version (e.g. SUSI). MetricType=hwinfo, MetricName=driverversion.",
-      "comment": "Validation: non-empty 'd.d.dd' style string. Change between samples implies a driver reload -- log as identity change."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoLibraryVersion;1",
-      "@type": "Telemetry",
-      "name": "HwinfoLibraryVersion",
-      "displayName": "Library Version",
-      "schema": "string",
-      "description": "Userspace platform SDK library version the agent links against. MetricType=hwinfo, MetricName=libraryversion.",
-      "comment": "Validation: non-empty string; constant per binary. Change between samples implies the agent was redeployed."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:HwinfoEcRevision;1",
-      "@type": "Telemetry",
-      "name": "HwinfoEcRevision",
-      "displayName": "EC Revision",
-      "schema": "string",
-      "description": "Embedded-controller firmware revision (chassis / fan / sensor MCU). MetricType=hwinfo, MetricName=ecrevision.",
-      "comment": "Validation: non-empty string; constant per boot. Change between samples implies EC firmware update."
-    }
-  ]
+  "contents": []
 }

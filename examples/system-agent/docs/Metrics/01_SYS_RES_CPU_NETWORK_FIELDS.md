@@ -173,17 +173,17 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 ## DTDL Schema
 
-DTDL v2 Interface that models every `(MetricType, MetricName)` pair documented above as a Telemetry, with validation rules and reusable Enum schemas embedded directly in the DTDL document. Each Telemetry's `schema` matches the `SensorInfo.Schema` value the System Agent emits; each Telemetry carries a `comment` field describing the range / monotonicity rule downstream consumers should enforce. The auto-generation path in `SystemAgentDeviceConfig.Dtdl.AutoGenEnabled` produces a similar Interface at startup, but **without** the embedded Enums and comments — this file is the canonical reference for IoT Plug-and-Play registration, twin schema review, and validator generation.
+DTDL v2 Interface that declares the **config surface** for every `(MetricType, MetricName)` pair documented above — the allowed `MetricType` / `MetricName` / `SensorGroup` / `SensorInfo.Schema` enum values and the typed `Parameters` block per `MetricType`. The DTDL is **config-only**: it has an empty `contents[]` and declares no Telemetries. The wire DTMIs the agent publishes against (`dtmi:advantech:EdgeSync:SystemInfo:CpuUsage;1`, etc.) are documented in the mapping tables below and emitted at runtime — they are not declared in the DTDL.
 
-The standalone Interface file is published alongside this doc as [`01_CPU_NETWORK.dtdl.json`](./01_CPU_NETWORK.dtdl.json). For end-to-end **.NET / C# consumption examples** (parser setup, Enum extraction, Sensor validation, telemetry publishing), see [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md).
+The standalone Interface file is published alongside this doc as [`01_SYSTEM_RESOURCE.dtdl.json`](./01_SYSTEM_RESOURCE.dtdl.json) (CPU and Network share this Interface with Memory / Disk / System). For end-to-end **.NET / C# consumption examples** (parser setup, Enum extraction, Sensor validation), see [`01_SYS_RES_CPU_NETWORK_USAGE.md`](./01_SYS_RES_CPU_NETWORK_USAGE.md).
 
 ### Document anatomy
 
 | Section | DTDL key | Purpose |
 |---------|----------|---------|
 | Reusable Enums | `schemas[]` | `MetricType`, `CpuMetricName`, `NetworkMetricName`, `SensorGroup`, `SensorInfoSchema` — machine-readable enumerations of every constrained string field. |
-| Telemetries | `contents[]` | One Telemetry per `(MetricType, MetricName)` pair, each with a `comment` field carrying the validation rule. |
-| Semantic types | `@type` array | Byte-count Telemetries carry `["Telemetry", "DataSize"]` + `unit: "byte"` so consumers can auto-format units. |
+| Reusable Objects | `schemas[]` | `CpuSensorParameters`, `NetworkSensorParameters` — typed shape of the `Parameters` block per `MetricType`; the field-level `comment` carries config-shape rules that DTDL v2 can't enforce (mutual exclusivity, CSV variants). |
+| Telemetries | `contents[]` | Empty by design — DTDL is config-only. Wire telemetry shape lives in the mapping tables below and in the per-metric agent code. |
 
 ### Identifier conventions
 
@@ -227,24 +227,7 @@ Five Enum schemas live in the Interface's `schemas[]` array. Consumer code (conf
 | `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:CpuMetricName;1` | `string` | `"usage"`, `"load1"`, `"load5"`, `"load15"`, `"context_switches"` | `Sensor.Parameters.MetricName` when `MetricType == "cpu"` |
 | `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:NetworkMetricName;1` | `string` | `"bytes_sent"`, `"bytes_received"`, `"packets_sent"`, `"packets_received"`, `"errors"`, `"errors_in"`, `"errors_out"` | `Sensor.Parameters.MetricName` when `MetricType == "network"` |
 | `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorGroup;1` | `string` | `"AI"`, `"AO"`, `"DI"`, `"DO"`, `"TEMP"`, `"PWR"`, `"SYS"` | `Sensor.SensorGroup` |
-| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorInfoSchema;1` | `string` | `"double"`, `"long"`, `"integer"`, `"boolean"`, `"string"` | `Sensor.SensorInfo.Schema` (must additionally agree with the per-Telemetry schema column above) |
-
-### Validation rules embedded in DTDL
-
-Each Telemetry's `comment` field carries the validation rule a consumer must apply when ingesting the telemetry. The agent itself does **not** enforce these — invalid hardware readings pass through, so the cloud-side or gateway-side validator owns the check.
-
-| Telemetry | DTDL `comment` (validation rule) |
-|-----------|----------------------------------|
-| `CpuUsage` | `0 <= v <= 100` (rounded 2 dp); reject `NaN` / `±Inf`; sustained `v > 95` for ≥ 5 min indicates saturation. |
-| `CpuLoad1` / `CpuLoad5` / `CpuLoad15` | `v >= 0`; unitless; `v > 2 × nproc` for ≥ 5 min indicates sustained overload. Returns `0.0` on non-Linux. |
-| `CpuContextSwitches` | Monotonic counter; `0 <= v <= 2⁶³−1`; `Δ(v) >= 0` between samples; resets only on reboot (detect via `system.boot_time`). Graph as rate. |
-| `NetworkBytesSent` / `NetworkBytesReceived` | Monotonic counter; `0 <= v <= 2⁶³−1`; `Δ(v) >= 0`; resets only on reboot. Graph as `rate(...) [bps]`. Carries DTDL semantic type `DataSize` with `unit: "byte"`. |
-| `NetworkPacketsSent` / `NetworkPacketsReceived` | Monotonic counter; `0 <= v <= 2⁶³−1`; `Δ(v) >= 0`. Graph as `rate(...) [pps]`. |
-| `NetworkErrors` | Monotonic counter; `Δ(v) >= 0`. Sustained non-zero rate on Ethernet is abnormal — investigate cable / NIC / driver. |
-| `NetworkErrorsIn` | Monotonic counter; `Δ(v) >= 0`. Non-zero rate typically signals layer-1 problems (cabling, transceiver, FIFO overflow). |
-| `NetworkErrorsOut` | Monotonic counter; `Δ(v) >= 0`. Non-zero rate typically signals carrier loss or device-side TX failure. |
-
-> The validator pattern for monotonic counters and bounded gauges is documented in detail in `docs/05_DEVICECFG.md` §21 — apply those recipes against the comment text above.
+| `dtmi:advantech:EdgeSync:SystemAgent:CpuNetwork:SensorInfoSchema;1` | `string` | `"double"`, `"long"`, `"integer"`, `"boolean"`, `"string"` | `Sensor.SensorInfo.Schema` (must agree with the wire-schema column in the `MetricName → DTMI` mapping tables above) |
 
 ### Full Interface
 

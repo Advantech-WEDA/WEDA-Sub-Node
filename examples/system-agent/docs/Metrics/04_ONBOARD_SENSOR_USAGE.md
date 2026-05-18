@@ -191,162 +191,26 @@ public sealed record SensorParameters(
 
 ---
 
-## 5. Value validators driven by the DTDL `comment` field
+## 5. Integration test
 
-```csharp
-public sealed class TelemetryValueValidator
-{
-    private static readonly Dictionary<string, Func<object?, bool>> Predicates = new()
-    {
-        [OnboardSensorDtmis.Telemetries.Temperature] = v =>
-            v is double d && d >= -40.0 && d <= 125.0 && !double.IsNaN(d) && !double.IsInfinity(d),
-
-        [OnboardSensorDtmis.Telemetries.Voltage] = v =>
-            v is double d && !double.IsNaN(d) && !double.IsInfinity(d) && d >= 0,   // tighten per rail downstream
-
-        [OnboardSensorDtmis.Telemetries.FanSpeed] = v =>
-            v is double d && !double.IsNaN(d) && !double.IsInfinity(d) && d >= 0,
-    };
-
-    public bool IsValid(string telemetryDtmi, object? value) =>
-        Predicates.TryGetValue(telemetryDtmi, out var fn) && fn(value);
-}
-```
-
-### Per-voltage-rail validation
-
-Once per-rail breakout lands (planned), bound checks become per-rail. Keep them in a side-table:
-
-```csharp
-public static class VoltageRailBounds
-{
-    private static readonly Dictionary<string, (double Min, double Max)> Bounds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["VCORE"] = (0.6, 1.5),
-        ["+3.3V"] = (3.135, 3.465),
-        ["+5V"]   = (4.75, 5.25),
-        ["+12V"]  = (11.4, 12.6),
-        ["VBAT"]  = (2.7, 3.3),
-    };
-
-    public static bool IsValid(string rail, double volts) =>
-        Bounds.TryGetValue(rail, out var b) && volts >= b.Min && volts <= b.Max;
-}
-```
-
-### Fan-failure cross-metric heuristic
-
-A spinning-down fan with rising CPU temperature is the canonical failure pattern. Implement at the consumer:
-
-```csharp
-public sealed class FanHealthHeuristic
-{
-    private double _lastCpuThermC = double.NaN;
-    private double _lastFanRpm    = double.NaN;
-
-    public bool IsFanFailureLikely(double cpuThermC, double fanRpm)
-    {
-        var rising  = !double.IsNaN(_lastCpuThermC) && (cpuThermC - _lastCpuThermC) > 5.0;
-        var stopped = fanRpm == 0 || (!double.IsNaN(_lastFanRpm) && _lastFanRpm - fanRpm > 1000);
-
-        _lastCpuThermC = cpuThermC;
-        _lastFanRpm    = fanRpm;
-
-        return rising && stopped;
-    }
-}
-```
-
----
-
-## 6. Publish a `TelemetryMeasure` — temperature with source expansion
-
-When v1.1 expansion is used, every expanded sensor shares `Telemetries.Temperature` as its DTMI. Differentiate by adding the source name to `ResourceId` so cloud-side per-source aggregation still works:
-
-```csharp
-using Weda.SubNode.Abstractions.Telemetry;
-
-public sealed class OnboardSensorPublisher
-{
-    private readonly ICommunication _communication;
-    private readonly TelemetryValueValidator _validator;
-    private readonly ILogger<OnboardSensorPublisher> _logger;
-
-    public OnboardSensorPublisher(
-        ICommunication communication,
-        TelemetryValueValidator validator,
-        ILogger<OnboardSensorPublisher> logger)
-    {
-        _communication = communication;
-        _validator     = validator;
-        _logger        = logger;
-    }
-
-    public Task PublishTemperatureAsync(string source, double celsius, CancellationToken ct = default)
-        => PublishAsync(OnboardSensorDtmis.Telemetries.Temperature, celsius, ct, discriminator: source);
-
-    public Task PublishVoltageAsync(double volts, string? rail = null, CancellationToken ct = default)
-        => PublishAsync(OnboardSensorDtmis.Telemetries.Voltage, volts, ct, discriminator: rail);
-
-    public Task PublishFanSpeedAsync(double rpm, string? fan = null, CancellationToken ct = default)
-        => PublishAsync(OnboardSensorDtmis.Telemetries.FanSpeed, rpm, ct, discriminator: fan);
-
-    private async Task PublishAsync(
-        string dtmi, object value, CancellationToken ct, string? discriminator = null)
-    {
-        if (!_validator.IsValid(dtmi, value))
-        {
-            _logger.LogWarning("Dropping onboard {Dtmi}={Value} (failed validation)", dtmi, value);
-            return;
-        }
-
-        var measure = new TelemetryMeasure
-        {
-            // Same scheme as 01_CPU_NETWORK's per-interface expansion: '#<discriminator>' suffix.
-            ResourceId = discriminator is null ? dtmi : $"{dtmi}#{discriminator}",
-            Value      = value,
-        };
-        await _communication.PublishAsync(measure, ct);
-    }
-}
-```
-
----
-
-## 7. Auto-detect source expansion (v1.1)
-
-When `MetricName == "therm"` and both `Source` and `Sources` are omitted, the agent expands one sensor per discovered key. To mirror this on the consumer side at startup:
-
-```csharp
-public sealed class TemperatureSourceExpander
-{
-    // Map driver-supplied source names -> ResourceIds for cloud-side registration.
-    public static IEnumerable<(string Source, string ResourceId)> Expand(IEnumerable<string> driverSources) =>
-        driverSources.Select(s => (s, $"{OnboardSensorDtmis.Telemetries.Temperature}#{s}"));
-}
-```
-
-At runtime, the publisher's `discriminator` parameter is set to the source name returned by the driver each cycle.
-
----
-
-## 8. Integration test
+The DTDL is config-only — `contents[]` is empty. The asserts below confirm that and check the reusable Enum sizes.
 
 ```csharp
 using DTDLParser;
+using DTDLParser.Models;
 using Xunit;
 
 public sealed class OnboardSensorDtdlTests
 {
     [Fact]
-    public async Task Dtdl_parses_without_errors()
+    public async Task Dtdl_parses_and_declares_no_telemetries()
     {
         var json   = await File.ReadAllTextAsync("docs/Metrics/04_ONBOARD_SENSOR.dtdl.json");
         var parser = new ModelParser();
         var model  = await parser.ParseAsync(new[] { json });
 
         var iface = (DTInterfaceInfo)model[new Dtmi(OnboardSensorDtmis.Interface)];
-        Assert.Equal(3, iface.Contents.Values.OfType<DTTelemetryInfo>().Count());
+        Assert.Empty(iface.Contents.Values.OfType<DTTelemetryInfo>());
     }
 
     [Theory]
@@ -398,7 +262,7 @@ public sealed class OnboardSensorDtdlTests
 
 ---
 
-## 9. End-to-end sketch
+## 6. End-to-end sketch
 
 ```csharp
 // Program.cs
@@ -406,9 +270,6 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton(_ => OnboardSensorModel.LoadAsync().GetAwaiter().GetResult());
 builder.Services.AddSingleton<OnboardSensorValidator>();
-builder.Services.AddSingleton<TelemetryValueValidator>();
-builder.Services.AddSingleton<OnboardSensorPublisher>();
-builder.Services.AddSingleton<FanHealthHeuristic>();
 
 var host = builder.Build();
 await host.RunAsync();
@@ -418,10 +279,11 @@ Co-load with the other DTDLs for a single parser pass:
 
 ```csharp
 var dtdls = await Task.WhenAll(
-    File.ReadAllTextAsync("docs/Metrics/01_CPU_NETWORK.dtdl.json"),
-    File.ReadAllTextAsync("docs/Metrics/02_MEMORY_DISK_SYSTEM_GPU.dtdl.json"),
+    File.ReadAllTextAsync("docs/Metrics/01_SYSTEM_RESOURCE.dtdl.json"),
+    File.ReadAllTextAsync("docs/Metrics/02_GPU_RESOURCE.dtdl.json"),
     File.ReadAllTextAsync("docs/Metrics/03_HARDWARE_INFO.dtdl.json"),
-    File.ReadAllTextAsync("docs/Metrics/04_ONBOARD_SENSOR.dtdl.json"));
+    File.ReadAllTextAsync("docs/Metrics/04_ONBOARD_SENSOR.dtdl.json"),
+    File.ReadAllTextAsync("docs/Metrics/05_HARDWARE_FEATURE.dtdl.json"));
 var entities = await new ModelParser().ParseAsync(dtdls);
 ```
 

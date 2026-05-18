@@ -2,8 +2,8 @@
   "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource;1",
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
-  "displayName": "System Agent — GPU Resource Telemetry",
-  "description": "DTDL v2 schema for the gpu MetricType. Single-MetricType Interface; one Telemetry per supported NVML counter. schemas[] publishes reusable Enums; every Telemetry's comment carries its validation rule.",
+  "displayName": "System Agent \u2014 GPU Resource Telemetry",
+  "description": "Config-only DTDL v2 schema for the gpu MetricType. contents[] is empty by design -- describes the devicecfg.json Sensor surface, not a telemetry contract. schemas[] publishes the reusable Enums and the GpuSensorParameters Object consumed by config-rules.js.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:MetricType;1",
@@ -11,7 +11,11 @@
       "valueSchema": "string",
       "description": "Allowed MetricType discriminators in this Interface.",
       "enumValues": [
-        { "name": "Gpu", "enumValue": "gpu", "displayName": "GPU" }
+        {
+          "name": "Gpu",
+          "enumValue": "gpu",
+          "displayName": "GPU"
+        }
       ]
     },
     {
@@ -20,7 +24,11 @@
       "valueSchema": "string",
       "description": "Allowed values of Parameters.MetricName when MetricType == 'gpu'.",
       "enumValues": [
-        { "name": "Utilization", "enumValue": "utilization", "displayName": "GPU Utilization (%)" }
+        {
+          "name": "Utilization",
+          "enumValue": "utilization",
+          "displayName": "GPU Utilization (%)"
+        }
       ]
     },
     {
@@ -29,13 +37,41 @@
       "valueSchema": "string",
       "description": "Allowed values of SensorGroup. GPU sensors conventionally use 'SYS'.",
       "enumValues": [
-        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
-        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
-        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
-        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
-        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
-        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
-        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+        {
+          "name": "AI",
+          "enumValue": "AI",
+          "displayName": "Analog Input"
+        },
+        {
+          "name": "AO",
+          "enumValue": "AO",
+          "displayName": "Analog Output"
+        },
+        {
+          "name": "DI",
+          "enumValue": "DI",
+          "displayName": "Digital Input"
+        },
+        {
+          "name": "DO",
+          "enumValue": "DO",
+          "displayName": "Digital Output"
+        },
+        {
+          "name": "TEMP",
+          "enumValue": "TEMP",
+          "displayName": "Temperature"
+        },
+        {
+          "name": "PWR",
+          "enumValue": "PWR",
+          "displayName": "Power"
+        },
+        {
+          "name": "SYS",
+          "enumValue": "SYS",
+          "displayName": "System"
+        }
       ]
     },
     {
@@ -44,11 +80,31 @@
       "valueSchema": "string",
       "description": "Allowed values of SensorInfo.Schema; must additionally match the Telemetry's native DTDL schema.",
       "enumValues": [
-        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
-        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
-        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
-        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
-        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+        {
+          "name": "Double",
+          "enumValue": "double",
+          "displayName": "double"
+        },
+        {
+          "name": "Long",
+          "enumValue": "long",
+          "displayName": "long"
+        },
+        {
+          "name": "Integer",
+          "enumValue": "integer",
+          "displayName": "integer"
+        },
+        {
+          "name": "Boolean",
+          "enumValue": "boolean",
+          "displayName": "boolean"
+        },
+        {
+          "name": "String",
+          "enumValue": "string",
+          "displayName": "string"
+        }
       ]
     },
     {
@@ -57,20 +113,57 @@
       "displayName": "GPU Sensor Parameters",
       "description": "Reusable Object schema for the Parameters block of every gpu Sensor in devicecfg.json. GPU sensors take no type-specific extra parameters.",
       "fields": [
-        { "name": "metricType", "displayName": "Metric Type", "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:MetricType;1",     "description": "MUST equal 'gpu'." },
-        { "name": "metricName", "displayName": "Metric Name", "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:GpuMetricName;1", "description": "Specific GPU metric (see GpuMetricName enum)." }
+        {
+          "name": "metricType",
+          "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:MetricType;1",
+          "description": "MUST equal 'gpu'."
+        },
+        {
+          "name": "metricName",
+          "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:GpuMetricName;1",
+          "description": "Specific GPU metric (see GpuMetricName enum)."
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:SensorInfo;1",
+      "@type": "Object",
+      "displayName": "Sensor Info",
+      "description": "Reusable Object schema for the SensorInfo block of every Sensor in devicecfg.json. Models the wire-output metadata: declared schema, operator-facing display strings, and the read/write directionality contract.",
+      "comment": "SIL2 read-only contract: every Sensor declared in devicecfg.json represents an agent-emitted reading. Consumers MUST set isReadable=true and isWritable=false; the agent rejects writes (WriteSensorDataAsync returns false) and commands (ExecuteCommandAsync returns CommandNotSupported) by design. A future writable GPIO-output extension would introduce its own MetricType with isWritable=true; existing read-direction MetricTypes never flip writability.",
+      "fields": [
+        {
+          "name": "schema",
+          "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpuResource:SensorInfoSchema;1",
+          "description": "On-the-wire JSON type the agent emits for this Sensor's Value (matches the per-MetricName schema documented in the *_FIELDS.md reference). The agent rejects startup if SensorInfo.Schema disagrees with the runtime type."
+        },
+        {
+          "name": "description",
+          "schema": "string",
+          "description": "Long-form operator-facing description shown in dashboards and audit logs."
+        },
+        {
+          "name": "displayName",
+          "schema": "string",
+          "description": "Short label for UI render (twin pages, alert subjects). Distinct from Sensor.Name, which is the wire identifier."
+        },
+        {
+          "name": "isReadable",
+          "displayName": "Is Readable",
+          "schema": "boolean",
+          "description": "True when the Sensor produces readings the agent forwards as telemetry. MUST be true for all sensors declared in this Interface (the agent is read-direction by design). Default: true."
+        },
+        {
+          "name": "isWritable",
+          "displayName": "Is Writable",
+          "schema": "boolean",
+          "description": "True when the Sensor accepts writes from the cloud. MUST be false for every sensor declared in this Interface; the agent rejects writes and commands per SIL2 fail-safe contract. Default: false."
+        }
       ]
     }
   ],
-  "contents": [
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:GpuUtilization;1",
-      "@type": "Telemetry",
-      "name": "GpuUtilization",
-      "displayName": "GPU Utilization",
-      "schema": "integer",
-      "description": "Fraction of last sample period with active GPU kernels (NVML 'gpu' field, 0-100). MetricType=gpu, MetricName=utilization.",
-      "comment": "Validation: 0 <= v <= 100; null/suppressed on hosts without NVIDIA hardware."
-    }
-  ]
+  "contents": []
 }

@@ -106,5 +106,39 @@
     "SensorInfo": { "Schema": "boolean", "Description": "...", "DisplayName": "..." },
     "expect": "invalid",
     "reason": "isSupported sensor must not carry PinId"
+  },
+
+  {
+    "Name": "watchdog_supported",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "watchdog",
+      "MetricName": "isSupported"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "boolean",
+      "Description": "Watchdog capability flag from SUSI",
+      "DisplayName": "Watchdog Supported"
+    },
+    "expect": "valid",
+    "reason": "single-telemetry capability flag"
+  },
+
+  {
+    "Name": "thermalprotection_supported",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "thermalprotection",
+      "MetricName": "isSupported"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "boolean",
+      "Description": "Thermal-shutdown engine capability flag from SUSI",
+      "DisplayName": "Thermal Protection Supported"
+    },
+    "expect": "valid",
+    "reason": "single-telemetry capability flag"
   }
 ]

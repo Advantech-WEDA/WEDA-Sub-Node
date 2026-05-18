@@ -6,9 +6,7 @@ The same workflow runs locally (developer laptop), in CI, or as a one-off check 
 
 > **Two layers of validation — keep them separate.**
 > - **Schema-level** — does the DTDL file parse? This is what the official Microsoft DTDL parser checks. Pure JSON-structure + identifier-resolution validation; no value-level checks.
-> - **Config-level** — does a `devicecfg.json` Sensor entry satisfy the per-`MetricType` config-shape rules (`Parameters.Interfaces` is `string` or `string[]`; `Interface` is non-empty; the two are mutually exclusive; etc.)? The DTDL parser does **not** enforce these; `dtdl-validate/scripts/config-rules.js` (and its .NET mirror `ConfigRules.cs`) does.
-
-> **What this guide does NOT cover.** Per-Telemetry value-range checks (e.g. `0 ≤ CpuUsage ≤ 100`) are documented in each Telemetry's `comment` field inside the DTDL itself. Downstream consumers (cloud-side validators, dashboards, alerting) implement those predicates in their own code — the agent intentionally does not validate published values.
+> - **Config-level** — does a `devicecfg.json` Sensor entry satisfy the per-`MetricType` config-shape rules (`Parameters.Interfaces` is `string` or `string[]`; `Interface` is non-empty; the two are mutually exclusive; `Parameters.MountPoint` is a non-empty string for `disk`; etc.)? The DTDL parser does **not** enforce these; `dtdl-validate/scripts/config-rules.js` (and its .NET mirror `ConfigRules.cs`) does.
 
 ---
 
@@ -36,7 +34,7 @@ npm run validate
 
 Green output means **the schemas parse cleanly AND every sensor-config fixture passes its shape rules** (`valid` samples accepted, `invalid` samples rejected). Extend by adding sensor-config fixtures under `docs/Metrics/samples-config/*.configs.json` and rules in `scripts/config-rules.js`.
 
-Confirmed working on the current tree — 5 DTDL Interfaces, **247 entities** parse cleanly, **22 sensor-config fixtures** pass.
+Confirmed working on the current tree — 5 DTDL Interfaces (config-only, no Telemetries), **215 entities** parse cleanly, **59 sensor-config fixtures** pass.
 
 ---
 
@@ -105,12 +103,12 @@ const FILES = [
 **Expected output:**
 
 ```
-OK  01_SYSTEM_RESOURCE.dtdl.json: 124 entities
-OK  02_GPU_RESOURCE.dtdl.json: 25 entities
-OK  03_HARDWARE_INFO.dtdl.json: 31 entities
-OK  04_ONBOARD_SENSOR.dtdl.json: 32 entities
-OK  05_HARDWARE_FEATURE.dtdl.json: 42 entities
-OK  combined: 247 entities
+OK  01_SYSTEM_RESOURCE.dtdl.json: 84 entities
+OK  02_GPU_RESOURCE.dtdl.json: 30 entities
+OK  03_HARDWARE_INFO.dtdl.json: 32 entities
+OK  04_ONBOARD_SENSOR.dtdl.json: 33 entities
+OK  05_HARDWARE_FEATURE.dtdl.json: 44 entities
+OK  combined: 215 entities
 ```
 
 Any line starting `ERR` is a schema bug that must be fixed before shipping.
@@ -160,11 +158,10 @@ Run as part of `dotnet test`.
 | Catches | Misses |
 |---------|--------|
 | Malformed JSON. | Wrong `enumValue` (e.g. `"USAGE"` instead of `"usage"`) — that's a **semantic** mismatch with the agent, not a DTDL bug. |
-| Missing required fields (`@id`, `@type`, `schema` on Telemetry). | Whether downstream consumers have implemented the per-Telemetry validation rule documented in `comment`. |
-| Invalid DTMI format. | Cross-Interface invariants (`MemoryUsed + MemoryAvailable == MemoryTotal`). |
-| Unresolvable `schema` references (e.g. DTMI typo in `Telemetry.schema: <enum-DTMI>`). | DTMI version-bump correctness (the parser allows additive changes). |
-| Invalid semantic type or unit (`"unit": "byteS"`). | |
-| `comment` / `description` exceeding the 512-char DTDL v2 limit. | |
+| Missing required fields (`@id`, `@type`). | Whether a `devicecfg.json` Sensor entry actually conforms — that's what config-level validation in §2 covers. |
+| Invalid DTMI format. | Cross-Interface invariants outside the schema (e.g. `Interface` / `Interfaces` mutual exclusivity). |
+| Unresolvable `schema` references (e.g. DTMI typo on an Object `field.schema`). | DTMI version-bump correctness (the parser allows additive changes). |
+| Invalid `comment` / `description` exceeding the 512-char DTDL v2 limit. | |
 | DTMI collisions across Interfaces in the combined parse. | |
 
 ---
@@ -179,10 +176,12 @@ The DTDL parser checks the schema; it does **not** check whether a *sensor entry
 
 | MetricType | Rules |
 |------------|-------|
-| `network` | `Parameters.Interfaces` is `string` or `array<string>`; `Parameters.Interface` is a non-empty string when present; `Interface` and `Interfaces` are mutually exclusive when both non-empty. |
-| `gpio` | `Parameters.PinId` is a non-negative integer when present (`metricName=pinState`); `Parameters.PinIds` is `Array<integer>` of non-negative integers; `PinId` and `PinIds` are mutually exclusive when both non-empty; `metricName=isSupported` sensors must not carry `PinId` / `PinIds`. |
+| `network`     | `Parameters.Interfaces` is `string` or `array<string>`; `Parameters.Interface` is a non-empty string when present; `Interface` and `Interfaces` are mutually exclusive when both non-empty. |
+| `disk`        | `Parameters.MountPoint` is required and must be a non-empty string (no auto-detect; defaults to `"/"` only inside the agent's fallback path, never silently from validation). |
+| `gpio`        | `Parameters.PinId` is a non-negative integer when present (`metricName=pinState`); `Parameters.PinIds` is `Array<integer>` of non-negative integers; `PinId` and `PinIds` are mutually exclusive when both non-empty; `metricName=isSupported` sensors must not carry `PinId` / `PinIds`. |
+| `temperature` | `Parameters.Source` is a non-empty string when present; `Parameters.Sources` is an array of non-empty strings; `Source` and `Sources` are mutually exclusive when both non-empty; v1.0-compat sensors (`metricName != "therm"`) must not carry `Source` / `Sources` (the source name lives in `metricName` itself). |
 
-Extension points for `disk` (require `Parameters.MountPoint`) and `temperature` (`Source` / `Sources` tri-mode) are left as empty rule-set stubs in `config-rules.js`.
+MetricTypes without a declared rule set (`cpu`, `memory`, `system`, `gpu`, `hwinfo`, `voltage`, `fanspeed`, `watchdog`, `thermalprotection`) carry no `Parameters.*` shape constraints beyond the enum allow-lists the DTDL already enforces — sensors of those types pass through `validate-configs.js` unchecked.
 
 ### 2.2 Fixture shape
 
@@ -202,10 +201,13 @@ Each fixture is a JSON array of full Sensor entries (same schema as `devicecfg.j
 }
 ```
 
-Fixtures live in `docs/Metrics/samples-config/`. Shipped today:
+Fixtures live in `docs/Metrics/samples-config/` — one file per DTDL Interface. Shipped today:
 
-- `01_CPU_NETWORK.configs.json` — 10 sensors (6 valid + 4 invalid; covers `network`).
-- `05_HARDWARE_FEATURE.configs.json` — 12 sensors (5 valid + 7 invalid; covers `gpio` integer-only contract).
+- `01_SYSTEM_RESOURCE.configs.json` — 27 sensors (18 valid + 9 invalid; covers `cpu`, `memory`, `disk`, `network`, `system`).
+- `02_GPU_RESOURCE.configs.json` — 2 sensors (2 valid; covers `gpu`).
+- `03_HARDWARE_INFO.configs.json` — 6 sensors (6 valid; one fixture per hwinfo `MetricName`).
+- `04_ONBOARD_SENSOR.configs.json` — 10 sensors (6 valid + 4 invalid; covers `temperature` v1.0/v1.1 modes, `voltage`, `fanspeed`).
+- `05_HARDWARE_FEATURE.configs.json` — 14 sensors (7 valid + 7 invalid; covers `gpio` integer-only contract, `watchdog`, `thermalprotection`).
 
 ### 2.3 Running
 
@@ -223,19 +225,23 @@ docker compose run --rm validate-dotnet configs   # config-only subcommand
 Expected tail of any run:
 
 ```
---- 01_CPU_NETWORK.configs.json (10 sensors) ---
-  OK  valid   network_eth0_bytes_sent
-  OK  valid   network_bytes_sent_list
+--- 01_SYSTEM_RESOURCE.configs.json (27 sensors) ---
+  OK  valid   cpu_usage
+  OK  valid   memory_total
   ...
   OK  invalid network_bytes_sent_ifaces_mixed
 
---- 05_HARDWARE_FEATURE.configs.json (12 sensors) ---
-  OK  valid   gpio_pin_4
-  OK  valid   gpio_pinState_list
+--- 04_ONBOARD_SENSOR.configs.json (10 sensors) ---
+  OK  valid   temperature_therm_source
   ...
-  OK  invalid gpio_isSupported_with_pinid
+  OK  invalid temperature_v10_with_source
 
-ALL 22 CONFIGS PASSED
+--- 05_HARDWARE_FEATURE.configs.json (14 sensors) ---
+  OK  valid   gpio_pin_4
+  ...
+  OK  valid   thermalprotection_supported
+
+ALL 59 CONFIGS PASSED
 ```
 
 A fixture marked `"expect": "invalid"` *should* fail the rule. The validator passes when **every sensor lands on its declared verdict** — an `invalid` sample that incorrectly passes is a regression.
@@ -260,7 +266,7 @@ const rules = {
 };
 ```
 
-Then drop a matching fixture file under `samples-config/01_SYS_RES_MEMORY_DISK.configs.json` and CI picks it up automatically.
+Then drop fixtures into the matching `samples-config/*.configs.json` file (the one named after the DTDL Interface that owns the MetricType) and CI picks them up automatically.
 
 The same pattern in `ConfigRules.cs` is one entry in the `Rules` dictionary plus the rule function — keep the two languages in lock-step (the test fixtures are shared, so they must produce identical verdicts).
 
@@ -430,5 +436,5 @@ Bumping the Interface DTMI requires updating every consumer's `*Dtmis.Interface`
 ## Related
 
 - [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](./01_SYS_RES_CPU_NETWORK_FIELDS.md), [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](./01_SYS_RES_MEMORY_DISK_FIELDS.md), [`02_GPU_FIELDS.md`](./02_GPU_FIELDS.md), [`03_HARDWARE_INFO_FIELDS.md`](./03_HARDWARE_INFO_FIELDS.md), [`04_ONBOARD_SENSOR_FIELDS.md`](./04_ONBOARD_SENSOR_FIELDS.md), [`05_HARDWARE_FEATURE_FIELDS.md`](./05_HARDWARE_FEATURE_FIELDS.md) — per-MetricType configuration reference.
-- The matching `*_USAGE.md` companions — .NET consumption guides; each carries per-Telemetry value-validation patterns you can lift into your own consumer.
+- The matching `*_USAGE.md` companions — .NET consumption guides showing parser setup, Enum allow-list extraction, and Sensor-config validation against the DTDL.
 - [`_template/README.md`](./_template/README.md) — adding a new MetricType (don't forget to register a `config-rules.js` rule-set if it has type-specific `Parameters.*`).

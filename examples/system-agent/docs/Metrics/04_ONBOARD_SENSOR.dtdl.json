@@ -3,7 +3,7 @@
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
   "displayName": "System Agent \u2014 Onboard Sensor Telemetry",
-  "description": "DTDL v2 schema for the temperature, voltage, and fanspeed MetricTypes documented in docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md. All three are platform-dependent (e.g. Advantech SUSI). Temperature supports v1.1 Explicit list / Auto-detect mode via Parameters.Source / Parameters.Sources; expanded sensors share the Temperature Telemetry DTMI and differentiate by ResourceId suffix at publish time.",
+  "description": "Config-only DTDL v2 schema for the temperature / voltage / fanspeed MetricTypes. contents[] is empty by design -- describes the devicecfg.json Sensor surface, not a telemetry contract. schemas[] publishes the reusable Enums consumed by config-rules.js. Temperature supports v1.1 expansion via Parameters.Source / Parameters.Sources (see 04_ONBOARD_SENSOR_FIELDS.md).",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:MetricType;1",
@@ -142,43 +142,44 @@
           "displayName": "string"
         }
       ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorInfo;1",
+      "@type": "Object",
+      "displayName": "Sensor Info",
+      "description": "Reusable Object schema for the SensorInfo block of every Sensor in devicecfg.json. Models the wire-output metadata: declared schema, operator-facing display strings, and the read/write directionality contract.",
+      "comment": "SIL2 read-only contract: every Sensor declared in devicecfg.json represents an agent-emitted reading. Consumers MUST set isReadable=true and isWritable=false; the agent rejects writes (WriteSensorDataAsync returns false) and commands (ExecuteCommandAsync returns CommandNotSupported) by design. A future writable GPIO-output extension would introduce its own MetricType with isWritable=true; existing read-direction MetricTypes never flip writability.",
+      "fields": [
+        {
+          "name": "schema",
+          "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorInfoSchema;1",
+          "description": "On-the-wire JSON type the agent emits for this Sensor's Value (matches the per-MetricName schema documented in the *_FIELDS.md reference). The agent rejects startup if SensorInfo.Schema disagrees with the runtime type."
+        },
+        {
+          "name": "description",
+          "schema": "string",
+          "description": "Long-form operator-facing description shown in dashboards and audit logs."
+        },
+        {
+          "name": "displayName",
+          "schema": "string",
+          "description": "Short label for UI render (twin pages, alert subjects). Distinct from Sensor.Name, which is the wire identifier."
+        },
+        {
+          "name": "isReadable",
+          "displayName": "Is Readable",
+          "schema": "boolean",
+          "description": "True when the Sensor produces readings the agent forwards as telemetry. MUST be true for all sensors declared in this Interface (the agent is read-direction by design). Default: true."
+        },
+        {
+          "name": "isWritable",
+          "displayName": "Is Writable",
+          "schema": "boolean",
+          "description": "True when the Sensor accepts writes from the cloud. MUST be false for every sensor declared in this Interface; the agent rejects writes and commands per SIL2 fail-safe contract. Default: false."
+        }
+      ]
     }
   ],
-  "contents": [
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:Temperature;1",
-      "@type": [
-        "Telemetry",
-        "Temperature"
-      ],
-      "name": "Temperature",
-      "displayName": "Temperature",
-      "schema": "double",
-      "unit": "degreeCelsius",
-      "description": "Onboard thermal sensor reading in Celsius. MetricType=temperature, MetricName=therm (v1.1) or source name (v1.0 compat). v1.1 expansion: one published sample per Parameters.Source (single) or Parameters.Sources (array / auto-detect); ResourceId is suffixed with the source name.",
-      "comment": "Validation: -40.0 <= v <= 125.0 realistic; reject NaN / +-Inf as sensor faults; null/suppressed when the source name is missing from the driver-supplied dictionary or hardware returns null. Pair with ThermalProtectionIsSupported (see HardwareFeature interface) -- without thermal protection the host has no autonomous over-temperature response."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:Voltage;1",
-      "@type": [
-        "Telemetry",
-        "Voltage"
-      ],
-      "name": "Voltage",
-      "displayName": "Voltage",
-      "schema": "double",
-      "unit": "volt",
-      "description": "Onboard voltage-rail reading in volts. MetricType=voltage, MetricName=voltage. v1.x publishes the aggregate of all rails as a single sensor; per-rail discrimination is reserved for a future release (planned: a Source/Sources parameter mirroring Temperature).",
-      "comment": "Validation: rail-specific bounds applied downstream (e.g. VCORE in [0.6, 1.5], +5V in [4.75, 5.25]); reject NaN / +-Inf; null/suppressed on unsupported hosts."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:FanSpeed;1",
-      "@type": "Telemetry",
-      "name": "FanSpeed",
-      "displayName": "Fan Speed",
-      "schema": "double",
-      "description": "Onboard fan speed reading in RPM. MetricType=fanspeed, MetricName=fanspeed. v1.x publishes the aggregate of all fans as a single sensor; per-fan discrimination is reserved for a future release.",
-      "comment": "Validation: v >= 0 RPM; reject NaN / +-Inf; null/suppressed on unsupported hosts. v == 0 while Temperature is climbing is the canonical fan-failure signature. (DTDL v2 has no semantic type for RPM; treat as plain double.)"
-    }
-  ]
+  "contents": []
 }

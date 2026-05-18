@@ -148,9 +148,110 @@ const rules = {
     },
   ],
 
-  // Extension points (left empty -- add rules when needed):
-  //   disk:        [/* require Parameters.MountPoint */],
-  //   temperature: [/* Source / Sources / MetricName tri-mode check */],
+  // ============================================================
+  // disk -- Parameters.MountPoint required
+  //
+  // Mirrors the DTDL contract declared by DiskSensorParameters in
+  // docs/Metrics/01_SYSTEM_RESOURCE.dtdl.json:
+  //   mountPoint : string   (required, non-empty; no auto-detect)
+  // ============================================================
+  disk: [
+    sensor => {
+      const mp = sensor.Parameters?.MountPoint;
+      if (mp === undefined) {
+        return {
+          ok: false,
+          reason: 'disk sensors require Parameters.MountPoint (missing)',
+        };
+      }
+      if (typeof mp === 'string' && mp.length > 0) return { ok: true };
+      return {
+        ok: false,
+        reason: `Parameters.MountPoint must be a non-empty string; got ${JSON.stringify(mp)} (${typeof mp})`,
+      };
+    },
+  ],
+
+  // ============================================================
+  // temperature -- Parameters.Source / Parameters.Sources
+  //
+  // Mirrors the v1.0/v1.1 modes documented in
+  // docs/Metrics/04_ONBOARD_SENSOR_FIELDS.md:
+  //   - v1.0 compat: Parameters.MetricName carries the source name
+  //                  directly (e.g. "cpu-therm"); Source/Sources MUST NOT
+  //                  be set.
+  //   - v1.1 single: Parameters.MetricName == "therm", Parameters.Source
+  //                  is a non-empty string.
+  //   - v1.1 list:   Parameters.MetricName == "therm", Parameters.Sources
+  //                  is a non-empty array of non-empty strings.
+  //   - v1.1 auto:   Parameters.MetricName == "therm", neither Source nor
+  //                  Sources is set (the agent expands one sensor per
+  //                  discovered onboard source).
+  //   - Source and Sources MUST NOT both be set non-empty.
+  // ============================================================
+  temperature: [
+    // Source, when present, must be a non-empty string.
+    sensor => {
+      const src = sensor.Parameters?.Source;
+      if (src === undefined) return { ok: true };
+      if (typeof src === 'string' && src.length > 0) return { ok: true };
+      return {
+        ok: false,
+        reason: `Parameters.Source must be a non-empty string; got ${JSON.stringify(src)} (${typeof src})`,
+      };
+    },
+
+    // Sources, when present, must be an array of non-empty strings.
+    sensor => {
+      const srcs = sensor.Parameters?.Sources;
+      if (srcs === undefined) return { ok: true };
+      if (!Array.isArray(srcs)) {
+        return {
+          ok: false,
+          reason: `Parameters.Sources must be an array of non-empty strings; got ${typeof srcs}`,
+        };
+      }
+      for (const x of srcs) {
+        if (typeof x !== 'string' || x.length === 0) {
+          return {
+            ok: false,
+            reason: `Parameters.Sources element ${JSON.stringify(x)} is not a non-empty string`,
+          };
+        }
+      }
+      return { ok: true };
+    },
+
+    // Source / Sources mutually exclusive when both non-empty.
+    sensor => {
+      const src = sensor.Parameters?.Source;
+      const srcs = sensor.Parameters?.Sources;
+      const hasSrc = typeof src === 'string' && src.length > 0;
+      const hasSrcs = Array.isArray(srcs) && srcs.length > 0;
+      if (hasSrc && hasSrcs) {
+        return {
+          ok: false,
+          reason: "Parameters.Source and Parameters.Sources both set non-empty; runtime would pick 'Source' but the config is ambiguous",
+        };
+      }
+      return { ok: true };
+    },
+
+    // v1.0 compat (MetricName != "therm") MUST NOT carry Source / Sources.
+    sensor => {
+      const mn = sensor.Parameters?.MetricName;
+      if (mn === 'therm') return { ok: true };
+      const hasSrc = sensor.Parameters?.Source !== undefined;
+      const hasSrcs = sensor.Parameters?.Sources !== undefined;
+      if (hasSrc || hasSrcs) {
+        return {
+          ok: false,
+          reason: `v1.0-compat temperature sensors (MetricName=${JSON.stringify(mn)}) must not carry Source or Sources; the source name is the MetricName itself`,
+        };
+      }
+      return { ok: true };
+    },
+  ],
 };
 
 function validate(sensor) {

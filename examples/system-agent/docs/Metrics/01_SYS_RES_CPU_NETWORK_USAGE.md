@@ -1,13 +1,13 @@
-# Using `01_CPU_NETWORK.dtdl.json` from .NET / C#
+# Using `01_SYSTEM_RESOURCE.dtdl.json` from .NET / C#
 
-End-to-end examples showing how to consume [`01_CPU_NETWORK.dtdl.json`](./01_CPU_NETWORK.dtdl.json) from a C# application. Every example targets **.NET 8+** and uses the official Microsoft DTDL parser.
+End-to-end examples showing how to consume [`01_SYSTEM_RESOURCE.dtdl.json`](./01_SYSTEM_RESOURCE.dtdl.json) from a C# application for the CPU and Network MetricTypes. Every example targets **.NET 8+** and uses the official Microsoft DTDL parser.
 
-The DTDL file ships **two** things you can leverage:
+The DTDL is **config-only** (`contents[]` empty by design) and ships the reusable schemas you parse against:
 
 | Asset | Where it lives in the JSON | Use in C# |
 |-------|---------------------------|-----------|
-| 12 Telemetry definitions | `contents[]` | Strongly-typed DTMI constants; payload schema lookup; validation-rule extraction. |
-| 5 reusable Enums | `schemas[]` | Allow-list validators for `Sensor.Parameters.MetricType`, `MetricName`, `SensorGroup`, `SensorInfo.Schema`. |
+| Reusable Enums | `schemas[]` | Allow-list validators for `Sensor.Parameters.MetricType`, `MetricName`, `SensorGroup`, `SensorInfo.Schema`. |
+| Reusable Object schemas (`CpuSensorParameters`, `NetworkSensorParameters`) | `schemas[]` | Typed shape of the `Parameters` block per `MetricType`. |
 
 ---
 
@@ -312,139 +312,7 @@ public sealed class DeviceConfigLoader
 
 ---
 
-## 6. Read validation rules from the DTDL `comment` field
-
-The `comment` field on each Telemetry carries the range / monotonicity rule. You can pull it at runtime to build value validators.
-
-```csharp
-public static class TelemetryCommentExtensions
-{
-    public static string? GetComment(this DTInterfaceInfo iface, string telemetryDtmi)
-    {
-        var dtmi = new Dtmi(telemetryDtmi);
-        var content = iface.Contents.Values
-            .OfType<DTTelemetryInfo>()
-            .FirstOrDefault(t => t.Id == dtmi);
-        return content?.Comment;
-    }
-}
-
-// Usage
-var rule = model.Interface.GetComment(CpuNetworkDtmis.Telemetries.CpuUsage);
-// → "Validation: 0 <= v <= 100 (rounded to 2 dp); reject NaN / +-Inf as sensor faults; ..."
-```
-
-Then bind hand-written predicates to each DTMI:
-
-```csharp
-public sealed class TelemetryValueValidator
-{
-    private static readonly Dictionary<string, Func<object?, bool>> Predicates = new()
-    {
-        [CpuNetworkDtmis.Telemetries.CpuUsage] = v =>
-            v is double d && d >= 0 && d <= 100 && !double.IsNaN(d) && !double.IsInfinity(d),
-
-        [CpuNetworkDtmis.Telemetries.CpuLoad1]  = v => v is double d && d >= 0,
-        [CpuNetworkDtmis.Telemetries.CpuLoad5]  = v => v is double d && d >= 0,
-        [CpuNetworkDtmis.Telemetries.CpuLoad15] = v => v is double d && d >= 0,
-
-        [CpuNetworkDtmis.Telemetries.CpuContextSwitches]     = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkBytesSent]       = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkBytesReceived]   = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkPacketsSent]     = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkPacketsReceived] = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkErrors]          = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkErrorsIn]        = v => v is long l && l >= 0,
-        [CpuNetworkDtmis.Telemetries.NetworkErrorsOut]       = v => v is long l && l >= 0,
-    };
-
-    public bool IsValid(string telemetryDtmi, object? value) =>
-        Predicates.TryGetValue(telemetryDtmi, out var fn) && fn(value);
-}
-```
-
-For **monotonic-counter** checks (the `Δ(v) >= 0` rule), keep the last seen value per `(DTMI, interfaceName)` and reset on reboot detection:
-
-```csharp
-public sealed class MonotonicCounterValidator
-{
-    private readonly Dictionary<(string Dtmi, string Interface), long> _last = new();
-    private long _lastBootTime;
-
-    public bool IsValid(string dtmi, string iface, long value, long currentBootTime)
-    {
-        if (currentBootTime != _lastBootTime)
-        {
-            // Reboot detected — reset all counters.
-            _last.Clear();
-            _lastBootTime = currentBootTime;
-        }
-
-        var key = (dtmi, iface);
-        if (_last.TryGetValue(key, out var prev) && value < prev)
-            return false; // Non-monotonic without reboot.
-
-        _last[key] = value;
-        return true;
-    }
-}
-```
-
----
-
-## 7. Publish a `TelemetryMeasure` using a DTMI as `ResourceId`
-
-The existing `SystemMetricsParser` already produces `TelemetryMeasure { ResourceId, Value }`. Map the sensor's DTMI from the constants above so the cloud-side recognises the schema.
-
-```csharp
-using Weda.SubNode.Abstractions.Telemetry;
-
-public sealed class CpuNetworkTelemetryPublisher
-{
-    private readonly ICommunication _communication;
-    private readonly TelemetryValueValidator _validator;
-    private readonly ILogger<CpuNetworkTelemetryPublisher> _logger;
-
-    public CpuNetworkTelemetryPublisher(
-        ICommunication communication,
-        TelemetryValueValidator validator,
-        ILogger<CpuNetworkTelemetryPublisher> logger)
-    {
-        _communication = communication;
-        _validator     = validator;
-        _logger        = logger;
-    }
-
-    public Task PublishCpuUsageAsync(double percent, CancellationToken ct = default)
-        => PublishAsync(CpuNetworkDtmis.Telemetries.CpuUsage, Math.Round(percent, 2), ct);
-
-    public Task PublishNetworkBytesSentAsync(string iface, long bytes, CancellationToken ct = default)
-        => PublishAsync(CpuNetworkDtmis.Telemetries.NetworkBytesSent, bytes, ct, iface);
-
-    private async Task PublishAsync(string dtmi, object value, CancellationToken ct, string? iface = null)
-    {
-        if (!_validator.IsValid(dtmi, value))
-        {
-            _logger.LogWarning("Dropping telemetry {Dtmi}={Value} (failed validation)", dtmi, value);
-            return;
-        }
-
-        var measure = new TelemetryMeasure
-        {
-            // ResourceId follows the DTMI; v1.1 per-interface expansion appends "_<iface>" to
-            // disambiguate sensors that share the same Telemetry id.
-            ResourceId = iface is null ? dtmi : $"{dtmi}#{iface}",
-            Value      = value,
-        };
-
-        await _communication.PublishAsync(measure, ct);
-    }
-}
-```
-
----
-
-## 8. Source-generate the DTMI constants (optional)
+## 6. Source-generate the DTMI constants (optional)
 
 For larger fleets you'll want to *generate* `CpuNetworkDtmis.cs` from the DTDL so the constants and the JSON can never drift. Sketch using a `IIncrementalGenerator`:
 
@@ -494,23 +362,28 @@ public sealed class DtdlConstantsGenerator : IIncrementalGenerator
 
 ---
 
-## 9. Integration test — round-trip the DTDL through the parser
+## 7. Integration test — round-trip the DTDL through the parser
+
+The DTDL is **config-only**: `contents[]` is empty by design. The asserts below check that the Interface parses, that it ships no Telemetries, and that each reusable Enum has the expected size.
 
 ```csharp
 using DTDLParser;
+using DTDLParser.Models;
 using Xunit;
 
 public sealed class CpuNetworkDtdlTests
 {
+    private const string DtdlPath = "docs/Metrics/01_SYSTEM_RESOURCE.dtdl.json";
+
     [Fact]
-    public async Task Dtdl_parses_without_errors()
+    public async Task Dtdl_parses_and_declares_no_telemetries()
     {
-        var json   = await File.ReadAllTextAsync("docs/Metrics/01_CPU_NETWORK.dtdl.json");
+        var json   = await File.ReadAllTextAsync(DtdlPath);
         var parser = new ModelParser();
         var model  = await parser.ParseAsync(new[] { json });
 
         var iface = (DTInterfaceInfo)model[new Dtmi(CpuNetworkDtmis.Interface)];
-        Assert.Equal(12, iface.Contents.Values.OfType<DTTelemetryInfo>().Count());
+        Assert.Empty(iface.Contents.Values.OfType<DTTelemetryInfo>());
     }
 
     [Theory]
@@ -520,7 +393,7 @@ public sealed class CpuNetworkDtdlTests
     [InlineData(CpuNetworkDtmis.Enums.SensorInfoSchema, 5)]
     public async Task Enum_has_expected_value_count(string enumDtmi, int expected)
     {
-        var json   = await File.ReadAllTextAsync("docs/Metrics/01_CPU_NETWORK.dtdl.json");
+        var json   = await File.ReadAllTextAsync(DtdlPath);
         var parser = new ModelParser();
         var model  = await parser.ParseAsync(new[] { json });
 
@@ -531,7 +404,7 @@ public sealed class CpuNetworkDtdlTests
 
 ---
 
-## 10. End-to-end sketch
+## 8. End-to-end sketch
 
 ```csharp
 // Program.cs
@@ -544,14 +417,7 @@ builder.Services.AddSingleton<CpuNetworkModel>(_ =>
 // 2. Build a config validator from the parsed Enums.
 builder.Services.AddSingleton<CpuNetworkSensorValidator>();
 
-// 3. Build runtime value validators.
-builder.Services.AddSingleton<TelemetryValueValidator>();
-builder.Services.AddSingleton<MonotonicCounterValidator>();
-
-// 4. Publisher that gates on validators before sending.
-builder.Services.AddSingleton<CpuNetworkTelemetryPublisher>();
-
-// 5. Config loader rejects malformed devicecfg.json before the agent starts.
+// 3. Config loader rejects malformed devicecfg.json before the agent starts.
 builder.Services.AddSingleton<DeviceConfigLoader>();
 
 var host = builder.Build();
@@ -565,12 +431,12 @@ host.Services
 await host.RunAsync();
 ```
 
-The agent is now schema-locked: bad MetricNames, wrong `SensorInfo.Schema`, illegal `SensorGroup`s, or out-of-range telemetry values all fail at config time or before publish — exactly the kind of fail-safe behaviour required by the SIL2 contract.
+The agent is now config-locked: bad `MetricName`s, wrong `SensorInfo.Schema`, or illegal `SensorGroup`s fail at config time — exactly the kind of fail-safe behaviour required by the SIL2 contract. Telemetry values are forwarded as-is; ingest-side validation owns the per-metric range / monotonicity / NaN-rejection rules documented in `*_FIELDS.md`.
 
 ---
 
 ## Related
 
 - [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](./01_SYS_RES_CPU_NETWORK_FIELDS.md) — the configuration field reference and DTDL schema this code consumes.
-- [`01_CPU_NETWORK.dtdl.json`](./01_CPU_NETWORK.dtdl.json) — the source-of-truth DTDL Interface.
+- [`01_SYSTEM_RESOURCE.dtdl.json`](./01_SYSTEM_RESOURCE.dtdl.json) — the source-of-truth DTDL Interface (config-only).
 - `Protocols/SystemMetricsParser.cs` — the runtime parser that emits the `TelemetryMeasure` instances published by the examples above.

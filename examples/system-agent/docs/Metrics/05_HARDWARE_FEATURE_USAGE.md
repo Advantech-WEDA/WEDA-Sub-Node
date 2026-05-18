@@ -294,107 +294,26 @@ public sealed class CapabilityFlagSubscriber
 
 ---
 
-## 7. Value validators driven by the DTDL `comment` field
+## 7. Integration test
 
-```csharp
-public sealed class TelemetryValueValidator
-{
-    private static readonly HashSet<int> AllowedPinLevels = new() { 0, 1 };
-
-    private static readonly Dictionary<string, Func<object?, bool>> Predicates = new()
-    {
-        [HardwareFeatureDtmis.Telemetries.GpioIsSupported]              = v => v is bool,
-        [HardwareFeatureDtmis.Telemetries.GpioPinState]                 = v => v is int i && AllowedPinLevels.Contains(i),
-        [HardwareFeatureDtmis.Telemetries.WatchdogIsSupported]          = v => v is bool,
-        [HardwareFeatureDtmis.Telemetries.ThermalProtectionIsSupported] = v => v is bool,
-    };
-
-    public bool IsValid(string telemetryDtmi, object? value) =>
-        Predicates.TryGetValue(telemetryDtmi, out var fn) && fn(value);
-}
-```
-
----
-
-## 8. Publish a `TelemetryMeasure` — GPIO with pin expansion
-
-`GpioPinState` follows the same expansion-by-suffix pattern as `01.network.bytes_*` (per interface) and `04.temperature` (per source):
-
-```csharp
-using Weda.SubNode.Abstractions.Telemetry;
-
-public sealed class HardwareFeaturePublisher
-{
-    private readonly ICommunication _communication;
-    private readonly TelemetryValueValidator _validator;
-    private readonly GpioPinLevelResolver _levelResolver;
-    private readonly ILogger<HardwareFeaturePublisher> _logger;
-
-    public HardwareFeaturePublisher(
-        ICommunication communication,
-        TelemetryValueValidator validator,
-        GpioPinLevelResolver levelResolver,
-        ILogger<HardwareFeaturePublisher> logger)
-    {
-        _communication = communication;
-        _validator     = validator;
-        _levelResolver = levelResolver;
-        _logger        = logger;
-    }
-
-    public Task PublishGpioSupportedAsync(bool supported, CancellationToken ct = default)
-        => PublishAsync(HardwareFeatureDtmis.Telemetries.GpioIsSupported, supported, ct);
-
-    public Task PublishGpioPinStateAsync(string pinId, int level, CancellationToken ct = default)
-    {
-        _logger.LogDebug("GPIO {Pin} level = {Label} ({Wire})", pinId, _levelResolver.LevelOf(level), level);
-        return PublishAsync(HardwareFeatureDtmis.Telemetries.GpioPinState, level, ct, discriminator: pinId);
-    }
-
-    public Task PublishWatchdogSupportedAsync(bool supported, CancellationToken ct = default)
-        => PublishAsync(HardwareFeatureDtmis.Telemetries.WatchdogIsSupported, supported, ct);
-
-    public Task PublishThermalProtectionSupportedAsync(bool supported, CancellationToken ct = default)
-        => PublishAsync(HardwareFeatureDtmis.Telemetries.ThermalProtectionIsSupported, supported, ct);
-
-    private async Task PublishAsync(
-        string dtmi, object value, CancellationToken ct, string? discriminator = null)
-    {
-        if (!_validator.IsValid(dtmi, value))
-        {
-            _logger.LogWarning("Dropping hardware-feature {Dtmi}={Value} (failed validation)", dtmi, value);
-            return;
-        }
-
-        var measure = new TelemetryMeasure
-        {
-            ResourceId = discriminator is null ? dtmi : $"{dtmi}#{discriminator}",
-            Value      = value,
-        };
-        await _communication.PublishAsync(measure, ct);
-    }
-}
-```
-
----
-
-## 9. Integration test
+The DTDL is config-only — `contents[]` is empty. The asserts below confirm that and check the reusable Enum sizes.
 
 ```csharp
 using DTDLParser;
+using DTDLParser.Models;
 using Xunit;
 
 public sealed class HardwareFeatureDtdlTests
 {
     [Fact]
-    public async Task Dtdl_parses_without_errors()
+    public async Task Dtdl_parses_and_declares_no_telemetries()
     {
         var json   = await File.ReadAllTextAsync("docs/Metrics/05_HARDWARE_FEATURE.dtdl.json");
         var parser = new ModelParser();
         var model  = await parser.ParseAsync(new[] { json });
 
         var iface = (DTInterfaceInfo)model[new Dtmi(HardwareFeatureDtmis.Interface)];
-        Assert.Equal(4, iface.Contents.Values.OfType<DTTelemetryInfo>().Count());
+        Assert.Empty(iface.Contents.Values.OfType<DTTelemetryInfo>());
     }
 
     [Theory]
@@ -442,7 +361,7 @@ public sealed class HardwareFeatureDtdlTests
 
 ---
 
-## 10. End-to-end sketch — full agent with all five DTDL files
+## 8. End-to-end sketch — full agent with all five DTDL files
 
 ```csharp
 // Program.cs
@@ -453,8 +372,8 @@ builder.Services.AddSingleton<IReadOnlyDictionary<Dtmi, DTEntityInfo>>(_ =>
 {
     var jsons = new[]
     {
-        File.ReadAllText("docs/Metrics/01_CPU_NETWORK.dtdl.json"),
-        File.ReadAllText("docs/Metrics/02_MEMORY_DISK_SYSTEM_GPU.dtdl.json"),
+        File.ReadAllText("docs/Metrics/01_SYSTEM_RESOURCE.dtdl.json"),
+        File.ReadAllText("docs/Metrics/02_GPU_RESOURCE.dtdl.json"),
         File.ReadAllText("docs/Metrics/03_HARDWARE_INFO.dtdl.json"),
         File.ReadAllText("docs/Metrics/04_ONBOARD_SENSOR.dtdl.json"),
         File.ReadAllText("docs/Metrics/05_HARDWARE_FEATURE.dtdl.json"),
@@ -463,31 +382,22 @@ builder.Services.AddSingleton<IReadOnlyDictionary<Dtmi, DTEntityInfo>>(_ =>
 });
 
 // Per-Interface model wrappers.
-builder.Services.AddSingleton<CpuNetworkModel>();
-builder.Services.AddSingleton<MemoryDiskSystemGpuModel>();
+builder.Services.AddSingleton<SystemResourceModel>();
+builder.Services.AddSingleton<GpuResourceModel>();
 builder.Services.AddSingleton<HardwareInfoModel>();
 builder.Services.AddSingleton<OnboardSensorModel>();
 builder.Services.AddSingleton<HardwareFeatureModel>();
 
-// Per-Interface validators + publishers + gates.
-builder.Services.AddSingleton<CpuNetworkSensorValidator>();
-builder.Services.AddSingleton<MemoryDiskSystemGpuSensorValidator>();
+// Per-Interface config validators + gates.
+builder.Services.AddSingleton<SystemResourceSensorValidator>();
+builder.Services.AddSingleton<GpuResourceSensorValidator>();
 builder.Services.AddSingleton<HardwareInfoSensorValidator>();
 builder.Services.AddSingleton<OnboardSensorValidator>();
 builder.Services.AddSingleton<HardwareFeatureSensorValidator>();
 
-builder.Services.AddSingleton<TelemetryValueValidator>();
-builder.Services.AddSingleton<MonotonicCounterValidator>();
 builder.Services.AddSingleton<HardwareFeatureGate>();
 builder.Services.AddSingleton<GpioPinLevelResolver>();
-builder.Services.AddSingleton<FanHealthHeuristic>();
 builder.Services.AddSingleton<HardwareIdentityTracker>();
-
-builder.Services.AddSingleton<CpuNetworkTelemetryPublisher>();
-builder.Services.AddSingleton<MemoryDiskSystemGpuPublisher>();
-builder.Services.AddSingleton<HardwareInfoPublisher>();
-builder.Services.AddSingleton<OnboardSensorPublisher>();
-builder.Services.AddSingleton<HardwareFeaturePublisher>();
 
 // Config-time validator that runs every Sensor through the right per-Interface validator.
 builder.Services.AddSingleton<DeviceConfigLoader>();

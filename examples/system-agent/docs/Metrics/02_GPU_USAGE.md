@@ -153,90 +153,28 @@ public sealed class GpuResourceSensorValidator
 
 ---
 
-## 5. Value validator (single rule)
+## 5. Integration test
 
-```csharp
-public sealed class GpuValueValidator
-{
-    private static readonly Dictionary<string, Func<object?, bool>> Predicates = new()
-    {
-        [GpuResourceDtmis.Telemetries.GpuUtilization] = v =>
-            v is int i && i >= 0 && i <= 100,
-    };
-
-    public bool IsValid(string telemetryDtmi, object? value) =>
-        Predicates.TryGetValue(telemetryDtmi, out var fn) && fn(value);
-}
-```
-
----
-
-## 6. Publish a `TelemetryMeasure`
-
-SIL2 fail-safe contract: when the GPU is absent, **do not publish a zero fallback**. Suppress the publish entirely and let the `health` channel surface the failure.
-
-```csharp
-using Weda.SubNode.Abstractions.Telemetry;
-
-public sealed class GpuResourcePublisher
-{
-    private readonly ICommunication _communication;
-    private readonly GpuValueValidator _validator;
-    private readonly ILogger<GpuResourcePublisher> _logger;
-
-    public GpuResourcePublisher(
-        ICommunication communication,
-        GpuValueValidator validator,
-        ILogger<GpuResourcePublisher> logger)
-    {
-        _communication = communication;
-        _validator     = validator;
-        _logger        = logger;
-    }
-
-    public Task PublishGpuUtilizationAsync(int? percent, CancellationToken ct = default)
-    {
-        if (percent is null)
-        {
-            _logger.LogDebug("GPU absent -- suppressing GpuUtilization telemetry (SIL2 fail-safe)");
-            return Task.CompletedTask;
-        }
-
-        if (!_validator.IsValid(GpuResourceDtmis.Telemetries.GpuUtilization, percent.Value))
-        {
-            _logger.LogWarning("Dropping GpuUtilization={Value} (failed validation)", percent.Value);
-            return Task.CompletedTask;
-        }
-
-        var measure = new TelemetryMeasure
-        {
-            ResourceId = GpuResourceDtmis.Telemetries.GpuUtilization,
-            Value      = percent.Value,
-        };
-        return _communication.PublishAsync(measure, ct);
-    }
-}
-```
-
----
-
-## 7. Integration test
+The DTDL is config-only — `contents[]` is empty. The asserts below confirm that and check the reusable Enum sizes.
 
 ```csharp
 using DTDLParser;
+using DTDLParser.Models;
 using Xunit;
 
 public sealed class GpuResourceDtdlTests
 {
+    private const string DtdlPath = "docs/Metrics/02_GPU_RESOURCE.dtdl.json";
+
     [Fact]
-    public async Task Dtdl_parses_with_one_telemetry()
+    public async Task Dtdl_parses_and_declares_no_telemetries()
     {
-        var json   = await File.ReadAllTextAsync("docs/Metrics/02_GPU_RESOURCE.dtdl.json");
+        var json   = await File.ReadAllTextAsync(DtdlPath);
         var parser = new ModelParser();
         var model  = await parser.ParseAsync(new[] { json });
 
         var iface = (DTInterfaceInfo)model[new Dtmi(GpuResourceDtmis.Interface)];
-        Assert.Single(iface.Contents.Values.OfType<DTTelemetryInfo>());
+        Assert.Empty(iface.Contents.Values.OfType<DTTelemetryInfo>());
     }
 
     [Theory]
@@ -245,7 +183,7 @@ public sealed class GpuResourceDtdlTests
     [InlineData(GpuResourceDtmis.Enums.SensorGroup,   7)]
     public async Task Enum_has_expected_value_count(string enumDtmi, int expected)
     {
-        var json   = await File.ReadAllTextAsync("docs/Metrics/02_GPU_RESOURCE.dtdl.json");
+        var json   = await File.ReadAllTextAsync(DtdlPath);
         var model  = await new ModelParser().ParseAsync(new[] { json });
         Assert.Equal(expected, model.GetStringEnumValues(enumDtmi).Count);
     }
@@ -254,14 +192,12 @@ public sealed class GpuResourceDtdlTests
 
 ---
 
-## 8. End-to-end sketch
+## 6. End-to-end sketch
 
 ```csharp
 // Program.cs
 builder.Services.AddSingleton(_ => GpuResourceModel.LoadAsync().GetAwaiter().GetResult());
 builder.Services.AddSingleton<GpuResourceSensorValidator>();
-builder.Services.AddSingleton<GpuValueValidator>();
-builder.Services.AddSingleton<GpuResourcePublisher>();
 ```
 
 ---

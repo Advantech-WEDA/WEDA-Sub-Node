@@ -3,7 +3,7 @@
   "@type": "Interface",
   "@context": "dtmi:dtdl:context;2",
   "displayName": "System Agent \u2014 Hardware Feature Telemetry",
-  "description": "DTDL v2 schema for the gpio, watchdog, and thermalprotection MetricTypes documented in docs/Metrics/05_HARDWARE_FEATURE_FIELDS.md. All three are platform-dependent (e.g. Advantech SUSI). GPIO pinState supports v1.1 Explicit list / Auto-detect mode via Parameters.PinId / Parameters.PinIds; expanded sensors share the GpioPinState Telemetry DTMI and differentiate by ResourceId suffix at publish time. The reusable GpioPinLevel Enum maps the integer wire values 0/1 to the named labels Low/High.",
+  "description": "Config-only DTDL v2 schema for the gpio / watchdog / thermalprotection MetricTypes. contents[] is empty by design -- describes the devicecfg.json Sensor surface, not a telemetry contract. schemas[] publishes the reusable Enums and the GpioSensorParameters Object (integer-only pinId / pinIds contract) consumed by config-rules.js. GpioPinLevel is retained as an informational Enum.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:MetricType;1",
@@ -201,44 +201,44 @@
           "description": "Array of GPIO pin INDICES (e.g. [4, 17, 27]). All entries non-negative. v1.1 only. Each entry becomes one expanded sensor sharing the GpioPinState Telemetry DTMI; resolved via PinIndexToName[index]. Empty array means auto-detect across every entry of GpioMetrics.PinNames."
         }
       ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorInfo;1",
+      "@type": "Object",
+      "displayName": "Sensor Info",
+      "description": "Reusable Object schema for the SensorInfo block of every Sensor in devicecfg.json. Models the wire-output metadata: declared schema, operator-facing display strings, and the read/write directionality contract.",
+      "comment": "SIL2 read-only contract: every Sensor declared in devicecfg.json represents an agent-emitted reading. Consumers MUST set isReadable=true and isWritable=false; the agent rejects writes (WriteSensorDataAsync returns false) and commands (ExecuteCommandAsync returns CommandNotSupported) by design. A future writable GPIO-output extension would introduce its own MetricType with isWritable=true; existing read-direction MetricTypes never flip writability.",
+      "fields": [
+        {
+          "name": "schema",
+          "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorInfoSchema;1",
+          "description": "On-the-wire JSON type the agent emits for this Sensor's Value (matches the per-MetricName schema documented in the *_FIELDS.md reference). The agent rejects startup if SensorInfo.Schema disagrees with the runtime type."
+        },
+        {
+          "name": "description",
+          "schema": "string",
+          "description": "Long-form operator-facing description shown in dashboards and audit logs."
+        },
+        {
+          "name": "displayName",
+          "schema": "string",
+          "description": "Short label for UI render (twin pages, alert subjects). Distinct from Sensor.Name, which is the wire identifier."
+        },
+        {
+          "name": "isReadable",
+          "displayName": "Is Readable",
+          "schema": "boolean",
+          "description": "True when the Sensor produces readings the agent forwards as telemetry. MUST be true for all sensors declared in this Interface (the agent is read-direction by design). Default: true."
+        },
+        {
+          "name": "isWritable",
+          "displayName": "Is Writable",
+          "schema": "boolean",
+          "description": "True when the Sensor accepts writes from the cloud. MUST be false for every sensor declared in this Interface; the agent rejects writes and commands per SIL2 fail-safe contract. Default: false."
+        }
+      ]
     }
   ],
-  "contents": [
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:GpioIsSupported;1",
-      "@type": "Telemetry",
-      "name": "GpioIsSupported",
-      "displayName": "GPIO Supported",
-      "schema": "boolean",
-      "description": "Whether the GPIO subsystem is present and responsive. MetricType=gpio, MetricName=isSupported.",
-      "comment": "Validation: stable per boot; v in {true, false}. A flip between samples on the same host indicates driver reload -- investigate. Use as a gate: if false, suppress alarms from any GpioPinState sensors on the same device."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:GpioPinState;1",
-      "@type": "Telemetry",
-      "name": "GpioPinState",
-      "displayName": "GPIO Pin State",
-      "schema": "integer",
-      "description": "Logical level of one GPIO pin (0=Low, 1=High). MetricType=gpio, MetricName=pinState. v1.1 expansion: one published sample per Parameters.PinId (single) or Parameters.PinIds (array / auto-detect); ResourceId is suffixed with the pin name. Writing GPIO outputs is NOT supported in v1.x.",
-      "comment": "Validation: v in {0, 1}; any other value indicates a driver bug -- drop the sample. null/suppressed when PinId is missing on the sensor, when the pin name does not resolve, or when GpioIsSupported is false. See the GpioPinLevel Enum schema for the named-label mapping."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:WatchdogIsSupported;1",
-      "@type": "Telemetry",
-      "name": "WatchdogIsSupported",
-      "displayName": "Watchdog Supported",
-      "schema": "boolean",
-      "description": "Whether the platform exposes at least one hardware watchdog timer. MetricType=watchdog, MetricName=isSupported.",
-      "comment": "Validation: stable per boot; v in {true, false}. v == false on a unit that should support watchdog (per HwinfoMotherboardName) usually indicates a misloaded kernel module. Kicking the watchdog is NOT exposed in v1.x."
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemInfo:ThermalProtectionIsSupported;1",
-      "@type": "Telemetry",
-      "name": "ThermalProtectionIsSupported",
-      "displayName": "Thermal Protection Supported",
-      "schema": "boolean",
-      "description": "Whether the platform exposes the auto-shutdown / fan-curve engine. MetricType=thermalprotection, MetricName=isSupported.",
-      "comment": "Validation: stable per boot; v in {true, false}. SAFETY-RELEVANT: v == false means the host has no autonomous over-temperature response and the dashboard must be watched by an operator. Per-zone configuration is reserved for a future release."
-    }
-  ]
+  "contents": []
 }
