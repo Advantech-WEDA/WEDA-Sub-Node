@@ -37,6 +37,9 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         DataReceived += OnDataReceived;
         DataProcessed += OnDataProcessed;
 
+        // ✓ Apply global TelemetryInterval to sensors that use default Report.Interval
+        ApplyDefaultTelemetryInterval(configuration);
+
         // Note: RegisterPhmTransform is deferred to OnAfterInitializeAsync 
         // because ResourceId is not yet generated (UUID) at this point
     }
@@ -75,6 +78,28 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
             .ToDictionary(x => x.Name, x => x.Sensor!);
     }
 
+    /// <summary>
+    /// Apply the global TelemetryInterval from Properties to all sensors
+    /// that don't have an explicitly configured interval.
+    /// This allows simplified configuration by omitting Report.Interval for each sensor.
+    /// </summary>
+    private static void ApplyDefaultTelemetryInterval(DeviceConfiguration configuration)
+    {
+        var telemetryIntervalMs = configuration.Properties.TryGetValue("TelemetryInterval", out var ti)
+            ? int.Parse(ti!.ToString()!)
+            : 1000;  // Fallback default
+
+        foreach (var sensor in configuration.Sensors)
+        {
+            // Only override if the sensor uses the default SensorReport.Interval value (1000)
+            // This preserves explicitly configured intervals
+            if (Math.Abs(sensor.Report.Interval - 1000.0) < 0.001)
+            {
+                sensor.Report.Interval = telemetryIntervalMs;
+            }
+        }
+    }
+
     // ── Assembly ──────────────────────────────────────────────────────────────
 
     private static DaqMetricsParser CreateStreamingParser(
@@ -88,10 +113,27 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
 
         // Read DAQ parameters from devicecfg.json Properties block
         var props = configuration.Properties;
-        var samplingRate = props.TryGetValue("AccelerationSamplingRate", out var sr) ? int.Parse(sr!.ToString()!) : 2500;
-        var frameIntervalSeconds = props.TryGetValue("FrameIntervalSeconds", out var fis) ? double.Parse(fis!.ToString()!) : 1.0;
+        var samplingRate = props.TryGetValue("AccelerationSamplingRate", out var sr)
+            ? int.Parse(sr!.ToString()!) : 2500;
+
+        // ✓ Read TelemetryInterval for deriving FrameIntervalSeconds
+        var telemetryIntervalMs = props.TryGetValue("TelemetryInterval", out var ti)
+            ? int.Parse(ti!.ToString()!) : 1000;
+
+        var decimationFactor = props.TryGetValue("DecimationFactor", out var df)
+            ? int.Parse(df!.ToString()!) : 2;
+
+        // ✓ Derive FrameIntervalSeconds from TelemetryInterval and DecimationFactor
+        // FrameIntervalSeconds = TelemetryInterval / (1000 * DecimationFactor)
+        var frameIntervalSeconds = (double)telemetryIntervalMs / (1000.0 * decimationFactor);
         var frameSize = (int)(samplingRate * frameIntervalSeconds);
-        var decimationFactor = props.TryGetValue("DecimationFactor", out var df) ? int.Parse(df!.ToString()!) : 2;
+
+        // Log the derived parameters for debugging
+        var logger = loggerFactory.CreateLogger<UniaxialVibrationDevice>();
+        logger.LogInformation(
+            "DAQ Configuration: SamplingRate={samplingRate}Hz, TelemetryInterval={telemetryInterval}ms, " +
+            "DecimationFactor={decimationFactor} → FrameIntervalSeconds={frameInterval:F4}s, FrameSize={frameSize}",
+            samplingRate, telemetryIntervalMs, decimationFactor, frameIntervalSeconds, frameSize);
 
         var daqConfig = configuration.DeviceCommunication;
         var daqModuleDeviceNumber = daqConfig.TryGetValue("DaqModuleDeviceNumber", out var dmdn) ? int.Parse(dmdn!.ToString()!) : 0;
