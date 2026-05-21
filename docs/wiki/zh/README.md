@@ -19,10 +19,10 @@ SubNode 新手？從這裡開始：
 
 | 指南 | 說明 |
 |------|------|
-| [SubNode 是什麼？](./01-introduction/what-is-subnode.md) | 概述和功能 |
-| [環境準備](./02-getting-started/prerequisites.md) | 開發環境設定 |
-| [使用範例開始](./02-getting-started/start-with-example.md) | 執行您的第一個 SubNode 應用程式 |
-| [使用範本開始](./02-getting-started/start-with-template.md) | 建立新專案 |
+| [SubNode 是什麼？](./01-introduction/01-what-is-subnode.md) | 概述和功能 |
+| [環境準備](./02-getting-started/01-prerequisites.md) | 開發環境設定 |
+| [使用範例開始](./02-getting-started/02-start-with-example.md) | 執行您的第一個 SubNode 應用程式 |
+| [使用範本開始](./02-getting-started/03-start-with-template.md) | 建立新專案 |
 
 ### 核心概念
 
@@ -30,9 +30,9 @@ SubNode 新手？從這裡開始：
 
 | 主題 | 說明 |
 |------|------|
-| [架構概述](./01-introduction/architecture.md) | 系統設計和元件 |
-| [術語表](./01-introduction/terminology.md) | 關鍵術語和定義 |
-| [專案結構](./03-architecture/project-structure.md) | SDK 組織 |
+| [架構概述](./01-introduction/02-architecture.md) | 系統設計和元件 |
+| [術語表](./01-introduction/03-terminology.md) | 關鍵術語和定義 |
+| [專案結構](./03-hierarchy/01-project-structure.md) | SDK 組織 |
 
 ### 設定
 
@@ -40,9 +40,9 @@ SubNode 新手？從這裡開始：
 
 | 指南 | 說明 |
 |------|------|
-| [透過 JSON 設定](./04-sensor-configuration/configuration-via-json.md) | JSON 設定方式（建議）|
-| [透過程式碼設定](./04-sensor-configuration/configuration-via-code.md) | 程式化設定 |
-| [設定參考](./04-sensor-configuration/configuration-reference.md) | 完整選項參考 |
+| [透過 JSON 設定](./04-configuration/02-configuration-via-json.md) | JSON 設定方式（建議）|
+| [透過程式碼設定](./04-configuration/01-configuration-via-code.md) | 程式化設定 |
+| [設定參考](./04-configuration/03-configuration-examples.md) | 完整選項參考 |
 
 ### 資料處理
 
@@ -50,7 +50,7 @@ SubNode 新手？從這裡開始：
 
 | 主題 | 說明 |
 |------|------|
-| [Pipeline 概述](./05-data-pipeline/pipeline-overview.md) | 資料處理架構 |
+| [Pipeline 概述](./05-data-pipeline/01-overview.md) | 資料處理架構 |
 
 ### 雲端整合
 
@@ -58,7 +58,7 @@ SubNode 新手？從這裡開始：
 
 | 指南 | 說明 |
 |------|------|
-| [連接到 WedaCore](./02-getting-started/connect-to-wedacore.md) | 雲端連線設定 |
+| [連接到 WedaCore](./02-getting-started/04-connect-to-wedacore.md) | 雲端連線設定 |
 
 ## 文件結構
 

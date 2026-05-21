@@ -97,13 +97,13 @@ Combined with a `devicecfg.json` configuration file, this creates a fully functi
 3. Transforms data through the pipeline
 4. Reports telemetry to WedaCore
 
-See the [Getting Started](../02-getting-started/start-with-example.md) guide to begin building your first SubNode application.
+See the [Getting Started](../02-getting-started/02-start-with-example.md) guide to begin building your first SubNode application.
 
 ## What's Next?
 
 - [Architecture Overview](./architecture.md) - Understand the system design
 - [Terminology](./terminology.md) - Learn key concepts and terms
-- [Getting Started](../02-getting-started/start-with-example.md) - Build your first application
+- [Getting Started](../02-getting-started/02-start-with-example.md) - Build your first application
 
 import Revision from '@site/src/components/Revision';
 
