@@ -1,0 +1,90 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor;1",
+  "@type": "Interface",
+  "displayName": "Hardware Info Sensor (System Resource)",
+  "description": "Validation schema for one hwinfo Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1). MetricName is a free-form non-empty string -- the identity field name (e.g. 'bios_revision', 'motherboard_serial', 'driver_version'); the set is platform-dependent so it is not enumerated. SensorInfo.Schema is always 'string'.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [ { "name": "Hwinfo", "enumValue": "hwinfo", "displayName": "Hardware Info" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [ { "name": "String", "enumValue": "string", "displayName": "string" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:Parameters;1",
+      "@type": "Object", "displayName": "Hardware Info Parameters",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:MetricType;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricName", "displayName": "Metric Name",
+          "schema": "string", "required": true, "writable": false,
+          "minLength": 1, "maxLength": 64 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Enabled", "displayName": "Enabled",
+          "schema": "boolean", "required": true, "writable": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interval", "displayName": "Interval (ms)",
+          "schema": "integer", "required": true, "writable": true,
+          "minimum": 1, "maximum": 300000 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Schema", "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:WireSchema;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Description", "displayName": "Description",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 512 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "DisplayName", "displayName": "Display Name",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 64 }
+      ]
+    }
+  ],
+  "contents": [
+    { "@type": ["Property", "ConfigConstraint"], "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false, "required": true,
+      "minLength": 1, "maxLength": 64 },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:SensorGroup;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:Parameters;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:Report;1",
+      "writable": true, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:HwinfoSensor:SensorInfo;1",
+      "writable": true, "required": true }
+  ]
+}

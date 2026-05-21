@@ -158,7 +158,7 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `network` | Must equal `network` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific network metric. | `bytes_sent`, `bytes_received`, `packets_sent`, `packets_received`, `errors`, `errors_in`, `errors_out` | Enum constraint above. |
 | `Parameters.Interface` | string | ✅ | ✅ / ❌ | OS-level interface name. v1.0: required single binding. v1.1: bound mode only — when set, overrides `Interfaces` and disables expansion. | e.g., `eth0`, `en0`, `wlan0`. | Non-empty string. Must resolve to an interface present on the host at startup. v1.1: semantically mutually exclusive with `Interfaces`. |
-| `Parameters.Interfaces` | `oneOf: [array<string>, string]` | ✅ | n/a / ❌ | **v1.1 only.** List of interfaces, or empty for auto-detect. | JSON array `["eth0","eth1"]`; CSV `"eth0,eth1"`; `[]`; `""`. | Array of strings or a single string. Empty array/string → auto-detect. |
+| `Parameters.Interfaces` | `oneOf: [array<string>, string]` | ✅ | ❌/✅   | **v1.1 only.** List of interfaces, or empty for auto-detect. | JSON array `["eth0","eth1"]`; CSV `"eth0,eth1"`; `[]`; `""`. | Array of strings or a single string. Empty array/string → auto-detect. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
 | `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer. | `> 0`. |

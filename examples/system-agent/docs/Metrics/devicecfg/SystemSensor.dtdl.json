@@ -1,0 +1,107 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor;1",
+  "@type": "Interface",
+  "displayName": "System Sensor (System Resource)",
+  "description": "Validation schema for one system Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1): required, writable, value bounds. system takes no type-specific Parameters; wall-clock/boot timestamps are 'long', counters may be 'long' or 'integer'.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [ { "name": "System", "enumValue": "system", "displayName": "System" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:SystemMetricName;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Name",
+      "enumValues": [
+        { "name": "Time",            "enumValue": "time",             "displayName": "Wall-Clock Time" },
+        { "name": "TimexOffset",     "enumValue": "timex_offset",     "displayName": "NTP Offset" },
+        { "name": "BootTime",        "enumValue": "boot_time",        "displayName": "Boot Time" },
+        { "name": "FilefdAllocated", "enumValue": "filefd_allocated", "displayName": "Allocated File Descriptors" },
+        { "name": "FilefdMaximum",   "enumValue": "filefd_maximum",   "displayName": "Max File Descriptors" },
+        { "name": "ProcsRunning",    "enumValue": "procs_running",    "displayName": "Running Processes" },
+        { "name": "ProcsBlocked",    "enumValue": "procs_blocked",    "displayName": "Blocked Processes" },
+        { "name": "IntrTotal",       "enumValue": "intr_total",       "displayName": "Total Interrupts" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:Parameters;1",
+      "@type": "Object", "displayName": "System Parameters",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:MetricType;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricName", "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:SystemMetricName;1",
+          "required": true, "writable": false }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Enabled", "displayName": "Enabled",
+          "schema": "boolean", "required": true, "writable": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interval", "displayName": "Interval (ms)",
+          "schema": "integer", "required": true, "writable": true,
+          "minimum": 1, "maximum": 300000 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Schema", "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:WireSchema;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Description", "displayName": "Description",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 512 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "DisplayName", "displayName": "Display Name",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 64 }
+      ]
+    }
+  ],
+  "contents": [
+    { "@type": ["Property", "ConfigConstraint"], "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false, "required": true,
+      "minLength": 1, "maxLength": 64 },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:SensorGroup;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:Parameters;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:Report;1",
+      "writable": true, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemSensor:SensorInfo;1",
+      "writable": true, "required": true }
+  ]
+}

@@ -3,7 +3,8 @@
   "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig;1",
   "@type": "Interface",
   "displayName": "Network Sensor Config",
-  "description": "DTDL v2 Interface describing one network Sensor entry of devicecfg.json's Sensors[]. v2 forbids Array anywhere in a Property's reachable schema graph, so the v1.1 `Interfaces` array field is NOT represented here -- only the v1.0 singular `Interface`. Consumers that need the array form must use the v3 Interface (NetworkSensorConfig under dtmi:dtdl:context;3).",
+  "description": "DTDL v2 Interface describing one network Sensor entry of devicecfg.json's Sensors[]. The full Parameters Object -- including the v1.1 Interfaces Array<string> field -- is declared in schemas[] as dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Parameters;1. It is NOT exposed as a Property in contents[] because DTDL v2 forbids an Array reachable from a Property's schema graph. Consumers read the Parameters shape (with Interfaces) by resolving that schema DTMI directly.",
+  "comment": "v2 forbids an Array reachable from a Property. Parameters carries Interfaces (Array<string>), so it is a standalone Object in schemas[], not a Property. Resolve the Parameters DTMI to validate a Sensor's Parameters block. Interface and Interfaces are both optional and mutually exclusive.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:MetricType;1",
@@ -43,14 +44,16 @@
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Parameters;1",
       "@type": "Object", "displayName": "Parameters",
-      "comment": "v2 forbids Array anywhere reachable from a Property; the v1.1 `Interfaces` array field cannot be modelled here. Use the v3 Interface if the array form is required.",
+      "comment": "Maps to Sensors[i].Parameters. Standalone Object (NOT referenced by a Property) so the Interfaces Array<string> field is v2-legal. MetricType / MetricName are required on the JSON instance; Interface and Interfaces are both optional and mutually exclusive (mutex is a runtime rule DTDL cannot express).",
       "fields": [
         { "name": "MetricType", "displayName": "Metric Type",
           "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:MetricType;1" },
         { "name": "MetricName", "displayName": "Metric Name",
           "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:NetworkMetricName;1" },
         { "name": "Interface",  "displayName": "Bound Interface (v1.0)",
-          "schema": "string" }
+          "schema": "string" },
+        { "name": "Interfaces", "displayName": "Interface List (v1.1)",
+          "schema": { "@type": "Array", "elementSchema": "string" } }
       ]
     },
     {
@@ -79,10 +82,6 @@
 
     { "@type": "Property", "name": "SensorGroup", "displayName": "Sensor Group",
       "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorGroup;1",
-      "writable": false },
-
-    { "@type": "Property", "name": "Parameters", "displayName": "Parameters",
-      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Parameters;1",
       "writable": false },
 
     { "@type": "Property", "name": "Report", "displayName": "Report",
