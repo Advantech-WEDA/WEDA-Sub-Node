@@ -39,6 +39,7 @@ public class RequestResponseDeviceBase : DeviceBase
     protected readonly IRequestResponseProtocolParser _parser;
     private readonly ResiliencePipeline<bool> _reconnectionPipeline;
     private readonly List<Task> _pollingTasks = new();
+    private readonly SemaphoreSlim _reconnectLock = new(1, 1);
 
     /// <summary>
     /// Initializes a new instance of RequestResponseDeviceBase.
@@ -145,21 +146,38 @@ public class RequestResponseDeviceBase : DeviceBase
         List<string> sensorResourceIds,
         CancellationToken cancellationToken)
     {
-        // Check connection state, attempt reconnection if needed
-        if (ConnectionState == CommunicationState.Error ||
-            ConnectionState == CommunicationState.Disconnected)
+        // Treat anything other than Connected (Error / Disconnected / Connecting) as
+        // "not ready yet". Connecting in particular signals that another polling task
+        // is mid-reconnect; we must wait instead of racing into a half-open transport.
+        if (ConnectionState != CommunicationState.Connected)
         {
-            if (_communication is CommunicationBase commBase)
+            // Serialize reconnection attempts across interval groups. Without this lock
+            // multiple polling tasks can each enter ReconnectAsync at the same time,
+            // creating a window where one task sees state == Connecting (from another
+            // task's in-progress connect) and proceeds to read before _stream is set,
+            // producing spurious "Not connected" errors.
+            await _reconnectLock.WaitAsync(cancellationToken);
+            try
             {
-                var reconnected = await _reconnectionPipeline.ExecuteAsync(
-                    async ct => await commBase.ReconnectAsync(ct),
-                    cancellationToken);
-
-                if (!reconnected)
+                // Double-check after acquiring the lock: while we were waiting another
+                // task may have already reconnected successfully.
+                if (ConnectionState != CommunicationState.Connected
+                    && _communication is CommunicationBase commBase)
                 {
-                    _logger.LogWarning("Skipping interval group read - reconnection failed");
-                    return new IntervalGroupReadResult([], TimeSpan.Zero);
+                    var reconnected = await _reconnectionPipeline.ExecuteAsync(
+                        async ct => await commBase.ReconnectAsync(ct),
+                        cancellationToken);
+
+                    if (!reconnected)
+                    {
+                        _logger.LogWarning("Skipping interval group read - reconnection failed");
+                        return new IntervalGroupReadResult([], TimeSpan.Zero);
+                    }
                 }
+            }
+            finally
+            {
+                _reconnectLock.Release();
             }
         }
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Core.Communication.Common;
 using Weda.SubNode.Core.Communication.Serial;
 
@@ -21,6 +22,16 @@ public class ModbusRtuCommunication : RequestResponseCommunicationBase<byte[], b
         : base(inner.Settings, logger as ILogger<CommunicationBase>)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+
+        // Mirror inner state changes so the device-level reconnection check
+        // sees transport-level transitions (e.g., serial port loss, IO error)
+        // that happen outside Connect/Disconnect, not just at those boundaries.
+        _inner.StateChanged += OnInnerStateChanged;
+    }
+
+    private void OnInnerStateChanged(object? sender, ConnectionStateChangedEvent e)
+    {
+        State = e.CurrentState;
     }
 
     protected override async Task<bool> ConnectCoreAsync(CancellationToken cancellationToken = default)
