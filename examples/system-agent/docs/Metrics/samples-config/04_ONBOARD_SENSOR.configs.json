@@ -1,0 +1,155 @@
+[
+  {
+    "Name": "temperature_cpu_v10",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "cpu-therm"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "CPU thermal (v1.0 compat: MetricName is the source name)",
+      "DisplayName": "CPU Temperature"
+    },
+    "expect": "valid",
+    "reason": "v1.0 mode -- MetricName carries the source name directly"
+  },
+  {
+    "Name": "temperature_therm_source",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "therm",
+      "Source": "cpu-therm"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 single-source binding",
+      "DisplayName": "CPU Temperature"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- single Source"
+  },
+  {
+    "Name": "temperature_therm_sources",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "therm",
+      "Sources": ["cpu-therm", "gpu-therm"]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 explicit list",
+      "DisplayName": "Onboard Temperature"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- explicit Sources list"
+  },
+  {
+    "Name": "temperature_therm_auto",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "therm"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 auto-detect (expand per discovered source)",
+      "DisplayName": "Onboard Temperature"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- auto-detect (neither Source nor Sources set)"
+  },
+  {
+    "Name": "temperature_both_source_sources",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "therm",
+      "Source": "cpu-therm",
+      "Sources": ["gpu-therm"]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "double", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Source and Sources both set non-empty (ambiguous)"
+  },
+  {
+    "Name": "temperature_source_empty",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "therm",
+      "Source": ""
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "double", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Source is empty string"
+  },
+  {
+    "Name": "temperature_sources_mixed",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "therm",
+      "Sources": ["cpu-therm", 42]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "double", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Sources array element is not a non-empty string"
+  },
+  {
+    "Name": "temperature_v10_with_source",
+    "SensorGroup": "TEMP",
+    "Parameters": {
+      "MetricType": "temperature",
+      "MetricName": "cpu-therm",
+      "Source": "gpu-therm"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "double", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "v1.0-compat sensor (MetricName != 'therm') must not carry Source"
+  },
+
+  {
+    "Name": "voltage_aggregate",
+    "SensorGroup": "PWR",
+    "Parameters": {
+      "MetricType": "voltage",
+      "MetricName": "v_in"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "Aggregate onboard voltage rail (SUSI)",
+      "DisplayName": "VIN"
+    },
+    "expect": "valid",
+    "reason": "single-telemetry voltage sensor"
+  },
+
+  {
+    "Name": "fanspeed_aggregate",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "fanspeed",
+      "MetricName": "fan_in"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "Aggregate onboard fan tachometer (RPM)",
+      "DisplayName": "Fan RPM"
+    },
+    "expect": "valid",
+    "reason": "single-telemetry fanspeed sensor"
+  }
+]

@@ -1,0 +1,76 @@
+{
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}};1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent — {{name_human}} Telemetry",
+  "description": "DTDL v2 schema for the {{metric_type_1}}{{ / {{metric_type_2}}}} MetricType(s) documented in docs/Metrics/{{NN}}_{{NAME_UPPER}}_FIELDS.md. Each Telemetry corresponds to one (MetricType, MetricName) pair emitted by SystemMetricsParser. The schemas[] array publishes reusable Enums for MetricType, the per-type MetricName allow-list, SensorGroup, and SensorInfo.Schema; every Telemetry carries a comment field with the validation rule downstream consumers should apply.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface.",
+      "enumValues": [
+        { "name": "{{MetricType1Pascal}}", "enumValue": "{{metric_type_1}}", "displayName": "{{Human label}}" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:{{MetricType1Pascal}}MetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == '{{metric_type_1}}'.",
+      "enumValues": [
+        { "name": "{{MetricNameAPascal}}", "enumValue": "{{metric_name_a}}", "displayName": "{{Human label A}}" },
+        { "name": "{{MetricNameBPascal}}", "enumValue": "{{metric_name_b}}", "displayName": "{{Human label B}}" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. {{metric_type_1}} conventionally uses '{{sensor_group}}'.",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:{{Name_Pascal}}:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema; must additionally match the Telemetry's native DTDL schema.",
+      "enumValues": [
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:{{MetricType1Pascal}}{{MetricNameAPascal}};1",
+      "@type": "Telemetry",
+      "name": "{{MetricType1Pascal}}{{MetricNameAPascal}}",
+      "displayName": "{{Human label A}}",
+      "schema": "{{schema_a}}",
+      "description": "{{What the value represents}}. MetricType={{metric_type_1}}, MetricName={{metric_name_a}}.",
+      "comment": "Validation: {{range / monotonicity / enum / identity-drift rule. Be specific: e.g. '0 <= v <= 100; reject NaN' or 'monotonic counter; delta(v) >= 0; resets only on reboot' or 'non-empty ASCII; constant per boot'.}}"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemInfo:{{MetricType1Pascal}}{{MetricNameBPascal}};1",
+      "@type": "Telemetry",
+      "name": "{{MetricType1Pascal}}{{MetricNameBPascal}}",
+      "displayName": "{{Human label B}}",
+      "schema": "{{schema_b}}",
+      "description": "{{What the value represents}}. MetricType={{metric_type_1}}, MetricName={{metric_name_b}}.",
+      "comment": "Validation: {{rule}}."
+    }
+  ]
+}

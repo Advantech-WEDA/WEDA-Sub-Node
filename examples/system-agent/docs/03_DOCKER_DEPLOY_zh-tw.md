@@ -132,7 +132,7 @@ docker compose down
 docker compose up -d
 ```
 
-詳細配置說明請參考 [QUICK_START.md#配置說明](01_QUICK_START.md#配置說明)
+詳細配置說明請參考 [QUICK_START.md#配置說明](01_QUICK_START_zh-tw.md#配置說明)
 
 ---
 
@@ -401,10 +401,10 @@ services:
 
 ## 參考資料
 
-- [QUICK_START.md](01_QUICK_START.md) - 快速開始指南（適合技術使用者）
-- [METRIC_TYPES.md](02_METRIC_TYPES.md) - MetricType 配置說明
-- [README.md](README.md) - 完整設定和配置說明
-- [TESTING_GUIDE.md](05_TESTING_GUIDE.md) - 部署驗證和測試
+- [QUICK_START.md](01_QUICK_START_zh-tw.md) - 快速開始指南（適合技術使用者）
+- [METRIC-TYPES.md](v1.1/METRIC-TYPES_zh-tw.md) - MetricType 配置說明
+- [README.md](README_zh-tw.md) - 完整設定和配置說明
+- [TESTING_GUIDE.md](04_TESTING_GUIDE.md) - 部署驗證和測試
 - [Docker Buildx Documentation](https://docs.docker.com/build/building/multi-platform/)
 - [.NET Runtime Identifier Catalog](https://learn.microsoft.com/en-us/dotnet/core/rid-catalog)
 - [Harbor Multi-platform Images](https://goharbor.io/docs/2.0.0/working-with-projects/working-with-images/managing-multi-platform-images/)

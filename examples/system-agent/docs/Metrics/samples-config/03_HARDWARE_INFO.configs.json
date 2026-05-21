@@ -1,0 +1,98 @@
+[
+  {
+    "Name": "hwinfo_bios_revision",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "hwinfo",
+      "MetricName": "bios_revision"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "string",
+      "Description": "BIOS revision string from SUSI",
+      "DisplayName": "BIOS Revision"
+    },
+    "expect": "valid",
+    "reason": "constant per boot; identity-drift watched"
+  },
+  {
+    "Name": "hwinfo_bios_version",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "hwinfo",
+      "MetricName": "bios_version"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "string",
+      "Description": "BIOS version string",
+      "DisplayName": "BIOS Version"
+    },
+    "expect": "valid",
+    "reason": "audit-relevant identity field"
+  },
+  {
+    "Name": "hwinfo_motherboard",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "hwinfo",
+      "MetricName": "motherboard"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "string",
+      "Description": "Motherboard model string",
+      "DisplayName": "Motherboard"
+    },
+    "expect": "valid",
+    "reason": "hardware-swap detection input"
+  },
+  {
+    "Name": "hwinfo_motherboard_serial",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "hwinfo",
+      "MetricName": "motherboard_serial"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "string",
+      "Description": "Motherboard serial number",
+      "DisplayName": "Motherboard Serial"
+    },
+    "expect": "valid",
+    "reason": "fleet identity key"
+  },
+  {
+    "Name": "hwinfo_ec_revision",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "hwinfo",
+      "MetricName": "ec_revision"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "string",
+      "Description": "Embedded controller revision",
+      "DisplayName": "EC Revision"
+    },
+    "expect": "valid",
+    "reason": "firmware-update detection"
+  },
+  {
+    "Name": "hwinfo_driver_version",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "hwinfo",
+      "MetricName": "driver_version"
+    },
+    "Report": { "Enabled": true, "Interval": 60000 },
+    "SensorInfo": {
+      "Schema": "string",
+      "Description": "SUSI driver version installed on host",
+      "DisplayName": "Driver Version"
+    },
+    "expect": "valid",
+    "reason": "SUSI driver identity"
+  }
+]

@@ -198,6 +198,13 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
             _logger.LogDebug("Received TCP response with {ByteCount} bytes", totalRead);
             return buffer[..totalRead];
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Caller cancelled (config update / shutdown) - the socket itself is not
+            // faulted, so do not flip State to Error. Otherwise the next polling round
+            // sees a spurious Error state and triggers an unnecessary reconnect.
+            throw;
+        }
         catch (Exception ex) when (ex is not TimeoutException)
         {
             _logger.LogError(ex, "Error during TCP request-response");
