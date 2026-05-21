@@ -279,7 +279,7 @@ The SDK validates configurations at startup:
 
 - [Configuration via Code](./configuration-via-code.md) - Programmatic configuration
 - [Configuration via JSON](./configuration-via-json.md) - JSON configuration
-- [Data Pipeline](../05-data-pipeline/pipeline-overview.md) - Pipeline details
+- [Data Pipeline](../05-data-pipeline/01-overview.md) - Pipeline details
 
 import Revision from '@site/src/components/Revision';
 

@@ -324,7 +324,7 @@ Error: Authentication failed - invalid credentials
 
 ## See Also
 
-- [Project Structure](../03-architecture/01-project-structure.md) - Understand configuration file loading order
+- [Project Structure](../03-hierarchy/01-project-structure.md) - Understand configuration file loading order
 - [Sensor Configuration](../04-configuration/02-configuration-via-json.md) - Configure devices and sensors
 - [Terminology](../01-introduction/03-terminology.md) - Definitions of WedaNode, WedaCore
 

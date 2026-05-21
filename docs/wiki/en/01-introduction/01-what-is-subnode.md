@@ -144,7 +144,7 @@ After running, SubNode will:
 3. Read the `temperature` sensor every 1 second
 4. Simulate telemetry upload via MockCloudService
 
-For detailed steps, see [Start with Template](../02-getting-started/start-with-template.md).
+For detailed steps, see [Start with Template](../02-getting-started/03-start-with-template.md).
 
 ---
 

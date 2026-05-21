@@ -267,7 +267,7 @@ Provides access to application-wide services and configuration within device imp
 
 - [Architecture Overview](./architecture.md) - System design and data flow
 - [Sensor Configuration](../04-sensor-configuration/configuration-reference.md) - Detailed configuration options
-- [Custom Device Development](../07-custom-device/device-base.md) - Building custom devices
+- [Custom Device Development](../09-customization/01-custom-device.md) - Building custom devices
 
 import Revision from '@site/src/components/Revision';
 
