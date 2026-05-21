@@ -622,7 +622,7 @@ Available data types for Modbus sensors:
 
 - [Configuration via JSON](./configuration-via-json.md) - JSON-based configuration
 - [Configuration Reference](./configuration-reference.md) - Complete reference
-- [Data Pipeline](../05-data-pipeline/pipeline-overview.md) - Transform details
+- [Data Pipeline](../05-data-pipeline/01-overview.md) - Transform details
 
 import Revision from '@site/src/components/Revision';
 
