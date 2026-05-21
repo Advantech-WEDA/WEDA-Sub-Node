@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
 using SystemAgentExample.Protocols;
@@ -18,8 +19,8 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
 {
     /// <summary>
     /// Initializes a new instance of SystemAgentDeviceBase.
-    /// Sensors without specific resource identifiers (Interface, PinId, MetricName)
-    /// are auto-expanded into per-resource sensors before device initialization.
+    /// Sensors are resolved according to their mode (Bound / Explicit list / Auto-detect)
+    /// into per-resource sensors before device initialization.
     /// </summary>
     /// <param name="context">Application context managing all framework services.</param>
     /// <param name="configuration">Device configuration containing sensor settings.</param>
@@ -28,10 +29,10 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         LocalSystemCommunication communication)
-        : base(context, ExpandSensors(context, configuration, communication), CreateParser(context, configuration, communication))
+        : base(context, ResolveSensors(context, configuration, communication), CreateParser(context, configuration, communication))
     {
         _logger.LogInformation(
-            "SystemAgentDevice initialized ({SensorCount} sensors after expansion)",
+            "SystemAgentDevice initialized ({SensorCount} sensors after resolution)",
             configuration.Sensors.Count);
     }
 
@@ -52,10 +53,10 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
     }
 
     /// <summary>
-    /// Discovers available system resources and expands template sensors
+    /// Discovers available system resources and resolves template sensors
     /// into per-resource sensors before passing to the base constructor.
     /// </summary>
-    private static DeviceConfiguration ExpandSensors(
+    private static DeviceConfiguration ResolveSensors(
         IWedaApplicationContext context,
         DeviceConfiguration configuration,
         LocalSystemCommunication communication)
@@ -69,7 +70,15 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
             string.Join(", ", resources.GpioPins),
             string.Join(", ", resources.TemperatureSources));
 
-        configuration.Sensors = SensorExpander.Expand(configuration.Sensors, resources, logger);
+        // Recover array values lost during IConfiguration Dictionary<string, object> binding
+        // by reading the raw IConfigurationSection children (e.g., "Sensors:0:Parameters:Interfaces:0")
+        var sensorsSection = context.Configuration?
+            .GetSection($"DeviceConfig:DeviceConfigs:{configuration.DeviceName}:Sensors");
+
+        ParameterNormalizer.Normalize(configuration.Sensors, sensorsSection);
+
+        configuration.Sensors = SensorResolver.Resolve(configuration.Sensors, resources, logger);
+
         return configuration;
     }
 }

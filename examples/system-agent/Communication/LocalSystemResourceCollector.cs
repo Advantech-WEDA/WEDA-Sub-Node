@@ -277,7 +277,7 @@ public class LocalSystemResourceCollector
     }
 
     /// <summary>
-    /// Discovers available resource names for sensor auto-expansion.
+    /// Discovers available resource names for sensor resolution (Auto-detect mode).
     /// Returns network interface names, GPIO pin names, and temperature source names.
     /// </summary>
     public DiscoveredResources DiscoverAvailableResources()
@@ -339,9 +339,12 @@ public class LocalSystemResourceCollector
 
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
-            cts.CancelAfter(attemptTimeout);
-            return await retryPipeline.ExecuteAsync(async ct => await action(ct), cts.Token);
+            return await retryPipeline.ExecuteAsync(async ct =>
+            {
+                using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                attemptCts.CancelAfter(attemptTimeout);
+                return await action(attemptCts.Token);
+            }, parentToken);
         }
         catch (OperationCanceledException)
         {

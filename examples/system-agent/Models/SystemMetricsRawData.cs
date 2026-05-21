@@ -204,6 +204,11 @@ public class DiskMetrics
     public string MountPoint { get; set; } = string.Empty;
 
     /// <summary>
+    /// Total disk space in bytes.
+    /// </summary>
+    public long FilesystemTotalBytes { get; set; }
+
+    /// <summary>
     /// Available space for non-privileged users in bytes.
     /// </summary>
     public long FilesystemAvailBytes { get; set; }

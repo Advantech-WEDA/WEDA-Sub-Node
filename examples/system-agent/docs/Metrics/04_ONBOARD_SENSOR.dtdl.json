@@ -1,0 +1,185 @@
+{
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor;1",
+  "@type": "Interface",
+  "@context": "dtmi:dtdl:context;2",
+  "displayName": "System Agent \u2014 Onboard Sensor Telemetry",
+  "description": "Config-only DTDL v2 schema for the temperature / voltage / fanspeed MetricTypes. contents[] is empty by design -- describes the devicecfg.json Sensor surface, not a telemetry contract. schemas[] publishes the reusable Enums consumed by config-rules.js. Temperature supports v1.1 expansion via Parameters.Source / Parameters.Sources (see 04_ONBOARD_SENSOR_FIELDS.md).",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:MetricType;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed MetricType discriminators in this Interface.",
+      "enumValues": [
+        {
+          "name": "Temperature",
+          "enumValue": "temperature",
+          "displayName": "Temperature"
+        },
+        {
+          "name": "Voltage",
+          "enumValue": "voltage",
+          "displayName": "Voltage"
+        },
+        {
+          "name": "Fanspeed",
+          "enumValue": "fanspeed",
+          "displayName": "Fan Speed"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:TemperatureMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'temperature'. v1.1 recommends 'therm' with the source moved to Parameters.Source / Parameters.Sources. v1.0-compatible MetricName values (any hardware source name, e.g. 'cpU-therm') are accepted but not enumerated here -- validators must allow MetricName to be 'therm' or any non-empty string.",
+      "enumValues": [
+        {
+          "name": "Therm",
+          "enumValue": "therm",
+          "displayName": "Thermal Sensor (generic)"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:VoltageMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'voltage'.",
+      "enumValues": [
+        {
+          "name": "Voltage",
+          "enumValue": "voltage",
+          "displayName": "Voltage"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:FanspeedMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType == 'fanspeed'.",
+      "enumValues": [
+        {
+          "name": "Fanspeed",
+          "enumValue": "fanspeed",
+          "displayName": "Fan Speed"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorGroup. Temperature uses 'TEMP'; voltage uses 'PWR'; fanspeed uses 'SYS'.",
+      "enumValues": [
+        {
+          "name": "AI",
+          "enumValue": "AI",
+          "displayName": "Analog Input"
+        },
+        {
+          "name": "AO",
+          "enumValue": "AO",
+          "displayName": "Analog Output"
+        },
+        {
+          "name": "DI",
+          "enumValue": "DI",
+          "displayName": "Digital Input"
+        },
+        {
+          "name": "DO",
+          "enumValue": "DO",
+          "displayName": "Digital Output"
+        },
+        {
+          "name": "TEMP",
+          "enumValue": "TEMP",
+          "displayName": "Temperature"
+        },
+        {
+          "name": "PWR",
+          "enumValue": "PWR",
+          "displayName": "Power"
+        },
+        {
+          "name": "SYS",
+          "enumValue": "SYS",
+          "displayName": "System"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of SensorInfo.Schema. For every metric in this Interface the value is 'double'.",
+      "enumValues": [
+        {
+          "name": "Double",
+          "enumValue": "double",
+          "displayName": "double"
+        },
+        {
+          "name": "Long",
+          "enumValue": "long",
+          "displayName": "long"
+        },
+        {
+          "name": "Integer",
+          "enumValue": "integer",
+          "displayName": "integer"
+        },
+        {
+          "name": "Boolean",
+          "enumValue": "boolean",
+          "displayName": "boolean"
+        },
+        {
+          "name": "String",
+          "enumValue": "string",
+          "displayName": "string"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorInfo;1",
+      "@type": "Object",
+      "displayName": "Sensor Info",
+      "description": "Reusable Object schema for the SensorInfo block of every Sensor in devicecfg.json. Models the wire-output metadata: declared schema, operator-facing display strings, and the read/write directionality contract.",
+      "comment": "SIL2 read-only contract: every Sensor declared in devicecfg.json represents an agent-emitted reading. Consumers MUST set isReadable=true and isWritable=false; the agent rejects writes (WriteSensorDataAsync returns false) and commands (ExecuteCommandAsync returns CommandNotSupported) by design. A future writable GPIO-output extension would introduce its own MetricType with isWritable=true; existing read-direction MetricTypes never flip writability.",
+      "fields": [
+        {
+          "name": "schema",
+          "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:OnboardSensor:SensorInfoSchema;1",
+          "description": "On-the-wire JSON type the agent emits for this Sensor's Value (matches the per-MetricName schema documented in the *_FIELDS.md reference). The agent rejects startup if SensorInfo.Schema disagrees with the runtime type."
+        },
+        {
+          "name": "description",
+          "schema": "string",
+          "description": "Long-form operator-facing description shown in dashboards and audit logs."
+        },
+        {
+          "name": "displayName",
+          "schema": "string",
+          "description": "Short label for UI render (twin pages, alert subjects). Distinct from Sensor.Name, which is the wire identifier."
+        },
+        {
+          "name": "isReadable",
+          "displayName": "Is Readable",
+          "schema": "boolean",
+          "description": "True when the Sensor produces readings the agent forwards as telemetry. MUST be true for all sensors declared in this Interface (the agent is read-direction by design). Default: true."
+        },
+        {
+          "name": "isWritable",
+          "displayName": "Is Writable",
+          "schema": "boolean",
+          "description": "True when the Sensor accepts writes from the cloud. MUST be false for every sensor declared in this Interface; the agent rejects writes and commands per SIL2 fail-safe contract. Default: false."
+        }
+      ]
+    }
+  ],
+  "contents": []
+}

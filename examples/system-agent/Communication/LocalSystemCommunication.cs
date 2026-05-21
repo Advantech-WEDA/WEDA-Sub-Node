@@ -72,7 +72,7 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     }
 
     /// <summary>
-    /// Discovers available system resources for sensor auto-expansion.
+    /// Discovers available system resources for sensor resolution (Auto-detect mode).
     /// </summary>
     public DiscoveredResources DiscoverAvailableResources() => _collector.DiscoverAvailableResources();
 
