@@ -1,0 +1,175 @@
+{
+  "@context": "dtmi:dtdl:context;3",
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig;1",
+  "@type": "Interface",
+  "displayName": "Network Sensor Config",
+  "description": "Config form spec for one network Sensor entry in devicecfg.json Sensors[]. Flattened Properties; native DTDL writable + Enum coverage; the rest is in config-rules.js. Network sensors expose Parameters.Interface (v1.0) or Parameters.Interfaces (v1.1, array or CSV string).",
+  "comment": "Interface and Interfaces are mutually exclusive when both non-empty (config-rules.js rules.network). Interfaces='' / [] means auto-detect. Every network MetricName -> wire schema 'long'.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:NetworkMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType='network'.",
+      "enumValues": [
+        {
+          "name": "BytesSent",
+          "enumValue": "bytes_sent",
+          "displayName": "Bytes Sent"
+        },
+        {
+          "name": "BytesReceived",
+          "enumValue": "bytes_received",
+          "displayName": "Bytes Received"
+        },
+        {
+          "name": "PacketsSent",
+          "enumValue": "packets_sent",
+          "displayName": "Packets Sent"
+        },
+        {
+          "name": "PacketsReceived",
+          "enumValue": "packets_received",
+          "displayName": "Packets Received"
+        },
+        {
+          "name": "Errors",
+          "enumValue": "errors",
+          "displayName": "Errors (Total)"
+        },
+        {
+          "name": "ErrorsIn",
+          "enumValue": "errors_in",
+          "displayName": "RX Errors"
+        },
+        {
+          "name": "ErrorsOut",
+          "enumValue": "errors_out",
+          "displayName": "TX Errors"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "SensorGroup allow-list for network sensors. Conventionally 'SYS'.",
+      "enumValues": [
+        {
+          "name": "SYS",
+          "enumValue": "SYS",
+          "displayName": "System"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Wire schema allow-list. Every network MetricName -> 'long'.",
+      "enumValues": [
+        {
+          "name": "Long",
+          "enumValue": "long",
+          "displayName": "long"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:InterfaceList;1",
+      "@type": "Array",
+      "elementSchema": "string",
+      "description": "Array<string> schema referenced by the Interfaces Property. DTDL v2 requires complex schemas (Array / Object / Map) used by Properties to be declared in schemas[] rather than inline."
+    }
+  ],
+  "contents": [
+    {
+      "@type": "Property",
+      "name": "Name",
+      "displayName": "Sensor Name",
+      "schema": "string",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty ASCII string, 1..128 chars, unique within Sensors[]. Uniqueness enforced by config-rules.js.\nMaps to: Sensors[i].Name\nUI hint: text input on create; read-only after.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "SensorGroup",
+      "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorGroup;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from the SensorGroup enum (network sensors use 'SYS').\nMaps to: Sensors[i].SensorGroup\nUI hint: dropdown, default 'SYS'.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "MetricType",
+      "displayName": "Metric Type",
+      "schema": "string",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'network' for this Interface.\nMaps to: Sensors[i].Parameters.MetricType\nUI hint: fixed label, not editable.\nWritable: immutable -- changing it requires defining a new Sensor."
+    },
+    {
+      "@type": "Property",
+      "name": "MetricName",
+      "displayName": "Metric",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:NetworkMetricName;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from NetworkMetricName.\nMaps to: Sensors[i].Parameters.MetricName\nUI hint: dropdown.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "Interface",
+      "displayName": "Bound Interface (v1.0)",
+      "schema": "string",
+      "writable": false,
+      "description": "OPTIONAL (network-specific, v1.0 mode).\nVALIDATION RULE: non-empty OS-level interface name (e.g. 'eth0'). Mutex with Interfaces (config-rules.js rules.network) -- ambiguous when both non-empty.\nMaps to: Sensors[i].Parameters.Interface\nUI hint: text input. Hide when Interfaces is set.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "Interfaces",
+      "displayName": "Interface List (v1.1)",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:InterfaceList;1",
+      "writable": false,
+      "description": "OPTIONAL (network-specific, v1.1 mode).\nVALIDATION RULE: array of non-empty OS-level interface names. Empty array means auto-detect across every interface. The wire format also accepts a CSV string ('eth0,eth1') -- normalised at parse time. Mutex with Interface (config-rules.js rules.network).\nMaps to: Sensors[i].Parameters.Interfaces\nUI hint: chip / tag input. Empty = auto-detect.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "Enabled",
+      "displayName": "Enabled",
+      "schema": "boolean",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: boolean.\nMaps to: Sensors[i].Report.Enabled\nUI hint: toggle / switch.\nWritable: twin desired-property sync-able (SIL2 maintenance lever)."
+    },
+    {
+      "@type": "Property",
+      "name": "Interval",
+      "displayName": "Publishing Interval (ms)",
+      "schema": "integer",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: integer, 1 <= v <= 300000 (5 minutes). Range enforced by config-rules.js.\nMaps to: Sensors[i].Report.Interval\nUI hint: number input, min=1, max=300000, step=100, default=5000.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "Description",
+      "displayName": "Description",
+      "schema": "string",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.Description\nUI hint: textarea or text input.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "DisplayName",
+      "displayName": "Display Name",
+      "schema": "string",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.DisplayName\nUI hint: short text input.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "Schema",
+      "displayName": "Wire Schema",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorInfoSchema;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'long' for every network MetricName. Enforced by config-rules.js; the agent rejects startup on mismatch.\nMaps to: Sensors[i].SensorInfo.Schema\nUI hint: dropdown, default 'long'.\nWritable: immutable after creation."
+    }
+  ]
+}

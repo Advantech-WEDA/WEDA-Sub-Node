@@ -1,0 +1,96 @@
+{
+  "@context": "dtmi:dtdl:context;2",
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig;1",
+  "@type": "Interface",
+  "displayName": "Network Sensor Config",
+  "description": "DTDL v2 Interface describing one network Sensor entry of devicecfg.json's Sensors[]. v2 forbids Array anywhere in a Property's reachable schema graph, so the v1.1 `Interfaces` array field is NOT represented here -- only the v1.0 singular `Interface`. Consumers that need the array form must use the v3 Interface (NetworkSensorConfig under dtmi:dtdl:context;3).",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [
+        { "name": "Network", "enumValue": "network", "displayName": "Network" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:NetworkMetricName;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Name",
+      "enumValues": [
+        { "name": "BytesSent",       "enumValue": "bytes_sent",       "displayName": "Bytes Sent" },
+        { "name": "BytesReceived",   "enumValue": "bytes_received",   "displayName": "Bytes Received" },
+        { "name": "PacketsSent",     "enumValue": "packets_sent",     "displayName": "Packets Sent" },
+        { "name": "PacketsReceived", "enumValue": "packets_received", "displayName": "Packets Received" },
+        { "name": "Errors",          "enumValue": "errors",           "displayName": "Errors (Total)" },
+        { "name": "ErrorsIn",        "enumValue": "errors_in",        "displayName": "RX Errors" },
+        { "name": "ErrorsOut",       "enumValue": "errors_out",       "displayName": "TX Errors" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [
+        { "name": "SYS", "enumValue": "SYS", "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [
+        { "name": "Long", "enumValue": "long", "displayName": "long" }
+      ]
+    },
+
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Parameters;1",
+      "@type": "Object", "displayName": "Parameters",
+      "comment": "v2 forbids Array anywhere reachable from a Property; the v1.1 `Interfaces` array field cannot be modelled here. Use the v3 Interface if the array form is required.",
+      "fields": [
+        { "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:MetricType;1" },
+        { "name": "MetricName", "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:NetworkMetricName;1" },
+        { "name": "Interface",  "displayName": "Bound Interface (v1.0)",
+          "schema": "string" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "name": "Enabled",  "displayName": "Enabled",       "schema": "boolean" },
+        { "name": "Interval", "displayName": "Interval (ms)", "schema": "integer" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "name": "Schema",      "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:WireSchema;1" },
+        { "name": "Description", "displayName": "Description", "schema": "string" },
+        { "name": "DisplayName", "displayName": "Display Name", "schema": "string" }
+      ]
+    }
+  ],
+
+  "contents": [
+    { "@type": "Property", "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false },
+
+    { "@type": "Property", "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorGroup;1",
+      "writable": false },
+
+    { "@type": "Property", "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Parameters;1",
+      "writable": false },
+
+    { "@type": "Property", "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:Report;1",
+      "writable": true },
+
+    { "@type": "Property", "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:NetworkSensorConfig:SensorInfo;1",
+      "writable": true }
+  ]
+}

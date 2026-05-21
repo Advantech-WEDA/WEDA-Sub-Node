@@ -34,7 +34,9 @@ npm run validate
 
 Green output means **the schemas parse cleanly AND every sensor-config fixture passes its shape rules** (`valid` samples accepted, `invalid` samples rejected). Extend by adding sensor-config fixtures under `docs/Metrics/samples-config/*.configs.json` and rules in `scripts/config-rules.js`.
 
-Confirmed working on the current tree — 5 DTDL Interfaces (config-only, no Telemetries), **215 entities** parse cleanly, **59 sensor-config fixtures** pass.
+Confirmed working on the current tree — 13 DTDL Interfaces (config-only, no Telemetries; one Interface per MetricType, flattened Properties with native `writable`), **264 entities** parse cleanly in the combined model, **59 sensor-config fixtures** pass.
+
+> **Context version.** All five files are `dtmi:dtdl:context;3`. DTDL v2 forbids `Array` as a Property's `schema`, so `NetworkSensorConfig.Interfaces`, `TemperatureSensorConfig.Sources`, and `GpioSensorConfig.PinIds` would fail under v2. v3 allows the Array schema to be declared in `schemas[]` and referenced by DTMI from the Property.
 
 ---
 
@@ -103,13 +105,23 @@ const FILES = [
 **Expected output:**
 
 ```
-OK  01_SYSTEM_RESOURCE.dtdl.json: 84 entities
-OK  02_GPU_RESOURCE.dtdl.json: 30 entities
-OK  03_HARDWARE_INFO.dtdl.json: 32 entities
-OK  04_ONBOARD_SENSOR.dtdl.json: 33 entities
-OK  05_HARDWARE_FEATURE.dtdl.json: 44 entities
-OK  combined: 215 entities
+OK  01_SYSTEM_RESOURCE.dtdl.json: 121 entities
+OK  02_GPU_RESOURCE.dtdl.json: 19 entities
+OK  03_HARDWARE_INFO.dtdl.json: 24 entities
+OK  04_ONBOARD_SENSOR.dtdl.json: 52 entities
+OK  05_HARDWARE_FEATURE.dtdl.json: 60 entities
+OK  combined: 264 entities
 ```
+
+Each file is now a JSON array of one Interface per MetricType (13 Interfaces total):
+
+| File | Interfaces |
+|------|------------|
+| `01_SYSTEM_RESOURCE.dtdl.json` | `CpuSensorConfig`, `MemorySensorConfig`, `DiskSensorConfig`, `NetworkSensorConfig`, `SystemSensorConfig` |
+| `02_GPU_RESOURCE.dtdl.json` | `GpuSensorConfig` |
+| `03_HARDWARE_INFO.dtdl.json` | `HwinfoSensorConfig` |
+| `04_ONBOARD_SENSOR.dtdl.json` | `TemperatureSensorConfig`, `VoltageSensorConfig`, `FanspeedSensorConfig` |
+| `05_HARDWARE_FEATURE.dtdl.json` | `GpioSensorConfig`, `WatchdogSensorConfig`, `ThermalProtectionSensorConfig` |
 
 Any line starting `ERR` is a schema bug that must be fixed before shipping.
 
@@ -170,7 +182,7 @@ Run as part of `dotnet test`.
 
 The DTDL parser checks the schema; it does **not** check whether a *sensor entry in `devicecfg.json`* is well-formed. That's what `validate-configs.js` (and its .NET twin `ConfigsValidator.cs`) is for.
 
-> **Formally declared in the DTDL too.** The `01_SYSTEM_RESOURCE.dtdl.json` and `05_HARDWARE_FEATURE.dtdl.json` Interfaces ship reusable Object schemas — `NetworkSensorParameters`, `GpioSensorParameters`, etc. — with named fields (`interface: string`, `interfaces: Array<string>`, `pinId: integer`, `pinIds: Array<integer>`, …). That makes the Parameters shape machine-discoverable through the official DTDL parser. The Object schemas **describe the wire shape**; the runtime rules that DTDL v2 can't express (CSV-string variants, mutual exclusivity, conditional requirements) live in this validator's `config-rules.js` and are documented in the Object's `comment` field.
+> **Formally declared in the DTDL too.** Every `*SensorConfig` Interface declares its editable surface as Properties in `contents[]` — `Enabled`, `Interval`, `MetricName`, type-specific extras like `MountPoint` / `Interfaces` / `Sources` / `PinIds`, etc. — with native `writable=true/false`. That makes the form spec machine-discoverable through the official DTDL parser: backends use it for type+enum validation, frontends use it to render config forms (Property `displayName` → label, `description` → help text, `schema` → input control, `writable` → editable vs read-only). The runtime rules DTDL still can't express (`Interval` range, uniqueness, mutex, conditional-required, `Schema`↔`MetricName` cross-consistency) live in this validator's `config-rules.js` and are echoed in each Property's `description`.
 
 ### 2.1 Ruleset shipped today
 

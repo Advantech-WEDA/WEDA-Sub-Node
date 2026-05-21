@@ -1,244 +1,259 @@
-{
-  "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature;1",
-  "@type": "Interface",
-  "@context": "dtmi:dtdl:context;2",
-  "displayName": "System Agent \u2014 Hardware Feature Telemetry",
-  "description": "Config-only DTDL v2 schema for the gpio / watchdog / thermalprotection MetricTypes. contents[] is empty by design -- describes the devicecfg.json Sensor surface, not a telemetry contract. schemas[] publishes the reusable Enums and the GpioSensorParameters Object (integer-only pinId / pinIds contract) consumed by config-rules.js. GpioPinLevel is retained as an informational Enum.",
-  "schemas": [
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:MetricType;1",
-      "@type": "Enum",
-      "valueSchema": "string",
-      "description": "Allowed MetricType discriminators in this Interface.",
-      "enumValues": [
-        {
-          "name": "Gpio",
-          "enumValue": "gpio",
-          "displayName": "GPIO"
-        },
-        {
-          "name": "Watchdog",
-          "enumValue": "watchdog",
-          "displayName": "Watchdog"
-        },
-        {
-          "name": "ThermalProtection",
-          "enumValue": "thermalprotection",
-          "displayName": "Thermal Protection"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioMetricName;1",
-      "@type": "Enum",
-      "valueSchema": "string",
-      "description": "Allowed values of Parameters.MetricName when MetricType == 'gpio'. 'pinState' requires Parameters.PinId (v1.0) or Parameters.PinIds (v1.1) or auto-detect.",
-      "enumValues": [
-        {
-          "name": "IsSupported",
-          "enumValue": "isSupported",
-          "displayName": "GPIO Supported"
-        },
-        {
-          "name": "PinState",
-          "enumValue": "pinState",
-          "displayName": "GPIO Pin State"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:WatchdogMetricName;1",
-      "@type": "Enum",
-      "valueSchema": "string",
-      "description": "Allowed values of Parameters.MetricName when MetricType == 'watchdog'.",
-      "enumValues": [
-        {
-          "name": "IsSupported",
-          "enumValue": "isSupported",
-          "displayName": "Watchdog Supported"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:ThermalProtectionMetricName;1",
-      "@type": "Enum",
-      "valueSchema": "string",
-      "description": "Allowed values of Parameters.MetricName when MetricType == 'thermalprotection'.",
-      "enumValues": [
-        {
-          "name": "IsSupported",
-          "enumValue": "isSupported",
-          "displayName": "Thermal Protection Supported"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioPinLevel;1",
-      "@type": "Enum",
-      "valueSchema": "integer",
-      "description": "Logical level for a GPIO input pin. The agent emits the underlying integer value; consumer dashboards may resolve to the named label via this Enum.",
-      "enumValues": [
-        {
-          "name": "Low",
-          "enumValue": 0,
-          "displayName": "Low (0)"
-        },
-        {
-          "name": "High",
-          "enumValue": 1,
-          "displayName": "High (1)"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorGroup;1",
-      "@type": "Enum",
-      "valueSchema": "string",
-      "description": "Allowed values of SensorGroup. GPIO pinState uses 'DI'; capability flags (gpio.isSupported, watchdog.isSupported, thermalprotection.isSupported) use 'SYS'.",
-      "enumValues": [
-        {
-          "name": "AI",
-          "enumValue": "AI",
-          "displayName": "Analog Input"
-        },
-        {
-          "name": "AO",
-          "enumValue": "AO",
-          "displayName": "Analog Output"
-        },
-        {
-          "name": "DI",
-          "enumValue": "DI",
-          "displayName": "Digital Input"
-        },
-        {
-          "name": "DO",
-          "enumValue": "DO",
-          "displayName": "Digital Output"
-        },
-        {
-          "name": "TEMP",
-          "enumValue": "TEMP",
-          "displayName": "Temperature"
-        },
-        {
-          "name": "PWR",
-          "enumValue": "PWR",
-          "displayName": "Power"
-        },
-        {
-          "name": "SYS",
-          "enumValue": "SYS",
-          "displayName": "System"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorInfoSchema;1",
-      "@type": "Enum",
-      "valueSchema": "string",
-      "description": "Allowed values of SensorInfo.Schema. For this Interface: 'boolean' for every *.isSupported, 'integer' for gpio.pinState.",
-      "enumValues": [
-        {
-          "name": "Double",
-          "enumValue": "double",
-          "displayName": "double"
-        },
-        {
-          "name": "Long",
-          "enumValue": "long",
-          "displayName": "long"
-        },
-        {
-          "name": "Integer",
-          "enumValue": "integer",
-          "displayName": "integer"
-        },
-        {
-          "name": "Boolean",
-          "enumValue": "boolean",
-          "displayName": "boolean"
-        },
-        {
-          "name": "String",
-          "enumValue": "string",
-          "displayName": "string"
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioSensorParameters;1",
-      "@type": "Object",
-      "displayName": "GPIO Sensor Parameters",
-      "description": "Reusable Object schema for the Parameters block of every gpio Sensor in devicecfg.json. Field names use camelCase here; on-the-wire keys are PascalCase (the agent matches case-insensitively).",
-      "comment": "Pin identifiers are integer indices only; resolved at runtime via PinIndexToName[index]. DTDL v2 has no cross-field constraints, so one rule lives outside the schema (enforced by config-rules.js): pinId and pinIds are mutually exclusive when both non-empty. pinId and pinIds apply only when metricName == 'pinState'.",
-      "fields": [
-        {
-          "name": "metricType",
-          "displayName": "Metric Type",
-          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:MetricType;1",
-          "description": "Metric-family discriminator. For this Object MUST equal 'gpio'."
-        },
-        {
-          "name": "metricName",
-          "displayName": "Metric Name",
-          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:GpioMetricName;1",
-          "description": "Specific GPIO query (see GpioMetricName enum). 'isSupported' takes no extra parameters; 'pinState' uses pinId / pinIds."
-        },
-        {
-          "name": "pinId",
-          "displayName": "Bound Pin Index (v1.0)",
-          "schema": "integer",
-          "description": "Single GPIO pin INDEX (e.g. 4). Non-negative integer; resolved via GpioMetrics.PinIndexToName[index] to a pin name, then looked up in PinStateDetails. v1.0 mode: required for metricName=pinState. v1.1 mode: optional; when set disables expansion."
-        },
-        {
-          "name": "pinIds",
-          "displayName": "Pin Index List (v1.1)",
-          "schema": {
-            "@type": "Array",
-            "elementSchema": "integer"
-          },
-          "description": "Array of GPIO pin INDICES (e.g. [4, 17, 27]). All entries non-negative. v1.1 only. Each entry becomes one expanded sensor sharing the GpioPinState Telemetry DTMI; resolved via PinIndexToName[index]. Empty array means auto-detect across every entry of GpioMetrics.PinNames."
-        }
-      ]
-    },
-    {
-      "@id": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorInfo;1",
-      "@type": "Object",
-      "displayName": "Sensor Info",
-      "description": "Reusable Object schema for the SensorInfo block of every Sensor in devicecfg.json. Models the wire-output metadata: declared schema, operator-facing display strings, and the read/write directionality contract.",
-      "comment": "SIL2 read-only contract: every Sensor declared in devicecfg.json represents an agent-emitted reading. Consumers MUST set isReadable=true and isWritable=false; the agent rejects writes (WriteSensorDataAsync returns false) and commands (ExecuteCommandAsync returns CommandNotSupported) by design. A future writable GPIO-output extension would introduce its own MetricType with isWritable=true; existing read-direction MetricTypes never flip writability.",
-      "fields": [
-        {
-          "name": "schema",
-          "displayName": "Wire Schema",
-          "schema": "dtmi:advantech:EdgeSync:SystemAgent:HardwareFeature:SensorInfoSchema;1",
-          "description": "On-the-wire JSON type the agent emits for this Sensor's Value (matches the per-MetricName schema documented in the *_FIELDS.md reference). The agent rejects startup if SensorInfo.Schema disagrees with the runtime type."
-        },
-        {
-          "name": "description",
-          "schema": "string",
-          "description": "Long-form operator-facing description shown in dashboards and audit logs."
-        },
-        {
-          "name": "displayName",
-          "schema": "string",
-          "description": "Short label for UI render (twin pages, alert subjects). Distinct from Sensor.Name, which is the wire identifier."
-        },
-        {
-          "name": "isReadable",
-          "displayName": "Is Readable",
-          "schema": "boolean",
-          "description": "True when the Sensor produces readings the agent forwards as telemetry. MUST be true for all sensors declared in this Interface (the agent is read-direction by design). Default: true."
-        },
-        {
-          "name": "isWritable",
-          "displayName": "Is Writable",
-          "schema": "boolean",
-          "description": "True when the Sensor accepts writes from the cloud. MUST be false for every sensor declared in this Interface; the agent rejects writes and commands per SIL2 fail-safe contract. Default: false."
-        }
-      ]
-    }
-  ],
-  "contents": []
-}
+[
+  {
+    "@context": "dtmi:dtdl:context;3",
+    "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig;1",
+    "@type": "Interface",
+    "displayName": "GPIO Sensor Config",
+    "description": "Config form spec for one gpio Sensor entry in devicecfg.json Sensors[]. Flattened Properties; native DTDL writable + Enum coverage; the rest is in config-rules.js. gpio.isSupported is a boolean capability flag (SensorGroup=SYS); gpio.pinState is an integer level reading per pin (SensorGroup=DI, with PinId / PinIds).",
+    "comment": "Pin identifiers are integer indices only. PinId / PinIds mutex when both non-empty; both are only valid when MetricName='pinState'; MetricName='isSupported' MUST NOT carry PinId / PinIds. SensorGroup / SensorInfo.Schema vary by MetricName (isSupported -> SYS / boolean; pinState -> DI / integer) -- cross-field consistency enforced by config-rules.js.",
+    "schemas": [
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:GpioMetricName;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "Allowed values of Parameters.MetricName when MetricType='gpio'.",
+        "enumValues": [
+          { "name": "IsSupported", "enumValue": "isSupported", "displayName": "GPIO Supported" },
+          { "name": "PinState",    "enumValue": "pinState",    "displayName": "GPIO Pin State" }
+        ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:SensorGroup;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "SensorGroup allow-list for gpio sensors. isSupported -> 'SYS'; pinState -> 'DI'.",
+        "enumValues": [
+          { "name": "DI",  "enumValue": "DI",  "displayName": "Digital Input" },
+          { "name": "SYS", "enumValue": "SYS", "displayName": "System" }
+        ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:SensorInfoSchema;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "Wire schema allow-list. isSupported -> 'boolean'; pinState -> 'integer'. Cross-field rule enforced by config-rules.js.",
+        "enumValues": [
+          { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+          { "name": "Integer", "enumValue": "integer", "displayName": "integer" }
+        ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:GpioPinLevel;1",
+        "@type": "Enum",
+        "valueSchema": "integer",
+        "description": "Informational. Logical level for a GPIO input pin. The agent emits the underlying integer (0 / 1); consumer dashboards may resolve to the named label via this Enum.",
+        "enumValues": [
+          { "name": "Low",  "enumValue": 0, "displayName": "Low (0)" },
+          { "name": "High", "enumValue": 1, "displayName": "High (1)" }
+        ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:PinIdList;1",
+        "@type": "Array",
+        "elementSchema": "integer",
+        "description": "Array<integer> schema referenced by the PinIds Property. DTDL v2 requires complex schemas (Array / Object / Map) used by Properties to be declared in schemas[] rather than inline."
+      }
+    ],
+    "contents": [
+      { "@type": "Property", "name": "Name", "displayName": "Sensor Name",
+        "schema": "string", "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty ASCII string, 1..128 chars, unique within Sensors[]. Uniqueness enforced by config-rules.js.\nMaps to: Sensors[i].Name\nUI hint: text input on create; read-only after.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "SensorGroup", "displayName": "Sensor Group",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:SensorGroup;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'SYS' when MetricName='isSupported'; MUST equal 'DI' when MetricName='pinState'. Cross-field rule enforced by config-rules.js.\nMaps to: Sensors[i].SensorGroup\nUI hint: dropdown auto-selected by MetricName.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "MetricType", "displayName": "Metric Type",
+        "schema": "string", "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'gpio' for this Interface.\nMaps to: Sensors[i].Parameters.MetricType\nUI hint: fixed label, not editable.\nWritable: immutable -- changing it requires defining a new Sensor." },
+
+      { "@type": "Property", "name": "MetricName", "displayName": "Metric",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:GpioMetricName;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from GpioMetricName. 'isSupported' takes no extra parameters; 'pinState' uses PinId / PinIds.\nMaps to: Sensors[i].Parameters.MetricName\nUI hint: dropdown.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "PinId", "displayName": "Bound Pin Index (v1.0)",
+        "schema": "integer", "writable": false,
+        "description": "OPTIONAL (gpio-specific, v1.0 mode, MetricName='pinState' only).\nVALIDATION RULE: non-negative integer pin INDEX (e.g. 4). Resolved at runtime via GpioMetrics.PinIndexToName[index]. Mutex with PinIds (config-rules.js rules.gpio). MUST NOT appear when MetricName != 'pinState'.\nMaps to: Sensors[i].Parameters.PinId\nUI hint: number input, min=0. Hide unless MetricName='pinState' AND PinIds is empty.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "PinIds", "displayName": "Pin Index List (v1.1)",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:PinIdList;1",
+        "writable": false,
+        "description": "OPTIONAL (gpio-specific, v1.1 mode, MetricName='pinState' only).\nVALIDATION RULE: array of non-negative integer pin indices (e.g. [4, 17, 27]). Empty array means auto-detect. Mutex with PinId (config-rules.js rules.gpio). MUST NOT appear when MetricName != 'pinState'.\nMaps to: Sensors[i].Parameters.PinIds\nUI hint: number-chip / tag input. Hide unless MetricName='pinState' AND PinId is empty. Empty = auto-detect.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "Enabled", "displayName": "Enabled",
+        "schema": "boolean", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: boolean.\nMaps to: Sensors[i].Report.Enabled\nUI hint: toggle / switch.\nWritable: twin desired-property sync-able (SIL2 maintenance lever)." },
+
+      { "@type": "Property", "name": "Interval", "displayName": "Publishing Interval (ms)",
+        "schema": "integer", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: integer, 1 <= v <= 300000 (5 minutes). Range enforced by config-rules.js.\nMaps to: Sensors[i].Report.Interval\nUI hint: number input, min=1, max=300000, step=100, default=6000.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "Description", "displayName": "Description",
+        "schema": "string", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.Description\nUI hint: textarea or text input.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "DisplayName", "displayName": "Display Name",
+        "schema": "string", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.DisplayName\nUI hint: short text input.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "Schema", "displayName": "Wire Schema",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:GpioSensorConfig:SensorInfoSchema;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'boolean' when MetricName='isSupported'; MUST equal 'integer' when MetricName='pinState'. Cross-field rule enforced by config-rules.js; the agent rejects startup on mismatch.\nMaps to: Sensors[i].SensorInfo.Schema\nUI hint: dropdown auto-selected by MetricName.\nWritable: immutable after creation." }
+    ]
+  },
+
+  {
+    "@context": "dtmi:dtdl:context;3",
+    "@id": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig;1",
+    "@type": "Interface",
+    "displayName": "Watchdog Sensor Config",
+    "description": "Config form spec for one watchdog Sensor entry in devicecfg.json Sensors[]. Flattened Properties; native DTDL writable + Enum coverage; the rest is in config-rules.js. Watchdog sensors expose a single boolean capability flag.",
+    "comment": "Every watchdog MetricName -> wire schema 'boolean'. Schema invariant enforced by config-rules.js.",
+    "schemas": [
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig:WatchdogMetricName;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "Allowed values of Parameters.MetricName when MetricType='watchdog'.",
+        "enumValues": [
+          { "name": "IsSupported", "enumValue": "isSupported", "displayName": "Watchdog Supported" }
+        ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig:SensorGroup;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "SensorGroup allow-list for watchdog sensors. Conventionally 'SYS'.",
+        "enumValues": [ { "name": "SYS", "enumValue": "SYS", "displayName": "System" } ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig:SensorInfoSchema;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "Wire schema allow-list. Every watchdog MetricName -> 'boolean'.",
+        "enumValues": [
+          { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" }
+        ]
+      }
+    ],
+    "contents": [
+      { "@type": "Property", "name": "Name", "displayName": "Sensor Name",
+        "schema": "string", "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty ASCII string, 1..128 chars, unique within Sensors[]. Uniqueness enforced by config-rules.js.\nMaps to: Sensors[i].Name\nUI hint: text input on create; read-only after.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "SensorGroup", "displayName": "Sensor Group",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig:SensorGroup;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from the SensorGroup enum (watchdog sensors use 'SYS').\nMaps to: Sensors[i].SensorGroup\nUI hint: dropdown, default 'SYS'.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "MetricType", "displayName": "Metric Type",
+        "schema": "string", "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'watchdog' for this Interface.\nMaps to: Sensors[i].Parameters.MetricType\nUI hint: fixed label, not editable.\nWritable: immutable -- changing it requires defining a new Sensor." },
+
+      { "@type": "Property", "name": "MetricName", "displayName": "Metric",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig:WatchdogMetricName;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from WatchdogMetricName.\nMaps to: Sensors[i].Parameters.MetricName\nUI hint: dropdown.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "Enabled", "displayName": "Enabled",
+        "schema": "boolean", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: boolean.\nMaps to: Sensors[i].Report.Enabled\nUI hint: toggle / switch.\nWritable: twin desired-property sync-able (SIL2 maintenance lever)." },
+
+      { "@type": "Property", "name": "Interval", "displayName": "Publishing Interval (ms)",
+        "schema": "integer", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: integer, 1 <= v <= 300000 (5 minutes). Range enforced by config-rules.js.\nMaps to: Sensors[i].Report.Interval\nUI hint: number input, min=1, max=300000, step=100, default=6000.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "Description", "displayName": "Description",
+        "schema": "string", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.Description\nUI hint: textarea or text input.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "DisplayName", "displayName": "Display Name",
+        "schema": "string", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.DisplayName\nUI hint: short text input.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "Schema", "displayName": "Wire Schema",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:WatchdogSensorConfig:SensorInfoSchema;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'boolean' for every watchdog MetricName. Enforced by config-rules.js; the agent rejects startup on mismatch.\nMaps to: Sensors[i].SensorInfo.Schema\nUI hint: dropdown, default 'boolean'.\nWritable: immutable after creation." }
+    ]
+  },
+
+  {
+    "@context": "dtmi:dtdl:context;3",
+    "@id": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig;1",
+    "@type": "Interface",
+    "displayName": "Thermal Protection Sensor Config",
+    "description": "Config form spec for one thermalprotection Sensor entry in devicecfg.json Sensors[]. Flattened Properties; native DTDL writable + Enum coverage; the rest is in config-rules.js. Thermal protection sensors expose a single boolean capability flag.",
+    "comment": "Every thermalprotection MetricName -> wire schema 'boolean'. Schema invariant enforced by config-rules.js.",
+    "schemas": [
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig:ThermalProtectionMetricName;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "Allowed values of Parameters.MetricName when MetricType='thermalprotection'.",
+        "enumValues": [
+          { "name": "IsSupported", "enumValue": "isSupported", "displayName": "Thermal Protection Supported" }
+        ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig:SensorGroup;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "SensorGroup allow-list for thermalprotection sensors. Conventionally 'SYS'.",
+        "enumValues": [ { "name": "SYS", "enumValue": "SYS", "displayName": "System" } ]
+      },
+      {
+        "@id": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig:SensorInfoSchema;1",
+        "@type": "Enum",
+        "valueSchema": "string",
+        "description": "Wire schema allow-list. Every thermalprotection MetricName -> 'boolean'.",
+        "enumValues": [
+          { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" }
+        ]
+      }
+    ],
+    "contents": [
+      { "@type": "Property", "name": "Name", "displayName": "Sensor Name",
+        "schema": "string", "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty ASCII string, 1..128 chars, unique within Sensors[]. Uniqueness enforced by config-rules.js.\nMaps to: Sensors[i].Name\nUI hint: text input on create; read-only after.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "SensorGroup", "displayName": "Sensor Group",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig:SensorGroup;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from the SensorGroup enum (thermalprotection sensors use 'SYS').\nMaps to: Sensors[i].SensorGroup\nUI hint: dropdown, default 'SYS'.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "MetricType", "displayName": "Metric Type",
+        "schema": "string", "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'thermalprotection' for this Interface.\nMaps to: Sensors[i].Parameters.MetricType\nUI hint: fixed label, not editable.\nWritable: immutable -- changing it requires defining a new Sensor." },
+
+      { "@type": "Property", "name": "MetricName", "displayName": "Metric",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig:ThermalProtectionMetricName;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from ThermalProtectionMetricName.\nMaps to: Sensors[i].Parameters.MetricName\nUI hint: dropdown.\nWritable: immutable after creation." },
+
+      { "@type": "Property", "name": "Enabled", "displayName": "Enabled",
+        "schema": "boolean", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: boolean.\nMaps to: Sensors[i].Report.Enabled\nUI hint: toggle / switch.\nWritable: twin desired-property sync-able (SIL2 maintenance lever)." },
+
+      { "@type": "Property", "name": "Interval", "displayName": "Publishing Interval (ms)",
+        "schema": "integer", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: integer, 1 <= v <= 300000 (5 minutes). Range enforced by config-rules.js.\nMaps to: Sensors[i].Report.Interval\nUI hint: number input, min=1, max=300000, step=100, default=6000.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "Description", "displayName": "Description",
+        "schema": "string", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.Description\nUI hint: textarea or text input.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "DisplayName", "displayName": "Display Name",
+        "schema": "string", "writable": true,
+        "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.DisplayName\nUI hint: short text input.\nWritable: twin desired-property sync-able." },
+
+      { "@type": "Property", "name": "Schema", "displayName": "Wire Schema",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:ThermalProtectionSensorConfig:SensorInfoSchema;1",
+        "writable": false,
+        "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'boolean' for every thermalprotection MetricName. Enforced by config-rules.js; the agent rejects startup on mismatch.\nMaps to: Sensors[i].SensorInfo.Schema\nUI hint: dropdown, default 'boolean'.\nWritable: immutable after creation." }
+    ]
+  }
+]

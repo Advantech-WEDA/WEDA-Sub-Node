@@ -1,9 +1,17 @@
 // WEDA System-Agent DTDL validator -- .NET 8 port of scripts/*.js.
 //
 // Usage:
-//   dotnet run -- dtdl          # schema-level only
+//   dotnet run -- dtdl          # schema-level only (parses *.dtdl.json at the
+//                                 DTDL_BASE root -- the legacy 5 array-form files)
 //   dotnet run -- configs       # config-level only (Parameters.* shape checks)
-//   dotnet run -- both          # both (default; alias: no args)
+//   dotnet run -- both          # legacy dtdl + configs (default; alias: no args)
+//   dotnet run -- verify        # DTDL-native (loads DTDL_BASE/dtdl/*.json --
+//                                 the split per-MetricType Interfaces) +
+//                                 ConfigRules, both layers per fixture
+//   dotnet run -- verify-net-v2 # DTDL-native ONLY (loads
+//                                 DTDL_BASE/dtdl/NetworkSensorConfig.v2.json
+//                                 and walks the nested Object schemas against
+//                                 every network row in samples-config)
 //
 // Paths:
 //   DTDL_BASE env var when set; else parent of AppContext.BaseDirectory.
@@ -22,7 +30,9 @@ public static class Program
             "configs" => await ConfigsValidator.RunAsync(),
             "both"    => await RunBothAsync(),
             "all"     => await RunBothAsync(),
-            _         => Unknown(mode),
+            "verify"        => await SamplesAgainstDtdlVerifier.RunAsync(),
+            "verify-net-v2" => await NetworkV2Verifier.RunAsync(),
+            _               => Unknown(mode),
         };
     }
 
@@ -36,7 +46,7 @@ public static class Program
     private static int Unknown(string mode)
     {
         Console.Error.WriteLine(
-            $"ERR unknown mode '{mode}'. Use 'dtdl', 'configs', or 'both'.");
+            $"ERR unknown mode '{mode}'. Use 'dtdl', 'configs', 'both', 'verify', or 'verify-net-v2'.");
         return 2;
     }
 
