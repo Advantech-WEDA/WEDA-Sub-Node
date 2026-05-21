@@ -324,7 +324,7 @@ Error: Authentication failed - invalid credentials
 
 ## See Also
 
-- [專案結構](../03-architecture/01-project-structure.md) - 了解設定檔的載入順序
+- [專案結構](../03-hierarchy/01-project-structure.md) - 了解設定檔的載入順序
 - [感測器設定](../04-configuration/02-configuration-via-json.md) - 設定裝置與感測器
 - [術語表](../01-introduction/03-terminology.md) - WedaNode、WedaCore 的定義
 
