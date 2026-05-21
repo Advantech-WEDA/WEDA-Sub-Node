@@ -90,7 +90,7 @@
   "contents": [
     { "@type": ["Property", "ConfigConstraint"], "name": "Name", "displayName": "Sensor Name",
       "schema": "string", "writable": false, "required": true,
-      "minLength": 1, "maxLength": 128 },
+      "minLength": 1, "maxLength": 64 },
     { "@type": ["Property", "ConfigConstraint"], "name": "SensorGroup", "displayName": "Sensor Group",
       "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:NetworkSensor:SensorGroup;1",
       "writable": false, "required": true },

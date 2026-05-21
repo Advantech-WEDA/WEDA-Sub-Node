@@ -53,7 +53,7 @@
         { "@type": ["Field", "ConfigConstraint"], "name": "Sources", "displayName": "Thermal Source List (v1.1)",
           "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:TemperatureSensor:SourceList;1",
           "required": false, "writable": false,
-          "mutexGroup": "tempSource",
+          "mutexGroup": "tempSource", "csvStringAccepted": true,
           "allowedOnlyWhen": { "field": "MetricName", "equals": "therm" } }
       ]
     },

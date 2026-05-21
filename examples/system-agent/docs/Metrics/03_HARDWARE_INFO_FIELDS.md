@@ -51,29 +51,34 @@ The `hwinfo` MetricType has no additional Parameters. All MetricNames return str
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `hwinfo_motherboard`, `hwinfo_biosrevision`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique across all sensors. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. `hwinfo` sensors conventionally use `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `hwinfo_motherboard`, `hwinfo_biosrevision`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique across all sensors. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. `hwinfo` sensors conventionally use `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `HwinfoSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `hwinfo` | Must equal `hwinfo` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific hwinfo field to read. | `motherboardname`, `manufacturer`, `biosrevision`, `driverversion`, `libraryversion`, `ecrevision` | Enum constraint above. |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific hwinfo field to read — the platform identity field name. | Free-form non-empty string, e.g., `motherboard`, `motherboard_serial`, `bios_revision`, `bios_version`, `ec_revision`, `driver_version`. The set is platform-dependent. | Non-empty string; `minLength: 1`, `maxLength: 64`. Not enumerated by the schema (free-form `string`). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. Hardware info is static at runtime; long intervals (e.g., 60 s) are typical. | Positive integer, e.g., `60000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. Hardware info is static at runtime; long intervals (e.g., 60 s) are typical. | Positive integer, e.g., `60000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For `hwinfo`: `string` (all MetricNames). | Must equal `string`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/HwinfoSensor.dtdl.json`](devicecfg/HwinfoSensor.dtdl.json) (`ConfigConstraint` extension). `MetricName` is a free-form `string` in the schema — the field set is platform-dependent, so it is not constrained to an enum.
 
 ### hwinfo MetricName → Schema Mapping
 
-| MetricName | `SensorInfo.Schema` | Description |
-|------------|---------------------|-------------|
-| `motherboardname` | `string` | Motherboard name |
+`MetricName` is a free-form `string` (platform-dependent); **every** `hwinfo` MetricName maps to `SensorInfo.Schema = "string"`. The rows below are representative identity fields, not an exhaustive enum.
+
+| MetricName (example) | `SensorInfo.Schema` | Description |
+|----------------------|---------------------|-------------|
+| `motherboard` | `string` | Motherboard name |
+| `motherboard_serial` | `string` | Motherboard serial number |
 | `manufacturer` | `string` | Manufacturer name |
-| `biosrevision` | `string` | BIOS revision |
-| `driverversion` | `string` | Platform driver version |
-| `libraryversion` | `string` | SDK library version |
-| `ecrevision` | `string` | Embedded controller revision |
+| `bios_revision` | `string` | BIOS revision |
+| `bios_version` | `string` | BIOS version |
+| `ec_revision` | `string` | Embedded controller revision |
+| `driver_version` | `string` | Platform (SUSI) driver version |
 
 ---
 

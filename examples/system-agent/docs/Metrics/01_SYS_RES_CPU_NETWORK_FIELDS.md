@@ -47,18 +47,20 @@ The CPU MetricType does **not** support Explicit list / Auto-detect mode. The sc
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form string, e.g., `cpu_usage`, `cpu_load_1m`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique across all sensors. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. CPU sensors conventionally use `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form string, e.g., `cpu_usage`, `cpu_load_1m`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique across all sensors. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. CPU sensors use `SYS`. | `SYS` | Must equal `SYS` (the `CpuSensor` schema's `SensorGroup` enum). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `cpu` | Must equal `cpu` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific CPU metric to collect. | `usage`, `load1`, `load5`, `load15`, `context_switches` | Enum constraint above. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`, `10000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`, `10000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. Must match the underlying MetricName's native type. | `double` (for `usage`, `load1`, `load5`, `load15`); `long` (for `context_switches`). | Enum value above; AND must equal the MetricName's native return type. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds (`minLength` / `maxLength` / `minimum` / `maximum`) above come from [`devicecfg/CpuSensor.dtdl.json`](devicecfg/CpuSensor.dtdl.json) — every Property / Field is co-typed `ConfigConstraint` (`dtmi:advantech:edgesync:validation;1`). The `Name` pattern and uniqueness are documented rules the DTDL+extension cannot express.
 
 ### CPU MetricName → Schema Mapping
 
@@ -152,20 +154,22 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 | Hierarchy Key Name | Schema | Changeable | Required (v1.0 / v1.1) | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|------------------------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<interface>` (e.g., `network_bytes_sent_eth0`). | Free-form, e.g., `network_eth0_bytes_sent` (bound) or `network_bytes_sent` (generic in v1.1). | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64` (after expansion suffix in v1.1); unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Network uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<interface>` (e.g., `network_bytes_sent_eth0`). | Free-form, e.g., `network_eth0_bytes_sent` (bound) or `network_bytes_sent` (generic in v1.1). | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Network uses `SYS`. | `SYS` | Must equal `SYS` (the `NetworkSensor` schema's `SensorGroup` enum). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | v1.0: must contain `MetricType`, `MetricName`, `Interface`. v1.1: must contain `MetricType`, `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `network` | Must equal `network` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific network metric. | `bytes_sent`, `bytes_received`, `packets_sent`, `packets_received`, `errors`, `errors_in`, `errors_out` | Enum constraint above. |
-| `Parameters.Interface` | string | ✅ | ✅ / ❌ | OS-level interface name. v1.0: required single binding. v1.1: bound mode only — when set, overrides `Interfaces` and disables expansion. | e.g., `eth0`, `en0`, `wlan0`. | Non-empty string. Must resolve to an interface present on the host at startup. v1.1: semantically mutually exclusive with `Interfaces`. |
-| `Parameters.Interfaces` | `oneOf: [array<string>, string]` | ✅ | ❌/✅   | **v1.1 only.** List of interfaces, or empty for auto-detect. | JSON array `["eth0","eth1"]`; CSV `"eth0,eth1"`; `[]`; `""`. | Array of strings or a single string. Empty array/string → auto-detect. |
+| `Parameters.Interface` | string | ✅ | ✅ / ✅ | OS-level interface name. v1.0: required single binding. v1.1: bound mode only — when set, overrides `Interfaces` and disables expansion. | e.g., `eth0`, `en0`, `wlan0`. | Non-empty string; `minLength: 1`, `maxLength: 64`. Mutually exclusive with `Interfaces` (`mutexGroup: networkBinding`). |
+| `Parameters.Interfaces` | `array<string>` (or CSV string) | ✅ | ❌/✅   | **v1.1 only.** List of interfaces, or empty for auto-detect. | JSON array `["eth0","eth1"]`; CSV `"eth0,eth1"`; `[]`; `""`. | JSON array of strings; a comma-separated / empty string is also accepted (`csvStringAccepted`). Empty → auto-detect. Mutually exclusive with `Interface` (`mutexGroup: networkBinding`). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For network: `long`. | Must equal `long`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. v1.1: runtime appends ` (<interface>)` after expansion. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. v1.1: runtime prepends `<interface> ` after expansion. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. v1.1: runtime appends ` (<interface>)` after expansion. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. v1.1: runtime prepends `<interface> ` after expansion. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds and the `Interface`/`Interfaces` mutual exclusivity above come from [`devicecfg/NetworkSensor.dtdl.json`](devicecfg/NetworkSensor.dtdl.json) (`ConfigConstraint` extension). If both `Interface` and `Interfaces` are set non-empty the schema rejects the entry; the runtime would otherwise break the tie by priority (`Interface` wins).
 
 > Footnote on `Interface` / `Interfaces` in v1.1: the validator should permit any of — only `Interface` set, only `Interfaces` set, or neither set. If both are set, the runtime breaks the tie by priority (`Interface` wins).
 

@@ -45,7 +45,8 @@
       "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
       "enumValues": [
         { "name": "Long",    "enumValue": "long",    "displayName": "long" },
-        { "name": "Integer", "enumValue": "integer", "displayName": "integer" }
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" }
       ]
     },
     {

@@ -49,18 +49,20 @@ The GPU MetricType has no additional Parameters.
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `gpu_utilization`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. GPU uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `gpu_utilization`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. GPU uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `GpuSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `gpu` | Must equal `gpu` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific GPU metric. | `utilization` | Enum constraint above. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For GPU: `integer`. | Must equal `integer`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/GpuSensor.dtdl.json`](devicecfg/GpuSensor.dtdl.json) (`ConfigConstraint` extension).
 
 ### GPU MetricName → Schema Mapping
 
