@@ -78,19 +78,19 @@ This `devicecfg.json` currently publishes **33 sensors** spanning **13 MetricTyp
 
 | MetricType | Sensors here | Detail doc |
 |---|---|---|
-| `cpu` | 5 | [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](01_SYS_RES_CPU_NETWORK_FIELDS.md) · [DTDL](01_SYSTEM_RESOURCE.dtdl.json) · [USAGE](01_SYS_RES_CPU_NETWORK_USAGE.md) |
-| `network` | 5 | [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](01_SYS_RES_CPU_NETWORK_FIELDS.md) · [DTDL](01_SYSTEM_RESOURCE.dtdl.json) · [USAGE](01_SYS_RES_CPU_NETWORK_USAGE.md) |
-| `memory` | 6 | [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](01_SYS_RES_MEMORY_DISK_FIELDS.md) · [DTDL](01_SYSTEM_RESOURCE.dtdl.json) · [USAGE](01_SYS_RES_MEMORY_DISK_USAGE.md) |
-| `disk` | 4 | [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](01_SYS_RES_MEMORY_DISK_FIELDS.md) · [DTDL](01_SYSTEM_RESOURCE.dtdl.json) · [USAGE](01_SYS_RES_MEMORY_DISK_USAGE.md) |
-| `system` | 2 | [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](01_SYS_RES_MEMORY_DISK_FIELDS.md) · [DTDL](01_SYSTEM_RESOURCE.dtdl.json) · [USAGE](01_SYS_RES_MEMORY_DISK_USAGE.md) |
-| `gpu` | 1 | [`02_GPU_FIELDS.md`](02_GPU_FIELDS.md) · [DTDL](02_GPU_RESOURCE.dtdl.json) · [USAGE](02_GPU_USAGE.md) |
-| `hwinfo` | 3 | [`03_HARDWARE_INFO_FIELDS.md`](03_HARDWARE_INFO_FIELDS.md) · [DTDL](03_HARDWARE_INFO.dtdl.json) · [USAGE](03_HARDWARE_INFO_USAGE.md) |
-| `temperature` | 1 | [`04_ONBOARD_SENSOR_FIELDS.md`](04_ONBOARD_SENSOR_FIELDS.md) · [DTDL](04_ONBOARD_SENSOR.dtdl.json) · [USAGE](04_ONBOARD_SENSOR_USAGE.md) |
-| `voltage` | 1 | [`04_ONBOARD_SENSOR_FIELDS.md`](04_ONBOARD_SENSOR_FIELDS.md) |
-| `fanspeed` | 1 | [`04_ONBOARD_SENSOR_FIELDS.md`](04_ONBOARD_SENSOR_FIELDS.md) |
-| `gpio` | 2 | [`05_HARDWARE_FEATURE_FIELDS.md`](05_HARDWARE_FEATURE_FIELDS.md) · [DTDL](05_HARDWARE_FEATURE.dtdl.json) · [USAGE](05_HARDWARE_FEATURE_USAGE.md) |
-| `watchdog` | 1 | [`05_HARDWARE_FEATURE_FIELDS.md`](05_HARDWARE_FEATURE_FIELDS.md) |
-| `thermalprotection` | 1 | [`05_HARDWARE_FEATURE_FIELDS.md`](05_HARDWARE_FEATURE_FIELDS.md) |
+| `cpu` | 5 | [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](01_SYS_RES_CPU_NETWORK_FIELDS.md) · [DTDL](devicecfg/CpuSensor.dtdl.json) · [USAGE](01_SYS_RES_CPU_NETWORK_USAGE.md) |
+| `network` | 5 | [`01_SYS_RES_CPU_NETWORK_FIELDS.md`](01_SYS_RES_CPU_NETWORK_FIELDS.md) · [DTDL](devicecfg/NetworkSensor.dtdl.json) · [USAGE](01_SYS_RES_CPU_NETWORK_USAGE.md) |
+| `memory` | 6 | [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](01_SYS_RES_MEMORY_DISK_FIELDS.md) · [DTDL](devicecfg/MemorySensor.dtdl.json) · [USAGE](01_SYS_RES_MEMORY_DISK_USAGE.md) |
+| `disk` | 4 | [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](01_SYS_RES_MEMORY_DISK_FIELDS.md) · [DTDL](devicecfg/DiskSensor.dtdl.json) · [USAGE](01_SYS_RES_MEMORY_DISK_USAGE.md) |
+| `system` | 2 | [`01_SYS_RES_MEMORY_DISK_FIELDS.md`](01_SYS_RES_MEMORY_DISK_FIELDS.md) · [DTDL](devicecfg/SystemSensor.dtdl.json) · [USAGE](01_SYS_RES_MEMORY_DISK_USAGE.md) |
+| `gpu` | 1 | [`02_GPU_FIELDS.md`](02_GPU_FIELDS.md) · [DTDL](devicecfg/GpuSensor.dtdl.json) · [USAGE](02_GPU_USAGE.md) |
+| `hwinfo` | 3 | [`03_HARDWARE_INFO_FIELDS.md`](03_HARDWARE_INFO_FIELDS.md) · [DTDL](devicecfg/HwinfoSensor.dtdl.json) · [USAGE](03_HARDWARE_INFO_USAGE.md) |
+| `temperature` | 1 | [`04_ONBOARD_SENSOR_FIELDS.md`](04_ONBOARD_SENSOR_FIELDS.md) · [DTDL](devicecfg/TemperatureSensor.dtdl.json) · [USAGE](04_ONBOARD_SENSOR_USAGE.md) |
+| `voltage` | 1 | [`04_ONBOARD_SENSOR_FIELDS.md`](04_ONBOARD_SENSOR_FIELDS.md) · [DTDL](devicecfg/VoltageSensor.dtdl.json) |
+| `fanspeed` | 1 | [`04_ONBOARD_SENSOR_FIELDS.md`](04_ONBOARD_SENSOR_FIELDS.md) · [DTDL](devicecfg/FanspeedSensor.dtdl.json) |
+| `gpio` | 2 | [`05_HARDWARE_FEATURE_FIELDS.md`](05_HARDWARE_FEATURE_FIELDS.md) · [DTDL](devicecfg/GpioSensor.dtdl.json) · [USAGE](05_HARDWARE_FEATURE_USAGE.md) |
+| `watchdog` | 1 | [`05_HARDWARE_FEATURE_FIELDS.md`](05_HARDWARE_FEATURE_FIELDS.md) · [DTDL](devicecfg/WatchdogSensor.dtdl.json) |
+| `thermalprotection` | 1 | [`05_HARDWARE_FEATURE_FIELDS.md`](05_HARDWARE_FEATURE_FIELDS.md) · [DTDL](devicecfg/ThermalProtectionSensor.dtdl.json) |
 
 Need to add a brand-new `MetricType`? Follow [`_template/README.md`](_template/README.md) — it produces the same three-file layout used above (`FIELDS.md` + `.dtdl.json` + `USAGE.md`).
 
