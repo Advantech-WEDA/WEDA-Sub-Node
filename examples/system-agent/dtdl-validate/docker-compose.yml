@@ -26,15 +26,3 @@ services:
       - ../docs/Metrics:/work:ro
     environment:
       DTDL_BASE: /work
-
-  # .NET 8 validator (same logic, useful when the team already has .NET
-  # tooling pinned or wants to share a single base image with the agent).
-  validate-dotnet:
-    build:
-      context: ./scripts-dotnet
-      dockerfile: Dockerfile
-    image: weda-dtdl-validate-dotnet:latest
-    volumes:
-      - ../docs/Metrics:/work:ro
-    environment:
-      DTDL_BASE: /work

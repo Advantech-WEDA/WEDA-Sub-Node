@@ -318,28 +318,7 @@ The image is ~155 MB on top of `node:20-alpine` (parser binary is the bulk). The
 | `/work/` (bind-mount) | The five `*.dtdl.json` files and the `samples-config/` folder, mounted from your host. |
 | Env `DTDL_BASE=/work` | Tells both scripts where to read DTDLs / samples-config from. |
 
-### 3.4 .NET equivalent
-
-The same two-layer validation is available as a .NET 8 console app under [`scripts-dotnet/`](./scripts-dotnet/). It uses the official Microsoft `DTDLParser` NuGet — same parser engine as the .NET examples in the per-Interface `*_USAGE.md` docs.
-
-| File | Purpose |
-|------|---------|
-| `scripts-dotnet/ValidateDtdl.csproj` | .NET 8 console project; references `DTDLParser` 1.0.52. |
-| `scripts-dotnet/Program.cs` | Argv routing (`dtdl` / `configs` / `both`) and `DTDL_BASE` resolution. |
-| `scripts-dotnet/DtdlValidator.cs` | Schema-level — parses each Interface, then the combined model. |
-| `scripts-dotnet/ConfigsValidator.cs` | Config-level — runs every fixture against `ConfigRules.Rules`. |
-| `scripts-dotnet/ConfigRules.cs` | Per-MetricType `Func<JsonElement, RuleResult>` — mirror of `config-rules.js`. |
-| `scripts-dotnet/Dockerfile` | Multi-stage build (SDK image restores + publishes; runtime image is `mcr.microsoft.com/dotnet/runtime:8.0`). |
-
-Compose service already wired in `docs/Metrics/../../dtdl-validate/docker-compose.yml`:
-
-```bash
-docker compose run --rm validate-dotnet            # both layers
-docker compose run --rm validate-dotnet dtdl       # schema only
-docker compose run --rm validate-dotnet configs    # config only
-```
-
-### 3.5 Pinning the image for CI
+### 3.4 Pinning the image for CI
 
 The image tag `weda-dtdl-validate:latest` is mutable. For CI, build once and pin by digest:
 
