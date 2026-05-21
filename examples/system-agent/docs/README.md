@@ -85,9 +85,8 @@ Located at `examples/system-agent/dtdl-validate/`. Validates DTDL Interface defi
 
 | Path | Description |
 |------|-------------|
-| `dtdl-validate/docker-compose.yml` | One-command validation (includes both .NET and Node.js validators) |
-| `dtdl-validate/scripts-dotnet/` | .NET validator (uses Microsoft DTDLParser) |
-| `dtdl-validate/scripts/` | Node.js validator (lightweight alternative) |
+| `dtdl-validate/docker-compose.yml` | One-command validation |
+| `dtdl-validate/scripts/` | Node.js validator |
 
 Usage:
 
