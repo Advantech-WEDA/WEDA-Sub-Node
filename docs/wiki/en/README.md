@@ -20,9 +20,9 @@ New to SubNode? Start here:
 | Guide | Description |
 |-------|-------------|
 | [What is SubNode?](./01-introduction/what-is-subnode.md) | Overview and capabilities |
-| [Prerequisites](./02-getting-started/prerequisites.md) | Development environment setup |
-| [Start with Example](./02-getting-started/start-with-example.md) | Run your first SubNode application |
-| [Start with Template](./02-getting-started/start-with-template.md) | Create a new project |
+| [Prerequisites](./02-getting-started/01-prerequisites.md) | Development environment setup |
+| [Start with Example](./02-getting-started/02-start-with-example.md) | Run your first SubNode application |
+| [Start with Template](./02-getting-started/03-start-with-template.md) | Create a new project |
 
 ### Core Concepts
 
@@ -32,7 +32,7 @@ Understand the fundamentals:
 |-------|-------------|
 | [Architecture](./01-introduction/architecture.md) | System design and components |
 | [Terminology](./01-introduction/terminology.md) | Key terms and definitions |
-| [Project Structure](./03-architecture/project-structure.md) | SDK organization |
+| [Project Structure](./03-hierarchy/01-project-structure.md) | SDK organization |
 
 ### Configuration
 
@@ -50,7 +50,7 @@ Process and transform sensor data:
 
 | Topic | Description |
 |-------|-------------|
-| [Pipeline Overview](./05-data-pipeline/pipeline-overview.md) | Data processing architecture |
+| [Pipeline Overview](./05-data-pipeline/01-overview.md) | Data processing architecture |
 
 ### Cloud Integration
 
@@ -58,7 +58,7 @@ Connect to WedaCore:
 
 | Guide | Description |
 |-------|-------------|
-| [Connect to WedaCore](./02-getting-started/connect-to-wedacore.md) | Cloud connectivity setup |
+| [Connect to WedaCore](./02-getting-started/04-connect-to-wedacore.md) | Cloud connectivity setup |
 
 ## Documentation Structure
 

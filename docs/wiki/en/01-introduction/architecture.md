@@ -223,7 +223,7 @@ Events are disabled by default for performance. Enable only the events you need.
 ## See Also
 
 - [Terminology](./terminology.md) - Key terms and definitions
-- [Project Structure](../03-project-structure.md) - File and folder organization
+- [Project Structure](../03-hierarchy/01-project-structure.md) - File and folder organization
 - [Sensor Configuration](../04-sensor-configuration/configuration-reference.md) - Detailed configuration options
 
 import Revision from '@site/src/components/Revision';

@@ -144,7 +144,7 @@ dotnet run
 3. 每 1 秒讀取 `temperature` 感測器
 4. 透過 MockCloudService 模擬上傳遙測資料
 
-詳細步驟請參閱[使用範本開始](../02-getting-started/start-with-template.md)。
+詳細步驟請參閱[使用範本開始](../02-getting-started/03-start-with-template.md)。
 
 ---
 
