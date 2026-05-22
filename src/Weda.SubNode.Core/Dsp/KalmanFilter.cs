@@ -1,40 +1,58 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
-using ErrorOr;
+using System.Text.Json.Serialization;
+
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Dsp;
 
 /// <summary>
-/// Simple 1D Kalman filter for telemetry data
+/// Configuration parameters for <see cref="KalmanFilter"/>.
 /// </summary>
-public class KalmanFilter : IDspFilter, IConfigurableDspFilter<KalmanFilter>
+public class KalmanParameters : IValidatableObject
+{
+    [Description("Process noise (Q). Must be >= 0.")]
+    [JsonPropertyName("processNoise")]
+    [Range(0.0, double.MaxValue)]
+    [DefaultValue(0.01)]
+    public double ProcessNoise { get; init; } = 0.01;
+
+    [Description("Measurement noise (R). Must be > 0.")]
+    [JsonPropertyName("measurementNoise")]
+    [DefaultValue(0.1)]
+    public double MeasurementNoise { get; init; } = 0.1;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (MeasurementNoise <= 0)
+        {
+            yield return new ValidationResult(
+                "MeasurementNoise must be greater than 0.",
+                [nameof(MeasurementNoise)]);
+        }
+    }
+}
+
+/// <summary>
+/// Simple 1D Kalman filter for telemetry data.
+/// </summary>
+public class KalmanFilter
+    : IDspFilter,
+      IConfigurableDspFilter<KalmanFilter, KalmanParameters>
 {
     private double _processNoise;
     private double _measurementNoise;
     private readonly Dictionary<string, KalmanState> _states = new();
 
-    // === Static Abstract Implementation (Self-Registration) ===
-
-    /// <inheritdoc/>
     public static string TypeName => "kalman";
 
-    /// <inheritdoc/>
-    public static KalmanFilter Create(Dictionary<string, object> parameters)
-    {
-        var processNoise = GetDoubleParameter(parameters, "ProcessNoise", 0.01);
-        var measurementNoise = GetDoubleParameter(parameters, "MeasurementNoise", 0.1);
-        return new KalmanFilter(processNoise, measurementNoise);
-    }
+    public static string? Description =>
+        "1D Kalman filter that fuses noisy measurements with a process model.";
 
-    private static double GetDoubleParameter(Dictionary<string, object> parameters, string key, double defaultValue)
-    {
-        if (parameters.TryGetValue(key, out var value))
-            return Convert.ToDouble(value);
-        return defaultValue;
-    }
-
-    // === Instance Members ===
+    public static KalmanFilter Create(KalmanParameters parameters) =>
+        new(parameters.ProcessNoise, parameters.MeasurementNoise);
 
     public KalmanFilter(double processNoise = 0.01, double measurementNoise = 0.1)
     {
@@ -42,39 +60,13 @@ public class KalmanFilter : IDspFilter, IConfigurableDspFilter<KalmanFilter>
         _measurementNoise = measurementNoise;
     }
 
-    /// <inheritdoc/>
     public bool Enabled { get; set; } = true;
 
-    /// <inheritdoc/>
-    public ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters)
+    public void UpdateParameters(KalmanParameters parameters)
     {
-        if (parameters.TryGetValue("ProcessNoise", out var pn))
-        {
-            var processNoise = Convert.ToDouble(pn);
-            if (processNoise < 0)
-                return Error.Validation("KalmanFilter.ProcessNoise", "ProcessNoise must be >= 0");
-        }
-
-        if (parameters.TryGetValue("MeasurementNoise", out var mn))
-        {
-            var measurementNoise = Convert.ToDouble(mn);
-            if (measurementNoise <= 0)
-                return Error.Validation("KalmanFilter.MeasurementNoise", "MeasurementNoise must be > 0");
-        }
-
-        return Result.Success;
-    }
-
-    /// <inheritdoc/>
-    public void UpdateParameters(Dictionary<string, object> parameters)
-    {
-        if (parameters.TryGetValue("ProcessNoise", out var pn))
-            _processNoise = Convert.ToDouble(pn);
-
-        if (parameters.TryGetValue("MeasurementNoise", out var mn))
-            _measurementNoise = Convert.ToDouble(mn);
-
-        // Note: _states is preserved, no warm-up needed
+        _processNoise = parameters.ProcessNoise;
+        _measurementNoise = parameters.MeasurementNoise;
+        // Note: _states preserved across parameter updates; no warm-up required.
     }
 
     public async IAsyncEnumerable<TelemetryMeasure> ApplyAsync(
@@ -83,44 +75,38 @@ public class KalmanFilter : IDspFilter, IConfigurableDspFilter<KalmanFilter>
     {
         await foreach (var measure in input.WithCancellation(cancellationToken))
         {
-            // Pass through if disabled
             if (!Enabled)
             {
                 yield return measure;
                 continue;
             }
 
-            // Convert Value to double
             if (measure.Value is not double and not int and not float and not long)
             {
-                yield return measure; // Pass through non-numeric values
+                yield return measure;
                 continue;
             }
 
             var value = Convert.ToDouble(measure.Value);
 
-            // Get or create state for this sensor
             if (!_states.ContainsKey(measure.ResourceId))
             {
                 _states[measure.ResourceId] = new KalmanState
                 {
                     Estimate = value,
-                    ErrorCovariance = 1.0
+                    ErrorCovariance = 1.0,
                 };
             }
 
             var state = _states[measure.ResourceId];
 
-            // Prediction
             var predictedEstimate = state.Estimate;
             var predictedErrorCovariance = state.ErrorCovariance + _processNoise;
 
-            // Update
             var kalmanGain = predictedErrorCovariance / (predictedErrorCovariance + _measurementNoise);
             var estimate = predictedEstimate + kalmanGain * (value - predictedEstimate);
             var errorCovariance = (1 - kalmanGain) * predictedErrorCovariance;
 
-            // Save state
             state.Estimate = estimate;
             state.ErrorCovariance = errorCovariance;
 

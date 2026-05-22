@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "integer"
+    },
+    "message": {
+      "type": "string"
+    },
+    "resultData": {
+      "type": "object",
+      "properties": {
+        "successCount": {
+          "type": "integer"
+        },
+        "failureCount": {
+          "type": "integer"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "state": {
+                "type": "boolean"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": "string"
+              },
+              "deviceName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "errorDetails": {
+      "type": "object",
+      "properties": {
+        "errorCode": {
+          "type": "string"
+        },
+        "recommendation": {
+          "type": "string"
+        }
+      }
+    },
+    "executedAt": {
+      "type": "integer"
+    },
+    "completedAt": {
+      "type": "integer"
+    }
+  }
+}

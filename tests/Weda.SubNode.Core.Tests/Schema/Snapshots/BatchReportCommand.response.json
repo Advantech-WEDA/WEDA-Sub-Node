@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "integer"
+    },
+    "message": {
+      "type": "string"
+    },
+    "resultData": {
+      "type": "object",
+      "properties": {
+        "batchesSent": {
+          "type": "integer"
+        },
+        "totalSamples": {
+          "type": "integer"
+        },
+        "timeRange": {
+          "type": "object",
+          "properties": {
+            "startTime": {
+              "type": "string"
+            },
+            "endTime": {
+              "type": "string"
+            }
+          }
+        },
+        "sensors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dataGaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sensorId": {
+                "type": "string"
+              },
+              "startTime": {
+                "type": "string"
+              },
+              "endTime": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "missingSamples": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "errorDetails": {
+      "type": "object",
+      "properties": {
+        "errorCode": {
+          "type": "string"
+        },
+        "recommendation": {
+          "type": "string"
+        }
+      }
+    },
+    "executedAt": {
+      "type": "integer"
+    },
+    "completedAt": {
+      "type": "integer"
+    }
+  }
+}

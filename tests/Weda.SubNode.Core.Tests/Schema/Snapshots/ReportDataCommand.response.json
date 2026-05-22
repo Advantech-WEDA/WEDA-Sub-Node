@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "integer"
+    },
+    "message": {
+      "type": "string"
+    },
+    "resultData": {
+      "type": "object",
+      "properties": {
+        "sensorShortResourceId": {
+          "type": "string"
+        },
+        "resourceTimestamp": {
+          "type": "integer"
+        },
+        "transferId": {
+          "type": "string"
+        },
+        "dataTransferred": {
+          "type": "boolean"
+        }
+      }
+    },
+    "executedAt": {
+      "type": "integer"
+    },
+    "completedAt": {
+      "type": "integer"
+    }
+  }
+}

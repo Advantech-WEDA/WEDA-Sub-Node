@@ -315,18 +315,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         // Load all device configurations from DeviceCfg
         _deviceConfigs = LoadAllDeviceConfigurations();
 
-        // Setup cloud service
-        if (_options.CloudService != null)
-        {
-            _cloudService = _options.CloudService;
-        }
-        else
-        {
-            // Create default cloud service with real NATS connection
-            (_cloudService, _natsClient) = CreateDefaultCloudService();
-        }
-
-        // Create Command Registry and auto-scan handlers
+        // Create Command Registry and auto-scan handlers (built before cloud
+        // service so DeviceAgentClient can receive it for capability upload).
         // Pipeline behaviors are now configured via attributes on handler classes:
         // - [Validation(typeof(...))] adds ValidatorBehavior
         // - [Logging] adds LoggingBehavior
@@ -340,6 +330,17 @@ public class WedaApplicationContext : IWedaApplicationContext
         if (entryAssembly != null && entryAssembly != typeof(CommandRegistry).Assembly)
         {
             commandRegistry.ScanAssembly(entryAssembly);
+        }
+
+        // Setup cloud service
+        if (_options.CloudService != null)
+        {
+            _cloudService = _options.CloudService;
+        }
+        else
+        {
+            // Create default cloud service with real NATS connection
+            (_cloudService, _natsClient) = CreateDefaultCloudService(commandRegistry);
         }
 
         // Create Command Dispatcher
@@ -832,7 +833,7 @@ public class WedaApplicationContext : IWedaApplicationContext
         }
     }
 
-    private (IWedaCloudService, NatsClient?) CreateDefaultCloudService()
+    private (IWedaCloudService, NatsClient?) CreateDefaultCloudService(CommandRegistry? commandRegistry = null)
     {
         var settings = _options.NatsConnectionSettings;
         var natsOpts = NatsOpts.Default with
@@ -846,7 +847,8 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         var deviceAgentClient = new DeviceAgentClient(
             natsClient,
-            _loggerFactory.CreateLogger<DeviceAgentClient>());
+            _loggerFactory.CreateLogger<DeviceAgentClient>(),
+            commandRegistry);
 
         var telemetryClient = new TelemetryClient(
             natsClient,

@@ -3,8 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Net;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
-using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Mapping;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Core.Cloud.Clients.DeviceManagement.Mapping;
+using Weda.SubNode.Core.Commands;
 
 namespace Weda.SubNode.Cloud.Clients;
 
@@ -16,14 +17,17 @@ public class DeviceAgentClient : IDeviceAgentClient
 {
     private readonly ILogger<DeviceAgentClient> _logger;
     private readonly NatsClient _client;
+    private readonly CommandRegistry? _commandRegistry;
     private DeviceConfigurations? _deviceConfigurations;
 
     public DeviceAgentClient(
         NatsClient client,
-        ILogger<DeviceAgentClient>? logger = null)
+        ILogger<DeviceAgentClient>? logger = null,
+        CommandRegistry? commandRegistry = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<DeviceAgentClient>();
+        _commandRegistry = commandRegistry;
     }
 
     private const string RegisterDeviceSubject = "eco1j.weda.dm.reg.req";
@@ -65,8 +69,10 @@ public class DeviceAgentClient : IDeviceAgentClient
             throw new ArgumentException("DeviceConfigurations must not be empty", nameof(configurations));
         }
 
-        // Convert to DTO using mapping extension
-        var dto = configurations.ToConfigurationDto();
+        // Convert to DTO using mapping extension — pulls Transform / DSP filter
+        // descriptors from static factories and command descriptors from the
+        // injected registry (empty when registry is not wired up).
+        var dto = configurations.ToConfigurationDto(_commandRegistry);
         var request = ConfigurationUploadRequest.Create(dto);
 
         _logger.LogInformation(

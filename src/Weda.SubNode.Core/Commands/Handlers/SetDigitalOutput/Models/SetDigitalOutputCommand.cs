@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -28,6 +29,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("do.set")]
+[Description("Set digital output channels on a target device.")]
 public class SetDigitalOutputCommand : CommandData<SetDigitalOutputParameters>
 {
 }

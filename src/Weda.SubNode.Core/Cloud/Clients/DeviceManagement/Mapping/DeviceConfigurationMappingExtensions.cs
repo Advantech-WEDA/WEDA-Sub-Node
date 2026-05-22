@@ -1,21 +1,36 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Commands;
+using Weda.SubNode.Core.Dsp;
+using Weda.SubNode.Core.Transforms;
 
-namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Mapping;
+namespace Weda.SubNode.Core.Cloud.Clients.DeviceManagement.Mapping;
 
 /// <summary>
-/// Mapping extensions for DeviceConfiguration to Contract DTOs
-/// Manual mapping for optimal performance
+/// Mapping extensions for DeviceConfiguration to Contract DTOs.
 /// </summary>
+/// <remarks>
+/// Located in Core rather than Abstractions because assembling the
+/// <see cref="SubNodeCapabilitiesDto"/> requires pulling descriptors from
+/// <see cref="TransformFactory"/>, <see cref="DspFilterFactory"/>, and
+/// <see cref="CommandRegistry"/> — all of which live in Core.
+/// </remarks>
 public static class DeviceConfigurationMappingExtensions
 {
-
     /// <summary>
-    /// Convert DeviceConfiguration to DeviceConfigurationDto
-    /// Used for configuration upload/sync
+    /// Convert <see cref="DeviceConfigurations"/> to <see cref="DeviceConfigurationDto"/> for upload.
     /// </summary>
-    public static DeviceConfigurationDto ToConfigurationDto(this DeviceConfigurations configs)
+    /// <param name="configs">Device configurations from the SubNode.</param>
+    /// <param name="commandRegistry">
+    /// Optional. When provided, command descriptors are included in
+    /// <c>SubNodeCapabilitiesDto.Commands</c>. When null, commands list is empty.
+    /// Transform and DSP filter descriptors are always pulled from the static
+    /// factories.
+    /// </param>
+    public static DeviceConfigurationDto ToConfigurationDto(
+        this DeviceConfigurations configs,
+        CommandRegistry? commandRegistry = null)
     {
         if (configs.Count == 0)
         {
@@ -37,18 +52,17 @@ public static class DeviceConfigurationMappingExtensions
         }
 
         var config = configs.First().Value;
-        var subNodeInfo = config.SubNodeInfo ?? throw new InvalidOperationException("SubNodeInfo must be set");
+        _ = config.SubNodeInfo ?? throw new InvalidOperationException("SubNodeInfo must be set");
 
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
             Dtdl: MergeDtdl(enabledConfigs),
-            DeviceCapabilities: ToDeviceCapabilitiesDto(enabledConfigs));
-    }    
+            DeviceCapabilities: ToDeviceCapabilitiesDto(enabledConfigs, commandRegistry));
+    }
 
-    /// <summary>
-    /// Convert DeviceConfiguration to DeviceCapDto
-    /// </summary>
-    private static DeviceCapDto ToDeviceCapabilitiesDto(List<DeviceConfiguration> configs)
+    private static DeviceCapDto ToDeviceCapabilitiesDto(
+        List<DeviceConfiguration> configs,
+        CommandRegistry? commandRegistry)
     {
         var config = configs.First();
         var subNodeInfo = config.SubNodeInfo!;
@@ -58,6 +72,11 @@ public static class DeviceConfigurationMappingExtensions
             .Select(s => s.ToSensorDto())
             .ToList();
 
+        var capabilities = new SubNodeCapabilitiesDto(
+            Transforms: TransformFactory.GetDescriptors(),
+            DspFilters: DspFilterFactory.GetDescriptors(),
+            Commands: commandRegistry?.GetDescriptors() ?? []);
+
         return new DeviceCapDto(
             Manufacturer: subNodeInfo.Manufacturer,
             Model: subNodeInfo.Model,
@@ -65,12 +84,10 @@ public static class DeviceConfigurationMappingExtensions
             SubNodeSwVersion: subNodeInfo.SwVersion,
             DeviceName: subNodeInfo.Name,
             DeviceInfo: subNodeInfo.Metadata,
-            Sensors: sensors);
+            Sensors: sensors,
+            Capabilities: capabilities);
     }
 
-    /// <summary>
-    /// Convert Sensor to SensorDto (for configuration upload)
-    /// </summary>
     private static SensorDto ToSensorDto(this Sensor sensor)
     {
         return new SensorDto(
@@ -92,15 +109,11 @@ public static class DeviceConfigurationMappingExtensions
             {
                 merged.TryAdd(kvp.Key, kvp.Value);
             }
-        }   
+        }
 
         return merged;
     }
 
-    /// <summary>
-    /// Convert DTDL object to dictionary
-    /// Handles different DTDL object types - flattens structure for cloud API
-    /// </summary>
     private static Dictionary<string, object> ConvertDtdl(object? dtdl)
     {
         if (dtdl == null)
@@ -108,18 +121,15 @@ public static class DeviceConfigurationMappingExtensions
             return new Dictionary<string, object>();
         }
 
-        // If already a dictionary, return as-is (already flat)
         if (dtdl is Dictionary<string, object> dict)
         {
             return dict;
         }
 
-        // For other object types (like DTDL model classes), serialize to dictionary
-        // Use JsonSerializerOptions to ignore null values
         var options = new System.Text.Json.JsonSerializerOptions
         {
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = false
+            WriteIndented = false,
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(dtdl, options);
