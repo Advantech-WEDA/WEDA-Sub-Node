@@ -14,9 +14,8 @@ services:
 
   # ImageSensor Application
   image-sensor:
-    build:
-      context: ../..
-      dockerfile: examples/image-sensor/Dockerfile
+    image: ${IMAGE_SENSOR_IMAGE:-harbor.arfa.wise-paas.com/edge-coa/image-sensor:latest}
+    pull_policy: always
     container_name: image-sensor-app
     network_mode: host
     restart: unless-stopped
