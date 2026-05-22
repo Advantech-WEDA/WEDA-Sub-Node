@@ -60,6 +60,11 @@
           "name": "allowedOnlyWhen",
           "dataType": "object",
           "description": "Conditional presence. An object { \"field\": <sibling field name>, \"equals\": <string value> }. The annotated field may be present on the JSON instance only when the named sibling field of the same Object equals the given value; present otherwise is a hard validation error. Used so PinId/PinIds appear only when MetricName='pinState' and Source/Sources only when MetricName='therm'."
+        },
+        {
+          "name": "default",
+          "dataType": "any",
+          "description": "Suggested default value for a changeable (writable) member, used by form UIs to pre-fill the input control. Informational -- it does not affect payload validation. Only meaningful on writable members."
         }
       ]
     }

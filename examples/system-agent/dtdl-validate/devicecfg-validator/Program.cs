@@ -110,6 +110,13 @@ public static class Program
             Console.WriteLine($"  immutable : {string.Join(", ", immutable)}");
             Console.WriteLine();
 
+            if (result.Defaults.Count > 0)
+            {
+                Console.WriteLine("DEFAULTS (ConfigConstraint.default -- form pre-fill hints):");
+                foreach (var kv in result.Defaults) Console.WriteLine($"  {kv.Key} = {kv.Value}");
+                Console.WriteLine();
+            }
+
             Console.WriteLine($"RESULT: {(result.Ok ? "VALID" : "INVALID")}");
             return result.Ok ? 0 : 1;
         }
