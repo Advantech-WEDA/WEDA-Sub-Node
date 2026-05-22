@@ -1,0 +1,23 @@
+{
+  "DeviceConfigs": {
+    "SystemAgentDeviceConfig": {
+      "Dtdl": { "AutoGenEnabled": true },
+      "Sensors": [
+        {
+          "Name": "",
+          "SensorGroup": "XXX",
+          "Parameters": { "MetricType": "cpu" },
+          "Report": { "Enabled": true, "Interval": 0 },
+          "SensorInfo": { "Schema": "double", "Description": "CPU usage", "DisplayName": "this-display-name-is-deliberately-way-over-the-sixty-four-character-limit" }
+        },
+        {
+          "Name": "disk_root_total",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "disk", "MetricName": "total", "MountPoint": "" },
+          "Report": { "Enabled": true, "Interval": 999999 },
+          "SensorInfo": { "Schema": "long", "DisplayName": "Disk Total" }
+        }
+      ]
+    }
+  }
+}

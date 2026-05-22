@@ -62,18 +62,20 @@ Identical between v1.0 and v1.1. No expansion.
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `gpio_isSupported`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. GPIO conventionally uses `DI` (or `SYS` for the support flag). | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `gpio_isSupported`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. GPIO conventionally uses `DI` (or `SYS` for the support flag). | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `GpioSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `gpio` | Must equal `gpio` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific GPIO query. | `isSupported` | Must equal `isSupported` (const) for this sub-section. |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific GPIO query. | `isSupported`, `pinState` | One of `isSupported` / `pinState` (the `GpioSensor` schema's `GpioMetricName` enum); `isSupported` for this sub-section. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
-| `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For `isSupported`: `boolean`. | Must equal `boolean`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For `isSupported`: `boolean`. | One of `boolean` / `integer` (the `GpioSensor` schema's `WireSchema` enum); `boolean` for `isSupported`. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/GpioSensor.dtdl.json`](devicecfg/GpioSensor.dtdl.json) (`ConfigConstraint` extension). The single `GpioSensor` schema covers both `isSupported` and `pinState`; cross-field rules for `pinState` (`PinId`/`PinIds`) are in the next sub-section.
 
 ---
 
@@ -155,20 +157,22 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 | Hierarchy Key Name | Schema | Changeable | Required (v1.0 / v1.1) | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|------------------------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<index>` (e.g., `gpio_pinState_4`). | Free-form, e.g., `gpio_pin_4` (bound) or `gpio_pinState` (generic in v1.1). | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64` (after expansion suffix in v1.1); unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. `pinState` conventionally uses `DI`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<index>` (e.g., `gpio_pinState_4`). | Free-form, e.g., `gpio_pin_4` (bound) or `gpio_pinState` (generic in v1.1). | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. `pinState` conventionally uses `DI`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `GpioSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | v1.0: must contain `MetricType`, `MetricName`, `PinId`. v1.1: must contain `MetricType`, `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `gpio` | Must equal `gpio` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific GPIO query. | `pinState` | Must equal `pinState` (const) for this sub-section. |
-| `Parameters.PinId` | integer | ❌ | ✅ / ❌ | GPIO pin index (single binding). v1.0: required. v1.1: bound mode only — overrides `PinIds` when present. | non-negative integer, e.g. `4`, `17`, `27`. | Non-negative integer. Resolved via `GpioMetrics.PinIndexToName[index]` at runtime. v1.1: semantically mutually exclusive with `PinIds`. |
-| `Parameters.PinIds` | `array<integer>` | ❌ | n/a / ❌ | **v1.1 only.** Array of pin indices, or empty for auto-detect. | JSON array `[4, 17, 27]`; `[]` (auto-detect). | Array of non-negative integers. Empty array → auto-detect. |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific GPIO query. | `isSupported`, `pinState` | One of `isSupported` / `pinState`; `pinState` for this sub-section. |
+| `Parameters.PinId` | integer | ❌ | ✅ / ❌ | GPIO pin index (single binding). v1.0: required. v1.1: bound mode only — overrides `PinIds` when present. | non-negative integer, e.g. `4`, `17`, `27`. | Non-negative integer (`minimum: 0`). Allowed only when `MetricName = "pinState"` (`allowedOnlyWhen`). Mutually exclusive with `PinIds` (`mutexGroup: gpioPin`). |
+| `Parameters.PinIds` | `array<integer>` | ❌ | n/a / ❌ | **v1.1 only.** Array of pin indices, or empty for auto-detect. | JSON array `[4, 17, 27]`; `[]` (auto-detect). | JSON array of non-negative integers. Empty → auto-detect. Allowed only when `MetricName = "pinState"` (`allowedOnlyWhen`). Mutually exclusive with `PinId` (`mutexGroup: gpioPin`). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For `pinState`: `integer` (0=Low, 1=High). | Must equal `integer`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. v1.1: runtime appends ` (<pin>)` after expansion. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. v1.1: runtime prepends `<pin> ` after expansion. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. v1.1: runtime appends ` (<pin>)` after expansion. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. v1.1: runtime prepends `<pin> ` after expansion. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds and the `PinId`/`PinIds` mutual exclusivity + `MetricName = "pinState"` conditional come from [`devicecfg/GpioSensor.dtdl.json`](devicecfg/GpioSensor.dtdl.json) (`ConfigConstraint` extension). A `gpio.isSupported` sensor carrying `PinId`/`PinIds`, or a sensor with both `PinId` and `PinIds` set, is rejected.
 
 > Footnote on `PinId` / `PinIds` in v1.1: the validator should accept any of — only `PinId` set, only `PinIds` set, or neither set. If both are set, the runtime breaks the tie by priority (`PinId` wins).
 
@@ -214,18 +218,20 @@ The `watchdog` MetricType has no additional Parameters and behaves identically b
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `watchdog_isSupported`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Watchdog conventionally uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `watchdog_isSupported`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Watchdog conventionally uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `WatchdogSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `watchdog` | Must equal `watchdog` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific watchdog query. | `isSupported` | Must equal `isSupported` (const). |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific watchdog query. | `isSupported` | Must equal `isSupported` (the only value in the `WatchdogSensor` schema's `WatchdogMetricName` enum). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For watchdog: `boolean`. | Must equal `boolean`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/WatchdogSensor.dtdl.json`](devicecfg/WatchdogSensor.dtdl.json) (`ConfigConstraint` extension).
 
 ### Watchdog MetricName → Schema Mapping
 
@@ -265,18 +271,20 @@ The `thermalprotection` MetricType has no additional Parameters and behaves iden
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `thermalprotection_isSupported`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Thermal protection conventionally uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `thermalprotection_isSupported`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Thermal protection conventionally uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `ThermalProtectionSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `thermalprotection` | Must equal `thermalprotection` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific thermal-protection query. | `isSupported` | Must equal `isSupported` (const). |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific thermal-protection query. | `isSupported` | Must equal `isSupported` (the only value in the `ThermalProtectionSensor` schema's `ThermalProtectionMetricName` enum). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `6000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For thermal protection: `boolean`. | Must equal `boolean`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/ThermalProtectionSensor.dtdl.json`](devicecfg/ThermalProtectionSensor.dtdl.json) (`ConfigConstraint` extension).
 
 ### Thermal Protection MetricName → Schema Mapping
 
