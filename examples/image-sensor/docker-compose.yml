@@ -21,7 +21,23 @@ services:
     network_mode: host
     restart: unless-stopped
     environment:
-      - SystemConfig__WedaNode__Url=172.22.160.197:4224
+      # === SystemConfig.WedaNode (NATS connection to WedaNode) ===
+      - SystemConfig__WedaNode__Url=${WEDA_NODE_URL:-127.0.0.1:4224}
+      - SystemConfig__WedaNode__Name=${WEDA_NODE_NAME:-default}
+      - SystemConfig__WedaNode__SerializerType=${WEDA_NODE_SERIALIZER_TYPE:-json}
+      # AuthStrategy: None | UserPassword | Token | TlsCert | CredFile
+      - SystemConfig__WedaNode__AuthStrategy=${WEDA_NODE_AUTH_STRATEGY:-UserPassword}
+      - SystemConfig__WedaNode__Username=${WEDA_NODE_USERNAME:-advantech_nats}
+      - SystemConfig__WedaNode__Password=${WEDA_NODE_PASSWORD:-}
+      - SystemConfig__WedaNode__Token=${WEDA_NODE_TOKEN:-}
+      - SystemConfig__WedaNode__CredFile=${WEDA_NODE_CRED_FILE:-}
+      - SystemConfig__WedaNode__TlsCertPath=${WEDA_NODE_TLS_CERT_PATH:-}
+      - SystemConfig__WedaNode__TlsKeyPath=${WEDA_NODE_TLS_KEY_PATH:-}
+      - SystemConfig__WedaNode__TlsCaPath=${WEDA_NODE_TLS_CA_PATH:-}
+      # === SystemConfig.Record (local recording quota) ===
+      - SystemConfig__Record__MinFreeDiskSpaceMb=${RECORD_MIN_FREE_DISK_SPACE_MB:-128}
+      - SystemConfig__Record__MaxStorageSizeMb=${RECORD_MAX_STORAGE_SIZE_MB:-1024}
+      - SystemConfig__Record__RetentionDays=${RECORD_RETENTION_DAYS:-7}
     logging:
       driver: "json-file"
       options:
