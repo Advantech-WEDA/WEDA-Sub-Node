@@ -1,0 +1,133 @@
+{
+  "SubNode": {
+    "Name": "Advantech-System-Agent",
+    "SubNodeType": "SystemMonitor",
+    "Manufacturer": "Advantech",
+    "Model": "SystemAgent",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "SystemAgentDeviceConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Sensors": [
+        {
+          "_comment": "=== network: 明確列表模式 — 只監控指定介面 ===",
+          "Name": "network_bytes_sent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "bytes_sent",
+            "Interfaces": ["eth0", "wlan0"]
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "Total bytes sent",
+            "DisplayName": "Bytes Sent"
+          }
+        },
+        {
+          "_comment": "=== network: v1.0 單一綁定模式 — 只監控一個介面 ===",
+          "Name": "network_bytes_received_eth0",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "network",
+            "MetricName": "bytes_received",
+            "Interface": "eth0"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000
+          },
+          "SensorInfo": {
+            "Schema": "long",
+            "Description": "Bytes received on eth0",
+            "DisplayName": "Bytes Received (eth0)"
+          }
+        },
+        {
+          "_comment": "=== gpio: 明確列表模式 — 只監控指定腳位 ===",
+          "Name": "gpio_pinState",
+          "SensorGroup": "DI",
+          "Parameters": {
+            "MetricType": "gpio",
+            "MetricName": "pinState",
+            "PinIds": [4, 17, 27]
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 6000
+          },
+          "SensorInfo": {
+            "Schema": "integer",
+            "Description": "GPIO pin state",
+            "DisplayName": "Pin State"
+          }
+        },
+        {
+          "_comment": "=== temperature: 明確列表模式 — 只監控指定來源 ===",
+          "Name": "temperature",
+          "SensorGroup": "TEMP",
+          "Parameters": {
+            "MetricType": "temperature",
+            "MetricName": "therm",
+            "Sources": ["cpu-therm", "gpu-therm"]
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "Temperature sensor",
+            "DisplayName": "Temperature"
+          }
+        },
+        {
+          "_comment": "=== temperature: v1.0 單一綁定模式 — 只監控一個來源 ===",
+          "Name": "temperature_cpu_therm",
+          "SensorGroup": "TEMP",
+          "Parameters": {
+            "MetricType": "temperature",
+            "MetricName": "therm",
+            "Source": "cpu-therm"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "CPU thermal sensor",
+            "DisplayName": "CPU Temperature"
+          }
+        },
+        {
+          "_comment": "=== disk: 綁定模式（disk 沒有列表展開，只有 MountPoint）===",
+          "Name": "disk_home_usage_percent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MetricType": "disk",
+            "MetricName": "usage_percent",
+            "MountPoint": "/home"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 30000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "Description": "Disk usage percentage for /home",
+            "DisplayName": "Disk Usage (/home)"
+          }
+        }
+      ]
+    }
+  }
+}

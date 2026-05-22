@@ -158,7 +158,7 @@ public class LocalSystemAgentDevice : SystemAgentDeviceBase
     protected override async Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent e, CancellationToken ct)
     {
         _logger.LogInformation("===========================================");
-        _logger.LogInformation("[HOT-RELOAD] Configuration update received at {Timestamp}", DateTime.Now.ToString("HH:mm:ss.fff"));
+        _logger.LogInformation("[HOT-RELOAD] Configuration update received at {Timestamp}", DateTimeOffset.UtcNow.ToString("HH:mm:ss.fff"));
         _logger.LogInformation("    DeviceId: {DeviceId}", e.DeviceId);
         _logger.LogInformation("    SeqId: {SeqId}", e.Message?.SeqId.ToString() ?? "N/A");
         _logger.LogInformation("    Cmd: {Cmd}", e.Message?.Cmd ?? "N/A");

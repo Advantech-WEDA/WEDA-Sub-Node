@@ -1,4 +1,4 @@
-﻿# MetricType 配置說明
+# MetricType 配置說明
 
 使用者透過設定 `MetricType` 指定 System Agent 的採集指標。即使硬體不支援該指標，System Agent 也不會產生異常，只是無法採集對應指標資料。
 
@@ -26,17 +26,17 @@
 }
 ```
 
-| 欄位 | 說明 |
+| 必填欄位 | 說明 |
 |------|------|
 | `Name` | Sensor 唯一識別名稱 |
 | `SensorGroup` | Sensor 分組 |
-| `Parameters.MetricType` | 指標類型（必填） |
-| `Parameters.MetricName` | 指標名稱（所有 MetricType 均需要） |
 | `Report.Enabled` | 是否啟用上報 |
 | `Report.Interval` | 上報間隔（毫秒） |
 | `SensorInfo.Schema` | 預期回傳資料類型（`double`、`long`、`string`、`boolean`、`integer`） |
 | `SensorInfo.Description` | Sensor 描述 |
 | `SensorInfo.DisplayName` | Sensor 顯示名稱 |
+| `Parameters.MetricType` | 指標類型 |
+| `Parameters.MetricName` | 指標名稱 |
 
 ---
 

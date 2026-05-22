@@ -1,0 +1,35 @@
+# WEDA System-Agent DTDL validator -- compose wrapper.
+#
+# Run from this directory (dtdl-validate/):
+#
+#   # Build the image and run both validators against docs/Metrics/
+#   docker compose run --rm validate
+#
+#   # Run just the schema-level validator
+#   docker compose run --rm validate node /app/validate-dtdl.js
+#
+#   # Run just the instance-level validator
+#   docker compose run --rm validate node /app/validate-configs.js
+#
+# The project's docs/Metrics/ directory is mounted read-only at /work, so
+# editing a DTDL file or a sample fixture and re-running picks up the
+# change immediately -- no image rebuild needed.
+
+services:
+
+  # Standalone .NET 8 devicecfg validator -- validates a devicecfg.json payload
+  # against the ConfigConstraint-annotated schemas in docs/Metrics/devicecfg/.
+  #   docker compose run --rm devicecfg-validator
+  #   docker compose run --rm devicecfg-validator devicecfg/samples/invalid.json
+  #   docker compose run --rm devicecfg-validator devicecfg/samples/valid.json \
+  #     --schema devicecfg/CpuSensor.dtdl.json \
+  #     --at DeviceConfigs.SystemAgentDeviceConfig.Sensors.0
+  devicecfg-validator:
+    build:
+      context: ./devicecfg-validator
+      dockerfile: Dockerfile
+    image: weda-devicecfg-validator:latest
+    volumes:
+      - ../docs/Metrics:/work:ro
+    environment:
+      DTDL_BASE: /work

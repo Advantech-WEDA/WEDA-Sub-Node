@@ -1,0 +1,103 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor;1",
+  "@type": "Interface",
+  "displayName": "Disk Sensor (System Resource)",
+  "description": "Validation schema for one disk Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1): required, writable, and value bounds (minimum/maximum, minLength/maxLength). Disk sensors require Parameters.MountPoint.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [ { "name": "Disk", "enumValue": "disk", "displayName": "Disk" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:DiskMetricName;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Name",
+      "enumValues": [
+        { "name": "Total",           "enumValue": "total",            "displayName": "Total Capacity" },
+        { "name": "Available",       "enumValue": "available",        "displayName": "Available Capacity" },
+        { "name": "Free",            "enumValue": "free",             "displayName": "Free Capacity" },
+        { "name": "Used",            "enumValue": "used",             "displayName": "Used Capacity" },
+        { "name": "UsagePercent",    "enumValue": "usage_percent",    "displayName": "Usage %" },
+        { "name": "ReadsCompleted",  "enumValue": "reads_completed",  "displayName": "Reads Completed" },
+        { "name": "WritesCompleted", "enumValue": "writes_completed", "displayName": "Writes Completed" },
+        { "name": "ReadBytes",       "enumValue": "read_bytes",       "displayName": "Read Bytes" },
+        { "name": "WrittenBytes",    "enumValue": "written_bytes",    "displayName": "Written Bytes" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [ { "name": "SYS", "enumValue": "SYS", "displayName": "System" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [
+        { "name": "Double", "enumValue": "double", "displayName": "double" },
+        { "name": "Long",   "enumValue": "long",   "displayName": "long" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:Parameters;1",
+      "@type": "Object", "displayName": "Disk Parameters",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:MetricType;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricName", "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:DiskMetricName;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MountPoint", "displayName": "Mount Point",
+          "schema": "string", "required": true, "writable": false,
+          "minLength": 1, "maxLength": 256 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Enabled", "displayName": "Enabled",
+          "schema": "boolean", "required": true, "writable": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interval", "displayName": "Interval (ms)",
+          "schema": "integer", "required": true, "writable": true,
+          "minimum": 1, "maximum": 300000 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Schema", "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:WireSchema;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Description", "displayName": "Description",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 512 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "DisplayName", "displayName": "Display Name",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 64 }
+      ]
+    }
+  ],
+  "contents": [
+    { "@type": ["Property", "ConfigConstraint"], "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false, "required": true,
+      "minLength": 1, "maxLength": 64 },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:SensorGroup;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:Parameters;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:Report;1",
+      "writable": true, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DiskSensor:SensorInfo;1",
+      "writable": true, "required": true }
+  ]
+}

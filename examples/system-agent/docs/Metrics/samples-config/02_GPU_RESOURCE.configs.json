@@ -1,0 +1,34 @@
+[
+  {
+    "Name": "gpu_utilization",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "gpu",
+      "MetricName": "utilization"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "integer",
+      "Description": "Aggregate GPU utilization percent (NVML)",
+      "DisplayName": "GPU Utilization"
+    },
+    "expect": "valid",
+    "reason": "canonical gpu.utilization sensor (NVIDIA NVML driver)"
+  },
+  {
+    "Name": "gpu_utilization_ai_group",
+    "SensorGroup": "AI",
+    "Parameters": {
+      "MetricType": "gpu",
+      "MetricName": "utilization"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "integer",
+      "Description": "GPU utilization tagged as AI workload",
+      "DisplayName": "GPU Utilization (AI)"
+    },
+    "expect": "valid",
+    "reason": "SensorGroup is a free choice -- AI is allowed by the SensorGroup enum"
+  }
+]

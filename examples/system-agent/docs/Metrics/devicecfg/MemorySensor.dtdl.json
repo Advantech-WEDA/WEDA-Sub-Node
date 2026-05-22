@@ -1,0 +1,96 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor;1",
+  "@type": "Interface",
+  "displayName": "Memory (RAM) Sensor (System Resource)",
+  "description": "Validation schema for one memory Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1): required, writable, and value bounds (minimum/maximum, minLength/maxLength). Allowed values are native Enums.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [ { "name": "Memory", "enumValue": "memory", "displayName": "Memory" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:MemoryMetricName;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Name",
+      "enumValues": [
+        { "name": "Total",     "enumValue": "total",      "displayName": "Total Physical Memory" },
+        { "name": "Available", "enumValue": "available",  "displayName": "Available Memory" },
+        { "name": "Used",      "enumValue": "used",       "displayName": "Used Memory" },
+        { "name": "Free",      "enumValue": "free",       "displayName": "Free Memory" },
+        { "name": "Cached",    "enumValue": "cached",     "displayName": "Cached Memory" },
+        { "name": "Buffers",   "enumValue": "buffers",    "displayName": "Buffer Memory" },
+        { "name": "SwapTotal", "enumValue": "swap_total", "displayName": "Total Swap" },
+        { "name": "SwapFree",  "enumValue": "swap_free",  "displayName": "Free Swap" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [ { "name": "SYS", "enumValue": "SYS", "displayName": "System" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [ { "name": "Long", "enumValue": "long", "displayName": "long" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:Parameters;1",
+      "@type": "Object", "displayName": "Memory Parameters",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:MetricType;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricName", "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:MemoryMetricName;1",
+          "required": true, "writable": false }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Enabled", "displayName": "Enabled",
+          "schema": "boolean", "required": true, "writable": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interval", "displayName": "Interval (ms)",
+          "schema": "integer", "required": true, "writable": true,
+          "minimum": 1, "maximum": 300000 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Schema", "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:WireSchema;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Description", "displayName": "Description",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 512 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "DisplayName", "displayName": "Display Name",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 64 }
+      ]
+    }
+  ],
+  "contents": [
+    { "@type": ["Property", "ConfigConstraint"], "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false, "required": true,
+      "minLength": 1, "maxLength": 64 },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:SensorGroup;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:Parameters;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:Report;1",
+      "writable": true, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MemorySensor:SensorInfo;1",
+      "writable": true, "required": true }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor;1",
+  "@type": "Interface",
+  "displayName": "Thermal Protection Sensor (Hardware Feature)",
+  "description": "Validation schema for one thermalprotection Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1): required, writable, and value bounds. thermalprotection takes no type-specific Parameters; the only MetricName is isSupported and SensorInfo.Schema is always 'boolean'.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [ { "name": "ThermalProtection", "enumValue": "thermalprotection", "displayName": "Thermal Protection" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:ThermalProtectionMetricName;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Name",
+      "enumValues": [
+        { "name": "IsSupported", "enumValue": "isSupported", "displayName": "Thermal Protection Supported" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [ { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" } ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:Parameters;1",
+      "@type": "Object", "displayName": "Thermal Protection Parameters",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:MetricType;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricName", "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:ThermalProtectionMetricName;1",
+          "required": true, "writable": false }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Enabled", "displayName": "Enabled",
+          "schema": "boolean", "required": true, "writable": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interval", "displayName": "Interval (ms)",
+          "schema": "integer", "required": true, "writable": true,
+          "minimum": 1, "maximum": 300000 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Schema", "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:WireSchema;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Description", "displayName": "Description",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 512 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "DisplayName", "displayName": "Display Name",
+          "schema": "string", "required": true, "writable": true,
+          "minLength": 1, "maxLength": 64 }
+      ]
+    }
+  ],
+  "contents": [
+    { "@type": ["Property", "ConfigConstraint"], "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false, "required": true,
+      "minLength": 1, "maxLength": 64 },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:SensorGroup;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:Parameters;1",
+      "writable": false, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:Report;1",
+      "writable": true, "required": true },
+    { "@type": ["Property", "ConfigConstraint"], "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:ThermalProtectionSensor:SensorInfo;1",
+      "writable": true, "required": true }
+  ]
+}

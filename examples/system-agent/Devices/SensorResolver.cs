@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 using Microsoft.Extensions.Logging;
 
 using SystemAgentExample.Communication;
@@ -10,33 +8,32 @@ using Weda.SubNode.Abstractions.Telemetry;
 namespace SystemAgentExample.Devices;
 
 /// <summary>
-/// Expands template sensors (without specific resource identifiers) into
-/// individual per-resource sensors based on discovered system resources.
-/// Supports explicit resource lists (Interfaces/PinIds/MetricNames) and auto-detection.
+/// Resolves sensor configuration mode (Bound / Explicit list / Auto-detect) and
+/// produces per-resource sensors from template sensors based on discovered system resources.
 /// </summary>
-internal static class SensorExpander
+internal static class SensorResolver
 {
     /// <summary>
-    /// Expands sensors that lack specific resource identifiers into per-resource sensors.
-    /// Each sensor is independently expanded based on its own MetricType.
-    /// Priority: explicit array param > auto-detect from system.
+    /// Resolves each sensor's mode (Bound / Explicit list / Auto-detect) and produces
+    /// per-resource sensors accordingly. Each sensor is independently resolved.
+    /// Priority: Bound > Explicit list > Auto-detect.
     /// </summary>
-    internal static List<Sensor> Expand(
+    internal static List<Sensor> Resolve(
         IEnumerable<Sensor> sensors,
         DiscoveredResources resources,
         ILogger logger)
     {
         return sensors
-            .SelectMany(sensor => ExpandSensor(sensor, resources, logger))
+            .SelectMany(sensor => ResolveSensor(sensor, resources, logger))
             .ToList();
     }
 
     /// <summary>
-    /// Expands a single sensor based on its MetricType.
-    /// Returns one or more sensors: either the expanded per-resource sensors,
-    /// or the original sensor unchanged if expansion is not applicable.
+    /// Resolves a single sensor based on its MetricType.
+    /// Returns one or more sensors: either the resolved per-resource sensors,
+    /// or the original sensor unchanged if already in Bound mode.
     /// </summary>
-    private static List<Sensor> ExpandSensor(
+    private static List<Sensor> ResolveSensor(
         Sensor sensor,
         DiscoveredResources resources,
         ILogger logger)
@@ -45,14 +42,14 @@ internal static class SensorExpander
 
         return metricType switch
         {
-            SupportedDataType.Network => ExpandNetwork(sensor, resources.NetworkInterfaces, logger),
-            SupportedDataType.Gpio => ExpandGpio(sensor, resources.GpioPins, logger),
-            SupportedDataType.Temperature => ExpandTemperature(sensor, resources.TemperatureSources, logger),
+            SupportedDataType.Network => ResolveNetwork(sensor, resources.NetworkInterfaces, logger),
+            SupportedDataType.Gpio => ResolveGpio(sensor, resources.GpioPins, logger),
+            SupportedDataType.Temperature => ResolveTemperature(sensor, resources.TemperatureSources, logger),
             _ => [sensor]
         };
     }
 
-    private static List<Sensor> ExpandNetwork(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ResolveNetwork(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
         // Already bound to a specific interface → keep as-is
         if (GetParam(sensor, "Interface") != null)
@@ -66,7 +63,7 @@ internal static class SensorExpander
         }
 
         logger.LogInformation(
-            "Expanding sensor '{Name}' into {Count} sensors for interfaces: {Interfaces}",
+            "Resolving sensor '{Name}' into {Count} sensors for interfaces: {Interfaces}",
             sensor.Name, interfaces.Count, string.Join(", ", interfaces));
 
         return interfaces
@@ -74,7 +71,7 @@ internal static class SensorExpander
             .ToList();
     }
 
-    private static List<Sensor> ExpandGpio(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ResolveGpio(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
         var metricName = GetParam(sensor, "MetricName")?.ToLowerInvariant();
         if (metricName != "pinstate")
@@ -92,7 +89,7 @@ internal static class SensorExpander
         }
 
         logger.LogInformation(
-            "Expanding sensor '{Name}' into {Count} sensors for pins: {Pins}",
+            "Resolving sensor '{Name}' into {Count} sensors for pins: {Pins}",
             sensor.Name, pins.Count, string.Join(", ", pins));
 
         return pins
@@ -100,13 +97,18 @@ internal static class SensorExpander
             .ToList();
     }
 
-    private static List<Sensor> ExpandTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ResolveTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
         // Already bound to a specific source → keep as-is
-        if (GetParam(sensor, "MetricName") != null)
+        if (GetParam(sensor, "Source") != null)
             return [sensor];
 
-        var sources = ResolveResourceList(sensor, "MetricNames", discovered);
+        // v1.0 compat: MetricName without Source means already bound (MetricName acts as source)
+        if (GetParam(sensor, "Source") == null && GetParam(sensor, "Sources") == null
+            && GetParam(sensor, "MetricName") != null)
+            return [sensor];
+
+        var sources = ResolveResourceList(sensor, "Sources", discovered);
         if (sources.Count == 0)
         {
             logger.LogWarning("No temperature sources discovered for sensor '{Name}', keeping as-is", sensor.Name);
@@ -114,31 +116,33 @@ internal static class SensorExpander
         }
 
         logger.LogInformation(
-            "Expanding sensor '{Name}' into {Count} sensors for sources: {Sources}",
+            "Resolving sensor '{Name}' into {Count} sensors for sources: {Sources}",
             sensor.Name, sources.Count, string.Join(", ", sources));
 
         return sources
-            .Select(source => CloneSensor(sensor, source, "MetricNames", "MetricName"))
+            .Select(source => CloneSensor(sensor, source, "Sources", "Source"))
             .ToList();
     }
 
     /// <summary>
-    /// Resolves the resource list: explicit array param takes priority, otherwise use auto-discovered.
+    /// Resolves the resource list from a pre-normalized string[] parameter.
+    /// Explicit list mode: array has elements → use it.
+    /// Auto-detect mode: empty array or missing key → fall back to discovered resources.
+    /// Expects ParameterNormalizer to have already converted all formats to string[].
     /// </summary>
     private static IReadOnlyList<string> ResolveResourceList(
         Sensor sensor, string arrayParamKey, IReadOnlyList<string> discovered)
     {
-        if (sensor.Parameters != null &&
-            sensor.Parameters.TryGetValue(arrayParamKey, out var arrayValue))
+        if (sensor.Parameters == null ||
+            !sensor.Parameters.TryGetValue(arrayParamKey, out var arrayValue))
         {
-            var arr = arrayValue is JsonElement element
-                ? element.Deserialize<string[]>()
-                : JsonSerializer.Deserialize<string[]>(JsonSerializer.Serialize(arrayValue));
-
-            if (arr is { Length: > 0 })
-                return arr;
+            return discovered;
         }
 
+        if (arrayValue is string[] arr && arr.Length > 0)
+            return arr;
+
+        // Empty array or removed key → Auto-detect mode
         return discovered;
     }
 
