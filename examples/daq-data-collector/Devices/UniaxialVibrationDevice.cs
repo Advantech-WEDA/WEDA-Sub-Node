@@ -37,10 +37,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         DataReceived += OnDataReceived;
         DataProcessed += OnDataProcessed;
 
-        // ✓ Apply global TelemetryInterval to sensors that use default Report.Interval
-        ApplyDefaultTelemetryInterval(configuration);
-
-        // Note: RegisterPhmTransform is deferred to OnAfterInitializeAsync 
+        // Note: RegisterPhmTransform is deferred to OnAfterInitializeAsync
         // because ResourceId is not yet generated (UUID) at this point
     }
 
@@ -78,28 +75,6 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
             .ToDictionary(x => x.Name, x => x.Sensor!);
     }
 
-    /// <summary>
-    /// Apply the global TelemetryInterval from Properties to all sensors
-    /// that don't have an explicitly configured interval.
-    /// This allows simplified configuration by omitting Report.Interval for each sensor.
-    /// </summary>
-    private static void ApplyDefaultTelemetryInterval(DeviceConfiguration configuration)
-    {
-        var telemetryIntervalMs = configuration.Properties.TryGetValue("TelemetryInterval", out var ti)
-            ? int.Parse(ti!.ToString()!)
-            : 1000;  // Fallback default
-
-        foreach (var sensor in configuration.Sensors)
-        {
-            // Only override if the sensor uses the default SensorReport.Interval value (1000)
-            // This preserves explicitly configured intervals
-            if (Math.Abs(sensor.Report.Interval - 1000.0) < 0.001)
-            {
-                sensor.Report.Interval = telemetryIntervalMs;
-            }
-        }
-    }
-
     // ── Assembly ──────────────────────────────────────────────────────────────
 
     private static DaqMetricsParser CreateStreamingParser(
@@ -113,35 +88,43 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
 
         // Read DAQ parameters from devicecfg.json Properties block
         var props = configuration.Properties;
-        var samplingRate = props.TryGetValue("AccelerationSamplingRate", out var sr)
-            ? int.Parse(sr!.ToString()!) : 2500;
+        var acquisitionRate = props.TryGetValue("AcquisitionRateHz", out var ar)
+            ? int.Parse(ar!.ToString()!) : 1000;
 
-        // ✓ Read TelemetryInterval for deriving FrameIntervalSeconds
-        var telemetryIntervalMs = props.TryGetValue("TelemetryInterval", out var ti)
-            ? int.Parse(ti!.ToString()!) : 1000;
+        var observationWindowSeconds = props.TryGetValue("ObservationWindowSeconds", out var ow)
+            ? double.Parse(ow!.ToString()!) : 1.0;
+        var observationWindowMs = (int)(observationWindowSeconds * 1000);
+        var frameSize = (int)(acquisitionRate * observationWindowSeconds);
+        var freqResolutionHz = 1.0 / observationWindowSeconds;
+        var nyquistHz = acquisitionRate / 2.0;
 
-        var decimationFactor = props.TryGetValue("DecimationFactor", out var df)
-            ? int.Parse(df!.ToString()!) : 2;
-
-        // ✓ Derive FrameIntervalSeconds from TelemetryInterval and DecimationFactor
-        // FrameIntervalSeconds = TelemetryInterval / (1000 * DecimationFactor)
-        var frameIntervalSeconds = (double)telemetryIntervalMs / (1000.0 * decimationFactor);
-        var frameSize = (int)(samplingRate * frameIntervalSeconds);
-
-        // Log the derived parameters for debugging
+        // Log the derived parameters at startup
         var logger = loggerFactory.CreateLogger<UniaxialVibrationDevice>();
         logger.LogInformation(
-            "DAQ Configuration: SamplingRate={samplingRate}Hz, TelemetryInterval={telemetryInterval}ms, " +
-            "DecimationFactor={decimationFactor} → FrameIntervalSeconds={frameInterval:F4}s, FrameSize={frameSize}",
-            samplingRate, telemetryIntervalMs, decimationFactor, frameIntervalSeconds, frameSize);
+            "DAQ Configuration: AcquisitionRate={acquisitionRate}Hz, ObservationWindow={observationWindow}s, " +
+            "FrameSize={frameSize}, FreqResolution={freqResolution:F3}Hz, Nyquist={nyquist}Hz",
+            acquisitionRate, observationWindowSeconds, frameSize, freqResolutionHz, nyquistHz);
+
+        // Log per-sensor reporting cadence
+        foreach (var sensor in configuration.Sensors)
+        {
+            if (sensor.Report?.Enabled ?? false)
+            {
+                var intervalMs = sensor.Report.Interval;
+                if (intervalMs < observationWindowMs || intervalMs % observationWindowMs != 0)
+                    logger.LogWarning(
+                        "Sensor '{name}': Report.Interval={interval}ms is not a positive integer multiple of ObservationWindow={window}ms",
+                        sensor.Name, intervalMs, observationWindowMs);
+            }
+        }
 
         var daqConfig = configuration.DeviceCommunication;
         var daqModuleDeviceNumber = daqConfig.TryGetValue("DaqModuleDeviceNumber", out var dmdn) ? int.Parse(dmdn!.ToString()!) : 0;
 
         var collector = new DaqCollector(
-            samplingRate: samplingRate,
+            samplingRate: acquisitionRate,
             frameSize: frameSize,
-            frameIntervalSeconds: frameIntervalSeconds,
+            frameIntervalSeconds: observationWindowSeconds,
             daqModuleDeviceNumber: daqModuleDeviceNumber,
             logger: loggerFactory.CreateLogger<DaqCollector>());
 
@@ -152,7 +135,6 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         return new DaqMetricsParser(
             communication,
             loggerFactory.CreateLogger<DaqMetricsParser>(),
-            decimationFactor,
             rawSensor);  // Pass only the raw sensor (extracted earlier), not the entire Sensors list
     }
 
@@ -204,9 +186,9 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
 
             // Recalculate frameSize (same logic as CreateStreamingParser)
             var props = configuration.Properties;
-            var samplingRate = props.TryGetValue("AccelerationSamplingRate", out var sr) ? int.Parse(sr!.ToString()!) : 2500;
-            var frameIntervalSeconds = props.TryGetValue("FrameIntervalSeconds", out var fis) ? double.Parse(fis!.ToString()!) : 1.0;
-            var frameSize = (int)(samplingRate * frameIntervalSeconds);
+            var acquisitionRate = props.TryGetValue("AcquisitionRateHz", out var ar) ? int.Parse(ar!.ToString()!) : 1000;
+            var observationWindowSeconds = props.TryGetValue("ObservationWindowSeconds", out var ow) ? double.Parse(ow!.ToString()!) : 1.0;
+            var frameSize = (int)(acquisitionRate * observationWindowSeconds);
 
             // Get the raw payload sensor to access its Report property
             var rawSensor = ExtractRawSensor(configuration);
@@ -217,19 +199,34 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
                 return;
             }
 
+            // Build per-sensor upload interval map from devicecfg.json Report.Interval
+            var sensorIntervals = ExtractPhmSensorMapping(configuration)
+                .ToDictionary(kvp => kvp.Key, kvp => (int)kvp.Value.Report.Interval);
+
             // Create and register the transform
             var transform = new PhmFeatureTransform(
-                samplingRate: samplingRate,
+                samplingRate: acquisitionRate,
                 fftSize: frameSize,  // FftSize = FrameSize in current implementation
                 rawPayloadResourceId: resourceMapping.RawSensorResourceId,  // Pass actual UUID from config
                 phMSensorResourceIds: resourceMapping.PhMSensorResourceIds,  // Pass PHM output sensor ResourceIds (UUIDs)
+                sensorIntervalMs: sensorIntervals,
+                observationWindowMs: (int)(observationWindowSeconds * 1000),
                 logger: loggerFactory.CreateLogger<PhmFeatureTransform>());
 
+            // Align the raw sensor's interval loop cadence to observationWindowMs so the transform
+            // fires every observation window (e.g. 1000ms) instead of Report.Interval (e.g. 2000ms).
+            // This does NOT cause raw payload to be uploaded: the transform output REPLACES the raw
+            // measure in TelemetryPipeline.ExecuteTransformStageAsync (result.AddRange(current)).
+            // GroupSensorsByInterval() is called in OnStartAsync, after this OnAfterInitializeAsync
+            // hook, so this runtime override is reflected in the actual interval loop timing.
+            rawSensor.Report.Interval = (int)(observationWindowSeconds * 1000);
             rawSensor.Report?.AddTransform(transform);
 
             _logger.LogInformation(
-                "PhmFeatureTransform registered on raw sensor: SamplingRate={rate} Hz, FrameSize={frameSize}, RawSensorResourceId={resourceId}, PHM sensors={phMCount}",
-                samplingRate, frameSize, resourceMapping.RawSensorResourceId, resourceMapping.PhMSensorResourceIds.Count);
+                "PhmFeatureTransform registered on raw sensor: AcquisitionRate={rate} Hz, FrameSize={frameSize}, " +
+                "PHM sensors={phMCount}, Intervals=[{intervals}]",
+                acquisitionRate, frameSize, resourceMapping.PhMSensorResourceIds.Count,
+                string.Join(", ", sensorIntervals.Select(kv => $"{kv.Key}:{kv.Value}ms")));
         }
         catch (Exception ex)
         {
@@ -263,23 +260,29 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
 
         var props = Configuration.Properties;
 
-        // Validate AccelerationSamplingRate
-        if (props.TryGetValue("AccelerationSamplingRate", out var sr) &&
-            int.TryParse(sr?.ToString(), out var samplingRate) &&
-            samplingRate <= 0)
-            throw new InvalidOperationException($"AccelerationSamplingRate must be a positive integer, got: {samplingRate}");
+        // Validate AcquisitionRateHz (error only if present and invalid; missing → uses default 1000)
+        if (props.TryGetValue("AcquisitionRateHz", out var ar) &&
+            int.TryParse(ar?.ToString(), out var acquisitionRate) &&
+            acquisitionRate <= 0)
+            throw new InvalidOperationException($"AcquisitionRateHz must be a positive integer, got: {acquisitionRate}");
 
-        // Validate DecimationFactor
-        if (props.TryGetValue("DecimationFactor", out var df) &&
-            int.TryParse(df?.ToString(), out var decimationFactor) &&
-            decimationFactor <= 0)
-            throw new InvalidOperationException($"DecimationFactor must be a positive integer, got: {decimationFactor}");
+        // Validate ObservationWindowSeconds and compute effective window
+        var effectiveWindowMs = 1000;
+        if (props.TryGetValue("ObservationWindowSeconds", out var ow))
+        {
+            if (!double.TryParse(ow?.ToString(), out var owSeconds) || owSeconds <= 0)
+                throw new InvalidOperationException($"ObservationWindowSeconds must be a positive number, got: {ow}");
+            effectiveWindowMs = (int)(owSeconds * 1000);
+        }
 
-        // Validate FrameIntervalSeconds
-        if (props.TryGetValue("FrameIntervalSeconds", out var fis) &&
-            double.TryParse(fis?.ToString(), out var frameIntervalSeconds) &&
-            frameIntervalSeconds <= 0)
-            throw new InvalidOperationException($"FrameIntervalSeconds must be a positive number, got: {frameIntervalSeconds}");
+        // Validate per-sensor Report.Interval (must be a positive integer multiple of observation window)
+        foreach (var sensor in Configuration.Sensors.Where(s => s.Report?.Enabled ?? false))
+        {
+            var intervalMsRounded = (int)Math.Round(sensor.Report!.Interval);
+            if (intervalMsRounded <= 0 || intervalMsRounded < effectiveWindowMs || intervalMsRounded % effectiveWindowMs != 0)
+                throw new InvalidOperationException(
+                    $"Sensor '{sensor.Name}': Report.Interval={sensor.Report.Interval}ms must be a positive integer multiple of ObservationWindow={effectiveWindowMs}ms");
+        }
 
         var daqConfig = Configuration.DeviceCommunication;
         if (daqConfig.TryGetValue("DaqModuleDeviceNumber", out var dmdn) &&
@@ -308,6 +311,27 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         var baseResult = base.ValidateConfigurationUpdate(message);
         if (!baseResult.IsValid)
             return baseResult;
+
+        // Derive current effective observation window
+        var props = Configuration.Properties;
+        var effectiveWindowMs = 1000;
+        if (props.TryGetValue("ObservationWindowSeconds", out var ow) &&
+            double.TryParse(ow?.ToString(), out var owSeconds) && owSeconds > 0)
+            effectiveWindowMs = (int)(owSeconds * 1000);
+
+        // Validate per-sensor Report.Interval in the incoming update
+        var desiredConfig = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs?
+            .GetValueOrDefault(Configuration.DeviceName);
+        foreach (var sensor in desiredConfig?.Sensors?.Where(s => s.Report?.Enabled == true) ?? [])
+        {
+            var intervalMs = sensor.Report!.Interval;
+            if (intervalMs <= 0)
+                return ConfigurationValidationResult.Failure(
+                    $"Sensor '{sensor.Name}': Report.Interval must be positive, got: {intervalMs}");
+            if (intervalMs < effectiveWindowMs || intervalMs % effectiveWindowMs != 0)
+                return ConfigurationValidationResult.Failure(
+                    $"Sensor '{sensor.Name}': Report.Interval={intervalMs}ms must be a positive integer multiple of ObservationWindow={effectiveWindowMs}ms");
+        }
 
         return ConfigurationValidationResult.Success;
     }

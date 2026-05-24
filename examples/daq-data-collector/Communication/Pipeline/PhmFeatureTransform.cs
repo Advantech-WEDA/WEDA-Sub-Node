@@ -25,6 +25,9 @@ public class PhmFeatureTransform : ITelemetryTransform
     private readonly ILogger<PhmFeatureTransform> _logger;
     private readonly string _rawPayloadResourceId;  // Raw sensor's actual ResourceId (UUID)
     private readonly Dictionary<string, string> _phMSensorResourceIds;  // PHM output sensor ResourceIds (name -> UUID)
+    private readonly Dictionary<string, int> _sensorIntervalMs;  // Per-sensor upload interval (ms)
+    private readonly int _observationWindowMs;                    // ObservationWindowSeconds × 1000
+    private readonly Dictionary<string, int> _frameCounters = new();  // Frames-since-last-emit counter per sensor
 
     public string Name => "PhmFeatureTransform";
 
@@ -37,6 +40,8 @@ public class PhmFeatureTransform : ITelemetryTransform
     /// <param name="fftSize">FFT size from devicecfg.json Properties.FftSize</param>
     /// <param name="rawPayloadResourceId">ResourceId of the raw payload sensor (UUID from Sensor.ResourceId)</param>
     /// <param name="phMSensorResourceIds">Mapping of PHM output sensor names to their ResourceIds (UUID)</param>
+    /// <param name="sensorIntervalMs">Per-sensor upload interval in ms (keyed by sensor name). Missing keys default to 1000 ms.</param>
+    /// <param name="observationWindowMs">ObservationWindowSeconds × 1000. Used to compute per-sensor frame decimation factor.</param>
     /// <param name="timeDomain">Optional custom time-domain extractor (uses default if null)</param>
     /// <param name="frequencyDomain">Optional custom frequency-domain extractor (uses default if null)</param>
     /// <param name="logger">Optional logger</param>
@@ -45,6 +50,8 @@ public class PhmFeatureTransform : ITelemetryTransform
         int fftSize,
         string rawPayloadResourceId,
         Dictionary<string, string>? phMSensorResourceIds = null,
+        Dictionary<string, int>? sensorIntervalMs = null,
+        int observationWindowMs = 1000,
         TimeDomainExtractor? timeDomain = null,
         FrequencyDomainExtractor? frequencyDomain = null,
         ILogger<PhmFeatureTransform>? logger = null)
@@ -58,6 +65,8 @@ public class PhmFeatureTransform : ITelemetryTransform
         _logger = logger ?? loggerFactory.CreateLogger<PhmFeatureTransform>();
         _rawPayloadResourceId = rawPayloadResourceId;
         _phMSensorResourceIds = phMSensorResourceIds ?? new Dictionary<string, string>();
+        _sensorIntervalMs = sensorIntervalMs ?? new Dictionary<string, int>();
+        _observationWindowMs = observationWindowMs > 0 ? observationWindowMs : 1000;
     }
 
     /// <summary>
@@ -139,16 +148,49 @@ public class PhmFeatureTransform : ITelemetryTransform
                 ("x_axis_crest_factor", phMFeatures.XAxisCrestFactor)
             };
 
+            // Implement frame decimation based on configured per-sensor intervals and observation window
+            var phMResults = new List<(string sensorName, object value)>();
+            var skippedSensors = new List<string>();
             foreach (var (sensorName, value) in sensorNameMappings)
             {
+                var intervalMs = _sensorIntervalMs.GetValueOrDefault(sensorName, 1000);
+                var decimation = Math.Max(1, intervalMs / _observationWindowMs);
+
+                if (!_frameCounters.TryGetValue(sensorName, out var counter))
+                    counter = decimation - 1;  // initialize so first call always emits
+
+                counter++;
+                _frameCounters[sensorName] = counter % decimation;
+
+                var isDue = counter % decimation == 0;
+
+                if (!isDue)
+                {
+                    skippedSensors.Add(sensorName);
+                    continue;
+                }
+
                 // Use configured ResourceId if available, fallback to sensor name
                 var resourceId = _phMSensorResourceIds.TryGetValue(sensorName, out var uuid)
                     ? uuid
                     : sensorName;  // Fallback for backward compatibility
                 result.Add(new TelemetryMeasure { ResourceId = resourceId, Value = value });
+                phMResults.Add((sensorName, value));
             }
 
-            _logger.LogDebug("PHM feature extraction completed: 10 features emitted");
+            // Print emitted PHM results
+            if (phMResults.Count > 0)
+            {
+                var phMResultsString = string.Join(", \n", phMResults.Select(r => $"{r.sensorName}={r.value}"));
+                _logger.LogInformation($"[PHM Results] \n{phMResultsString}");
+            }
+
+            if (skippedSensors.Count > 0)
+                _logger.LogDebug("PHM sensors skipped (interval not elapsed): [{sensors}]",
+                    string.Join(", ", skippedSensors));
+
+            _logger.LogDebug("PHM feature extraction: {emitted} emitted, {skipped} skipped",
+                phMResults.Count, skippedSensors.Count);
         }
         catch (Exception ex)
         {

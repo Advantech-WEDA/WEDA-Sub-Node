@@ -48,17 +48,15 @@ Location: `DeviceConfigs.UniaxialVibrationDeviceConfig.Properties`
 
 | Parameter | Default Value | Description |
 |-----------|----------------|-------------|
-| `AccelerationSamplingRate` | 2500 | Acceleration sampling rate (Hz) |
-| `FrameIntervalSeconds` | 1.0 | Frame collection interval (seconds) |
-| `DecimationFactor` | 2 | Decimation factor |
+| `AcquisitionRateHz` | 1000 | Raw data acquisition rate (Hz); set to ≥ 2× highest target frequency (Nyquist) |
+| `ObservationWindowSeconds` | 1.0 | Observation window duration (seconds); set to ≥ 1 / lowest target frequency |
 
 **Common Adjustment Example**:
 
 ```json
 "Properties": {
-  "AccelerationSamplingRate": 2500,    // Sampling rate: 2500 Hz
-  "FrameIntervalSeconds": 1.0,         // Collect one frame per second
-  "DecimationFactor": 2                // 2x decimation
+  "AcquisitionRateHz": 1000,          // Acquisition rate: 1000 Hz (Nyquist limit: 500 Hz)
+  "ObservationWindowSeconds": 1.0     // Observation window: 1.0 s → 1 Hz frequency resolution
 }
 ```
 
@@ -147,10 +145,13 @@ Device initialized successfully in 169ms
 
 **After running continuously, you'll see**:
 ```
-Collecting DAQ frame for interval: 1.0 seconds
-DAQ acquisition completed: 2500 samples collected
-Processing features: XAxisRMSmg, XAxisPeakmg, XAxisDeviation, XAxisKurtosis
-Features extracted and ready for telemetry
+Starting DAQ streaming: DaqDeviceNumber=3, SamplingRate=1000 Hz, FrameSize=1000, FrameInterval=1 s
+Discovering DAQ modules...
+Discovered 1 DAQ module(s).
+Found target DAQ module: DeviceNumber=3
+Successfully created DAQ module instance for device 3.
+Configured DAQ module for streaming: SampleClockSource=BackplaneClock, SampleInterval=1 ms
+Received report with 1000 samples for channel 0.
 ```
 
 ### 3. Subscribe to Telemetry Data

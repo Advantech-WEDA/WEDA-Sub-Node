@@ -56,22 +56,19 @@ Each Sensor in `devicecfg.json` has the following structure:
 
 ```json
 "Properties": {
-  "AccelerationSamplingRate": 2500,
-  "FrameIntervalSeconds": 1.0,
-  "DecimationFactor": 2
+  "AcquisitionRateHz": 1000,
+  "ObservationWindowSeconds": 1.0
 }
 ```
 
-| Parameter | Type | Description | Default | Recommended Range |
-|-----------|------|-------------|---------|-------------------|
-| `AccelerationSamplingRate` | int | Acceleration sampling rate (Hz) | 2500 | 1000-10000 |
-| `FrameIntervalSeconds` | double | Frame collection interval (seconds) | 1.0 | 0.5-5.0 |
-| `DecimationFactor` | int | Decimation factor | 2 | 1-10 |
+| Parameter | Type | Description | Default | Guidance |
+|-----------|------|-------------|---------|----------|
+| `AcquisitionRateHz` | int | Raw data acquisition rate (Hz) | 1000 | Set ≥ 2× highest target frequency (Nyquist); e.g., 1000 Hz covers up to 500 Hz |
+| `ObservationWindowSeconds` | double | Observation window duration (seconds) | 1.0 | Set ≥ 1 / lowest target frequency; e.g., 1.0 s gives 1 Hz resolution |
 
 **Parameter Explanations**:
-- **AccelerationSamplingRate**: Higher sampling rate captures higher frequencies (Nyquist theorem: max frequency = sampling rate / 2)
-- **FrameIntervalSeconds**: Interval between complete data frame collections
-- **DecimationFactor**: Reduces feature extraction data resolution
+- **AcquisitionRateHz**: Determines the highest detectable frequency (Nyquist limit = AcquisitionRateHz / 2). Set to at least 2× your highest target frequency.
+- **ObservationWindowSeconds**: Controls FFT frequency resolution (Δf = 1 / ObservationWindowSeconds). Set to at least 1 / lowest target frequency. `FrameSize` is auto-derived as `AcquisitionRateHz × ObservationWindowSeconds`. Per-sensor `Report.Interval` must be a positive integer multiple of `ObservationWindowSeconds × 1000 ms`.
 
 ---
 
@@ -184,22 +181,63 @@ Each Sensor in `devicecfg.json` has the following structure:
 #### daqraw_vibration_payload
 - **Data Type**: JSON string
 - **Description**: Complete JSON data from raw DAQ collection frame
-- **Application**: For offline analysis or custom feature extraction
-- **Recommendation**: Usually set `Enabled: false` due to large data volume
+- **Application**: Internal trigger for `PhmFeatureTransform` — must remain enabled for the feature extraction pipeline to function
+- **Note**: Must have a fixed `ResourceId` (e.g., `"daqraw:vibration:payload"`) so the transform can locate the payload by ResourceId
 
 **Configuration Example**:
 ```json
 {
+  "ResourceId": "daqraw:vibration:payload",
   "Name": "daqraw_vibration_payload",
   "SensorGroup": "AI",
   "Report": {
-    "Enabled": false,
-    "Interval": 1000
+    "Enabled": true,
+    "Interval": 2000
   },
   "SensorInfo": {
     "Schema": "application/json",
     "DisplayName": "Raw Vibration Payload",
     "Description": "Raw DAQ frame JSON payload for feature extraction pipeline"
+  }
+}
+```
+
+### System Metadata Sensors (SensorGroup: SYS)
+
+These sensors are populated automatically by `PhmFeatureTransform` and do not require a `Parameters.FeatureName` mapping in the `Sensors` list. They must be listed in `Sensors` with `SensorGroup: "SYS"` for the platform to register them.
+
+#### Timestamp (timestamp_timestamp)
+- **Data Type**: dateTime
+- **Description**: Hardware sample timestamp from the first sample in the DAQ frame
+- **FeatureName**: `Timestamp`
+
+#### Device Time (device_time)
+- **Data Type**: dateTime
+- **Description**: Edge device system clock at feature computation time
+- **FeatureName**: `DeviceTime`
+
+**Configuration Example**:
+```json
+{
+  "Name": "timestamp_timestamp",
+  "SensorGroup": "SYS",
+  "Parameters": { "FeatureName": "Timestamp" },
+  "Report": { "Enabled": true, "Interval": 2000 },
+  "SensorInfo": {
+    "Schema": "dateTime",
+    "DisplayName": "Timestamp",
+    "Description": "Hardware sample timestamp"
+  }
+},
+{
+  "Name": "device_time",
+  "SensorGroup": "SYS",
+  "Parameters": { "FeatureName": "DeviceTime" },
+  "Report": { "Enabled": true, "Interval": 2000 },
+  "SensorInfo": {
+    "Schema": "dateTime",
+    "DisplayName": "Device Time",
+    "Description": "Edge device system clock at feature computation time"
   }
 }
 ```
@@ -222,11 +260,24 @@ Each Sensor in `devicecfg.json` has the following structure:
         "DaqModuleDeviceNumber": 0
       },
       "Properties": {
-        "AccelerationSamplingRate": 2500,
-        "FrameIntervalSeconds": 1.0,
-        "DecimationFactor": 2
+        "AcquisitionRateHz": 1000,
+        "ObservationWindowSeconds": 1.0
       },
       "Sensors": [
+        {
+          "ResourceId": "daqraw:vibration:payload",
+          "Name": "daqraw_vibration_payload",
+          "SensorGroup": "AI",
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "application/json",
+            "DisplayName": "Raw Vibration Payload",
+            "Description": "Raw DAQ frame JSON payload for feature extraction pipeline"
+          }
+        },
         {
           "Name": "x_axis_rms_mg",
           "SensorGroup": "AI",
@@ -235,12 +286,60 @@ Each Sensor in `devicecfg.json` has the following structure:
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 2000
           },
           "SensorInfo": {
             "Schema": "double",
             "DisplayName": "X-Axis RMS (mG)",
             "Description": "RMS acceleration on X-axis"
+          }
+        },
+        {
+          "Name": "x_axis_peak_mg",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisPeakmg"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Peakmg",
+            "Description": "Maximum spectral magnitude in FFT spectrum"
+          }
+        },
+        {
+          "Name": "x_axis_peak_to_peak_displacement",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisPeakToPeakDisplacement"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Peak-to-Peak Displacement",
+            "Description": "Peak-to-peak displacement via double spectral integration"
+          }
+        },
+        {
+          "Name": "x_axis_oa_velocity",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisOAVelocity"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis OA Velocity",
+            "Description": "Overall velocity RMS from acceleration spectrum"
           }
         },
         {
@@ -251,12 +350,28 @@ Each Sensor in `devicecfg.json` has the following structure:
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 2000
           },
           "SensorInfo": {
             "Schema": "double",
             "DisplayName": "X-Axis Deviation (std)",
             "Description": "Standard deviation of acceleration on X-axis"
+          }
+        },
+        {
+          "Name": "x_axis_skewness",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "FeatureName": "XAxisSkewness"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "double",
+            "DisplayName": "X-Axis Skewness",
+            "Description": "Third standardized central moment"
           }
         },
         {
@@ -267,7 +382,7 @@ Each Sensor in `devicecfg.json` has the following structure:
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 2000
           },
           "SensorInfo": {
             "Schema": "double",
@@ -283,12 +398,44 @@ Each Sensor in `devicecfg.json` has the following structure:
           },
           "Report": {
             "Enabled": true,
-            "Interval": 1000
+            "Interval": 2000
           },
           "SensorInfo": {
             "Schema": "double",
             "DisplayName": "X-Axis Crest Factor",
             "Description": "Peak-to-RMS ratio for shock detection"
+          }
+        },
+        {
+          "Name": "timestamp_timestamp",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "FeatureName": "Timestamp"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "dateTime",
+            "DisplayName": "Timestamp",
+            "Description": "Hardware sample timestamp"
+          }
+        },
+        {
+          "Name": "device_time",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "FeatureName": "DeviceTime"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 2000
+          },
+          "SensorInfo": {
+            "Schema": "dateTime",
+            "DisplayName": "Device Time",
+            "Description": "Edge device system clock at feature computation time"
           }
         }
       ]

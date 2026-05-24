@@ -132,35 +132,35 @@ dotnet test --filter "Category=Integration&Category=DaqPipeline"
 
 **Test Process**:
 
-1. Start DAQ communication
-2. Collect raw data
-3. Apply decimation
-4. Extract features
-5. Verify output
+1. Build `DeviceConfiguration` with DAQ properties
+2. Verify configuration values are parsed correctly
+3. Construct extractor classes with derived parameters
+4. Feed synthetic frame, verify feature output
 
 **Sample Test**:
 
 ```csharp
 [Fact]
-public async Task CompleteAcquisitionPipeline_WithValidConfig_ProducesValidFeatures()
+public void DaqConfiguration_WithValidProperties_ParsesParametersCorrectly()
 {
     // Arrange
-    var config = new DaqConfig 
-    { 
-        SamplingRate = 2500, 
-        FrameInterval = 1.0,
-        DecimationFactor = 2 
-    };
-    var pipeline = new DaqPipeline(config);
-    
-    // Act
-    var features = await pipeline.AcquireAndExtractFeaturesAsync();
-    
+    var config = new DeviceConfigurationBuilder()
+        .WithProperties(new Dictionary<string, object>
+        {
+            ["AcquisitionRateHz"] = 1000,
+            ["ObservationWindowSeconds"] = 1.0
+        })
+        .Build();
+
+    // Act — derive the same values UniaxialVibrationDevice reads at startup
+    var acquisitionRate    = Convert.ToInt32(config.Properties["AcquisitionRateHz"]);
+    var observationWindow  = Convert.ToDouble(config.Properties["ObservationWindowSeconds"]);
+    var frameSize          = (int)(acquisitionRate * observationWindow);
+
     // Assert
-    features.Should().NotBeNull();
-    features.XAxisRMSmg.Should().BeGreaterThanOrEqualTo(0);
-    features.XAxisPeakmg.Should().BeGreaterThanOrEqualTo(0);
-    features.XAxisDeviation.Should().BeGreaterThanOrEqualTo(0);
+    acquisitionRate.Should().Be(1000);
+    observationWindow.Should().Be(1.0);
+    frameSize.Should().Be(1000);
 }
 ```
 
@@ -213,8 +213,12 @@ dotnet run
 # Should see following logs
 # [00:00:00] Starting Weda SubNode Application
 # [00:00:01] Auto-generated DTDL for device...
-# [00:00:02] Collecting DAQ frame...
-# [00:00:03] Features extracted successfully
+# [00:00:02] Starting DAQ streaming: DaqDeviceNumber=..., SamplingRate=... Hz, FrameSize=..., FrameInterval=... s
+# [00:00:02] Discovering DAQ modules...
+# [00:00:02] Discovered 1 DAQ module(s).
+# [00:00:02] Found target DAQ module: DeviceNumber=...
+# [00:00:03] Configured DAQ module for streaming: SampleClockSource=BackplaneClock, SampleInterval=1 ms
+# [00:00:03] Received report with 1000 samples for channel 0.
 ```
 
 ### 2. Docker Container Test
@@ -272,19 +276,26 @@ dotnet test --filter "Category=Performance" --logger "console;verbosity=detailed
 
 ```csharp
 [Fact]
-public async Task FeatureExtraction_PerformanceWithHighSamplingRate()
+public void FrequencyDomainExtraction_PerformanceWithHighAcquisitionRate()
 {
-    // Arrange
-    var config = new DaqConfig { SamplingRate = 10000 };
-    var extractor = new FeatureExtractor(config);
+    // Arrange — AcquisitionRateHz=10000, ObservationWindowSeconds=1.0 → FrameSize=10000
+    int fftSize = 10000;
+    var extractor = new FrequencyDomainExtractor(fftSize, NullLogger<FrequencyDomainExtractor>.Instance);
+    var frame = new DaqRawFrame
+    {
+        Samples     = new float[fftSize],
+        SamplingRate = 10000,
+        AxisName    = "X"
+    };
     var sw = System.Diagnostics.Stopwatch.StartNew();
-    
+
     // Act
-    var features = await extractor.ExtractAsync();
+    var result = extractor.Extract(frame);
     sw.Stop();
-    
+
     // Assert
     sw.ElapsedMilliseconds.Should().BeLessThan(100);
+    result.RMSmg.Should().BeGreaterThanOrEqualTo(0);
 }
 ```
 
@@ -336,7 +347,7 @@ start coverage/index.html  # Windows
 
 ## Common Test Scenarios
 
-### Scenario 1: Verify Sampling Rate Settings
+### Scenario 1: Verify Acquisition Rate Settings
 
 ```csharp
 [Theory]
@@ -344,13 +355,18 @@ start coverage/index.html  # Windows
 [InlineData(2500)]
 [InlineData(5000)]
 [InlineData(10000)]
-public void ValidateSamplingRate_WithVariousRates_AllAccepted(int rate)
+public void DeviceConfig_WithVariousAcquisitionRates_PropertyParsedCorrectly(int rate)
 {
-    // Arrange & Act
-    var config = new DaqConfig { SamplingRate = rate };
-    
+    // Arrange
+    var config = new DeviceConfigurationBuilder()
+        .WithProperties(new Dictionary<string, object> { ["AcquisitionRateHz"] = rate })
+        .Build();
+
+    // Act
+    var parsed = Convert.ToInt32(config.Properties["AcquisitionRateHz"]);
+
     // Assert
-    config.SamplingRate.Should().Be(rate);
+    parsed.Should().Be(rate);
 }
 ```
 
@@ -377,17 +393,18 @@ public void RMSCalculation_WithKnownSignal_MatchesExpectedValue()
 
 ```csharp
 [Fact]
-public async Task Acquisition_WithDisconnectedHardware_ThrowsException()
+public void TimeDomainExtractor_WithEmptyFrame_ThrowsArgumentException()
 {
     // Arrange
-    var pipeline = new DaqPipeline(new DaqConfig());
-    // Simulate hardware disconnect
-    pipeline.Disconnect();
-    
-    // Act & Assert
-    await Assert.ThrowsAsync<HardwareException>(
-        () => pipeline.AcquireAndExtractFeaturesAsync()
-    );
+    var extractor = new TimeDomainExtractor(1000, NullLogger<TimeDomainExtractor>.Instance);
+    var emptyFrame = new DaqRawFrame { Samples = [], SamplingRate = 1000 };
+
+    // Act
+    var act = () => extractor.Extract(emptyFrame);
+
+    // Assert
+    act.Should().Throw<ArgumentException>()
+       .WithMessage("*at least one sample*");
 }
 ```
 

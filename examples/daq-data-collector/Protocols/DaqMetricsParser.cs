@@ -19,17 +19,14 @@ namespace daq_data_collector.Protocols;
 ///
 /// Consumes the DaqCommunication stream, emits raw payload to SensorCache,
 /// which then triggers telemetry pipeline (Transform → Filter → Send).
-/// Implements frame decimation to map the 2 Hz hardware frame push rate
-/// to a configurable effective update rate (default 1 Hz with DecimationFactor=2).
+/// Frame cadence is controlled by DaqCollector.frameIntervalSeconds (= ObservationWindowSeconds).
 /// </summary>
 public class DaqMetricsParser : IStreamingProtocolParser
 {
     private readonly DaqCommunication _communication;
     private readonly ILogger<DaqMetricsParser> _logger;
-    private readonly int _decimationFactor;
     private readonly Sensor? _rawSensor;  // Raw vibration sensor with ResourceId for telemetry emission
     private StreamState _streamState = StreamState.Disconnected;
-    private volatile int _frameCounter = 0;
     private Task? _streamTask;
     private CancellationTokenSource? _streamCts;
 
@@ -43,16 +40,10 @@ public class DaqMetricsParser : IStreamingProtocolParser
     public DaqMetricsParser(
         DaqCommunication communication,
         ILogger<DaqMetricsParser> logger,
-        int decimationFactor = 2,
         Sensor? rawSensor = null)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-        if (decimationFactor <= 0)
-            throw new ArgumentException("DecimationFactor must be a positive integer.", nameof(decimationFactor));
-
-        _decimationFactor = decimationFactor;
         _rawSensor = rawSensor;  // Raw sensor with ResourceId for telemetry emission
     }
 
@@ -71,7 +62,7 @@ public class DaqMetricsParser : IStreamingProtocolParser
 
         try
         {
-            _logger.LogInformation($"Starting DaqMetricsParser stream with DecimationFactor={_decimationFactor}...");
+            _logger.LogInformation("Starting DaqMetricsParser stream...");
 
             if (_rawSensor != null)
             {
@@ -81,9 +72,6 @@ public class DaqMetricsParser : IStreamingProtocolParser
             {
                 _logger.LogWarning("Raw sensor not provided, using default ResourceId pattern");
             }
-
-            // Initialize decimation counter
-            _frameCounter = 0;
 
             // Create cancellation token source for stream lifecycle
             _streamCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -177,24 +165,17 @@ public class DaqMetricsParser : IStreamingProtocolParser
 
             await foreach (var payload in _communication.StreamAsync(requestStream, cancellationToken).ConfigureAwait(false))
             {
-                // Increment frame counter
-                _frameCounter++;
+                _logger.LogInformation("Emitting raw telemetry frame.");
 
-                // Only emit telemetry when decimation condition is met
-                if (_frameCounter % _decimationFactor == 0)
+                var rawMeasure = new TelemetryMeasure
                 {
-                    _logger.LogInformation("Emitting raw telemetry (frame {frame}, decimation {factor}).", _frameCounter, _decimationFactor);
+                    ResourceId = _rawSensor?.ResourceId ?? "daqraw:vibration:payload",  // Use injected sensor ResourceId or default
+                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    Value = payload?.ToString() ?? string.Empty,
+                    Metadata = null
+                };
 
-                    var rawMeasure = new TelemetryMeasure
-                    {
-                        ResourceId = _rawSensor?.ResourceId ?? "daqraw:vibration:payload",  // Use injected sensor ResourceId or default
-                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        Value = payload?.ToString() ?? string.Empty,
-                        Metadata = null
-                    };
-
-                    OnTelemetryReceived?.Invoke(new List<TelemetryMeasure> { rawMeasure });
-                }
+                OnTelemetryReceived?.Invoke(new List<TelemetryMeasure> { rawMeasure });
             }
         }
         catch (OperationCanceledException)
