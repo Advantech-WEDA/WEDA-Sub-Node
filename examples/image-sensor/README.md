@@ -17,28 +17,24 @@ Three moving parts:
 2. **ImageSensorDevice** — `MqttImageDevice` subclass; subscribes, chunks (128 chars), reports as telemetry.
 3. **Receiver** — standalone web app; subscribes on NATS, reassembles, serves a live viewer at <http://localhost:5100/>.
 
-## 1. Configure WedaNode in `docker-compose.yml`
+## 1. Deployment prerequisites
 
-All WedaNode settings are exposed as environment variables with `${VAR:-default}` fallbacks. The fastest path is to copy the provided sample:
+Copy the following files/directories to the target machine (e.g. `/opt/image-sensor/`):
 
-```bash
-cp .env.sample .env
-# then edit .env to point at your WedaNode
+```
+image-sensor/
+├── docker-compose.yml          # service definitions
+├── .env                        # copy from .env.sample, fill in WedaNode credentials
+├── devicecfg.json              # sensor config (MQTT topic, chunk size)
+├── appsettings.json            # logging settings
+├── customcfg.json              # custom config (currently empty)
+├── systemcfg.json              # system config (can be empty {})
+└── mosquitto/
+    └── config/
+        └── mosquitto.conf      # MQTT broker config
 ```
 
-See [.env.sample](.env.sample) for the full list of supported variables.
-
-Other auth strategies use different vars (all already plumbed into compose):
-
-| Strategy       | Required vars                                                        |
-|----------------|----------------------------------------------------------------------|
-| `None`         | —                                                                    |
-| `UserPassword` | `WEDA_NODE_USERNAME`, `WEDA_NODE_PASSWORD`                           |
-| `Token`        | `WEDA_NODE_TOKEN`                                                    |
-| `CredFile`     | `WEDA_NODE_CRED_FILE` (path inside the container)                    |
-| `TlsCert`      | `WEDA_NODE_TLS_CERT_PATH`, `WEDA_NODE_TLS_KEY_PATH`, `WEDA_NODE_TLS_CA_PATH` |
-
-For local dev, `systemcfg.json` is mounted read-only and used as a fallback — env vars always win.
+All WedaNode connection settings, Record quota, and SubNode identity are controlled via `.env` (with sensible defaults in `docker-compose.yml`). The only file you **must** edit is `.env` — see section 3 for which fields to fill in.
 
 ## 2. Cross-platform build (publish a prebuilt image)
 
@@ -72,19 +68,42 @@ dotnet publish -c Release -r osx-arm64   --self-contained true   # Apple Silicon
 dotnet publish -c Release -r win-x64     --self-contained true   # Windows x64
 ```
 
-## 3. One-line start
+## 3. Deploy and start
+
+On the target machine, navigate to the deployment directory:
 
 ```bash
-# If the Harbor project is private, log in first (one-time per host)
+# One-time: log in to Harbor (private registry)
 docker login harbor.arfa.wise-paas.com
 
-cp .env.sample .env   # first time only — edit to point at your WedaNode
+# First time: create .env from sample
+cp .env.sample .env
+```
+
+Edit `.env` — the required fields:
+
+| Variable | Description | Example |
+|----------|-------------|--------|
+| `WEDA_NODE_URL` | WedaNode (NATS) address | `10.0.1.50:4224` |
+| `WEDA_NODE_AUTH_STRATEGY` | Auth mode: `None` / `UserPassword` / `Token` / `TlsCert` / `CredFile` | `UserPassword` |
+| `WEDA_NODE_USERNAME` | Username (for UserPassword) | `advantech_nats` |
+| `WEDA_NODE_PASSWORD` | Password (for UserPassword) | (get from admin) |
+| `SUBNODE_NAME` | Unique name for this deployment | `ImageSensor-Floor3` |
+
+Other optional variables are documented in [.env.sample](.env.sample).
+
+Then start:
+
+```bash
 docker compose up -d
 ```
 
-`pull_policy: always` ensures the latest pushed image is fetched. Override the image via `IMAGE_SENSOR_IMAGE` in `.env` if you want to pin a specific tag or point at a different registry.
+This brings up two containers:
 
-This brings up Mosquitto **and** the ImageSensor in the background. Tail logs with:
+- `image-sensor-mqtt` — Mosquitto MQTT broker
+- `image-sensor-app` — ImageSensor application
+
+Verify:
 
 ```bash
 docker compose logs -f image-sensor
