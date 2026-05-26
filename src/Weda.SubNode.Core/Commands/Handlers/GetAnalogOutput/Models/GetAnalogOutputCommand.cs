@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
@@ -24,6 +25,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogOutput.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("ao.get")]
+[Display(Name = "Get Analog Output")]
 public class GetAnalogOutputCommand : CommandData<GetAnalogOutputParameters>
 {
 }
@@ -38,6 +40,7 @@ public class GetAnalogOutputParameters
     /// If null or empty, the command applies to all devices that support analog output reading.
     /// </summary>
     [JsonPropertyName("deviceName")]
+    [Display(Name = "Target Device")]
     public string? DeviceName { get; init; }
 
     /// <summary>
@@ -45,5 +48,6 @@ public class GetAnalogOutputParameters
     /// If empty, reads all available analog outputs.
     /// </summary>
     [JsonPropertyName("outputs")]
+    [Display(Name = "Output Names")]
     public string[] Outputs { get; init; } = [];
 }

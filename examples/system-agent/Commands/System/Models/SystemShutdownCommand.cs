@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Contracts;
 
@@ -21,6 +23,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.System.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("system.shutdown")]
+[Display(Name = "System Shutdown")]
 public class SystemShutdownCommand : CommandData<SystemCommandParameters>
 {
 }

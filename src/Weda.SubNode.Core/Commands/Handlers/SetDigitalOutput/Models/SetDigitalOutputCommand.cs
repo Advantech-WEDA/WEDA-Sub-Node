@@ -29,6 +29,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.SetDigitalOutput.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("do.set")]
+[Display(Name = "Set Digital Output")]
 [Description("Set digital output channels on a target device.")]
 public class SetDigitalOutputCommand : CommandData<SetDigitalOutputParameters>
 {
@@ -44,12 +45,14 @@ public class SetDigitalOutputParameters
     /// If null or empty, the command applies to all devices that support digital output.
     /// </summary>
     [JsonPropertyName("deviceName")]
+    [Display(Name = "Target Device")]
     public string? DeviceName { get; init; }
 
     /// <summary>
     /// List of digital outputs to set.
     /// </summary>
     [JsonPropertyName("outputs")]
+    [Display(Name = "Outputs to Set")]
     [Required(ErrorMessage = "Outputs are required")]
     [MinLength(1, ErrorMessage = "At least one output must be specified")]
     public DigitalOutputState[] Outputs { get; init; } = [];
@@ -65,6 +68,7 @@ public record DigitalOutputState
     /// Must match the sensor name in devicecfg.json.
     /// </summary>
     [JsonPropertyName("name")]
+    [Display(Name = "Output Name")]
     [Required(ErrorMessage = "Output name is required")]
     public string Name { get; init; } = string.Empty;
 
@@ -72,5 +76,6 @@ public record DigitalOutputState
     /// The desired output state: true = ON/HIGH, false = OFF/LOW.
     /// </summary>
     [JsonPropertyName("state")]
+    [Display(Name = "Output State")]
     public bool State { get; init; }
 }

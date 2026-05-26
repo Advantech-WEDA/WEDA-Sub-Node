@@ -16,6 +16,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 /// - StartTime/EndTime are Unix milliseconds
 /// </remarks>
 [DeviceCmd("report.historical")]
+[Display(Name = "Batch Report")]
 [Description("Query historical telemetry within a time range and emit batched records.")]
 public class BatchReportCommand : CommandData<BatchReportParameters>
 {
@@ -40,26 +41,31 @@ public class BatchReportCommand : CommandData<BatchReportParameters>
 public class BatchReportParameters
 {
     [JsonPropertyName("timeRange")]
+    [Display(Name = "Time Range")]
     [Description("Time range for historical data query (Unix milliseconds). Defaults to last 10 minutes when omitted.")]
     public TimeRange? TimeRange { get; init; }
 
     [JsonPropertyName("sensorFilter")]
+    [Display(Name = "Sensor Filter")]
     [Description("Optional filter selecting which sensors to include / exclude.")]
     public SensorFilter? SensorFilter { get; init; }
 
     [JsonPropertyName("maxBatchesPerMessage")]
+    [Display(Name = "Max Batches Per Message")]
     [Range(1, 1000, ErrorMessage = "MaxBatchesPerMessage must be between 1 and 1000")]
     [DefaultValue(1)]
     [Description("Maximum number of batches per outbound message.")]
     public int MaxBatchesPerMessage { get; init; } = 1;
 
     [JsonPropertyName("maxBatchSize")]
+    [Display(Name = "Max Batch Size")]
     [Range(1, 100000, ErrorMessage = "MaxBatchSize must be between 1 and 100000")]
     [DefaultValue(10000)]
     [Description("Maximum samples per batch. Larger sensor result sets are split into multiple batches.")]
     public int MaxBatchSize { get; init; } = 10000;
 
     [JsonPropertyName("transmissionRateLimit")]
+    [Display(Name = "Transmission Rate Limit")]
     [Range(0, 10000, ErrorMessage = "TransmissionRateLimit must be between 0 and 10000")]
     [DefaultValue(0)]
     [Description("Transmission rate limit (messages per second). 0 disables rate limiting.")]

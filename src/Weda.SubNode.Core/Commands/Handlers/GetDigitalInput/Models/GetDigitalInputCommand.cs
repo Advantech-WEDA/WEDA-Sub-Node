@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
@@ -24,6 +25,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetDigitalInput.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("di.get")]
+[Display(Name = "Get Digital Input")]
 public class GetDigitalInputCommand : CommandData<GetDigitalInputParameters>
 {
 }
@@ -38,6 +40,7 @@ public class GetDigitalInputParameters
     /// If null or empty, the command applies to all devices that support digital input reading.
     /// </summary>
     [JsonPropertyName("deviceName")]
+    [Display(Name = "Target Device")]
     public string? DeviceName { get; init; }
 
     /// <summary>
@@ -45,5 +48,6 @@ public class GetDigitalInputParameters
     /// If empty, reads all available digital inputs.
     /// </summary>
     [JsonPropertyName("inputs")]
+    [Display(Name = "Input Names")]
     public string[] Inputs { get; init; } = [];
 }

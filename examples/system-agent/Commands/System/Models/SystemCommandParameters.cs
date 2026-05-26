@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace Weda.SubNode.Core.Commands.Handlers.System.Models;
@@ -13,5 +14,6 @@ public class SystemCommandParameters
     /// Default is 5 seconds.
     /// </summary>
     [JsonPropertyName("delaySeconds")]
+    [Display(Name = "Delay (seconds)")]
     public int DelaySeconds { get; init; } = 5;
 }

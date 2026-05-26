@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Shouldly;
+
 using Weda.SubNode.Core.Schema;
 
 using Xunit;
@@ -33,10 +35,10 @@ public class TypedParameterConverterTests
 
         var typed = TypedParameterConverter.FromDictionary<SimpleParameters>(dict);
 
-        Assert.Equal("hello", typed.Name);
-        Assert.Equal(7, typed.Count);
-        Assert.True(typed.Flag);
-        Assert.Equal(1.5, typed.Ratio);
+        typed.Name.ShouldBe("hello");
+        typed.Count.ShouldBe(7);
+        typed.Flag.ShouldBeTrue();
+        typed.Ratio.ShouldBe(1.5);
     }
 
     [Fact]
@@ -50,8 +52,8 @@ public class TypedParameterConverterTests
 
         var typed = TypedParameterConverter.FromDictionary<SimpleParameters>(dict);
 
-        Assert.Equal("hello", typed.Name);
-        Assert.Equal(3, typed.Count);
+        typed.Name.ShouldBe("hello");
+        typed.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -61,10 +63,10 @@ public class TypedParameterConverterTests
 
         var dict = TypedParameterConverter.ToDictionary(value);
 
-        Assert.Contains("name", dict.Keys);
-        Assert.Contains("count", dict.Keys);
-        Assert.Contains("flag", dict.Keys);
-        Assert.Contains("ratio", dict.Keys);
+        dict.Keys.ShouldContain("name");
+        dict.Keys.ShouldContain("count");
+        dict.Keys.ShouldContain("flag");
+        dict.Keys.ShouldContain("ratio");
     }
 
     [Fact]
@@ -74,10 +76,10 @@ public class TypedParameterConverterTests
         var dict = TypedParameterConverter.ToDictionary(original);
         var restored = TypedParameterConverter.FromDictionary<SimpleParameters>(dict);
 
-        Assert.Equal(original.Name, restored.Name);
-        Assert.Equal(original.Count, restored.Count);
-        Assert.Equal(original.Flag, restored.Flag);
-        Assert.Equal(original.Ratio, restored.Ratio);
+        restored.Name.ShouldBe(original.Name);
+        restored.Count.ShouldBe(original.Count);
+        restored.Flag.ShouldBe(original.Flag);
+        restored.Ratio.ShouldBe(original.Ratio);
     }
 
     // ─── 2. Null / empty source ─────────────────────────────────────────────
@@ -93,8 +95,8 @@ public class TypedParameterConverterTests
     {
         var typed = TypedParameterConverter.FromDictionary<WithDefaults>(null);
 
-        Assert.Equal(5, typed.Window);
-        Assert.Equal("auto", typed.Mode);
+        typed.Window.ShouldBe(5);
+        typed.Mode.ShouldBe("auto");
     }
 
     [Fact]
@@ -103,8 +105,8 @@ public class TypedParameterConverterTests
         var typed = TypedParameterConverter.FromDictionary<WithDefaults>(
             new Dictionary<string, object>());
 
-        Assert.Equal(5, typed.Window);
-        Assert.Equal("auto", typed.Mode);
+        typed.Window.ShouldBe(5);
+        typed.Mode.ShouldBe("auto");
     }
 
     [Fact]
@@ -113,14 +115,14 @@ public class TypedParameterConverterTests
         var typed = TypedParameterConverter.FromDictionary<WithDefaults>(
             new Dictionary<string, object> { ["window"] = 11 });
 
-        Assert.Equal(11, typed.Window);
-        Assert.Equal("auto", typed.Mode);
+        typed.Window.ShouldBe(11);
+        typed.Mode.ShouldBe("auto");
     }
 
     [Fact]
     public void ToDictionary_null_value_throws()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Should.Throw<ArgumentNullException>(() =>
             TypedParameterConverter.ToDictionary<SimpleParameters>(null!));
     }
 
@@ -139,7 +141,7 @@ public class TypedParameterConverterTests
         var typed = TypedParameterConverter.FromDictionary<WithEnum>(
             new Dictionary<string, object> { ["mode"] = "Manual" });
 
-        Assert.Equal(Mode.Manual, typed.Mode);
+        typed.Mode.ShouldBe(Mode.Manual);
     }
 
     [Fact]
@@ -147,9 +149,9 @@ public class TypedParameterConverterTests
     {
         var dict = TypedParameterConverter.ToDictionary(new WithEnum { Mode = Mode.Test });
 
-        var element = Assert.IsType<JsonElement>(dict["mode"]);
-        Assert.Equal(JsonValueKind.String, element.ValueKind);
-        Assert.Equal("Test", element.GetString());
+        var element = dict["mode"].ShouldBeOfType<JsonElement>();
+        element.ValueKind.ShouldBe(JsonValueKind.String);
+        element.GetString().ShouldBe("Test");
     }
 
     // ─── 4. Nested objects & collections ────────────────────────────────────
@@ -181,9 +183,9 @@ public class TypedParameterConverterTests
 
         var typed = TypedParameterConverter.FromDictionary<Outer>(dict);
 
-        Assert.Equal("L", typed.Child.Label);
-        Assert.Equal(3, typed.Child.Count);
-        Assert.Equal(new[] { 1, 2, 3 }, typed.Tags);
+        typed.Child.Label.ShouldBe("L");
+        typed.Child.Count.ShouldBe(3);
+        typed.Tags.ShouldBe(new[] { 1, 2, 3 });
     }
 
     // ─── 5. JsonPropertyName override ───────────────────────────────────────
@@ -200,7 +202,7 @@ public class TypedParameterConverterTests
         var typed = TypedParameterConverter.FromDictionary<WithCustomName>(
             new Dictionary<string, object> { ["slave_id"] = 7 });
 
-        Assert.Equal((byte)7, typed.SlaveId);
+        typed.SlaveId.ShouldBe((byte)7);
     }
 
     [Fact]
@@ -208,8 +210,8 @@ public class TypedParameterConverterTests
     {
         var dict = TypedParameterConverter.ToDictionary(new WithCustomName { SlaveId = 9 });
 
-        Assert.Contains("slave_id", dict.Keys);
-        Assert.DoesNotContain("slaveId", dict.Keys);
+        dict.Keys.ShouldContain("slave_id");
+        dict.Keys.ShouldNotContain("slaveId");
     }
 
     // ─── 6. DataAnnotation validation ───────────────────────────────────────
@@ -222,11 +224,11 @@ public class TypedParameterConverterTests
     [Fact]
     public void FromDictionary_throws_validation_exception_when_range_violated()
     {
-        var ex = Assert.Throws<ValidationException>(() =>
+        var ex = Should.Throw<ValidationException>(() =>
             TypedParameterConverter.FromDictionary<WithRange>(
                 new Dictionary<string, object> { ["window"] = 9999 }));
 
-        Assert.Contains("Window", ex.Message);
+        ex.Message.ShouldContain("Window");
     }
 
     [Fact]
@@ -235,7 +237,7 @@ public class TypedParameterConverterTests
         var typed = TypedParameterConverter.FromDictionary<WithRange>(
             new Dictionary<string, object> { ["window"] = 50 });
 
-        Assert.Equal(50, typed.Window);
+        typed.Window.ShouldBe(50);
     }
 
     private class WithRequired
@@ -246,11 +248,11 @@ public class TypedParameterConverterTests
     [Fact]
     public void FromDictionary_throws_when_required_field_is_empty()
     {
-        var ex = Assert.Throws<ValidationException>(() =>
+        var ex = Should.Throw<ValidationException>(() =>
             TypedParameterConverter.FromDictionary<WithRequired>(
                 new Dictionary<string, object>()));
 
-        Assert.Contains("Host", ex.Message);
+        ex.Message.ShouldContain("Host");
     }
 
     private class WithPattern
@@ -261,7 +263,7 @@ public class TypedParameterConverterTests
     [Fact]
     public void FromDictionary_validates_regex()
     {
-        Assert.Throws<ValidationException>(() =>
+        Should.Throw<ValidationException>(() =>
             TypedParameterConverter.FromDictionary<WithPattern>(
                 new Dictionary<string, object> { ["code"] = "abc" }));
     }
@@ -289,7 +291,7 @@ public class TypedParameterConverterTests
     [Fact]
     public void FromDictionary_runs_IValidatableObject_cross_field_rules()
     {
-        var ex = Assert.Throws<ValidationException>(() =>
+        var ex = Should.Throw<ValidationException>(() =>
             TypedParameterConverter.FromDictionary<WithCrossField>(
                 new Dictionary<string, object>
                 {
@@ -297,7 +299,7 @@ public class TypedParameterConverterTests
                     ["interfaces"] = new[] { "eth1", "eth2" },
                 }));
 
-        Assert.Contains("mutually exclusive", ex.Message);
+        ex.Message.ShouldContain("mutually exclusive");
     }
 
     [Fact]
@@ -306,8 +308,8 @@ public class TypedParameterConverterTests
         var typed = TypedParameterConverter.FromDictionary<WithCrossField>(
             new Dictionary<string, object> { ["interface"] = "eth0" });
 
-        Assert.Equal("eth0", typed.Interface);
-        Assert.Null(typed.Interfaces);
+        typed.Interface.ShouldBe("eth0");
+        typed.Interfaces.ShouldBeNull();
     }
 
     // ─── 8. Validation error aggregation ────────────────────────────────────
@@ -321,11 +323,11 @@ public class TypedParameterConverterTests
     [Fact]
     public void FromDictionary_reports_every_validation_failure()
     {
-        var ex = Assert.Throws<ValidationException>(() =>
+        var ex = Should.Throw<ValidationException>(() =>
             TypedParameterConverter.FromDictionary<WithMultipleRules>(
                 new Dictionary<string, object> { ["count"] = 999 }));
 
-        Assert.Contains("Name", ex.Message);
-        Assert.Contains("Count", ex.Message);
+        ex.Message.ShouldContain("Name");
+        ex.Message.ShouldContain("Count");
     }
 }

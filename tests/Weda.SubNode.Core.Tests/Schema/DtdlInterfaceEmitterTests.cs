@@ -4,6 +4,9 @@ using System.Runtime.Serialization;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
+using Shouldly;
+
+using Weda.SubNode.Core.Commands.Handlers.BatchReport.Models;
 using Weda.SubNode.Core.Schema;
 
 using Xunit;
@@ -32,9 +35,9 @@ public class DtdlInterfaceEmitterTests
             DefaultOpts(typeName: "MyType"),
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
 
-        Assert.Equal("dtmi:dtdl:context;3", (string?)iface["@context"]);
-        Assert.Equal("dtmi:test:Demo:Test:MyType;1", (string?)iface["@id"]);
-        Assert.Equal("Interface", (string?)iface["@type"]);
+        ((string?)iface["@context"]).ShouldBe("dtmi:dtdl:context;3");
+        ((string?)iface["@id"]).ShouldBe("dtmi:test:Demo:Test:MyType;1");
+        ((string?)iface["@type"]).ShouldBe("Interface");
     }
 
     [Fact]
@@ -44,19 +47,18 @@ public class DtdlInterfaceEmitterTests
             DefaultOpts() with { Version = 3 },
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
 
-        Assert.Equal("dtmi:test:Demo:Test:Sample;3", (string?)iface["@id"]);
-        var paramsObj = FindSchema(iface, "dtmi:test:Demo:Test:Sample:Parameters;3");
-        Assert.NotNull(paramsObj);
+        ((string?)iface["@id"]).ShouldBe("dtmi:test:Demo:Test:Sample;3");
+        FindSchema(iface, "dtmi:test:Demo:Test:Sample:Parameters;3").ShouldNotBeNull();
     }
 
     [Fact]
-    public void DisplayName_defaults_to_humanized_type_name()
+    public void DisplayName_omitted_when_not_provided()
     {
         var iface = DtdlInterfaceEmitter.Emit(
             DefaultOpts(typeName: "TcpModbus"),
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
 
-        Assert.Equal("Tcp Modbus", (string?)iface["displayName"]);
+        iface.ContainsKey("displayName").ShouldBeFalse();
     }
 
     [Fact]
@@ -66,8 +68,8 @@ public class DtdlInterfaceEmitterTests
             DefaultOpts() with { DisplayName = "Custom", Description = "abc" },
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
 
-        Assert.Equal("Custom", (string?)iface["displayName"]);
-        Assert.Equal("abc", (string?)iface["description"]);
+        ((string?)iface["displayName"]).ShouldBe("Custom");
+        ((string?)iface["description"]).ShouldBe("abc");
     }
 
     [Fact]
@@ -77,13 +79,35 @@ public class DtdlInterfaceEmitterTests
             DefaultOpts(),
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
 
-        Assert.False(iface.ContainsKey("description"));
+        iface.ContainsKey("description").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Property_entry_omits_displayName_when_not_authored()
+    {
+        var iface = DtdlInterfaceEmitter.Emit(
+            DefaultOpts(),
+            new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
+
+        var first = iface["contents"]!.AsArray()[0]!.AsObject();
+        first.ContainsKey("displayName").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Object_schema_omits_displayName_when_not_authored()
+    {
+        var iface = DtdlInterfaceEmitter.Emit(
+            DefaultOpts(),
+            new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
+
+        var paramsObj = FindSchema(iface, "dtmi:test:Demo:Test:Sample:Parameters;1")!;
+        paramsObj.ContainsKey("displayName").ShouldBeFalse();
     }
 
     [Fact]
     public void Empty_property_set_throws()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Should.Throw<ArgumentException>(() =>
             DtdlInterfaceEmitter.Emit(DefaultOpts()));
     }
 
@@ -97,12 +121,12 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)));
 
         var contents = iface["contents"]!.AsArray();
-        Assert.Single(contents);
+        contents.Count.ShouldBe(1);
         var first = contents[0]!.AsObject();
-        Assert.Equal("Property", (string?)first["@type"]);
-        Assert.Equal("Parameters", (string?)first["name"]);
-        Assert.Equal("dtmi:test:Demo:Test:Sample:Parameters;1", (string?)first["schema"]);
-        Assert.True((bool?)first["writable"]);
+        ((string?)first["@type"]).ShouldBe("Property");
+        ((string?)first["name"]).ShouldBe("Parameters");
+        ((string?)first["schema"]).ShouldBe("dtmi:test:Demo:Test:Sample:Parameters;1");
+        ((bool?)first["writable"]).ShouldBe(true);
     }
 
     [Fact]
@@ -114,16 +138,16 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Properties", typeof(Empty), Writable: false));
 
         var contents = iface["contents"]!.AsArray();
-        Assert.Equal(2, contents.Count);
-        Assert.Equal("Communication", (string?)contents[0]!["name"]);
-        Assert.Equal("Properties",    (string?)contents[1]!["name"]);
-        Assert.False((bool?)contents[1]!["writable"]);
+        contents.Count.ShouldBe(2);
+        ((string?)contents[0]!["name"]).ShouldBe("Communication");
+        ((string?)contents[1]!["name"]).ShouldBe("Properties");
+        ((bool?)contents[1]!["writable"]).ShouldBe(false);
     }
 
     [Fact]
     public void Duplicate_property_name_throws()
     {
-        Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Empty)),
@@ -133,7 +157,7 @@ public class DtdlInterfaceEmitterTests
     [Fact]
     public void Non_class_top_level_property_throws()
     {
-        Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(int))));
@@ -165,14 +189,14 @@ public class DtdlInterfaceEmitterTests
             .Cast<JsonObject>()
             .ToDictionary(f => (string)f["name"]!, f => (string?)f["schema"]);
 
-        Assert.Equal("string",  fields["text"]);
-        Assert.Equal("integer", fields["count"]);
-        Assert.Equal("long",    fields["big"]);
-        Assert.Equal("double",  fields["ratio"]);
-        Assert.Equal("float",   fields["small"]);
-        Assert.Equal("boolean", fields["flag"]);
-        Assert.Equal("integer", fields["byte"]);
-        Assert.Equal("integer", fields["short"]);
+        fields["text"].ShouldBe("string");
+        fields["count"].ShouldBe("integer");
+        fields["big"].ShouldBe("long");
+        fields["ratio"].ShouldBe("double");
+        fields["small"].ShouldBe("float");
+        fields["flag"].ShouldBe("boolean");
+        fields["byte"].ShouldBe("integer");
+        fields["short"].ShouldBe("integer");
     }
 
     // ─── 4. Enums ───────────────────────────────────────────────────────────
@@ -199,16 +223,16 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithEnum)));
 
         var enumSchema = FindSchema(iface, "dtmi:test:Demo:Test:Sample:Color;1");
-        Assert.NotNull(enumSchema);
-        Assert.Equal("Enum",   (string?)enumSchema!["@type"]);
-        Assert.Equal("string", (string?)enumSchema["valueSchema"]);
+        enumSchema.ShouldNotBeNull();
+        ((string?)enumSchema!["@type"]).ShouldBe("Enum");
+        ((string?)enumSchema["valueSchema"]).ShouldBe("string");
 
         var values = enumSchema["enumValues"]!.AsArray()
             .Cast<JsonObject>()
             .Select(o => (Name: (string)o["name"]!, EnumValue: (string)o["enumValue"]!))
             .ToArray();
-        Assert.Equal(new[] { "Red", "Green", "Blue" }, values.Select(v => v.Name).ToArray());
-        Assert.Equal(new[] { "Red", "Green", "Blue" }, values.Select(v => v.EnumValue).ToArray());
+        values.Select(v => v.Name).ShouldBe(new[] { "Red", "Green", "Blue" });
+        values.Select(v => v.EnumValue).ShouldBe(new[] { "Red", "Green", "Blue" });
     }
 
     [Fact]
@@ -223,8 +247,8 @@ public class DtdlInterfaceEmitterTests
             .Cast<JsonObject>()
             .ToDictionary(o => (string)o["name"]!, o => (string)o["enumValue"]!);
 
-        Assert.Equal("big-endian",    values["BigEndian"]);
-        Assert.Equal("little-endian", values["LittleEndian"]);
+        values["BigEndian"].ShouldBe("big-endian");
+        values["LittleEndian"].ShouldBe("little-endian");
     }
 
     private class WithDoubleEnum
@@ -245,7 +269,7 @@ public class DtdlInterfaceEmitterTests
             .Where(s => (string?)s["@type"] == "Enum" &&
                         ((string?)s["@id"])!.Contains(":Color;"))
             .ToArray();
-        Assert.Single(colorSchemas);
+        colorSchemas.Length.ShouldBe(1);
     }
 
     // ─── 5. Nested objects ──────────────────────────────────────────────────
@@ -272,16 +296,16 @@ public class DtdlInterfaceEmitterTests
         var childField = paramsObj["fields"]!.AsArray()
             .Cast<JsonObject>()
             .Single(f => (string?)f["name"] == "child");
-        Assert.Equal("dtmi:test:Demo:Test:Sample:Nested;1", (string?)childField["schema"]);
+        ((string?)childField["schema"]).ShouldBe("dtmi:test:Demo:Test:Sample:Nested;1");
 
         var nestedObj = FindSchema(iface, "dtmi:test:Demo:Test:Sample:Nested;1");
-        Assert.NotNull(nestedObj);
-        Assert.Equal("Object", (string?)nestedObj!["@type"]);
+        nestedObj.ShouldNotBeNull();
+        ((string?)nestedObj!["@type"]).ShouldBe("Object");
         var nestedFields = nestedObj["fields"]!.AsArray()
             .Cast<JsonObject>()
             .ToDictionary(f => (string)f["name"]!, f => (string?)f["schema"]);
-        Assert.Equal("string",  nestedFields["label"]);
-        Assert.Equal("integer", nestedFields["count"]);
+        nestedFields["label"].ShouldBe("string");
+        nestedFields["count"].ShouldBe("integer");
     }
 
     private class WithTwoNestedSame
@@ -301,7 +325,7 @@ public class DtdlInterfaceEmitterTests
             .Cast<JsonObject>()
             .Where(s => (string?)s["@id"] == "dtmi:test:Demo:Test:Sample:Nested;1")
             .ToArray();
-        Assert.Single(nestedSchemas);
+        nestedSchemas.Length.ShouldBe(1);
     }
 
     // ─── 6. Arrays ──────────────────────────────────────────────────────────
@@ -321,9 +345,9 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithArrays)));
 
         var arrSchema = FindSchema(iface, "dtmi:test:Demo:Test:Sample:TagsList;1");
-        Assert.NotNull(arrSchema);
-        Assert.Equal("Array",  (string?)arrSchema!["@type"]);
-        Assert.Equal("string", (string?)arrSchema["elementSchema"]);
+        arrSchema.ShouldNotBeNull();
+        ((string?)arrSchema!["@type"]).ShouldBe("Array");
+        ((string?)arrSchema["elementSchema"]).ShouldBe("string");
     }
 
     [Fact]
@@ -334,8 +358,8 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithArrays)));
 
         var arrSchema = FindSchema(iface, "dtmi:test:Demo:Test:Sample:IndicesList;1");
-        Assert.NotNull(arrSchema);
-        Assert.Equal("integer", (string?)arrSchema!["elementSchema"]);
+        arrSchema.ShouldNotBeNull();
+        ((string?)arrSchema!["elementSchema"]).ShouldBe("integer");
     }
 
     [Fact]
@@ -346,8 +370,8 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithArrays)));
 
         var arrSchema = FindSchema(iface, "dtmi:test:Demo:Test:Sample:HuesList;1");
-        Assert.NotNull(arrSchema);
-        Assert.Equal("dtmi:test:Demo:Test:Sample:Color;1", (string?)arrSchema!["elementSchema"]);
+        arrSchema.ShouldNotBeNull();
+        ((string?)arrSchema!["elementSchema"]).ShouldBe("dtmi:test:Demo:Test:Sample:Color;1");
     }
 
     // ─── 7. Dictionary → Map ────────────────────────────────────────────────
@@ -365,10 +389,10 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithMap)));
 
         var mapSchema = FindSchema(iface, "dtmi:test:Demo:Test:Sample:CountersMap;1");
-        Assert.NotNull(mapSchema);
-        Assert.Equal("Map", (string?)mapSchema!["@type"]);
-        Assert.Equal("string", (string?)mapSchema["mapKey"]!["schema"]);
-        Assert.Equal("integer", (string?)mapSchema["mapValue"]!["schema"]);
+        mapSchema.ShouldNotBeNull();
+        ((string?)mapSchema!["@type"]).ShouldBe("Map");
+        ((string?)mapSchema["mapKey"]!["schema"]).ShouldBe("string");
+        ((string?)mapSchema["mapValue"]!["schema"]).ShouldBe("integer");
     }
 
     // ─── 8. Field naming ────────────────────────────────────────────────────
@@ -392,10 +416,10 @@ public class DtdlInterfaceEmitterTests
             .Select(f => (string)f["name"]!)
             .ToArray();
 
-        Assert.Contains("myField", names);
-        Assert.Contains("custom_name", names);
-        Assert.DoesNotContain("override", names);
-        Assert.DoesNotContain("Override", names);
+        names.ShouldContain("myField");
+        names.ShouldContain("custom_name");
+        names.ShouldNotContain("override");
+        names.ShouldNotContain("Override");
     }
 
     // ─── 9. Description hint composition ────────────────────────────────────
@@ -426,16 +450,16 @@ public class DtdlInterfaceEmitterTests
             .ToDictionary(f => (string)f["name"]!);
 
         var windowDesc = (string?)byName["window"]["description"] ?? "";
-        Assert.Contains("Sliding window size", windowDesc);
-        Assert.Contains("range 1..100",        windowDesc);
-        Assert.Contains("default 5",           windowDesc);
+        windowDesc.ShouldContain("Sliding window size");
+        windowDesc.ShouldContain("range 1..100");
+        windowDesc.ShouldContain("default 5");
 
         var codeDesc = (string?)byName["code"]["description"] ?? "";
-        Assert.Contains("required",     codeDesc);
-        Assert.Contains(@"pattern ^\d+$", codeDesc);
+        codeDesc.ShouldContain("required");
+        codeDesc.ShouldContain(@"pattern ^\d+$");
 
         var nameDesc = (string?)byName["name"]["description"] ?? "";
-        Assert.Contains("length 3..20", nameDesc);
+        nameDesc.ShouldContain("length 3..20");
     }
 
     [Fact]
@@ -447,7 +471,7 @@ public class DtdlInterfaceEmitterTests
 
         var paramsObj = FindSchema(iface, "dtmi:test:Demo:Test:Sample:Parameters;1")!;
         var firstField = paramsObj["fields"]!.AsArray()[0]!.AsObject();
-        Assert.False(firstField.ContainsKey("description"));
+        firstField.ContainsKey("description").ShouldBeFalse();
     }
 
     // ─── 10. Failure modes ──────────────────────────────────────────────────
@@ -467,37 +491,37 @@ public class DtdlInterfaceEmitterTests
     [Fact]
     public void DateTime_field_throws()
     {
-        var ex = Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        var ex = Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithDateTime))));
-        Assert.Contains("DateTime", ex.Message);
+        ex.Message.ShouldContain("DateTime");
     }
 
     [Fact]
     public void Guid_field_throws()
     {
-        var ex = Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        var ex = Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithGuid))));
-        Assert.Contains("Guid", ex.Message);
+        ex.Message.ShouldContain("Guid");
     }
 
     [Fact]
     public void Abstract_field_type_throws()
     {
-        var ex = Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        var ex = Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithStream))));
-        Assert.Contains("polymorphism", ex.Message, StringComparison.OrdinalIgnoreCase);
+        ex.Message.ShouldContain("polymorphism", Case.Insensitive);
     }
 
     [Fact]
     public void Interface_field_type_throws()
     {
-        Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(WithInterface))));
@@ -506,11 +530,11 @@ public class DtdlInterfaceEmitterTests
     [Fact]
     public void Recursive_poco_throws()
     {
-        var ex = Assert.Throws<DtdlInterfaceEmissionException>(() =>
+        var ex = Should.Throw<DtdlInterfaceEmissionException>(() =>
             DtdlInterfaceEmitter.Emit(
                 DefaultOpts(),
                 new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(Cycle))));
-        Assert.Contains("Circular", ex.Message);
+        ex.Message.ShouldContain("Circular");
     }
 
     // ─── 11. Nullable & display attribute ───────────────────────────────────
@@ -533,8 +557,8 @@ public class DtdlInterfaceEmitterTests
             .Cast<JsonObject>()
             .ToDictionary(f => (string)f["name"]!, f => (string?)f["schema"]);
 
-        Assert.Equal("integer", byName["maybe"]);
-        Assert.Equal("dtmi:test:Demo:Test:Sample:Color;1", byName["optColor"]);
+        byName["maybe"].ShouldBe("integer");
+        byName["optColor"].ShouldBe("dtmi:test:Demo:Test:Sample:Color;1");
     }
 
     private class WithDisplay
@@ -544,7 +568,7 @@ public class DtdlInterfaceEmitterTests
     }
 
     [Fact]
-    public void Display_name_overrides_humanized_field_name()
+    public void Display_attribute_emits_field_display_name()
     {
         var iface = DtdlInterfaceEmitter.Emit(
             DefaultOpts(),
@@ -552,7 +576,7 @@ public class DtdlInterfaceEmitterTests
 
         var paramsObj = FindSchema(iface, "dtmi:test:Demo:Test:Sample:Parameters;1")!;
         var field = paramsObj["fields"]!.AsArray()[0]!.AsObject();
-        Assert.Equal("Pretty Label", (string?)field["displayName"]);
+        ((string?)field["displayName"]).ShouldBe("Pretty Label");
     }
 
     // ─── 12. Two-POCO emission (device shape) ───────────────────────────────
@@ -576,14 +600,85 @@ public class DtdlInterfaceEmitterTests
             new DtdlInterfaceEmitter.PropertyBinding("Communication", typeof(Comm)),
             new DtdlInterfaceEmitter.PropertyBinding("Properties", typeof(Props)));
 
-        Assert.NotNull(FindSchema(iface, "dtmi:test:Demo:Device:TcpModbus:Communication;1"));
-        Assert.NotNull(FindSchema(iface, "dtmi:test:Demo:Device:TcpModbus:Properties;1"));
+        FindSchema(iface, "dtmi:test:Demo:Device:TcpModbus:Communication;1").ShouldNotBeNull();
+        FindSchema(iface, "dtmi:test:Demo:Device:TcpModbus:Properties;1").ShouldNotBeNull();
 
         var contents = iface["contents"]!.AsArray();
-        Assert.Equal(2, contents.Count);
-        Assert.Equal("dtmi:test:Demo:Device:TcpModbus:Communication;1",
-            (string?)contents[0]!["schema"]);
-        Assert.Equal("dtmi:test:Demo:Device:TcpModbus:Properties;1",
-            (string?)contents[1]!["schema"]);
+        contents.Count.ShouldBe(2);
+        ((string?)contents[0]!["schema"]).ShouldBe("dtmi:test:Demo:Device:TcpModbus:Communication;1");
+        ((string?)contents[1]!["schema"]).ShouldBe("dtmi:test:Demo:Device:TcpModbus:Properties;1");
+    }
+
+    // ─── 13. Real-world fixtures ────────────────────────────────────────────
+    // Use production POCOs (BatchReportParameters) to verify the emitter
+    // handles realistic shapes end-to-end. Coupled to production by design:
+    // if BatchReportParameters changes shape, these tests must be re-reviewed.
+
+    [Fact]
+    public void Real_world_BatchReportParameters_emits_expected_envelope()
+    {
+        var iface = DtdlInterfaceEmitter.Emit(
+            new DtdlInterfaceEmitter.Options(
+                Prefix: "dtmi:advantech:EdgeSync:SubNode",
+                Category: "Command",
+                TypeName: "BatchReport",
+                DisplayName: "Batch Report",
+                Description: "Query historical telemetry within a time range and emit batched records."),
+            new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(BatchReportParameters)));
+
+        ((string?)iface["@id"]).ShouldBe("dtmi:advantech:EdgeSync:SubNode:Command:BatchReport;1");
+        ((string?)iface["displayName"]).ShouldBe("Batch Report");
+        FindSchema(iface,
+            "dtmi:advantech:EdgeSync:SubNode:Command:BatchReport:Parameters;1").ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Real_world_BatchReportParameters_emits_expected_fields()
+    {
+        var iface = DtdlInterfaceEmitter.Emit(
+            new DtdlInterfaceEmitter.Options(
+                Prefix: "dtmi:advantech:EdgeSync:SubNode",
+                Category: "Command",
+                TypeName: "BatchReport"),
+            new DtdlInterfaceEmitter.PropertyBinding("Parameters", typeof(BatchReportParameters)));
+
+        var paramsObj = FindSchema(iface,
+            "dtmi:advantech:EdgeSync:SubNode:Command:BatchReport:Parameters;1")!;
+        var fieldsByName = paramsObj["fields"]!.AsArray()
+            .Cast<JsonObject>()
+            .ToDictionary(f => (string)f["name"]!);
+
+        // Nested record TimeRange → standalone Object referenced by DTMI
+        ((string?)fieldsByName["timeRange"]["schema"])
+            .ShouldBe("dtmi:advantech:EdgeSync:SubNode:Command:BatchReport:TimeRange;1");
+
+        // Nested record SensorFilter → standalone Object referenced by DTMI
+        ((string?)fieldsByName["sensorFilter"]["schema"])
+            .ShouldBe("dtmi:advantech:EdgeSync:SubNode:Command:BatchReport:SensorFilter;1");
+
+        // Range / Description / DefaultValue echoed into integer field's description
+        var maxBatchSizeDesc = (string?)fieldsByName["maxBatchSize"]["description"] ?? "";
+        maxBatchSizeDesc.ShouldContain("Maximum samples per batch");
+        maxBatchSizeDesc.ShouldContain("range 1..100000");
+        maxBatchSizeDesc.ShouldContain("default 10000");
+
+        // Standalone TimeRange Object exists with long fields
+        var timeRangeObj = FindSchema(iface,
+            "dtmi:advantech:EdgeSync:SubNode:Command:BatchReport:TimeRange;1")!;
+        var timeRangeFields = timeRangeObj["fields"]!.AsArray()
+            .Cast<JsonObject>()
+            .ToDictionary(f => (string)f["name"]!, f => (string?)f["schema"]);
+        timeRangeFields["startTime"].ShouldBe("long");
+        timeRangeFields["endTime"].ShouldBe("long");
+
+        // SensorFilter has string[] Include / Exclude — Array DTMI references
+        var sensorFilterObj = FindSchema(iface,
+            "dtmi:advantech:EdgeSync:SubNode:Command:BatchReport:SensorFilter;1")!;
+        var sfFields = sensorFilterObj["fields"]!.AsArray()
+            .Cast<JsonObject>()
+            .Select(f => (string)f["name"]!)
+            .ToArray();
+        sfFields.ShouldContain("include");
+        sfFields.ShouldContain("exclude");
     }
 }
