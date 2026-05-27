@@ -262,20 +262,27 @@ public class TcpModbusSensor
 Device 一個 Interface 內含 **兩個** top-level Property：`Communication` 表 transport 層、`Properties` 表 protocol-specific。
 
 ```csharp
-public class TcpModbusCommunication
+// Transport-layer POCO -- already exists in the SubNode SDK, generic across TCP
+// protocols (Modbus / OPC-UA / custom). Uses { get; set; } to preserve existing
+// runtime path (dict -> POCO via GetObject<>()); has no [DefaultValue] for Port
+// so DTDL does not bake the Modbus-specific 502 into a generic TCP shape.
+public class TcpCommunicationSettings
 {
     [Required, Display(Name = "Host")]
+    [Description("TCP host name or IP address.")]
     [JsonPropertyName("host")]
-    public string Host { get; init; } = "";
+    public string Host { get; set; } = "localhost";
 
-    [Range(1, 65535), DefaultValue(502), Display(Name = "Port")]
+    [Range(1, 65535), Display(Name = "Port")]
     [JsonPropertyName("port")]
-    public int Port { get; init; } = 502;
+    public int Port { get; set; } = 502;
 }
 
-public class TcpModbusProperties
+// Protocol-specific POCO -- Modbus only. Transport-independent (works for TCP,
+// RTU, ASCII).
+public class ModbusProperties
 {
-    [Range(1, 247), DefaultValue((byte)1), Display(Name = "Slave ID")]
+    [Range(1, 247), Display(Name = "Slave ID")]
     [JsonPropertyName("slaveId")]
     public byte SlaveId { get; init; } = 1;
 
@@ -284,15 +291,18 @@ public class TcpModbusProperties
     public ModbusByteOrder ByteOrder { get; init; } = ModbusByteOrder.BigEndian;
 }
 
-public class TcpModbusDevice
-    : DeviceBase,
-      IConfigurableDevice<TcpModbusDevice, TcpModbusCommunication, TcpModbusProperties>
+// Capability registration lives on the strongly-typed config class -- pure
+// descriptor (no Create / UpdateProperties; sensor lifecycle stays with the
+// owning device implementation).
+public class TcpModbusDeviceConfiguration
+    : IDeviceConfiguration,
+      IConfigurableDevice<TcpCommunicationSettings, ModbusProperties>
 {
     public static string DeviceTypeName => "tcp-modbus";
-    public static string? Description => "Modbus/TCP master client";
-    public static TcpModbusDevice Create(TcpModbusCommunication c, TcpModbusProperties p)
-        => new(c, p);
-    public void UpdateProperties(TcpModbusProperties p) { /* swap byte order etc. */ }
+    public static string? Description   => "Modbus/TCP master client.";
+
+    // ... existing instance members (DeviceName, Host, Port, SlaveId,
+    // ToDeviceConfiguration(), AddSensor(...), etc.) unchanged ...
 }
 ```
 
@@ -431,8 +441,8 @@ Device 兩 POCO：
 ```csharp
 DtdlInterfaceEmitter.Emit(
     opts with { Category = "Device", TypeName = "tcp-modbus" },
-    new DtdlInterfaceEmitter.PropertyBinding("Communication", typeof(TcpModbusCommunication)),
-    new DtdlInterfaceEmitter.PropertyBinding("Properties",    typeof(TcpModbusProperties)));
+    new DtdlInterfaceEmitter.PropertyBinding("Communication", typeof(TcpCommunicationSettings)),
+    new DtdlInterfaceEmitter.PropertyBinding("Properties",    typeof(ModbusProperties)));
 ```
 
 回傳 `JsonObject` — 完整 v3 Interface JSON，可直接序列化進 `SubNodeCapabilitiesDto` 上傳。

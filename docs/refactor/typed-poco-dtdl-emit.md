@@ -273,27 +273,35 @@ public record TimeRange(long StartTime, long EndTime);
 ### 5.4 Device — 兩棵 POCO
 
 ```csharp
-public class TcpModbusCommunication
+// Transport-layer POCO — already exists in the SubNode SDK
+// (Weda.SubNode.Core.Communication.Tcp.TcpCommunicationSettings).
+// Generic across TCP-based protocols. Uses { get; set; } to preserve the
+// existing runtime path (dict → POCO via GetObject<>()) and has no
+// [DefaultValue] for Port so DTDL does not bake Modbus's 502 into a
+// generic TCP shape.
+public class TcpCommunicationSettings
 {
     [Required, Display(Name = "Host")]
-    [Description("Modbus TCP slave host or IP")]
+    [Description("TCP host name or IP address.")]
     [JsonPropertyName("host")]
-    public string Host { get; init; } = "";
+    public string Host { get; set; } = "localhost";
 
-    [Range(1, 65535), DefaultValue(502), Display(Name = "Port")]
-    [Description("TCP port")]
+    [Range(1, 65535), Display(Name = "Port")]
+    [Description("TCP port.")]
     [JsonPropertyName("port")]
-    public int Port { get; init; } = 502;
+    public int Port { get; set; } = 502;
 }
 
-public class TcpModbusProperties
+// Protocol-specific POCO — Modbus only, transport-independent.
+public class ModbusProperties
 {
-    [Range(1, 247), DefaultValue((byte)1), Display(Name = "Slave ID")]
-    [Description("Modbus slave unit ID")]
+    [Range(1, 247), Display(Name = "Slave ID")]
+    [Description("Modbus unit / slave identifier.")]
     [JsonPropertyName("slaveId")]
     public byte SlaveId { get; init; } = 1;
 
-    [DefaultValue(ModbusByteOrder.BigEndian), Display(Name = "Byte Order")]
+    [Display(Name = "Byte Order")]
+    [Description("Word and byte ordering for multi-register values.")]
     [JsonPropertyName("byteOrder")]
     public ModbusByteOrder ByteOrder { get; init; } = ModbusByteOrder.BigEndian;
 }
@@ -303,17 +311,20 @@ public enum ModbusByteOrder
     BigEndian, LittleEndian, BigEndianByteSwap, LittleEndianByteSwap
 }
 
-public class TcpModbusDevice
-    : DeviceBase,
-      IConfigurableDevice<TcpModbusDevice, TcpModbusCommunication, TcpModbusProperties>
+// Capability registration lives on the strongly-typed configuration class.
+// IConfigurableDevice is a pure descriptor — no Create / UpdateProperties.
+// The emitter reflects on the generic arguments to produce the DTDL
+// Interface; the outer class's instance members (Host / Port / SlaveId
+// inline fields, ToDeviceConfiguration() projection, AddSensor fluent API)
+// remain untouched.
+public class TcpModbusDeviceConfiguration
+    : IDeviceConfiguration,
+      IConfigurableDevice<TcpCommunicationSettings, ModbusProperties>
 {
     public static string DeviceTypeName => "tcp-modbus";
-    public static string? Description => "Modbus/TCP master client";
+    public static string? Description   => "Modbus/TCP master client.";
 
-    public static TcpModbusDevice Create(
-        TcpModbusCommunication comm, TcpModbusProperties props) => new(comm, props);
-
-    public void UpdateProperties(TcpModbusProperties p) { /* swap byte order etc. */ }
+    // ... existing instance members unchanged ...
 }
 ```
 
