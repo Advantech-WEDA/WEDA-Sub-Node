@@ -21,6 +21,7 @@ namespace Weda.SubNode.Core.Commands;
 /// - On error: send "Failed" or "Rejected" response with error details
 ///
 /// Execution pipeline:
+/// 0. Json Validate by WedaDtdlParser.Parse();
 /// 1. Deserialization
 /// 2. Send "Received" response
 /// 3. DataAnnotation validation (always runs, outside pipeline)
