@@ -1,62 +1,212 @@
 {
-  "type": "object",
-  "properties": {
-    "status": {
-      "type": "integer"
-    },
-    "message": {
-      "type": "string"
-    },
-    "resultData": {
-      "type": "object",
-      "properties": {
-        "successCount": {
-          "type": "integer"
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:command:doset:response;1",
+  "@type": "Interface",
+  "displayName": "do.set response",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:command:doset:response:digitaloutputoperationresult;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
+          "schema": "string",
+          "required": false,
+          "writable": true
         },
-        "failureCount": {
-          "type": "integer"
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "state",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
         },
-        "outputs": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "state": {
-                "type": "boolean"
-              },
-              "success": {
-                "type": "boolean"
-              },
-              "error": {
-                "type": "string"
-              },
-              "deviceName": {
-                "type": "string"
-              }
-            }
-          }
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "success",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "error",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "schema": "string",
+          "required": false,
+          "writable": true
         }
-      }
+      ]
     },
-    "errorDetails": {
-      "type": "object",
-      "properties": {
-        "errorCode": {
-          "type": "string"
+    {
+      "@id": "dtmi:advantech:weda:command:doset:response:outputslist;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:doset:response:digitaloutputoperationresult;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:doset:response:setdigitaloutputresultdata;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "successCount",
+          "schema": "integer",
+          "required": false,
+          "writable": true
         },
-        "recommendation": {
-          "type": "string"
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "failureCount",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "outputs",
+          "schema": "dtmi:advantech:weda:command:doset:response:outputslist;1",
+          "required": false,
+          "writable": true
         }
-      }
+      ]
     },
-    "executedAt": {
-      "type": "integer"
+    {
+      "@id": "dtmi:advantech:weda:command:doset:response:setdigitaloutputerrordetails;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errorCode",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "recommendation",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        }
+      ]
     },
-    "completedAt": {
-      "type": "integer"
+    {
+      "@id": "dtmi:advantech:weda:command:doset:response:response;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "status",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "message",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "resultData",
+          "schema": "dtmi:advantech:weda:command:doset:response:setdigitaloutputresultdata;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errorDetails",
+          "schema": "dtmi:advantech:weda:command:doset:response:setdigitaloutputerrordetails;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "executedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "completedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        }
+      ]
     }
-  }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "response",
+      "schema": "dtmi:advantech:weda:command:doset:response:response;1",
+      "required": false,
+      "writable": true
+    }
+  ]
 }

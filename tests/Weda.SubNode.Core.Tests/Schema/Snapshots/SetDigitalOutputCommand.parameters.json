@@ -1,29 +1,86 @@
 {
-  "type": "object",
-  "properties": {
-    "deviceName": {
-      "type": "string"
-    },
-    "outputs": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "state": {
-            "type": "boolean"
-          }
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:command:doset:param;1",
+  "@type": "Interface",
+  "displayName": "do.set param",
+  "description": "Set digital output channels on a target device.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:command:doset:param:digitaloutputstate;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
+          "displayName": "Output Name",
+          "schema": "string",
+          "required": true,
+          "writable": true
         },
-        "required": [
-          "name"
-        ]
-      },
-      "minItems": 1
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "state",
+          "displayName": "Output State",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:doset:param:outputslist;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:doset:param:digitaloutputstate;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:doset:param:parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "displayName": "Target Device",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "outputs",
+          "displayName": "Outputs to Set",
+          "schema": "dtmi:advantech:weda:command:doset:param:outputslist;1",
+          "required": true,
+          "writable": true,
+          "minLength": 1
+        }
+      ]
     }
-  },
-  "required": [
-    "outputs"
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:command:doset:param:parameters;1",
+      "required": false,
+      "writable": true
+    }
   ]
 }

@@ -1,17 +1,56 @@
 {
-  "type": "object",
-  "properties": {
-    "processNoise": {
-      "type": "number",
-      "description": "Process noise (Q). Must be \u003E= 0.",
-      "default": 0.01,
-      "minimum": 0,
-      "maximum": 1.7976931348623157E+308
-    },
-    "measurementNoise": {
-      "type": "number",
-      "description": "Measurement noise (R). Must be \u003E 0.",
-      "default": 0.1
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:dspfilter:kalman;1",
+  "@type": "Interface",
+  "displayName": "kalman",
+  "description": "1D Kalman filter that fuses noisy measurements with a process model.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:dspfilter:kalman:parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "processNoise",
+          "description": "Process noise (Q). Must be \u003E= 0.",
+          "schema": "double",
+          "required": false,
+          "writable": true,
+          "minimum": 0,
+          "maximum": 1.7976931348623157E+308,
+          "default": 0.01
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "measurementNoise",
+          "description": "Measurement noise (R). Must be \u003E 0.",
+          "schema": "double",
+          "required": false,
+          "writable": true,
+          "default": 0.1
+        }
+      ]
     }
-  }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:dspfilter:kalman:parameters;1",
+      "required": false,
+      "writable": true
+    }
+  ]
 }

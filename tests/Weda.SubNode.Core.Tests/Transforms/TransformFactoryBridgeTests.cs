@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Nodes;
 
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Transforms;
@@ -33,11 +34,13 @@ public class TransformFactoryBridgeTests
         Assert.Contains(descriptors, d => d.TypeName == "calibration");
         Assert.Contains(descriptors, d => d.TypeName == "chunking");
 
-        // Schemas are non-null and serialize to a JSON object.
+        // Schemas are non-null DTDL Interfaces.
         foreach (var d in descriptors)
         {
             Assert.NotNull(d.ParameterSchema);
-            Assert.Equal("object", (string?)d.ParameterSchema.Root["type"]);
+            Assert.Equal("Interface", (string?)d.ParameterSchema["@type"]);
+            Assert.Equal($"dtmi:advantech:weda:transform:{d.TypeName};1",
+                (string?)d.ParameterSchema["@id"]);
         }
     }
 
@@ -129,14 +132,21 @@ public class TransformFactoryBridgeTests
         var descriptor = TransformFactory.GetDescriptors()
             .First(d => d.TypeName == "unitconversion");
 
-        var props = descriptor.ParameterSchema.Root["properties"]!;
-        Assert.NotNull(props["fromUnit"]);
-        Assert.NotNull(props["toUnit"]);
+        // DTDL navigation: find the inner Object schema that defines the POCO's fields.
+        var paramsEntry = descriptor.ParameterSchema["contents"]!.AsArray()
+            .OfType<JsonObject>()
+            .First(c => (string?)c["name"] == "parameters");
+        var schemaRef = (string?)paramsEntry["schema"];
+        var paramObject = descriptor.ParameterSchema["schemas"]!.AsArray()
+            .OfType<JsonObject>()
+            .First(s => (string?)s["@id"] == schemaRef);
 
-        var required = descriptor.ParameterSchema.Root["required"];
-        Assert.NotNull(required);
-        var requiredNames = required.AsArray().Select(n => (string?)n).ToHashSet();
-        Assert.Contains("fromUnit", requiredNames);
-        Assert.Contains("toUnit", requiredNames);
+        var fields = paramObject["fields"]!.AsArray().OfType<JsonObject>().ToList();
+        var fromUnit = fields.First(f => (string?)f["name"] == "fromUnit");
+        var toUnit = fields.First(f => (string?)f["name"] == "toUnit");
+
+        // [Required] surfaces as the ConfigConstraint "required" extension field.
+        Assert.True((bool?)fromUnit["required"] ?? false);
+        Assert.True((bool?)toUnit["required"] ?? false);
     }
 }

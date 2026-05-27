@@ -2,8 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 
+using Weda.Dtdl.Emit;
+
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
-using Weda.SubNode.Abstractions.Schema;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Schema;
@@ -16,9 +17,10 @@ namespace Weda.SubNode.Core.Transforms;
 /// implementations of <see cref="IConfigurableTransform{TSelf, TParameter}"/>.
 /// </summary>
 /// <remarks>
-/// Each discovered implementation caches a <see cref="JsonSchemaDto"/> emitted
-/// from its parameter type at registration time; the cache is exposed through
-/// <see cref="GetDescriptors"/> for capability upload.
+/// Each discovered implementation caches a DTDL v3 Interface emitted by
+/// <see cref="DtdlInterfaceEmitter"/> from its parameter type at registration
+/// time; the cache is exposed through <see cref="GetDescriptors"/> for
+/// capability upload.
 /// </remarks>
 public static class TransformFactory
 {
@@ -143,7 +145,16 @@ public static class TransformFactory
             return;
         }
 
-        var schema = JsonSchemaEmitter.Emit(paramType);
+        var schema = DtdlInterfaceEmitter.Emit(
+            new DtdlInterfaceEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "transform",
+                TypeName: typeName,
+                DisplayName: typeName,
+                Description: description),
+            new DtdlInterfaceEmitter.PropertyBinding(
+                Name: "parameters",
+                Type: paramType));
 
         ITelemetryTransform Factory(Dictionary<string, object> dict)
         {

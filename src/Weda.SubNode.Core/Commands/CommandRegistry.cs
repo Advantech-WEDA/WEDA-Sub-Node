@@ -1,17 +1,19 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 using ErrorOr;
 
 using Microsoft.Extensions.Logging;
+
+using Weda.Dtdl.Emit;
 
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Behaviors;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Schema;
 using Weda.SubNode.Core.Schema;
 
 namespace Weda.SubNode.Core.Commands;
@@ -107,10 +109,10 @@ public class CommandRegistry
 
             var parameterType = GetCommandParameterType(commandType);
             var description = commandType.GetCustomAttribute<DescriptionAttribute>()?.Description;
-            var parameterSchema = parameterType is not null
-                ? JsonSchemaEmitter.Emit(parameterType)
-                : JsonSchemaDto.EmptyObject();
-            var responseSchema = JsonSchemaEmitter.Emit(resultType);
+            var parameterSchema = EmitCommandInterface(
+                commandName, "param", parameterType ?? typeof(EmptyParameters), description);
+            var responseSchema = EmitCommandInterface(
+                commandName, "response", resultType, description: null);
 
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
@@ -140,10 +142,35 @@ public class CommandRegistry
             .Select(r => new CommandDescriptorDto(
                 Name: r.CommandName,
                 Description: r.Description,
-                ParameterSchema: r.ParameterSchema ?? JsonSchemaDto.EmptyObject(),
-                ResponseSchema: r.ResponseSchema ?? JsonSchemaDto.EmptyObject(),
+                ParameterSchema: r.ParameterSchema
+                    ?? EmitCommandInterface(r.CommandName, "param", typeof(EmptyParameters), description: null),
+                ResponseSchema: r.ResponseSchema
+                    ?? EmitCommandInterface(r.CommandName, "response", typeof(EmptyParameters), description: null),
                 AutoAck: r.AutoAckEnabled))
             .ToList();
+
+    /// <summary>
+    /// Emits a DTDL v3 Interface that describes either the parameter shape or the
+    /// response shape of a command. Each command yields TWO interfaces with DTMIs
+    /// <c>dtmi:advantech:weda:command:&lt;cmd&gt;:param;1</c> and
+    /// <c>dtmi:advantech:weda:command:&lt;cmd&gt;:response;1</c> — both bound to a
+    /// single Property named after the role (<c>parameters</c> / <c>response</c>).
+    /// </summary>
+    private static JsonObject EmitCommandInterface(
+        string commandName, string role, Type pocoType, string? description)
+    {
+        var propertyName = role == "response" ? "response" : "parameters";
+        return DtdlInterfaceEmitter.Emit(
+            new DtdlInterfaceEmitter.Options(
+                Prefix: "dtmi:advantech:weda:command",
+                Category: commandName,
+                TypeName: role,
+                DisplayName: $"{commandName} {role}",
+                Description: description),
+            new DtdlInterfaceEmitter.PropertyBinding(
+                Name: propertyName,
+                Type: pocoType));
+    }
 
     /// <summary>
     /// Resolves the TParameter generic argument from <see cref="ICommand{TParameter}"/>
@@ -511,8 +538,8 @@ public record CommandRegistration(
     bool AutoAckEnabled = true,
     Type? ParameterType = null,
     string? Description = null,
-    JsonSchemaDto? ParameterSchema = null,
-    JsonSchemaDto? ResponseSchema = null)
+    JsonObject? ParameterSchema = null,
+    JsonObject? ResponseSchema = null)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.

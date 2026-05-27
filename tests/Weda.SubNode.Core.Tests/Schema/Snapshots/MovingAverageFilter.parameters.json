@@ -1,12 +1,44 @@
 {
-  "type": "object",
-  "properties": {
-    "window": {
-      "type": "integer",
-      "description": "Sliding window size (number of samples). Must be greater than 0.",
-      "default": 5,
-      "minimum": 1,
-      "maximum": 2147483647
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:dspfilter:movingaverage;1",
+  "@type": "Interface",
+  "displayName": "movingaverage",
+  "description": "Smooth numeric measurements with a sliding-window arithmetic mean.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:dspfilter:movingaverage:parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "window",
+          "description": "Sliding window size (number of samples). Must be greater than 0.",
+          "schema": "integer",
+          "required": false,
+          "writable": true,
+          "minimum": 1,
+          "maximum": 2147483647,
+          "default": 5
+        }
+      ]
     }
-  }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:dspfilter:movingaverage:parameters;1",
+      "required": false,
+      "writable": true
+    }
+  ]
 }

@@ -2,9 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 
+using Weda.Dtdl.Emit;
+
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Dsp;
-using Weda.SubNode.Abstractions.Schema;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Schema;
 
@@ -16,9 +17,10 @@ namespace Weda.SubNode.Core.Dsp;
 /// implementations of <see cref="IConfigurableDspFilter{TSelf, TParameter}"/>.
 /// </summary>
 /// <remarks>
-/// Each discovered implementation caches a <see cref="JsonSchemaDto"/> emitted
-/// from its parameter type at registration time; the cache is exposed through
-/// <see cref="GetDescriptors"/> for capability upload.
+/// Each discovered implementation caches a DTDL v3 Interface emitted by
+/// <see cref="DtdlInterfaceEmitter"/> from its parameter type at registration
+/// time; the cache is exposed through <see cref="GetDescriptors"/> for
+/// capability upload.
 /// </remarks>
 public static class DspFilterFactory
 {
@@ -143,7 +145,16 @@ public static class DspFilterFactory
             return;
         }
 
-        var schema = JsonSchemaEmitter.Emit(paramType);
+        var schema = DtdlInterfaceEmitter.Emit(
+            new DtdlInterfaceEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "dspfilter",
+                TypeName: typeName,
+                DisplayName: typeName,
+                Description: description),
+            new DtdlInterfaceEmitter.PropertyBinding(
+                Name: "parameters",
+                Type: paramType));
 
         IDspFilter Factory(Dictionary<string, object> dict)
         {

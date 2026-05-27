@@ -1,34 +1,125 @@
 {
-  "type": "object",
-  "properties": {
-    "status": {
-      "type": "integer"
-    },
-    "message": {
-      "type": "string"
-    },
-    "resultData": {
-      "type": "object",
-      "properties": {
-        "sensorShortResourceId": {
-          "type": "string"
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:command:reportdata:response;1",
+  "@type": "Interface",
+  "displayName": "report.data response",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:command:reportdata:response:reportdataresultdata;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "sensorShortResourceId",
+          "schema": "string",
+          "required": false,
+          "writable": true
         },
-        "resourceTimestamp": {
-          "type": "integer"
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "resourceTimestamp",
+          "schema": "long",
+          "required": false,
+          "writable": true
         },
-        "transferId": {
-          "type": "string"
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "transferId",
+          "schema": "string",
+          "required": false,
+          "writable": true
         },
-        "dataTransferred": {
-          "type": "boolean"
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "dataTransferred",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
         }
-      }
+      ]
     },
-    "executedAt": {
-      "type": "integer"
-    },
-    "completedAt": {
-      "type": "integer"
+    {
+      "@id": "dtmi:advantech:weda:command:reportdata:response:response;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "status",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "message",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "resultData",
+          "schema": "dtmi:advantech:weda:command:reportdata:response:reportdataresultdata;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "executedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "completedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        }
+      ]
     }
-  }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "response",
+      "schema": "dtmi:advantech:weda:command:reportdata:response:response;1",
+      "required": false,
+      "writable": true
+    }
+  ]
 }

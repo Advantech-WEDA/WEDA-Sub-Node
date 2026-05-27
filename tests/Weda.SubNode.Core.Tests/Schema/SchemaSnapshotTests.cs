@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-using Weda.SubNode.Abstractions.Schema;
 using Weda.SubNode.Core.Commands;
 using Weda.SubNode.Core.Dsp;
 using Weda.SubNode.Core.Transforms;
@@ -13,7 +12,7 @@ namespace Weda.SubNode.Core.Tests.Schema;
 
 /// <summary>
 /// Golden snapshot tests for production transform / DSP filter / command
-/// parameter schemas. These guard against accidental wire-format drift when
+/// DTDL v3 Interfaces. These guard against accidental wire-format drift when
 /// the emitter logic changes — any change to a baseline file shows up as a
 /// reviewable diff.
 /// </summary>
@@ -75,7 +74,7 @@ public class SchemaSnapshotTests
         AssertMatchesSnapshot($"{snapshotName}.response.json", descriptor.ResponseSchema);
     }
 
-    private static void AssertMatchesSnapshot(string fileName, JsonSchemaDto schema)
+    private static void AssertMatchesSnapshot(string fileName, JsonObject schema)
     {
         Directory.CreateDirectory(SnapshotDir);
         var path = Path.Combine(SnapshotDir, fileName);

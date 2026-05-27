@@ -1,32 +1,98 @@
 {
-  "type": "object",
-  "properties": {
-    "scale": {
-      "type": "number",
-      "description": "Linear calibration scale factor. Must not be zero.",
-      "default": 1
-    },
-    "offset": {
-      "type": "number",
-      "description": "Linear calibration offset value.",
-      "default": 0
-    },
-    "calibrationCurve": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "rawValue": {
-            "type": "number",
-            "description": "Raw sensor value before calibration."
-          },
-          "calibratedValue": {
-            "type": "number",
-            "description": "Calibrated sensor value after calibration."
-          }
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:transform:calibration;1",
+  "@type": "Interface",
+  "displayName": "calibration",
+  "description": "Apply linear (Scale \u002B Offset) or curve-based calibration to numeric measurements.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:transform:calibration:calibrationpoint;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "rawValue",
+          "description": "Raw sensor value before calibration.",
+          "schema": "double",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "calibratedValue",
+          "description": "Calibrated sensor value after calibration.",
+          "schema": "double",
+          "required": false,
+          "writable": true
         }
-      },
-      "description": "Curve points for non-linear calibration. Overrides Scale/Offset when provided."
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:transform:calibration:calibrationcurvelist;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:transform:calibration:calibrationpoint;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:transform:calibration:parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "scale",
+          "description": "Linear calibration scale factor. Must not be zero.",
+          "schema": "double",
+          "required": false,
+          "writable": true,
+          "default": 1
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "offset",
+          "description": "Linear calibration offset value.",
+          "schema": "double",
+          "required": false,
+          "writable": true,
+          "default": 0
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "calibrationCurve",
+          "description": "Curve points for non-linear calibration. Overrides Scale/Offset when provided.",
+          "schema": "dtmi:advantech:weda:transform:calibration:calibrationcurvelist;1",
+          "required": false,
+          "writable": true
+        }
+      ]
     }
-  }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:transform:calibration:parameters;1",
+      "required": false,
+      "writable": true
+    }
+  ]
 }

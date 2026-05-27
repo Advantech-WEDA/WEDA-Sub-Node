@@ -1,79 +1,263 @@
 {
-  "type": "object",
-  "properties": {
-    "status": {
-      "type": "integer"
-    },
-    "message": {
-      "type": "string"
-    },
-    "resultData": {
-      "type": "object",
-      "properties": {
-        "batchesSent": {
-          "type": "integer"
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:command:reporthistorical:response;1",
+  "@type": "Interface",
+  "displayName": "report.historical response",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreporttimerange;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "startTime",
+          "schema": "string",
+          "required": false,
+          "writable": true
         },
-        "totalSamples": {
-          "type": "integer"
-        },
-        "timeRange": {
-          "type": "object",
-          "properties": {
-            "startTime": {
-              "type": "string"
-            },
-            "endTime": {
-              "type": "string"
-            }
-          }
-        },
-        "sensors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "dataGaps": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "sensorId": {
-                "type": "string"
-              },
-              "startTime": {
-                "type": "string"
-              },
-              "endTime": {
-                "type": "string"
-              },
-              "reason": {
-                "type": "string"
-              },
-              "missingSamples": {
-                "type": "integer"
-              }
-            }
-          }
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "endTime",
+          "schema": "string",
+          "required": false,
+          "writable": true
         }
-      }
+      ]
     },
-    "errorDetails": {
-      "type": "object",
-      "properties": {
-        "errorCode": {
-          "type": "string"
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:sensorslist;1",
+      "@type": "Array",
+      "elementSchema": "string"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreportdatagap;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "sensorId",
+          "schema": "string",
+          "required": false,
+          "writable": true
         },
-        "recommendation": {
-          "type": "string"
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "startTime",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "endTime",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "reason",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "missingSamples",
+          "schema": "integer",
+          "required": false,
+          "writable": true
         }
-      }
+      ]
     },
-    "executedAt": {
-      "type": "integer"
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:datagapslist;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:reporthistorical:response:batchreportdatagap;1"
     },
-    "completedAt": {
-      "type": "integer"
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreportresultdata;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "batchesSent",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "totalSamples",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "timeRange",
+          "schema": "dtmi:advantech:weda:command:reporthistorical:response:batchreporttimerange;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "sensors",
+          "schema": "dtmi:advantech:weda:command:reporthistorical:response:sensorslist;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "dataGaps",
+          "schema": "dtmi:advantech:weda:command:reporthistorical:response:datagapslist;1",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreporterrordetails;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errorCode",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "recommendation",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:reporthistorical:response:response;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "status",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "message",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "resultData",
+          "schema": "dtmi:advantech:weda:command:reporthistorical:response:batchreportresultdata;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errorDetails",
+          "schema": "dtmi:advantech:weda:command:reporthistorical:response:batchreporterrordetails;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "executedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "completedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        }
+      ]
     }
-  }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "response",
+      "schema": "dtmi:advantech:weda:command:reporthistorical:response:response;1",
+      "required": false,
+      "writable": true
+    }
+  ]
 }

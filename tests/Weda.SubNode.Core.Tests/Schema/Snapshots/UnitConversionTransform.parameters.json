@@ -1,17 +1,52 @@
 {
-  "type": "object",
-  "properties": {
-    "fromUnit": {
-      "type": "string",
-      "description": "Source unit. Accepted values: C, F, K, celsius, fahrenheit, kelvin."
-    },
-    "toUnit": {
-      "type": "string",
-      "description": "Target unit. Accepted values: C, F, K, celsius, fahrenheit, kelvin."
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:transform:unitconversion;1",
+  "@type": "Interface",
+  "displayName": "unitconversion",
+  "description": "Convert numeric measurements between temperature units (C/F/K).",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:transform:unitconversion:parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "fromUnit",
+          "description": "Source unit. Accepted values: C, F, K, celsius, fahrenheit, kelvin.",
+          "schema": "string",
+          "required": true,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "toUnit",
+          "description": "Target unit. Accepted values: C, F, K, celsius, fahrenheit, kelvin.",
+          "schema": "string",
+          "required": true,
+          "writable": true
+        }
+      ]
     }
-  },
-  "required": [
-    "fromUnit",
-    "toUnit"
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:transform:unitconversion:parameters;1",
+      "required": false,
+      "writable": true
+    }
   ]
 }
