@@ -8,6 +8,7 @@ using ErrorOr;
 using Microsoft.Extensions.Logging;
 
 using Weda.Dtdl.Emit;
+using Weda.Dtdl.Validation;
 
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Commands;
@@ -114,6 +115,11 @@ public class CommandRegistry
             var responseSchema = EmitCommandInterface(
                 commandName, "response", resultType, description: null);
 
+            // Build the Step-0 validator eagerly so any DTDL schema bug (or
+            // ConfigConstraint extension misuse) fails fast at startup rather
+            // than at first dispatch.
+            var parameterValidator = new WedaDtdlValidator(parameterSchema.ToJsonString());
+
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
@@ -124,7 +130,8 @@ public class CommandRegistry
                 ParameterType: parameterType,
                 Description: description,
                 ParameterSchema: parameterSchema,
-                ResponseSchema: responseSchema);
+                ResponseSchema: responseSchema,
+                ParameterValidator: parameterValidator);
 
             _logger?.LogDebug(
                 "Registered command handler: {CommandName} -> {HandlerType} (Behaviors: {BehaviorCount})",
@@ -539,7 +546,8 @@ public record CommandRegistration(
     Type? ParameterType = null,
     string? Description = null,
     JsonObject? ParameterSchema = null,
-    JsonObject? ResponseSchema = null)
+    JsonObject? ResponseSchema = null,
+    WedaDtdlValidator? ParameterValidator = null)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.

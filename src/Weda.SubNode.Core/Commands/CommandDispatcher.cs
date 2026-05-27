@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using ErrorOr;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
@@ -21,7 +22,8 @@ namespace Weda.SubNode.Core.Commands;
 /// - On error: send "Failed" or "Rejected" response with error details
 ///
 /// Execution pipeline:
-/// 0. Json Validate by WedaDtdlParser.Parse();
+/// 0. DTDL payload validation via <see cref="Weda.Dtdl.Validation.WedaDtdlValidator"/>
+///    (gated by <see cref="DtdlValidationOptions.Enabled"/>; default off in production)
 /// 1. Deserialization
 /// 2. Send "Received" response
 /// 3. DataAnnotation validation (always runs, outside pipeline)
@@ -31,9 +33,14 @@ namespace Weda.SubNode.Core.Commands;
 /// 5. Handler execution
 /// 6. Send Success/Failed response
 /// </remarks>
-public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext context)
+public class CommandDispatcher(
+    CommandRegistry registry,
+    IWedaApplicationContext context,
+    IOptions<DtdlValidationOptions>? dtdlValidationOptions = null)
 {
     private readonly ILogger _logger = context.GetLogger<CommandDispatcher>();
+    private readonly DtdlValidationOptions _dtdlValidationOptions =
+        dtdlValidationOptions?.Value ?? new DtdlValidationOptions();
     private static readonly ConcurrentDictionary<Type, MethodInfo?> _behaviorMethodCache = [];
 
     public async Task<ErrorOr<object?>> DispatchAsync(
@@ -53,6 +60,33 @@ public class CommandDispatcher(CommandRegistry registry, IWedaApplicationContext
         {
             _logger.LogWarning("No handler found for command: {CommandName}", commandName);
             return Errors.Command.HandlerNotFound($"No handler registered for command '{commandName}'");
+        }
+
+        // Step 0: DTDL payload validation. Gated by DtdlValidationOptions.Enabled;
+        // skipped when the envelope omits "parameters" — downstream DataAnnotation
+        // validation handles missing-required cases inside parameters.
+        if (_dtdlValidationOptions.Enabled
+            && registration.ParameterValidator is { } dtdlValidator
+            && message.Data is { ValueKind: JsonValueKind.Object } envelope
+            && envelope.TryGetProperty("parameters", out var paramsElement)
+            && paramsElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+        {
+            if (!dtdlValidator.TryValidate("parameters", paramsElement, out var dtdlErrors))
+            {
+                _logger.LogWarning(
+                    "DTDL Step 0 validation failed for {CommandName}: {Errors}",
+                    commandName, string.Join("; ", dtdlErrors));
+
+                if (message.Data?.TryGetProperty("respTopic", out var respTopicElement) == true
+                    && respTopicElement.GetString() is { Length: > 0 } respTopic)
+                {
+                    await SendResponseAsync(respTopic,
+                        CommandResponse.Rejected(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
+                            CommandStatusCode.ValidationFailed,
+                            string.Join("; ", dtdlErrors), message.ReqSeqId));
+                }
+                return Errors.Command.ValidationFailed(string.Join("; ", dtdlErrors));
+            }
         }
 
         // Deserialize command to strongly-typed object
