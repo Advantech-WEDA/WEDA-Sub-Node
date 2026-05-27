@@ -13,6 +13,7 @@
     <PackageReference Include="Polly.Core" />
     <PackageReference Include="Polly.Extensions" />
     <PackageReference Include="System.IO.Ports" />
+    <PackageReference Include="Weda.Dtdl" />
   </ItemGroup>
 
 </Project>
