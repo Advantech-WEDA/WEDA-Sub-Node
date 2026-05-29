@@ -16,12 +16,19 @@
 # change immediately -- no image rebuild needed.
 
 services:
-  # Node.js validator (faster build, smaller image -- preferred for CI gates).
-  validate:
+
+  # Standalone .NET 8 devicecfg validator -- validates a devicecfg.json payload
+  # against the ConfigConstraint-annotated schemas in docs/Metrics/devicecfg/.
+  #   docker compose run --rm devicecfg-validator
+  #   docker compose run --rm devicecfg-validator devicecfg/samples/invalid.json
+  #   docker compose run --rm devicecfg-validator devicecfg/samples/valid.json \
+  #     --schema devicecfg/CpuSensor.dtdl.json \
+  #     --at DeviceConfigs.SystemAgentDeviceConfig.Sensors.0
+  devicecfg-validator:
     build:
-      context: ./scripts
+      context: ./devicecfg-validator
       dockerfile: Dockerfile
-    image: weda-dtdl-validate:latest
+    image: weda-devicecfg-validator:latest
     volumes:
       - ../docs/Metrics:/work:ro
     environment:

@@ -1,0 +1,134 @@
+{
+  "$comment": "EdgeSync DTDL language extension -- adds the 'ConfigConstraint' adjunct type so a DTDL Interface can declare, per Property and per Object Field: whether a JSON member is REQUIRED, whether it is WRITABLE, and its value bounds (numeric MINIMUM/MAXIMUM, string MINLENGTH/MAXLENGTH). DTDL v3 has no native 'required' / 'minimum' / 'maximum' / 'minLength' / 'maxLength' keywords at all, and its native 'writable' keyword is valid only on Property elements (never on Object fields); this extension fills all of those gaps for describing the devicecfg.json payload contract.",
+  "$importantNote": "Stock Microsoft DTDL parsers (@azure/dtdl-parser, DTDLParser) cannot load a third-party extension -- there is no public registration API. A model that references this context parses as 'contextually incomplete': it still parses cleanly, every co-typed element is recorded as 'informally co-typed', and the 'required' / 'writable' members are preserved verbatim under the element's 'undefinedProperties'. ENFORCEMENT is therefore performed by the EdgeSync extension-aware validator (dtdl-validate/scripts/validate-devicecfg.js), which reads undefinedProperties.required / .writable -- not by the stock parser.",
+
+  "@id": "dtmi:advantech:edgesync:validation;1",
+  "@context": "dtmi:dtdl:context;3",
+  "extensionKind": "LanguageExtension",
+
+  "adjunctTypes": [
+    {
+      "name": "ConfigConstraint",
+      "@id": "dtmi:advantech:edgesync:validation:ConfigConstraint;1",
+      "description": "Co-type applied to a Property (in an Interface's contents[]) or a Field (in an Object's fields[]). Declares the requiredness and writability of the corresponding JSON member.",
+      "coTypes": ["Property", "Field"],
+      "properties": [
+        {
+          "name": "required",
+          "dataType": "boolean",
+          "default": false,
+          "description": "true => the JSON member MUST be present on a valid devicecfg.json instance. false / absent => the member is OPTIONAL. Hard validation rule -- a missing required member fails validation."
+        },
+        {
+          "name": "writable",
+          "dataType": "boolean",
+          "default": true,
+          "description": "true => the member may be changed after creation (twin desired-property sync-able). false => the member is immutable after creation. Informational -- consumers (form UIs, twin-sync engines) use it to decide which inputs are editable; it does not by itself fail payload validation. On Property elements the native DTDL 'writable' keyword is used instead; this member carries writability for Object Fields, which DTDL cannot annotate natively."
+        },
+        {
+          "name": "minimum",
+          "dataType": "number",
+          "description": "Inclusive lower bound for a numeric member value (schema integer / long / double / float). value >= minimum. Absent => no lower bound. Hard validation rule."
+        },
+        {
+          "name": "maximum",
+          "dataType": "number",
+          "description": "Inclusive upper bound for a numeric member value (schema integer / long / double / float). value <= maximum. Absent => no upper bound. Hard validation rule."
+        },
+        {
+          "name": "minLength",
+          "dataType": "integer",
+          "description": "Inclusive lower bound for a string member's character length. value.length >= minLength. Absent => no lower bound. Hard validation rule."
+        },
+        {
+          "name": "maxLength",
+          "dataType": "integer",
+          "description": "Inclusive upper bound for a string member's character length. value.length <= maxLength. Absent => no upper bound. Hard validation rule."
+        },
+        {
+          "name": "csvStringAccepted",
+          "dataType": "boolean",
+          "default": false,
+          "description": "Array-typed field only. When true, a comma-separated string is accepted in place of the JSON array (the agent normalises it at parse time), and an empty string is treated as an empty array. When false / absent, only a JSON array is accepted."
+        },
+        {
+          "name": "mutexGroup",
+          "dataType": "string",
+          "description": "Mutual-exclusivity group. Fields of the same Object that share a mutexGroup value are mutually exclusive: at most one of them may be present with a non-empty value (non-empty string, non-empty array, or any non-string/array value). Hard validation rule. Used for Interface/Interfaces, PinId/PinIds, Source/Sources."
+        },
+        {
+          "name": "allowedOnlyWhen",
+          "dataType": "object",
+          "description": "Conditional presence. An object { \"field\": <sibling field name>, \"equals\": <string value> }. The annotated field may be present on the JSON instance only when the named sibling field of the same Object equals the given value; present otherwise is a hard validation error. Used so PinId/PinIds appear only when MetricName='pinState' and Source/Sources only when MetricName='therm'."
+        },
+        {
+          "name": "default",
+          "dataType": "any",
+          "description": "Suggested default value for a changeable (writable) member, used by form UIs to pre-fill the input control. Informational -- it does not affect payload validation. Only meaningful on writable members."
+        }
+      ]
+    }
+  ],
+
+  "usage": {
+    "onProperty": {
+      "@comment": "On a Property: co-type for ConfigConstraint to carry 'required'; use the NATIVE DTDL 'writable' keyword for writability.",
+      "example": {
+        "@type": ["Property", "ConfigConstraint"],
+        "name": "Sensors",
+        "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorList;1",
+        "writable": true,
+        "required": true
+      }
+    },
+    "onField": {
+      "@comment": "On an Object Field: co-type for ConfigConstraint to carry 'required', 'writable', and any value bounds (DTDL has no native 'writable' / bound keywords for fields).",
+      "example": {
+        "@type": ["Field", "ConfigConstraint"],
+        "name": "Interval",
+        "schema": "integer",
+        "required": true,
+        "writable": true,
+        "minimum": 1,
+        "maximum": 300000
+      }
+    },
+    "onStringField": {
+      "@comment": "String length bounds on a Field.",
+      "example": {
+        "@type": ["Field", "ConfigConstraint"],
+        "name": "Description",
+        "schema": "string",
+        "required": true,
+        "writable": true,
+        "minLength": 1,
+        "maxLength": 512
+      }
+    },
+    "onCrossFieldRules": {
+      "@comment": "Mutual exclusion, conditional presence, and CSV-string tolerance on sibling Fields of one Object.",
+      "example": [
+        {
+          "@type": ["Field", "ConfigConstraint"], "name": "PinId",
+          "schema": "integer", "required": false, "writable": false, "minimum": 0,
+          "mutexGroup": "gpioPin",
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "pinState" }
+        },
+        {
+          "@type": ["Field", "ConfigConstraint"], "name": "PinIds",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:GpioSensor:PinIdList;1",
+          "required": false, "writable": false,
+          "mutexGroup": "gpioPin",
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "pinState" }
+        },
+        {
+          "@type": ["Field", "ConfigConstraint"], "name": "Interfaces",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:NetworkSensor:InterfaceList;1",
+          "required": false, "writable": true,
+          "mutexGroup": "networkBinding",
+          "csvStringAccepted": true
+        }
+      ]
+    }
+  }
+}

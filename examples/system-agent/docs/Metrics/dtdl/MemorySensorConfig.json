@@ -1,0 +1,158 @@
+{
+  "@context": "dtmi:dtdl:context;3",
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig;1",
+  "@type": "Interface",
+  "displayName": "Memory Sensor Config",
+  "description": "Config form spec for one memory Sensor entry in devicecfg.json Sensors[]. Flattened Properties; native DTDL writable + Enum coverage; the rest is in config-rules.js.",
+  "comment": "Every memory MetricName resolves to wire schema 'long' (bytes). MetricName immutability and Schema='long' invariant enforced by config-rules.js.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig:MemoryMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType='memory'.",
+      "enumValues": [
+        {
+          "name": "Total",
+          "enumValue": "total",
+          "displayName": "Total Physical Memory"
+        },
+        {
+          "name": "Available",
+          "enumValue": "available",
+          "displayName": "Available Memory"
+        },
+        {
+          "name": "Used",
+          "enumValue": "used",
+          "displayName": "Used Memory"
+        },
+        {
+          "name": "Free",
+          "enumValue": "free",
+          "displayName": "Free Memory"
+        },
+        {
+          "name": "Cached",
+          "enumValue": "cached",
+          "displayName": "Cached Memory"
+        },
+        {
+          "name": "Buffers",
+          "enumValue": "buffers",
+          "displayName": "Buffer Memory"
+        },
+        {
+          "name": "SwapTotal",
+          "enumValue": "swap_total",
+          "displayName": "Total Swap"
+        },
+        {
+          "name": "SwapFree",
+          "enumValue": "swap_free",
+          "displayName": "Free Swap"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "SensorGroup allow-list for memory sensors. Conventionally 'SYS'.",
+      "enumValues": [
+        {
+          "name": "SYS",
+          "enumValue": "SYS",
+          "displayName": "System"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Wire schema allow-list. Every memory MetricName -> 'long' (bytes).",
+      "enumValues": [
+        {
+          "name": "Long",
+          "enumValue": "long",
+          "displayName": "long"
+        }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@type": "Property",
+      "name": "Name",
+      "displayName": "Sensor Name",
+      "schema": "string",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty ASCII string, 1..128 chars, unique within Sensors[]. Uniqueness enforced by config-rules.js.\nMaps to: Sensors[i].Name\nUI hint: text input on create; read-only after.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "SensorGroup",
+      "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig:SensorGroup;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from the SensorGroup enum (memory sensors use 'SYS').\nMaps to: Sensors[i].SensorGroup\nUI hint: dropdown, default 'SYS'.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "MetricType",
+      "displayName": "Metric Type",
+      "schema": "string",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'memory' for this Interface.\nMaps to: Sensors[i].Parameters.MetricType\nUI hint: fixed label, not editable.\nWritable: immutable -- changing it requires defining a new Sensor."
+    },
+    {
+      "@type": "Property",
+      "name": "MetricName",
+      "displayName": "Metric",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig:MemoryMetricName;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from MemoryMetricName.\nMaps to: Sensors[i].Parameters.MetricName\nUI hint: dropdown.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "Enabled",
+      "displayName": "Enabled",
+      "schema": "boolean",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: boolean.\nMaps to: Sensors[i].Report.Enabled\nUI hint: toggle / switch.\nWritable: twin desired-property sync-able (SIL2 maintenance lever)."
+    },
+    {
+      "@type": "Property",
+      "name": "Interval",
+      "displayName": "Publishing Interval (ms)",
+      "schema": "integer",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: integer, 1 <= v <= 300000 (5 minutes). Range enforced by config-rules.js.\nMaps to: Sensors[i].Report.Interval\nUI hint: number input, min=1, max=300000, step=100, default=10000.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "Description",
+      "displayName": "Description",
+      "schema": "string",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.Description\nUI hint: textarea or text input.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "DisplayName",
+      "displayName": "Display Name",
+      "schema": "string",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.DisplayName\nUI hint: short text input.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "Schema",
+      "displayName": "Wire Schema",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:MemorySensorConfig:SensorInfoSchema;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'long' for every memory MetricName. Enforced by config-rules.js; the agent rejects startup on mismatch.\nMaps to: Sensors[i].SensorInfo.Schema\nUI hint: dropdown, default 'long'.\nWritable: immutable after creation."
+    }
+  ]
+}

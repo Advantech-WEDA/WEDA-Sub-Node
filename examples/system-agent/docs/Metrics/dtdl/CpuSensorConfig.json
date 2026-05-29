@@ -1,0 +1,148 @@
+{
+  "@context": "dtmi:dtdl:context;3",
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig;1",
+  "@type": "Interface",
+  "displayName": "CPU Sensor Config",
+  "description": "Config form spec for one cpu Sensor entry in devicecfg.json Sensors[]. contents[] enumerates the editable surface; the frontend renders each Property as one form control (displayName -> label, description -> help text, schema -> input type, writable -> editable vs read-only).",
+  "comment": "Flattened to one Property per devicecfg.json leaf (paths in each Property's description). IsReadable / IsWritable are intentionally NOT exposed as Properties -- the SIL2 read-only invariant (IsReadable=true, IsWritable=false for every Sensor) is enforced by config-rules.js. Native DTDL covers type + Enum + writable; range, uniqueness, mutex, conditional-required, and Schema/MetricName cross-consistency live in dtdl-validate/scripts/config-rules.js (and its .NET mirror).",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:CpuMetricName;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Allowed values of Parameters.MetricName when MetricType='cpu'.",
+      "enumValues": [
+        {
+          "name": "Usage",
+          "enumValue": "usage",
+          "displayName": "CPU Usage (%)"
+        },
+        {
+          "name": "Load1",
+          "enumValue": "load1",
+          "displayName": "1-Minute Load Average"
+        },
+        {
+          "name": "Load5",
+          "enumValue": "load5",
+          "displayName": "5-Minute Load Average"
+        },
+        {
+          "name": "Load15",
+          "enumValue": "load15",
+          "displayName": "15-Minute Load Average"
+        },
+        {
+          "name": "ContextSwitches",
+          "enumValue": "context_switches",
+          "displayName": "Context Switches"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorGroup;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "SensorGroup allow-list for cpu sensors. Conventionally 'SYS'.",
+      "enumValues": [
+        {
+          "name": "SYS",
+          "enumValue": "SYS",
+          "displayName": "System"
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorInfoSchema;1",
+      "@type": "Enum",
+      "valueSchema": "string",
+      "description": "Wire schema allow-list. context_switches -> 'long'; every other CPU MetricName -> 'double'. The MetricName->Schema mapping is enforced by config-rules.js.",
+      "enumValues": [
+        {
+          "name": "Double",
+          "enumValue": "double",
+          "displayName": "double"
+        },
+        {
+          "name": "Long",
+          "enumValue": "long",
+          "displayName": "long"
+        }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@type": "Property",
+      "name": "Name",
+      "displayName": "Sensor Name",
+      "schema": "string",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty ASCII string, 1..128 chars, unique within Sensors[]. Uniqueness enforced by config-rules.js.\nMaps to: Sensors[i].Name\nUI hint: text input on create; read-only after.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "SensorGroup",
+      "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorGroup;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from the SensorGroup enum (cpu sensors use 'SYS').\nMaps to: Sensors[i].SensorGroup\nUI hint: dropdown, default 'SYS'.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "MetricType",
+      "displayName": "Metric Type",
+      "schema": "string",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'cpu' for this Interface.\nMaps to: Sensors[i].Parameters.MetricType\nUI hint: fixed label, not editable.\nWritable: immutable -- changing it requires defining a new Sensor."
+    },
+    {
+      "@type": "Property",
+      "name": "MetricName",
+      "displayName": "Metric",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:CpuMetricName;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST be a value from CpuMetricName.\nMaps to: Sensors[i].Parameters.MetricName\nUI hint: dropdown.\nWritable: immutable after creation."
+    },
+    {
+      "@type": "Property",
+      "name": "Enabled",
+      "displayName": "Enabled",
+      "schema": "boolean",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: boolean.\nMaps to: Sensors[i].Report.Enabled\nUI hint: toggle / switch.\nWritable: twin desired-property sync-able (SIL2 maintenance lever)."
+    },
+    {
+      "@type": "Property",
+      "name": "Interval",
+      "displayName": "Publishing Interval (ms)",
+      "schema": "integer",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: integer, 1 <= v <= 300000 (5 minutes). Range enforced by config-rules.js.\nMaps to: Sensors[i].Report.Interval\nUI hint: number input, min=1, max=300000, step=100, default=5000.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "Description",
+      "displayName": "Description",
+      "schema": "string",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.Description\nUI hint: textarea or text input.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "DisplayName",
+      "displayName": "Display Name",
+      "schema": "string",
+      "writable": true,
+      "description": "REQUIRED.\nVALIDATION RULE: non-empty string.\nMaps to: Sensors[i].SensorInfo.DisplayName\nUI hint: short text input.\nWritable: twin desired-property sync-able."
+    },
+    {
+      "@type": "Property",
+      "name": "Schema",
+      "displayName": "Wire Schema",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorInfoSchema;1",
+      "writable": false,
+      "description": "REQUIRED.\nVALIDATION RULE: MUST equal 'long' when MetricName='context_switches'; MUST equal 'double' for every other CpuMetricName. Cross-field rule enforced by config-rules.js; the agent rejects startup on mismatch.\nMaps to: Sensors[i].SensorInfo.Schema\nUI hint: dropdown auto-selected by MetricName.\nWritable: immutable after creation."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Standalone validator for devicecfg.json payloads. Validates a payload
+    against a ConfigConstraint-annotated DTDL schema (docs/Metrics/devicecfg/
+    *.dtdl.json). Reads the schema as raw JSON via System.Text.Json; no
+    DTDLParser NuGet dependency (the .NET DTDLParser rejects the custom
+    extension context, and the extension members are plain JSON members).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>devicecfg-validator</AssemblyName>
+    <RootNamespace>Weda.DeviceCfg.Validator</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

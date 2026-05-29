@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>SystemMonitorExample</RootNamespace>
+    <DefaultItemExcludes>$(DefaultItemExcludes);dtdl-validate/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

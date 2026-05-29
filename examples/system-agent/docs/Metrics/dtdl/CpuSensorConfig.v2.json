@@ -1,0 +1,92 @@
+{
+  "@context": "dtmi:dtdl:context;2",
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig;1",
+  "@type": "Interface",
+  "displayName": "CPU Sensor Config",
+  "description": "DTDL v2 Interface describing one cpu Sensor entry of devicecfg.json's Sensors[]. contents[] mirrors the JSON shape 1:1.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [
+        { "name": "Cpu", "enumValue": "cpu", "displayName": "CPU" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:CpuMetricName;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Name",
+      "enumValues": [
+        { "name": "Usage",           "enumValue": "usage",            "displayName": "CPU Usage (%)" },
+        { "name": "Load1",           "enumValue": "load1",            "displayName": "1-Minute Load Average" },
+        { "name": "Load5",           "enumValue": "load5",            "displayName": "5-Minute Load Average" },
+        { "name": "Load15",          "enumValue": "load15",           "displayName": "15-Minute Load Average" },
+        { "name": "ContextSwitches", "enumValue": "context_switches", "displayName": "Context Switches" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [
+        { "name": "SYS", "enumValue": "SYS", "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [
+        { "name": "Double", "enumValue": "double", "displayName": "double" },
+        { "name": "Long",   "enumValue": "long",   "displayName": "long" }
+      ]
+    },
+
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:Parameters;1",
+      "@type": "Object", "displayName": "Parameters",
+      "fields": [
+        { "name": "MetricType", "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:MetricType;1" },
+        { "name": "MetricName", "displayName": "Metric Name",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:CpuMetricName;1" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:Report;1",
+      "@type": "Object", "displayName": "Report",
+      "fields": [
+        { "name": "Enabled",  "displayName": "Enabled",       "schema": "boolean" },
+        { "name": "Interval", "displayName": "Interval (ms)", "schema": "integer" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "name": "Schema",      "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:WireSchema;1" },
+        { "name": "Description", "displayName": "Description", "schema": "string" },
+        { "name": "DisplayName", "displayName": "Display Name", "schema": "string" }
+      ]
+    }
+  ],
+
+  "contents": [
+    { "@type": "Property", "name": "Name", "displayName": "Sensor Name",
+      "schema": "string", "writable": false },
+
+    { "@type": "Property", "name": "SensorGroup", "displayName": "Sensor Group",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorGroup;1",
+      "writable": false },
+
+    { "@type": "Property", "name": "Parameters", "displayName": "Parameters",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:Parameters;1",
+      "writable": false },
+
+    { "@type": "Property", "name": "Report", "displayName": "Report",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:Report;1",
+      "writable": true },
+
+    { "@type": "Property", "name": "SensorInfo", "displayName": "Sensor Info",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:CpuSensorConfig:SensorInfo;1",
+      "writable": true }
+  ]
+}

@@ -386,3 +386,4 @@ reports/
 # Official examples are in /examples
 apps/
 **/*.lscache
+**/.env

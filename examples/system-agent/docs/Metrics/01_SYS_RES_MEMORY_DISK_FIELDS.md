@@ -49,18 +49,20 @@ The Memory MetricType has no additional Parameters.
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form string, e.g., `memory_total`, `memory_used`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique across all sensors. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Memory sensors conventionally use `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form string, e.g., `memory_total`, `memory_used`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique across all sensors. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Memory sensors use `SYS`. | `SYS` | Must equal `SYS` (the `MemorySensor` schema's `SensorGroup` enum). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `memory` | Must equal `memory` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific memory metric to collect. | `total`, `available`, `used`, `free`, `cached`, `buffers`, `swap_total`, `swap_free` | Enum constraint above. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `10000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `10000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For memory: `long` (all MetricNames). | Must equal `long`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/MemorySensor.dtdl.json`](devicecfg/MemorySensor.dtdl.json) (`ConfigConstraint` extension).
 
 ### Memory MetricName → Schema Mapping
 
@@ -108,19 +110,21 @@ The Disk MetricType requires the additional parameter `Parameters.MountPoint`. N
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `disk_root_total`, `disk_root_usage_percent`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Disk uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `disk_root_total`, `disk_root_usage_percent`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Disk uses `SYS`. | `SYS` | Must equal `SYS` (the `DiskSensor` schema's `SensorGroup` enum). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType`, `MetricName`, `MountPoint`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `disk` | Must equal `disk` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific disk metric to collect. | `total`, `available`, `free`, `used`, `usage_percent`, `reads_completed`, `writes_completed`, `read_bytes`, `written_bytes` | Enum constraint above. |
-| `Parameters.MountPoint` | string | ❌ | ✅ | OS-level mount point to monitor. | e.g., `/`, `/home`, `C:\`. | Non-empty string. Must resolve to a mount point present on the host at startup. |
+| `Parameters.MountPoint` | string | ❌ | ✅ | OS-level mount point to monitor. | e.g., `/`, `/home`, `C:\`. | Non-empty string; `minLength: 1`, `maxLength: 256`. Required for every disk sensor. Must resolve to a mount point present on the host at startup. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `30000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `30000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. Must match the MetricName's native type. | `double` (for `usage_percent`); `long` (all other MetricNames). | Must equal the MetricName's native return type. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/DiskSensor.dtdl.json`](devicecfg/DiskSensor.dtdl.json) (`ConfigConstraint` extension). `MountPoint` is `required: true` in the schema.
 
 ### Disk MetricName → Schema Mapping
 
@@ -168,18 +172,20 @@ The System MetricType has no additional Parameters. Exposes OS-level system coun
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `system_time`, `system_boot_time`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. System uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `system_time`, `system_boot_time`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. System uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `SystemSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `system` | Must equal `system` (const). |
 | `Parameters.MetricName` | string | ❌ | ✅ | Specific system metric. | `time`, `timex_offset`, `boot_time`, `filefd_allocated`, `filefd_maximum`, `procs_running`, `procs_blocked`, `intr_total` | Enum constraint above. |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable periodic reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `60000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `60000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
-| `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. Must match the MetricName's native type. | `long` (time, boot_time, filefd_allocated, filefd_maximum, intr_total); `double` (timex_offset); `integer` (procs_running, procs_blocked). | Must equal the MetricName's native return type. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. Must match the MetricName's native type. | `long` (time, boot_time, filefd_allocated, filefd_maximum, intr_total); `double` (timex_offset); `integer` (procs_running, procs_blocked). | One of `long` / `integer` / `double` (the `SystemSensor` schema's `WireSchema` enum); AND must equal the MetricName's native return type. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/SystemSensor.dtdl.json`](devicecfg/SystemSensor.dtdl.json) (`ConfigConstraint` extension).
 
 ### System MetricName → Schema Mapping
 
