@@ -18,7 +18,7 @@ namespace Weda.SubNode.Core.Transforms;
 /// </summary>
 /// <remarks>
 /// Each discovered implementation caches a DTDL v3 Interface emitted by
-/// <see cref="DtdlInterfaceEmitter"/> from its parameter type at registration
+/// <see cref="WedaDtdlEmitter"/> from its parameter type at registration
 /// time; the cache is exposed through <see cref="GetDescriptors"/> for
 /// capability upload.
 /// </remarks>
@@ -145,14 +145,14 @@ public static class TransformFactory
             return;
         }
 
-        var schema = DtdlInterfaceEmitter.Emit(
-            new DtdlInterfaceEmitter.Options(
+        var schema = WedaDtdlEmitter.Emit(
+            new WedaDtdlEmitter.Options(
                 Prefix: "dtmi:advantech:weda",
                 Category: "transform",
                 TypeName: typeName,
                 DisplayName: typeName,
                 Description: description),
-            new DtdlInterfaceEmitter.PropertyBinding(
+            new WedaDtdlEmitter.PropertyBinding(
                 Name: "parameters",
                 Type: paramType));
 

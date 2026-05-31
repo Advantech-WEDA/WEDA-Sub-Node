@@ -22,7 +22,7 @@ namespace Weda.SubNode.Core.Commands;
 /// - On error: send "Failed" or "Rejected" response with error details
 ///
 /// Execution pipeline:
-/// 0. DTDL payload validation via <see cref="Weda.Dtdl.Validation.WedaDtdlValidator"/>
+/// 0. DTDL payload validation via <see cref="Weda.Dtdl.Validation.WedaDtValidator"/>
 ///    (gated by <see cref="DtdlValidationOptions.Enabled"/>; default off in production)
 /// 1. Deserialization
 /// 2. Send "Received" response

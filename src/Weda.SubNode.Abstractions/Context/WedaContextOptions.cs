@@ -51,6 +51,17 @@ public class WedaContextOptions
     public bool DisposeServices { get; set; } = true;
 
     /// <summary>
+    /// Maps a <c>DeviceConfigs</c> section name to the device class registered
+    /// via <c>AddDevice&lt;TDevice&gt;("sectionName")</c>. The loader consults this
+    /// map when binding each <see cref="DeviceConfiguration"/>: if the device
+    /// class implements <see cref="IConfigurableDevice{TComm, TProps}"/>, its
+    /// static <c>DeviceTypeName</c> is stashed onto
+    /// <see cref="DeviceConfiguration.DeviceTypeName"/>, enabling typed
+    /// sensor-dtmi dispatch via <c>SensorTypeRegistry</c>.
+    /// </summary>
+    public IReadOnlyDictionary<string, Type>? DeviceClassesBySection { get; set; }
+
+    /// <summary>
     /// Gets or sets the configuration instance.
     /// Used to access application settings.
     /// </summary>

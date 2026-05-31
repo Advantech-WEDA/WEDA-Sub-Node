@@ -13,7 +13,7 @@ namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 /// <param name="Description">Human-readable summary; null when not provided.</param>
 /// <param name="ParameterSchema">
 /// DTDL v3 Interface (as a <see cref="JsonObject"/>) for the strongly-typed parameter
-/// class, emitted by <c>Weda.Dtdl.Emit.DtdlInterfaceEmitter</c> from DataAnnotations.
+/// class, emitted by <c>Weda.Dtdl.Emit.WedaDtdlEmitter</c> from DataAnnotations.
 /// </param>
 public record TransformDescriptorDto(
     [property: JsonPropertyName("typeName")] string TypeName,

@@ -85,7 +85,7 @@ public class CommandDispatcherStep0Tests : IDisposable
 
         var result = await dispatcher.DispatchAsync(message);
 
-        // Whatever fails downstream, it must NOT carry the WedaDtdlValidator's
+        // Whatever fails downstream, it must NOT carry the WedaDtValidator's
         // signature error string — otherwise Step 0 ran when it should not have.
         if (result.IsError)
         {

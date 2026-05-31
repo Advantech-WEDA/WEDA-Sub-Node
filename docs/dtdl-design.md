@@ -513,3 +513,94 @@ DTDL JSON 過官方 parser → 拿到 entity tree → 前端遞迴渲染：
 - [src/Weda.SubNode.Core/Schema/TypedParameterConverter.cs](../src/Weda.SubNode.Core/Schema/TypedParameterConverter.cs) — Dictionary 橋接
 - [tests/Weda.SubNode.Core.Tests/Schema/DtdlInterfaceEmitterTests.cs](../tests/Weda.SubNode.Core.Tests/Schema/DtdlInterfaceEmitterTests.cs) — 36 facts 覆蓋全部 emit 規則（Shouldly 風格）
 - [tests/Weda.SubNode.Core.Tests/Schema/TypedParameterConverterTests.cs](../tests/Weda.SubNode.Core.Tests/Schema/TypedParameterConverterTests.cs) — 19 facts 覆蓋 round-trip / validation
+
+---
+
+## 11. 設計確認紀錄（2026-05-29）
+
+> 與需求方確認後鎖定的 envelope / sensor 形狀決策。與 §2~§4 衝突處以本節為準。
+
+### 11.1 已確認
+
+| 決策 | 結論 |
+|---|---|
+| DTDL 版本 | v3（`dtmi:dtdl:context;3`） |
+| Capability 上傳形狀 | envelope 內每類是 `{ name, dtmi }` 索引（sensor 多帶 `deviceType`）；完整 Interface 定義另存（落點見 11.2） |
+| Sensor Interface | `Sensor:base` 放通用欄位，各 sensor type 用 `extends` 只貢獻自己的 `Parameters`。取代 §4.4「只放 Parameters」與 `CpuSensorConfig.v2.json`「每份重複 Report/SensorInfo」 |
+| Sensor base contents | Name、SensorGroup、Report、**Record**、SensorInfo |
+| Pipeline step 形狀 | `Report.transformPipeline[]` / `dspPipeline[]` 的 element = `{ type, dtmi, enabled }`——純引用 catalog，**不**內嵌參數值（值屬 instance，shape 由所引用的 capability Interface 解析）。移除草案中的 `ParamMap` |
+| device ↔ sensor 對應 | sensor catalog entry 的 `deviceType` 對應 device catalog entry 的 `name`（即 `IConfigurableSensor.DeviceTypeName` 必須 match `IConfigurableDevice.DeviceTypeName`） |
+| Command 分層 | 全部 SubNode level，不分 SubNode / WedaNode |
+
+### 11.2 三個 artifact（已確認）
+
+職責分離成三層，兩段式上傳：
+
+| Artifact | 角色 | 內容 | 上傳時機 |
+|---|---|---|---|
+| **dtdl** | definition（model） | 完整 DTDL v3 Interface（含 `schemas[]` / `contents[]` / ConfigConstraint） | 註冊 / binary 版本變更時一次 |
+| **device-cap** | catalog | 每類 `{ name, dtmi }` 索引（sensor 多帶 `deviceType`） | 隨 cfg-update（輕量） |
+| **devicecfg** | instance | 實際設定值（`DeviceConfigs` / Sensors / pipeline 選用 + 參數值） | 隨 cfg-update |
+
+- 一顆 binary 的能力型別固定，故 **dtdl 定義只送一次**；之後 device-cap 用 `{name, dtmi}` 引用、devicecfg 給值。
+- DTMI 命名：採 §11.3 的「type 段換 `_`、保留大小寫」。
+- DTMI 命名空間：**用 example/owner 名分段以避免碰撞**（SDK 內建 `…:subnode:…`、example 自帶 `…:systemagent:…`）——前端對來源無差別處理，分段純為 DTMI 全域唯一。
+
+### 11.3 DTMI case / 合法字元
+
+**DTDL DTMI 文法**：每個 segment 為 `[A-Za-z](?:[A-Za-z0-9_]*[A-Za-z0-9])?`——首字為字母，內含字母/數字/底線，**不可**以底線結尾。合法：大小寫字母、數字、底線。**不合法**：`.`、`-`、空白。
+
+`DtdlInterfaceEmitter.Sanitize` 現行是 `ToLowerInvariant()` + 只留字母數字（連底線都砍），這是 emitter 的**選擇**、不是 DTDL 的要求——底線與大小寫其實都合法，所以不必接受 `report.historical → reporthistorical` 這種失真。
+
+**採用慣例**（取代現行 Sanitize：從「小寫 + 砍非字母數字」改成「保留大小寫、只換底線」）：
+
+- **保留原始大小寫**，只把 `.` / `-` / 空白換成 `_`、trim 尾端 `_`。**不做 case folding**。大寫合法，無須小寫。
+- namespace + category：沿用品牌/分類 PascalCase → `advantech:EdgeSync:SubNode:Device`（對齊既有 `CpuSensorConfig.v2.json`，亦合 DTDL 慣例：org 段小寫、型別/分類段 PascalCase）。
+- type 段（runtime id）：`report.historical → report_historical`、`tcp-modbus → tcp_modbus`（原本小寫故維持小寫）。
+- nested schema 末段：沿用 C# 型別/屬性名（`Communication` / `ByteOrder`）。
+- field `name`：沿用 `[JsonPropertyName]`（`slaveId`）。
+- catalog 的 `name` 欄位永遠保留 canonical id（`report.historical`）；`dtmi` 只當定址。
+- 例外：擴充 context `dtmi:advantech:edgesync:validation;1` 是 Weda.Dtdl 既定常數，維持小寫；要全一致需在 Weda.Dtdl 改名（breaking）。
+
+### 11.4 Constraint = `validation;1` ConfigConstraint（取代 §5.3 的 description hint）
+
+Range / Required / 等約束**不**塞進 `description`，而是用 emitter 既有的 `dtmi:advantech:edgesync:validation;1` 擴充（`Weda.Dtdl.Shared.DtdlExtensionConstants`）：
+
+- Interface `@context` 為陣列：`["dtmi:dtdl:context;3", "dtmi:advantech:edgesync:validation;1"]`。
+- `contents[]` 的 Property：`@type: ["Property", "ConfigConstraint"]`。
+- Object `fields[]` 的 field：`@type: ["Field", "ConfigConstraint"]`。
+- 約束欄位（直接放在 Property / Field 物件上）：`required`(bool, 必出)、`writable`(bool, 必出)、`minimum` / `maximum`（[Range]）、`minLength` / `maxLength`（[StringLength]/[MinLength]/[MaxLength]）、`pattern`（[RegularExpression]）、`default`（[DefaultValue]，enum 用 EnumMember 線格字串）。
+- `description` 只放純 `[Description]` 文字，不再附「(range 1..247, default 1)」。
+
+### 11.5 職責與元件命名（已確認）
+
+- DTDL 的 parse / validate / emit 全部留在 **Weda.Dtdl** 套件；元件改名：`WedaDtValidator`、`WedaDtdlParser`、`WedaDtdlEmitter`（cross-repo：`weda_dt_validator`）。
+- **subnode 不手寫 DTDL**，負責兩件事：(1) 把各 capability 的 DTO/POCO 餵給 `WedaDtdlEmitter` 產生 definition；(2) 組出 device-cap catalog（`{ name, dtmi }` 索引，sensor 多帶 `deviceType`）。
+- SDK 共用定義（transform / dsp / command）此階段**跟 example 一起輸出**（暫不抽到 SDK 層）。
+- 對應三 artifact：`WedaDtdlEmitter` 產 **dtdl(definition)**；subnode 產 **device-cap(catalog)**；devicecfg 仍是 **instance**。
+
+---
+
+## 12. 分期（Phasing）
+
+### Phase 1 — 串起 device-cap + DTDL 故事，建立強型別 SDK 基礎
+
+**目標**：管線端到端打通（devicecfg → emit → catalog → 上雲），SDK 具備強型別 capability 的完整 emit + catalog 能力。**不**改 example 的字典實作。
+
+- **Weda.Dtdl（track A，cross-repo）**：改名 + `Sanitize` 保留大小寫 + `extends` 支援（見 [TODO-dtdl-refactor.md](../../weda_dt_validator/docs/TODO-dtdl-refactor.md)）。
+- **subnode（track B）**：
+  - `Sensor:base` POCO + base/extends emit。
+  - 把 `IConfigurableSensor` / `IConfigurableDevice` 接進 capability scan → `SubNodeCapabilitiesDto` 增 `devices[]` / `sensors[]`。
+  - device-cap catalog DTO（`{ name, dtmi (, deviceType) }`）。
+  - 兩段式：definition（註冊時）與 catalog（cfg-update）分離。
+  - wire schema 模型定案（B6）。
+- **驗證載具**：用**既有強型別的 `tcp-modbus` / testdevice** 跑通 E2E。system-agent 仍字典實作，留 Phase 2。
+
+### Phase 2 — 各 example 改寫為 strong-typed
+
+逐一把 example 的 sensor/device 從字典字串改成強型別 POCO（解 B1 / B2）：
+
+- `system-agent`：各 metric family → `IConfigurableSensor` + Parameters POCO（MetricName enum、MountPoint / Interfaces / PinIds / Sources）；device → `IConfigurableDevice`（或確認空殼）。
+- 其他 example（opcua / image-sensor / stock-monitor / power-aggregation / robot / wise-4012 …）同步。
+
+> [dtdl-systemagent-package.md](./dtdl-systemagent-package.md) 是 Phase 2 完成後 system-agent 應 emit 出的 target；Phase 1 期間它仍是手寫參考。

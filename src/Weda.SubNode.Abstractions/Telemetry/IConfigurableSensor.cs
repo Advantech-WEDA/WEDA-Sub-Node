@@ -21,7 +21,7 @@ namespace Weda.SubNode.Abstractions.Telemetry;
 /// as a DTDL v3 Interface (<c>Category = "Sensor"</c>,
 /// <c>TypeName = "{deviceTypeName}:{sensorTypeName}"</c>) with one top-level
 /// <c>Property</c> binding (<c>Parameters</c>) and uploaded inside
-/// <c>SubNodeCapabilitiesDto</c>.</para>
+/// <c>DeviceCapDto</c>.</para>
 ///
 /// <para>The interface deliberately has no <c>Create</c> method — sensors do not
 /// have an independent instantiation lifecycle; the parent device owns sensor

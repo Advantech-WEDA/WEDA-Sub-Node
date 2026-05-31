@@ -17,7 +17,7 @@ namespace Weda.SubNode.Abstractions.Devices;
 /// <para>The descriptor is consumed by the capability scanner at startup; emitted as a
 /// DTDL v3 Interface (<c>Category = "Device"</c>) with two top-level Property bindings
 /// — <c>Communication</c> and <c>Properties</c> — and uploaded inside
-/// <c>SubNodeCapabilitiesDto</c>.</para>
+/// <c>DeviceCapDto</c>.</para>
 ///
 /// <para>The interface deliberately has no <c>Create</c> method — device construction
 /// stays in <see cref="IDeviceConfiguration.ToDeviceConfiguration"/> and

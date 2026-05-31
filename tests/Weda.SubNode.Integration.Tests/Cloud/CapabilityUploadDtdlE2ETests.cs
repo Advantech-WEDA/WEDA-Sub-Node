@@ -24,7 +24,7 @@ namespace Weda.SubNode.Integration.Tests.Cloud;
 /// End-to-end verification that DTDL Interfaces emitted by SubNode survive the
 /// full upload pipeline — descriptor build, mapping to DTO, NATS request/reply,
 /// and JSON round-trip — and arrive at the cloud-side "Shadow" stand-in in a
-/// shape that <see cref="WedaDtdlValidator"/> accepts without throwing.
+/// shape that <see cref="WedaDtValidator"/> accepts without throwing.
 /// </summary>
 /// <remarks>
 /// The validator's constructor runs the full <c>WedaDtdlParser</c> + the
@@ -112,31 +112,29 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         await Task.WhenAny(subscriberTask, Task.Delay(2000));
 
         captured.ShouldNotBeNull();
-        var capabilities = captured!.Data!.DeviceCapabilities.Capabilities;
+        var data = captured!.Data!;
 
-        // Every descriptor's emitted DTDL must construct a WedaDtdlValidator
-        // without throwing. That's the binary "shadow accepted the DTDL" check.
-        capabilities.Transforms.ShouldNotBeEmpty();
-        foreach (var transform in capabilities.Transforms)
-        {
-            ShouldConstructValidator(transform.ParameterSchema,
-                $"transform '{transform.TypeName}'");
-        }
+        // Catalog references are thin (name + dtmi); definitions live in dtdl[].
+        data.DeviceCapabilities.Transforms.ShouldNotBeEmpty();
+        data.DeviceCapabilities.DspFilters.ShouldNotBeEmpty();
+        data.DeviceCapabilities.Commands.ShouldNotBeEmpty();
 
-        capabilities.DspFilters.ShouldNotBeEmpty();
-        foreach (var filter in capabilities.DspFilters)
-        {
-            ShouldConstructValidator(filter.ParameterSchema,
-                $"dspFilter '{filter.TypeName}'");
-        }
+        // Every catalog dtmi must resolve to an entry in dtdl[].
+        var dtdlIds = data.Dtdl
+            .Select(i => i["@id"]?.GetValue<string>())
+            .Where(id => id is not null)
+            .ToHashSet();
+        foreach (var r in data.DeviceCapabilities.Transforms) dtdlIds.ShouldContain(r.Dtmi);
+        foreach (var r in data.DeviceCapabilities.DspFilters) dtdlIds.ShouldContain(r.Dtmi);
+        foreach (var r in data.DeviceCapabilities.Commands)   dtdlIds.ShouldContain(r.Dtmi);
 
-        capabilities.Commands.ShouldNotBeEmpty();
-        foreach (var command in capabilities.Commands)
+        // Every DTDL Interface must construct a WedaDtValidator without throwing
+        // — that's the binary "shadow accepted the DTDL" check.
+        data.Dtdl.ShouldNotBeEmpty();
+        foreach (var iface in data.Dtdl)
         {
-            ShouldConstructValidator(command.ParameterSchema,
-                $"command '{command.Name}' parameter");
-            ShouldConstructValidator(command.ResponseSchema,
-                $"command '{command.Name}' response");
+            var id = iface["@id"]?.GetValue<string>() ?? "<no-id>";
+            ShouldConstructValidator(iface, $"interface '{id}'");
         }
     }
 
@@ -145,7 +143,7 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         var json = schema.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
         try
         {
-            _ = new WedaDtdlValidator(json);
+            _ = new WedaDtValidator(json);
         }
         catch (Exception ex)
         {

@@ -110,15 +110,17 @@ public class CommandRegistry
 
             var parameterType = GetCommandParameterType(commandType);
             var description = commandType.GetCustomAttribute<DescriptionAttribute>()?.Description;
-            var parameterSchema = EmitCommandInterface(
-                commandName, "param", parameterType ?? typeof(EmptyParameters), description);
-            var responseSchema = EmitCommandInterface(
-                commandName, "response", resultType, description: null);
+            var requestType = parameterType ?? typeof(EmptyParameters);
 
-            // Build the Step-0 validator eagerly so any DTDL schema bug (or
-            // ConfigConstraint extension misuse) fails fast at startup rather
-            // than at first dispatch.
-            var parameterValidator = new WedaDtdlValidator(parameterSchema.ToJsonString());
+            // Wire-shape: single merged Command Interface (goes into dtdl[] for cloud).
+            var schema = EmitMergedCommandSchema(commandName, requestType, resultType, description);
+
+            // Step-0 validator: still needs a Property-shaped Interface so its
+            // TryValidate("parameters", ...) call resolves. Built off the request
+            // POCO only; not surfaced anywhere else.
+            // TODO: collapse once WedaDtValidator can target a Command's request directly.
+            var parameterValidator = new WedaDtValidator(
+                EmitValidatorInterface(commandName, requestType).ToJsonString());
 
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
@@ -129,8 +131,7 @@ public class CommandRegistry
                 AutoAckEnabled: autoAckEnabled,
                 ParameterType: parameterType,
                 Description: description,
-                ParameterSchema: parameterSchema,
-                ResponseSchema: responseSchema,
+                Schema: schema,
                 ParameterValidator: parameterValidator);
 
             _logger?.LogDebug(
@@ -149,35 +150,50 @@ public class CommandRegistry
             .Select(r => new CommandDescriptorDto(
                 Name: r.CommandName,
                 Description: r.Description,
-                ParameterSchema: r.ParameterSchema
-                    ?? EmitCommandInterface(r.CommandName, "param", typeof(EmptyParameters), description: null),
-                ResponseSchema: r.ResponseSchema
-                    ?? EmitCommandInterface(r.CommandName, "response", typeof(EmptyParameters), description: null),
-                AutoAck: r.AutoAckEnabled))
+                Schema: r.Schema
+                    ?? EmitMergedCommandSchema(r.CommandName, typeof(EmptyParameters), typeof(EmptyParameters), description: null)))
             .ToList();
 
     /// <summary>
-    /// Emits a DTDL v3 Interface that describes either the parameter shape or the
-    /// response shape of a command. Each command yields TWO interfaces with DTMIs
-    /// <c>dtmi:advantech:weda:command:&lt;cmd&gt;:param;1</c> and
-    /// <c>dtmi:advantech:weda:command:&lt;cmd&gt;:response;1</c> — both bound to a
-    /// single Property named after the role (<c>parameters</c> / <c>response</c>).
+    /// Emits the wire-shape DTDL v3 Interface for a command: one Interface
+    /// (<c>dtmi:advantech:weda:command:&lt;sanitized&gt;;1</c>) whose
+    /// <c>contents[]</c> has a single <c>@type:"Command"</c> entry referencing
+    /// Parameters / Result Object schemas in <c>schemas[]</c>.
     /// </summary>
-    private static JsonObject EmitCommandInterface(
-        string commandName, string role, Type pocoType, string? description)
-    {
-        var propertyName = role == "response" ? "response" : "parameters";
-        return DtdlInterfaceEmitter.Emit(
-            new DtdlInterfaceEmitter.Options(
-                Prefix: "dtmi:advantech:weda:command",
-                Category: commandName,
-                TypeName: role,
-                DisplayName: $"{commandName} {role}",
+    private static JsonObject EmitMergedCommandSchema(
+        string commandName, Type requestType, Type responseType, string? description) =>
+        WedaDtdlEmitter.EmitCommand(
+            new WedaDtdlEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "command",
+                TypeName: commandName,
+                DisplayName: commandName,
                 Description: description),
-            new DtdlInterfaceEmitter.PropertyBinding(
-                Name: propertyName,
-                Type: pocoType));
-    }
+            commandName: SanitizeDtdlName(commandName),
+            requestType: requestType,
+            responseType: responseType);
+
+    /// <summary>
+    /// Property-shaped Interface kept only for the Step-0 <see cref="WedaDtValidator"/>
+    /// while the validator does not yet understand Command's request directly.
+    /// Not surfaced in descriptors / catalog / dtdl[].
+    /// </summary>
+    private static JsonObject EmitValidatorInterface(string commandName, Type requestType) =>
+        WedaDtdlEmitter.Emit(
+            new WedaDtdlEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "commandValidator",
+                TypeName: commandName),
+            new WedaDtdlEmitter.PropertyBinding(Name: "parameters", Type: requestType));
+
+    /// <summary>
+    /// Mirror of WedaDtdlEmitter's separator replacement, applied to the
+    /// runtime command name so it becomes a valid DTDL identifier
+    /// (<c>[A-Za-z](?:[A-Za-z0-9_]*[A-Za-z0-9])?</c>) when written verbatim
+    /// into <c>contents[].name</c>. The catalog still uses the raw routing id.
+    /// </summary>
+    private static string SanitizeDtdlName(string name) =>
+        name.Replace('.', '_').Replace('-', '_').Replace(' ', '_');
 
     /// <summary>
     /// Resolves the TParameter generic argument from <see cref="ICommand{TParameter}"/>
@@ -545,9 +561,8 @@ public record CommandRegistration(
     bool AutoAckEnabled = true,
     Type? ParameterType = null,
     string? Description = null,
-    JsonObject? ParameterSchema = null,
-    JsonObject? ResponseSchema = null,
-    WedaDtdlValidator? ParameterValidator = null)
+    JsonObject? Schema = null,
+    WedaDtValidator? ParameterValidator = null)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.

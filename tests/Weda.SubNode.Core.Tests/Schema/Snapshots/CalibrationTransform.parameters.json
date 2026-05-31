@@ -9,7 +9,7 @@
   "description": "Apply linear (Scale \u002B Offset) or curve-based calibration to numeric measurements.",
   "schemas": [
     {
-      "@id": "dtmi:advantech:weda:transform:calibration:calibrationpoint;1",
+      "@id": "dtmi:advantech:weda:transform:calibration:CalibrationPoint;1",
       "@type": "Object",
       "fields": [
         {
@@ -37,9 +37,9 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:transform:calibration:calibrationcurvelist;1",
+      "@id": "dtmi:advantech:weda:transform:calibration:calibrationCurveCalibrationPointList;1",
       "@type": "Array",
-      "elementSchema": "dtmi:advantech:weda:transform:calibration:calibrationpoint;1"
+      "elementSchema": "dtmi:advantech:weda:transform:calibration:CalibrationPoint;1"
     },
     {
       "@id": "dtmi:advantech:weda:transform:calibration:parameters;1",
@@ -76,7 +76,7 @@
           ],
           "name": "calibrationCurve",
           "description": "Curve points for non-linear calibration. Overrides Scale/Offset when provided.",
-          "schema": "dtmi:advantech:weda:transform:calibration:calibrationcurvelist;1",
+          "schema": "dtmi:advantech:weda:transform:calibration:calibrationCurveCalibrationPointList;1",
           "required": false,
           "writable": true
         }

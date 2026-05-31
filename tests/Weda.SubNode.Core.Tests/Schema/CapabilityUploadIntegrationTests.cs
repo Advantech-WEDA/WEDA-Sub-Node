@@ -11,7 +11,7 @@ namespace Weda.SubNode.Core.Tests.Schema;
 /// <summary>
 /// End-to-end verification that startup-time discovery wires the right set of
 /// transforms / DSP filters / commands into descriptors that cloud will receive
-/// inside <c>SubNodeCapabilitiesDto</c>.
+/// inside <c>DeviceCapDto</c>.
 /// </summary>
 public class CapabilityUploadIntegrationTests
 {
@@ -65,15 +65,11 @@ public class CapabilityUploadIntegrationTests
 
         foreach (var d in descriptors)
         {
-            Assert.NotNull(d.ParameterSchema);
-            Assert.NotNull(d.ResponseSchema);
+            Assert.NotNull(d.Schema);
 
-            var sanitized = new string(d.Name.ToLowerInvariant()
-                .Where(char.IsLetterOrDigit).ToArray());
-            AssertIsDtdlInterface(d.ParameterSchema,
-                $"dtmi:advantech:weda:command:{sanitized}:param;1");
-            AssertIsDtdlInterface(d.ResponseSchema,
-                $"dtmi:advantech:weda:command:{sanitized}:response;1");
+            // Mirror WedaDtdlEmitter.Sanitize: replace illegal DTMI chars with '_', preserve case.
+            var sanitized = d.Name.Replace('.', '_').Replace('-', '_').Replace(' ', '_');
+            AssertIsDtdlInterface(d.Schema, $"dtmi:advantech:weda:command:{sanitized};1");
         }
     }
 
@@ -85,17 +81,17 @@ public class CapabilityUploadIntegrationTests
 
         var descriptor = registry.GetDescriptors().First(d => d.Name == "do.set");
 
-        // DTDL shape: contents[0].schema points to an Object schema in schemas[],
-        // and that schema's fields[] contains an "outputs" field of Array type.
-        var contents = descriptor.ParameterSchema["contents"]!.AsArray();
-        var parametersEntry = contents.OfType<JsonObject>()
-            .First(c => (string?)c["name"] == "parameters");
-        var schemaRef = (string?)parametersEntry["schema"];
-        Assert.NotNull(schemaRef);
+        // DTDL shape: contents[0] is the Command entry; its request.schema
+        // points to a Parameters Object in schemas[].
+        var contents = descriptor.Schema["contents"]!.AsArray();
+        var commandEntry = contents.OfType<JsonObject>()
+            .First(c => (string?)c["@type"] == "Command");
+        var requestRef = (string?)commandEntry["request"]!["schema"];
+        Assert.NotNull(requestRef);
 
-        var objectSchema = descriptor.ParameterSchema["schemas"]!.AsArray()
+        var objectSchema = descriptor.Schema["schemas"]!.AsArray()
             .OfType<JsonObject>()
-            .First(s => (string?)s["@id"] == schemaRef);
+            .First(s => (string?)s["@id"] == requestRef);
 
         var fields = objectSchema["fields"]!.AsArray();
         var outputsField = fields.OfType<JsonObject>()
@@ -105,7 +101,7 @@ public class CapabilityUploadIntegrationTests
         // outputs is bound to an Array schema (DTMI ending in :outputsList;1).
         var outputsSchemaRef = (string?)outputsField["schema"];
         Assert.NotNull(outputsSchemaRef);
-        var outputsSchema = descriptor.ParameterSchema["schemas"]!.AsArray()
+        var outputsSchema = descriptor.Schema["schemas"]!.AsArray()
             .OfType<JsonObject>()
             .First(s => (string?)s["@id"] == outputsSchemaRef);
         Assert.Equal("Array", (string?)outputsSchema["@type"]);

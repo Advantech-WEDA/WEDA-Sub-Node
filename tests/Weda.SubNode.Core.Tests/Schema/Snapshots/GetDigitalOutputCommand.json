@@ -3,12 +3,45 @@
     "dtmi:dtdl:context;3",
     "dtmi:advantech:edgesync:validation;1"
   ],
-  "@id": "dtmi:advantech:weda:command:aoget:response;1",
+  "@id": "dtmi:advantech:weda:command:do_get;1",
   "@type": "Interface",
-  "displayName": "ao.get response",
+  "displayName": "do.get",
   "schemas": [
     {
-      "@id": "dtmi:advantech:weda:command:aoget:response:analogoutputvalue;1",
+      "@id": "dtmi:advantech:weda:command:do_get:outputsStringList;1",
+      "@type": "Array",
+      "elementSchema": "string"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:do_get:Parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "displayName": "Target Device",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "outputs",
+          "displayName": "Output Names",
+          "schema": "dtmi:advantech:weda:command:do_get:outputsStringList;1",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:do_get:DigitalOutputValue;1",
       "@type": "Object",
       "fields": [
         {
@@ -26,8 +59,8 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "value",
-          "schema": "double",
+          "name": "state",
+          "schema": "boolean",
           "required": false,
           "writable": true
         },
@@ -44,12 +77,12 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:aoget:response:valueslist;1",
+      "@id": "dtmi:advantech:weda:command:do_get:valuesDigitalOutputValueList;1",
       "@type": "Array",
-      "elementSchema": "dtmi:advantech:weda:command:aoget:response:analogoutputvalue;1"
+      "elementSchema": "dtmi:advantech:weda:command:do_get:DigitalOutputValue;1"
     },
     {
-      "@id": "dtmi:advantech:weda:command:aoget:response:analogoutputerror;1",
+      "@id": "dtmi:advantech:weda:command:do_get:DigitalOutputError;1",
       "@type": "Object",
       "fields": [
         {
@@ -75,12 +108,12 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:aoget:response:errorslist;1",
+      "@id": "dtmi:advantech:weda:command:do_get:errorsDigitalOutputErrorList;1",
       "@type": "Array",
-      "elementSchema": "dtmi:advantech:weda:command:aoget:response:analogoutputerror;1"
+      "elementSchema": "dtmi:advantech:weda:command:do_get:DigitalOutputError;1"
     },
     {
-      "@id": "dtmi:advantech:weda:command:aoget:response:getanalogoutputresultdata;1",
+      "@id": "dtmi:advantech:weda:command:do_get:GetDigitalOutputResultData;1",
       "@type": "Object",
       "fields": [
         {
@@ -89,7 +122,7 @@
             "ConfigConstraint"
           ],
           "name": "values",
-          "schema": "dtmi:advantech:weda:command:aoget:response:valueslist;1",
+          "schema": "dtmi:advantech:weda:command:do_get:valuesDigitalOutputValueList;1",
           "required": false,
           "writable": true
         },
@@ -99,14 +132,14 @@
             "ConfigConstraint"
           ],
           "name": "errors",
-          "schema": "dtmi:advantech:weda:command:aoget:response:errorslist;1",
+          "schema": "dtmi:advantech:weda:command:do_get:errorsDigitalOutputErrorList;1",
           "required": false,
           "writable": true
         }
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:aoget:response:response;1",
+      "@id": "dtmi:advantech:weda:command:do_get:Result;1",
       "@type": "Object",
       "fields": [
         {
@@ -135,7 +168,7 @@
             "ConfigConstraint"
           ],
           "name": "resultData",
-          "schema": "dtmi:advantech:weda:command:aoget:response:getanalogoutputresultdata;1",
+          "schema": "dtmi:advantech:weda:command:do_get:GetDigitalOutputResultData;1",
           "required": false,
           "writable": true
         },
@@ -164,14 +197,16 @@
   ],
   "contents": [
     {
-      "@type": [
-        "Property",
-        "ConfigConstraint"
-      ],
-      "name": "response",
-      "schema": "dtmi:advantech:weda:command:aoget:response:response;1",
-      "required": false,
-      "writable": true
+      "@type": "Command",
+      "name": "do_get",
+      "request": {
+        "name": "parameters",
+        "schema": "dtmi:advantech:weda:command:do_get:Parameters;1"
+      },
+      "response": {
+        "name": "result",
+        "schema": "dtmi:advantech:weda:command:do_get:Result;1"
+      }
     }
   ]
 }

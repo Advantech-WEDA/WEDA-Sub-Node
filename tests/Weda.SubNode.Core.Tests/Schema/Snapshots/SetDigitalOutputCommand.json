@@ -3,12 +3,13 @@
     "dtmi:dtdl:context;3",
     "dtmi:advantech:edgesync:validation;1"
   ],
-  "@id": "dtmi:advantech:weda:command:reporthistorical:response;1",
+  "@id": "dtmi:advantech:weda:command:do_set;1",
   "@type": "Interface",
-  "displayName": "report.historical response",
+  "displayName": "do.set",
+  "description": "Set digital output channels on a target device.",
   "schemas": [
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreporttimerange;1",
+      "@id": "dtmi:advantech:weda:command:do_set:DigitalOutputState;1",
       "@type": "Object",
       "fields": [
         {
@@ -16,9 +17,10 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "startTime",
+          "name": "name",
+          "displayName": "Output Name",
           "schema": "string",
-          "required": false,
+          "required": true,
           "writable": true
         },
         {
@@ -26,20 +28,21 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "endTime",
-          "schema": "string",
+          "name": "state",
+          "displayName": "Output State",
+          "schema": "boolean",
           "required": false,
           "writable": true
         }
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:sensorslist;1",
+      "@id": "dtmi:advantech:weda:command:do_set:outputsDigitalOutputStateList;1",
       "@type": "Array",
-      "elementSchema": "string"
+      "elementSchema": "dtmi:advantech:weda:command:do_set:DigitalOutputState;1"
     },
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreportdatagap;1",
+      "@id": "dtmi:advantech:weda:command:do_set:Parameters;1",
       "@type": "Object",
       "fields": [
         {
@@ -47,7 +50,8 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "sensorId",
+          "name": "deviceName",
+          "displayName": "Target Device",
           "schema": "string",
           "required": false,
           "writable": true
@@ -57,7 +61,25 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "startTime",
+          "name": "outputs",
+          "displayName": "Outputs to Set",
+          "schema": "dtmi:advantech:weda:command:do_set:outputsDigitalOutputStateList;1",
+          "required": true,
+          "writable": true,
+          "minLength": 1
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:do_set:DigitalOutputOperationResult;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
           "schema": "string",
           "required": false,
           "writable": true
@@ -67,7 +89,27 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "endTime",
+          "name": "state",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "success",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "error",
           "schema": "string",
           "required": false,
           "writable": true
@@ -77,30 +119,20 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "reason",
+          "name": "deviceName",
           "schema": "string",
-          "required": false,
-          "writable": true
-        },
-        {
-          "@type": [
-            "Field",
-            "ConfigConstraint"
-          ],
-          "name": "missingSamples",
-          "schema": "integer",
           "required": false,
           "writable": true
         }
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:datagapslist;1",
+      "@id": "dtmi:advantech:weda:command:do_set:outputsDigitalOutputOperationResultList;1",
       "@type": "Array",
-      "elementSchema": "dtmi:advantech:weda:command:reporthistorical:response:batchreportdatagap;1"
+      "elementSchema": "dtmi:advantech:weda:command:do_set:DigitalOutputOperationResult;1"
     },
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreportresultdata;1",
+      "@id": "dtmi:advantech:weda:command:do_set:SetDigitalOutputResultData;1",
       "@type": "Object",
       "fields": [
         {
@@ -108,7 +140,7 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "batchesSent",
+          "name": "successCount",
           "schema": "integer",
           "required": false,
           "writable": true
@@ -118,7 +150,7 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "totalSamples",
+          "name": "failureCount",
           "schema": "integer",
           "required": false,
           "writable": true
@@ -128,35 +160,15 @@
             "Field",
             "ConfigConstraint"
           ],
-          "name": "timeRange",
-          "schema": "dtmi:advantech:weda:command:reporthistorical:response:batchreporttimerange;1",
-          "required": false,
-          "writable": true
-        },
-        {
-          "@type": [
-            "Field",
-            "ConfigConstraint"
-          ],
-          "name": "sensors",
-          "schema": "dtmi:advantech:weda:command:reporthistorical:response:sensorslist;1",
-          "required": false,
-          "writable": true
-        },
-        {
-          "@type": [
-            "Field",
-            "ConfigConstraint"
-          ],
-          "name": "dataGaps",
-          "schema": "dtmi:advantech:weda:command:reporthistorical:response:datagapslist;1",
+          "name": "outputs",
+          "schema": "dtmi:advantech:weda:command:do_set:outputsDigitalOutputOperationResultList;1",
           "required": false,
           "writable": true
         }
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:batchreporterrordetails;1",
+      "@id": "dtmi:advantech:weda:command:do_set:SetDigitalOutputErrorDetails;1",
       "@type": "Object",
       "fields": [
         {
@@ -182,7 +194,7 @@
       ]
     },
     {
-      "@id": "dtmi:advantech:weda:command:reporthistorical:response:response;1",
+      "@id": "dtmi:advantech:weda:command:do_set:Result;1",
       "@type": "Object",
       "fields": [
         {
@@ -211,7 +223,7 @@
             "ConfigConstraint"
           ],
           "name": "resultData",
-          "schema": "dtmi:advantech:weda:command:reporthistorical:response:batchreportresultdata;1",
+          "schema": "dtmi:advantech:weda:command:do_set:SetDigitalOutputResultData;1",
           "required": false,
           "writable": true
         },
@@ -221,7 +233,7 @@
             "ConfigConstraint"
           ],
           "name": "errorDetails",
-          "schema": "dtmi:advantech:weda:command:reporthistorical:response:batchreporterrordetails;1",
+          "schema": "dtmi:advantech:weda:command:do_set:SetDigitalOutputErrorDetails;1",
           "required": false,
           "writable": true
         },
@@ -250,14 +262,16 @@
   ],
   "contents": [
     {
-      "@type": [
-        "Property",
-        "ConfigConstraint"
-      ],
-      "name": "response",
-      "schema": "dtmi:advantech:weda:command:reporthistorical:response:response;1",
-      "required": false,
-      "writable": true
+      "@type": "Command",
+      "name": "do_set",
+      "request": {
+        "name": "parameters",
+        "schema": "dtmi:advantech:weda:command:do_set:Parameters;1"
+      },
+      "response": {
+        "name": "result",
+        "schema": "dtmi:advantech:weda:command:do_set:Result;1"
+      }
     }
   ]
 }

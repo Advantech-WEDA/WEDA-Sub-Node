@@ -38,6 +38,8 @@ public class WedaApplicationBuilder
 {
     private readonly HostApplicationBuilder _hostBuilder;
     private readonly List<Func<IWedaApplicationContext, IDevice>> _deviceFactories = [];
+    private readonly Dictionary<string, Type> _deviceClassesBySection
+        = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _useCache;
     private readonly IConfigurationCache _configurationCache;
 
@@ -170,6 +172,11 @@ public class WedaApplicationBuilder
         }
 
         Log.Information("Using device '{SectionName}' configuration from devicecfg.json", sectionName);
+
+        // Record sectionName -> TDevice mapping so WedaApplicationContext's loader can
+        // probe IConfigurableDevice<,> on TDevice and stash DeviceConfiguration.DeviceTypeName,
+        // enabling typed sensor-dtmi dispatch in DeviceConfiguration.InitializeDtdl.
+        _deviceClassesBySection[sectionName] = typeof(TDevice);
 
         // Create factory that retrieves the configuration from WedaApplicationContext
         // This ensures we use the same configuration instance that was already initialized in WedaApplicationContext
@@ -571,6 +578,9 @@ public class WedaApplicationBuilder
                 options.ConfigurationCache = configurationCache;
                 // Pass recording options (WedaApplicationContext creates RecordingService internally)
                 options.RecordingOptions = recordingOptions;
+                // Forward AddDevice<TDevice>("sectionName") class registrations so the
+                // loader can stash DeviceConfiguration.DeviceTypeName for typed devices.
+                options.DeviceClassesBySection = _deviceClassesBySection;
             });
         });
 

@@ -312,6 +312,23 @@ public class WedaApplicationContext : IWedaApplicationContext
         // Load SubNode configuration from DeviceCfg
         _subNodeInfo = LoadSubNodeInfo();
 
+        // Initialise capability registries BEFORE LoadAllDeviceConfigurations so
+        // that:
+        //   1. The lazy SDK scan runs and (via SensorTypeRegistry.BuildRegistry)
+        //      installs the TypedSensorDispatch.Resolve hook into Abstractions,
+        //      enabling DeviceConfiguration.InitializeDtdl's typed dispatch path.
+        //   2. The consumer's entry assembly (e.g. examples/testdevice) gets its
+        //      IConfigurableDevice / IConfigurableSensor implementations picked up.
+        _ = Weda.SubNode.Core.Telemetry.SensorTypeRegistry.HasAny;
+        _ = Weda.SubNode.Core.Devices.DeviceTypeRegistry.All;
+        var capabilityEntryAssembly = Assembly.GetEntryAssembly();
+        if (capabilityEntryAssembly is not null &&
+            capabilityEntryAssembly != typeof(Weda.SubNode.Core.Telemetry.SensorTypeRegistry).Assembly)
+        {
+            Weda.SubNode.Core.Telemetry.SensorTypeRegistry.RegisterAssemblies(capabilityEntryAssembly);
+            Weda.SubNode.Core.Devices.DeviceTypeRegistry.RegisterAssemblies(capabilityEntryAssembly);
+        }
+
         // Load all device configurations from DeviceCfg
         _deviceConfigs = LoadAllDeviceConfigurations();
 
@@ -659,6 +676,20 @@ public class WedaApplicationContext : IWedaApplicationContext
                 // Auto-enrich: Attach SubNodeInfo
                 deviceConfig.SubNodeInfo = _subNodeInfo;
 
+                // Auto-enrich: If AddDevice<TDevice>("configKey") registered a class
+                // that implements IConfigurableDevice<,>, stash its static
+                // DeviceTypeName so DeviceConfiguration.InitializeDtdl can take the
+                // typed sensor-dtmi dispatch path.
+                deviceConfig.DeviceTypeName = ResolveDeviceTypeName(configKey);
+
+                // Recover sensor Parameters' array values that IConfiguration's
+                // Dictionary<string, object> bind mangled. Must run BEFORE
+                // InitializeDtdl so the typed dispatch's try-validate sees the
+                // proper string[] (not "" or System.Object) for fields like
+                // Interfaces / PinIds / Sources.
+                Weda.SubNode.Core.Devices.SensorParameterNormalizer
+                    .NormalizeArrayParameters(deviceConfig, configSection);
+
                 // Store raw devicecfg.json (for Report content)
                 deviceConfig.RawDeviceCfgJson = rawDeviceCfgJson;
 
@@ -803,6 +834,43 @@ public class WedaApplicationContext : IWedaApplicationContext
             throw new InvalidOperationException(
                 $"Invalid sensor name(s) detected in device '{deviceConfig.DeviceName}':{Environment.NewLine}{errorMessages}");
         }
+    }
+
+    /// <summary>
+    /// Resolves a config section key (e.g. "MyFirstDeviceConfig") to the
+    /// <c>DeviceTypeName</c> declared by its registered device class. Two paths:
+    /// <list type="number">
+    ///   <item>If the device class itself implements
+    ///         <see cref="IConfigurableDevice{TComm, TProps}"/>, read its static
+    ///         <c>DeviceTypeName</c> (Phase 2 target — single class declares everything).</item>
+    ///   <item>Else, walk the device class's inheritance chain looking for a
+    ///         <see cref="DeviceTypeAttribute"/> (Phase 1 — device class points at
+    ///         the type name owned by a sibling config class such as
+    ///         <c>TcpModbusDeviceConfiguration</c>).</item>
+    /// </list>
+    /// Returns null when neither is present — the loader then falls back to the
+    /// legacy autogen <c>DtdlGenerator</c> path.
+    /// </summary>
+    private string? ResolveDeviceTypeName(string configKey)
+    {
+        if (_options.DeviceClassesBySection is null) return null;
+        if (!_options.DeviceClassesBySection.TryGetValue(configKey, out var deviceClass)) return null;
+
+        // Path 1: device class directly implements IConfigurableDevice<,>.
+        var iface = deviceClass.GetInterfaces().FirstOrDefault(
+            i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IConfigurableDevice<,>));
+        if (iface is not null)
+        {
+            var prop = deviceClass.GetProperty(
+                "DeviceTypeName",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+            if (prop?.GetValue(null) is string dtnFromIface)
+                return dtnFromIface;
+        }
+
+        // Path 2: [DeviceType] attribute (inherited from a base class such as TcpModbusDevice).
+        var attr = deviceClass.GetCustomAttribute<DeviceTypeAttribute>(inherit: true);
+        return attr?.DeviceTypeName;
     }
 
     private void LoadDtdlIfEnabled(DeviceConfiguration deviceConfig, Microsoft.Extensions.Logging.ILogger logger)

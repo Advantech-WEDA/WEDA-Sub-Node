@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Cloud.Clients.Common;
@@ -34,13 +35,20 @@ public record DeviceCapDto(
     [property: JsonPropertyName("deviceName")] string DeviceName,
     [property: JsonPropertyName("deviceInfo")] Dictionary<string, object> DeviceInfo,
     [property: JsonPropertyName("sensors")] IReadOnlyList<SensorDto> Sensors,
-    [property: JsonPropertyName("capabilities")] SubNodeCapabilitiesDto Capabilities);
+    [property: JsonPropertyName("devices")] IReadOnlyList<CatalogRefDto> Devices,
+    [property: JsonPropertyName("sensorTypes")] IReadOnlyList<SensorTypeCatalogRefDto> SensorTypes,
+    [property: JsonPropertyName("transforms")] IReadOnlyList<CatalogRefDto> Transforms,
+    [property: JsonPropertyName("dspFilters")] IReadOnlyList<CatalogRefDto> DspFilters,
+    [property: JsonPropertyName("commands")] IReadOnlyList<CatalogRefDto> Commands);
 
 /// <summary>
-/// Device configuration data for upload
-/// Contains complete device metadata and sensors
+/// Device configuration data for upload.
+/// <para><c>Dtdl</c> is a flat list of every DTDL v3 Interface this SubNode contributes
+/// — sensor telemetry, plus one entry per transform / DSP filter / command schema.
+/// <c>DeviceCapabilities</c> carries instance state (sensor entities) and thin
+/// <c>{name, dtmi}</c> catalog references into <c>Dtdl</c>.</para>
 /// </summary>
 public record DeviceConfigurationDto(
     [property: JsonPropertyName("deviceId")] string DeviceId,
-    [property: JsonPropertyName("dtdl")] Dictionary<string, object> Dtdl,
+    [property: JsonPropertyName("dtdl")] IReadOnlyList<JsonObject> Dtdl,
     [property: JsonPropertyName("deviceCapabilities")] DeviceCapDto DeviceCapabilities);

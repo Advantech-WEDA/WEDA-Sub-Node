@@ -64,14 +64,13 @@ public class SchemaSnapshotTests
     [InlineData("ai.get", "GetAnalogInputCommand")]
     [InlineData("ao.get", "GetAnalogOutputCommand")]
     [InlineData("di.get", "GetDigitalInputCommand")]
-    public void Command_parameter_schema_matches_snapshot(string commandName, string snapshotName)
+    public void Command_schema_matches_snapshot(string commandName, string snapshotName)
     {
         var registry = new CommandRegistry();
         registry.ScanAssembly(typeof(CommandRegistry).Assembly);
         var descriptor = registry.GetDescriptors().First(d => d.Name == commandName);
 
-        AssertMatchesSnapshot($"{snapshotName}.parameters.json", descriptor.ParameterSchema);
-        AssertMatchesSnapshot($"{snapshotName}.response.json", descriptor.ResponseSchema);
+        AssertMatchesSnapshot($"{snapshotName}.json", descriptor.Schema);
     }
 
     private static void AssertMatchesSnapshot(string fileName, JsonObject schema)

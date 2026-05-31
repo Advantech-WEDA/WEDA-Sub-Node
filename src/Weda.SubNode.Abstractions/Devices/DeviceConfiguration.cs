@@ -39,6 +39,17 @@ public class DeviceConfiguration
     [JsonIgnore]
     public object? DtdlInterface { get; set; }
 
+    /// <summary>
+    /// Runtime property: the <c>DeviceTypeName</c> static value of the device's
+    /// runtime class when that class implements
+    /// <see cref="IConfigurableDevice{TCommunication, TProperties}"/>; null otherwise.
+    /// Populated by the host loader from the type registered via
+    /// <c>AddDevice&lt;TDevice&gt;("sectionName")</c>. Non-null triggers the typed
+    /// sensor-dtmi dispatch path; null falls back to legacy <c>DtdlGenerator</c>.
+    /// </summary>
+    [JsonIgnore]
+    public string? DeviceTypeName { get; set; }
+
     public List<Sensor> Sensors { get; set; } = [];
 
     /// <summary>
@@ -147,25 +158,101 @@ public class DeviceConfiguration
     }
 
     /// <summary>
-    /// Generates DTDL interface from sensor definitions.
-    /// Also populates Dtmi for sensors that don't have one.
+    /// Resolves each sensor instance's dtmi for the auto-gen path.
+    /// <list type="bullet">
+    ///   <item>Typed path (preferred): when the device's runtime class implements
+    ///         <see cref="IConfigurableDevice{TComm, TProps}"/> (signalled via
+    ///         non-null <see cref="DeviceTypeName"/>) and Core's
+    ///         <c>SensorTypeRegistry</c> has installed
+    ///         <see cref="TypedSensorDispatch.Resolve"/>, each sensor's dtmi is
+    ///         the matching sensor TYPE Interface dtmi. No per-device
+    ///         <see cref="DtdlInterface"/> is built — the type Interfaces
+    ///         (extending <c>Sensor:base</c>) are shipped via the catalog.</item>
+    ///   <item>Untyped fallback: legacy
+    ///         <c>DtdlGenerator</c> auto-gen per sensor name + a per-device
+    ///         Interface. A warning surfaces to drive Phase 2 migration.</item>
+    /// </list>
     /// </summary>
     private void GenerateDtdlFromSensors(ILogger? logger = null)
     {
-        // Populate Dtmi for sensors without one
+        if (!string.IsNullOrEmpty(DeviceTypeName) && TypedSensorDispatch.Resolve is { } resolve)
+        {
+            // Per-sensor try/catch: one mis-shaped sensor must NOT prevent the
+            // remaining sensors from resolving. Failing sensors fall back to the
+            // legacy autogen dtmi so the upload payload still has something
+            // addressable for them; their failure is logged.
+            var resolved = 0;
+            var failed = new List<string>();
+            foreach (var sensor in Sensors)
+            {
+                try
+                {
+                    sensor.Dtmi = resolve(DeviceTypeName, sensor);
+                    resolved++;
+                }
+                catch (Exception ex)
+                {
+                    failed.Add($"{sensor.Name}: {ex.Message}");
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                // Fall back per-failing-sensor to legacy autogen so the upload
+                // payload still references something, and log every failure for
+                // POCO-author fixup.
+                DtdlGenerator.PopulateSensorDtmis(Sensors.Where(s => string.IsNullOrEmpty(s.Dtmi)));
+                logger?.LogWarning(
+                    "Typed dispatch partial: {Resolved}/{Total} sensors resolved for device " +
+                    "'{DeviceName}' (type '{DeviceType}'). {FailCount} fell back to autogen dtmi:\n  - {Failures}",
+                    resolved, Sensors.Count, DeviceName, DeviceTypeName, failed.Count,
+                    string.Join("\n  - ", failed));
+            }
+            else
+            {
+                logger?.LogInformation(
+                    "Typed dispatch resolved {SensorCount} sensors for device '{DeviceName}' (type '{DeviceType}')",
+                    Sensors.Count, DeviceName, DeviceTypeName);
+            }
+
+            // No per-device autogen Interface — the sensor type Interfaces (and
+            // SensorBase) carry the schema, added to dtdl[] by the mapping layer.
+            DtdlInterface = null;
+            return;
+        }
+
+        // Untyped fallback (X path): legacy DtdlGenerator. Migrate via
+        // IConfigurableDevice + IConfigurableSensor (see Customized Device
+        // Design Guideline) to retire this branch.
         DtdlGenerator.PopulateSensorDtmis(Sensors);
 
-        // Generate the DTDL interface
         DtdlInterface = DtdlGenerator.GenerateInterface(
             DeviceName,
             Sensors,
             displayName: null,
             description: $"Auto-generated DTDL for {DeviceName}");
 
-        logger?.LogInformation(
-            "Auto-generated DTDL for device '{DeviceName}' with {SensorCount} sensors",
-            DeviceName,
-            Sensors.Count);
+        if (!string.IsNullOrEmpty(DeviceTypeName))
+        {
+            // DeviceTypeName was set (device class implements IConfigurableDevice)
+            // but Core's hook wasn't installed — should be impossible at runtime
+            // since the host loader touches SensorTypeRegistry before InitializeDtdl.
+            // Log louder; suggests a wiring bug.
+            logger?.LogWarning(
+                "Device '{DeviceName}' (type '{DeviceType}') is strongly-typed but " +
+                "TypedSensorDispatch.Resolve hook is unset — falling back to legacy autogen. " +
+                "Ensure SensorTypeRegistry is initialised before configuration load.",
+                DeviceName, DeviceTypeName);
+        }
+        else
+        {
+            logger?.LogWarning(
+                "Device '{DeviceName}' is not strongly-typed (no IConfigurableDevice registered " +
+                "for its DeviceConfigs section). Falling back to legacy DtdlGenerator autogen " +
+                "({SensorCount} sensors). Migrate via IConfigurableDevice + IConfigurableSensor " +
+                "to enable strong-typed catalog and retire this path.",
+                DeviceName, Sensors.Count);
+        }
     }
 
     /// <summary>
