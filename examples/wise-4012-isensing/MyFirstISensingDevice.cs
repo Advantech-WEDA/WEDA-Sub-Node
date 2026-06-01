@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Devices.Generic;
 
@@ -9,6 +10,7 @@ namespace Wise4012ISensingExample;
 /// MyFirstISensingDevice - A custom ISensing device implementation
 /// Inherits from MqttISensingDevice to get MQTT + ISensing protocol support with automatic communication setup
 /// </summary>
+[DeviceType(Sensors.MqttISensingDevice.DeviceTypeName)]
 public class MyFirstISensingDevice : MqttISensingDevice
 {
     /// <summary>

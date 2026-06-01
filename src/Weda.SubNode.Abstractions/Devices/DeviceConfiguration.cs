@@ -141,6 +141,18 @@ public class DeviceConfiguration
 
         _dtdlInitialized = true;
 
+        // Typed dispatch takes precedence over both autogen and manual file
+        // modes: when a device is strongly-typed (DeviceTypeName resolved from
+        // [DeviceType] / IConfigurableDevice via the host loader), the sensor
+        // type Interfaces in the catalog ARE the authoritative DTDL — we
+        // don't want a stale per-sensor autogen Interface OR a hand-written
+        // DtdlPath file overriding them.
+        if (!string.IsNullOrEmpty(DeviceTypeName) && TypedSensorDispatch.Resolve is not null)
+        {
+            GenerateDtdlFromSensors(logger);
+            return;
+        }
+
         // Device-level Dtdl.AutoGenEnabled takes priority over SubNode-level setting
         var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);
 
