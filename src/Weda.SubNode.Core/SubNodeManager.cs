@@ -575,15 +575,15 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         // This ensures Report content reflects the last applied configuration
         UpdateRawDeviceCfgJson(message, appliedDevices);
 
-        var hasDtmiDelta = validationResults.Values.Any(r => r.HasDtmiDelta) ||
-                          applyResults.Values.Any(r => r.HasDtmiDelta);
+        var requiresCapsReupload = validationResults.Values.Any(r => r.RequiresCapsReupload) ||
+                                   applyResults.Values.Any(r => r.RequiresCapsReupload);
 
         await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
 
-        // Re-upload configurations if DTMI delta detected
-        if (hasDtmiDelta)
+        // New sensors require re-uploading DeviceCaps so the cloud sees SubNode-assigned DTMIs.
+        if (requiresCapsReupload)
         {
-            _logger.LogInformation("DTMI delta detected, triggering configuration re-upload");
+            _logger.LogInformation("New sensors detected, triggering DeviceCaps re-upload");
             var devices = _deviceRegistry.GetAllDevices().ToList();
             var configurations = new DeviceConfigurations(devices);
             await UploadDeviceConfigurationsAsync(configurations, default);

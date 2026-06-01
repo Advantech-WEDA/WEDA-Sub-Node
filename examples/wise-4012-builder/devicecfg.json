@@ -10,8 +10,7 @@
     "MyFirstDeviceConfig": {
       "Enabled": true,
       "Dtdl": {
-        "AutoGenEnabled": false,
-        "DtdlPath": "examples/wise-4012-builder/dtdl/wise-4012.json"
+        "AutoGenEnabled": true
       },
       "DeviceCommunication": {
         "Host": "172.16.8.122",
@@ -24,7 +23,6 @@
         {
           "Name": "channel_0",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 0,
@@ -44,7 +42,6 @@
         {
           "Name": "channel_1",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 1,
@@ -64,7 +61,6 @@
         {
           "Name": "channel_2",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 2,
@@ -84,7 +80,6 @@
         {
           "Name": "channel_3",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 3,

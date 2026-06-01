@@ -172,6 +172,24 @@ system-agent 一個 device 下有 13 種 metric family，5 種 Parameters shape�
 
 強型別化後**這個檔案不動**——SDK 由 `Parameters` 內容自動推出 sensor type、寫回 type dtmi。
 
+### 5.1 政策：auto-gen only，不接受 user-custom Dtmi
+
+DTMI 一律由 SDK 產生，**不允許**在 devicecfg.json 寫 `"Dtmi": "..."` 或在 `Dtdl` 區塊塞 `DtdlPath`：
+
+```jsonc
+// device-level Dtdl 設定
+"Dtdl": { "AutoGenEnabled": true }      // 唯一允許形式（也可整個區塊省略，預設等同）
+
+// sensor entry
+{ "Name": "...", "SensorGroup": "...", "Parameters": { ... }, ... }
+                                                       // ↑ 不要 "Dtmi" 欄位
+```
+
+理由：
+- DTDL 是 **definition**、device-cap 是 **catalog**、devicecfg 是 **instance**——instance 只給 type 一個指向（`SensorGroup` + `Parameters` 內容），DTMI 由 SDK 從 catalog 派發。
+- Cloud 也不應該下發 DTMI；`SubNodeSensorReportDto.Dtmi` 即使被填寫，SDK 也會忽略。新增 sensor → SubNodeManager 自動 re-upload DeviceCaps 讓 cloud 看到 SDK 派發的 DTMI。
+- 沒有 typed catalog 的 device 走 legacy `DtdlGenerator.PopulateSensorDtmis` 仍是 auto-gen（per-sensor unique DTMI）；無論哪條路徑，DTMI 都來自 SubNode 本地。
+
 ---
 
 ## 6. DTDL 輸出對照（`cpu-metric` 為例）

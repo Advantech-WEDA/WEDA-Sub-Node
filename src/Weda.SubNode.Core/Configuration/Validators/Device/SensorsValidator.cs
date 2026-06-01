@@ -154,13 +154,6 @@ public class SensorsValidator : IConfigurationPropertyValidator
                 "or valid MIME type (application/json, application/octet-stream, image/png, image/jpeg)");
         }
 
-        if (_validMimeTypes.Contains(schema) && !string.IsNullOrEmpty(sensor.Dtmi))
-        {
-            return ConfigurationValidationResult.Failure(
-                $"Sensor '{sensor.Name}': MIME type schema '{schema}' cannot have custom DTMI. " +
-                "Please remove Dtmi field.");
-        }
-
         return ConfigurationValidationResult.Success;
     }
 

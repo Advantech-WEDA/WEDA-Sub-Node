@@ -326,12 +326,12 @@ public class SubNodeManagerTests : IAsyncDisposable
 
         // Create device with DTMI delta in validation result
         var device1 = CreateFakeDevice("device-1")
-            .WithValidationResult(ConfigUpdateValidationResult.Valid("adamEthernet", hasDtmiDelta: true));
+            .WithValidationResult(ConfigUpdateValidationResult.Valid("adamEthernet", requiresCapsReupload: true));
 
         _deviceRegistry.Register(device1);
 
         manager.RegisterDeviceHandler("device-1", _ =>
-            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet", hasDtmiDelta: true)));
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet", requiresCapsReupload: true)));
 
         var updateEvent = CreateDeviceConfigUpdateEvent(new[] { "device-1" });
 
@@ -361,7 +361,7 @@ public class SubNodeManagerTests : IAsyncDisposable
         _deviceRegistry.Register(device1);
 
         manager.RegisterDeviceHandler("device-1", _ =>
-            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet", hasDtmiDelta: false)));
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet", requiresCapsReupload: false)));
 
         var updateEvent = CreateDeviceConfigUpdateEvent(new[] { "device-1" });
 
