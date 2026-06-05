@@ -351,4 +351,4 @@ public class MyAggregatorDevice : AggregatorDevice
 
 - [Weda SubNode SDK 文件](../../docs/)
 - [Stock Monitor 範例](../stock-monitor/) - 類似的架構模式
-- [Custom Device 開發指南](../../docs/custom-device-development.md)
+- [Custom Device 開發指南](../../docs/wiki/zh/09-customization/01-custom-device.md)

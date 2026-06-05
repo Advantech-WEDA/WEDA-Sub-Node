@@ -566,4 +566,4 @@ Parser 在轉換指標時會檢查 `Health.ActiveErrors`。若某 MetricType 的
 
 - [QUICK_START.md](01_QUICK_START.md) - 快速開始指南
 - [DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) - Docker 部署說明
-- [README.md](README.md) - 完整說明文件
+- [README.md](../README.md) - 完整說明文件

@@ -125,5 +125,5 @@ Current:     5.00 -> 5.75 -> 5.03 -> 6.48 -> 5.90 -> 2.31 -> 0.08（快速變化
 
 ## 參考資料
 
-- [ModbusSimulatorExample](../../examples/ModbusSimulatorExample/) - 完整使用範例
+- [範例](../../examples/README_zh.md) - 完整使用範例
 - [Weda.SubNode.Core](../Weda.SubNode.Core/) - 核心框架實作

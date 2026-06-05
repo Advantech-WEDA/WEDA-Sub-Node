@@ -125,5 +125,5 @@ Current:     5.00 -> 5.75 -> 5.03 -> 6.48 -> 5.90 -> 2.31 -> 0.08 (fast changes)
 
 ## See Also
 
-- [ModbusSimulatorExample](../../examples/ModbusSimulatorExample/) - Complete usage example
+- [Examples](../../examples/README.md) - Complete usage examples
 - [Weda.SubNode.Core](../Weda.SubNode.Core/) - Core framework implementation
