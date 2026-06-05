@@ -75,11 +75,9 @@
 **步驟:**
 1. 瀏覽可用範例:
    - [examples/](examples/) - 生產就緒範例（真實硬體）
-   - [tutorials/](tutorials/) - 學習範例（模擬器）
 
 2. 選擇符合您使用案例的範例:
    - **WISE-4012 工業 I/O**: [examples/wise-4012-builder/](examples/wise-4012-builder/)
-   - **Transform & DSP Filters**: [tutorials/01-transform-dsp-config/](tutorials/01-transform-dsp-config/)
 
 3. 複製並自訂:
    ```bash
@@ -100,7 +98,7 @@
    - 如需要，更新 DTDL 中繼資料
    - 在裝置類別中新增自訂處理邏輯
 
-**[瀏覽所有範例](examples/README_zh.md)** | **[瀏覽所有教學](tutorials/README_zh.md)**
+**[瀏覽所有範例](examples/README_zh.md)**
 
 ---
 
@@ -116,9 +114,8 @@
   - [WedaBuilder 基礎](docs/wiki/zh/01_quick_start/02_wedabuilder_basic.md)
   - [SubNode 基礎](docs/wiki/zh/01_quick_start/03_subnode_basic.md)
 
-- **範例與教學**:
+- **範例**:
   - [生產範例](examples/README_zh.md) - 真實硬體整合
-  - [學習教學](tutorials/README_zh.md) - 循序漸進指南
 
 - **進階主題**:
   - [配置參考](docs/wiki/zh/03_advanced/appsettings_configuration.md)
@@ -142,7 +139,6 @@
 ```
 edge_subnode/
 ├── examples/          # 生產就緒範例（真實硬體）
-├── tutorials/         # 學習教學（Mock Cloud + 模擬器）
 ├── templates/         # dotnet new 範本
 │   ├── subnode/       # Manual Context pattern
 │   └── wedabuilder/   # Builder pattern
@@ -157,7 +153,6 @@ edge_subnode/
 
 - **文件**: [docs/wiki/zh/README.md](docs/wiki/zh/README.md)
 - **範例**: [examples/README_zh.md](examples/README_zh.md)
-- **教學**: [tutorials/README_zh.md](tutorials/README_zh.md)
 
 ---
 
