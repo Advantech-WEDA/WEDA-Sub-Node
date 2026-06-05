@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubNode Telemetry Dashboard</title>
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+
+<div class="header">
+  <h1>SubNode Telemetry Dashboard</h1>
+  <div class="status">
+    <div class="status-dot disconnected" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><span class="stat-label">Messages:</span><span class="stat-value" id="totalMsg">0</span></div>
+  <div class="stat"><span class="stat-label">Telemetry:</span><span class="stat-value" id="telemetryCount">0</span></div>
+  <div class="stat"><span class="stat-label">Health:</span><span class="stat-value" id="healthCount">0</span></div>
+  <div class="stat"><span class="stat-label">Msg/s:</span><span class="stat-value" id="msgRate">0</span></div>
+  <div class="stat"><span class="stat-label">Last:</span><span class="stat-value" id="lastTime">--:--:--</span></div>
+</div>
+
+<div class="grid">
+  <!-- Sensor Values -->
+  <div class="card">
+    <div class="card-title">Sensor Telemetry</div>
+    <div class="sensor-grid" id="sensorGrid">
+      <div style="color: var(--dim); font-size: 13px;">Waiting for data...</div>
+    </div>
+  </div>
+
+  <!-- Health -->
+  <div class="card">
+    <div class="card-title">Device Health</div>
+    <div class="health-grid" id="healthGrid">
+      <div class="health-item">
+        <div class="health-label">Status</div>
+        <div class="health-value" id="healthStatus" style="color: var(--dim);">--</div>
+      </div>
+      <div class="health-item">
+        <div class="health-label">CPU Usage</div>
+        <div class="health-value" id="cpuValue">--%</div>
+        <div class="bar-container"><div class="bar-fill" id="cpuBar" style="width:0%;background:var(--green);"></div></div>
+      </div>
+      <div class="health-item">
+        <div class="health-label">Memory Usage</div>
+        <div class="health-value" id="memValue">--%</div>
+        <div class="bar-container"><div class="bar-fill" id="memBar" style="width:0%;background:var(--green);"></div></div>
+      </div>
+      <div class="health-item">
+        <div class="health-label">Uptime</div>
+        <div class="health-value" id="uptimeValue" style="color: var(--dim);">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card full-width">
+    <div class="chart-header">
+      <div class="card-title" style="margin-bottom:0;">Sensor Trend (last 120 samples)</div>
+      <div id="chartTabs" class="chart-tabs"></div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Message Log -->
+  <div class="card full-width">
+    <div class="card-title">Message Log</div>
+    <div class="log-container" id="logContainer"></div>
+  </div>
+</div>
+
+<script src="/js/signalr.min.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

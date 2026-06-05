@@ -1,0 +1,399 @@
+[
+  {
+    "Name": "cpu_usage",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "cpu",
+      "MetricName": "usage"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "CPU usage percent across all cores",
+      "DisplayName": "CPU Usage"
+    },
+    "expect": "valid",
+    "reason": "canonical cpu.usage sensor"
+  },
+  {
+    "Name": "cpu_load1",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "cpu",
+      "MetricName": "load1"
+    },
+    "Report": { "Enabled": true, "Interval": 10000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "1-minute load average",
+      "DisplayName": "Load 1m"
+    },
+    "expect": "valid",
+    "reason": "load-average sensor"
+  },
+  {
+    "Name": "cpu_context_switches",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "cpu",
+      "MetricName": "context_switches"
+    },
+    "Report": { "Enabled": true, "Interval": 10000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Cumulative context-switch count",
+      "DisplayName": "Context Switches"
+    },
+    "expect": "valid",
+    "reason": "monotonic counter, graphed as rate"
+  },
+
+  {
+    "Name": "memory_total",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "memory",
+      "MetricName": "total"
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Total physical RAM in bytes",
+      "DisplayName": "Memory Total"
+    },
+    "expect": "valid",
+    "reason": "memory.total is constant per boot but published periodically"
+  },
+  {
+    "Name": "memory_available",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "memory",
+      "MetricName": "available"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Bytes of memory available without swapping",
+      "DisplayName": "Memory Available"
+    },
+    "expect": "valid",
+    "reason": "canonical alarm metric for memory pressure"
+  },
+  {
+    "Name": "memory_swap_free",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "memory",
+      "MetricName": "swap_free"
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Free swap space in bytes",
+      "DisplayName": "Swap Free"
+    },
+    "expect": "valid",
+    "reason": "swap-pressure indicator"
+  },
+
+  {
+    "Name": "disk_root_usage_percent",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "usage_percent",
+      "MountPoint": "/"
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "Root filesystem usage percent",
+      "DisplayName": "Disk Usage (/)"
+    },
+    "expect": "valid",
+    "reason": "canonical root-mount sensor"
+  },
+  {
+    "Name": "disk_data_total",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "total",
+      "MountPoint": "/data"
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Total bytes on /data",
+      "DisplayName": "Disk Total (/data)"
+    },
+    "expect": "valid",
+    "reason": "non-root mount point"
+  },
+  {
+    "Name": "disk_windows_c_drive",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "free",
+      "MountPoint": "C:\\"
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Free bytes on C:",
+      "DisplayName": "Disk Free (C:)"
+    },
+    "expect": "valid",
+    "reason": "Windows-style drive letter is a valid MountPoint string"
+  },
+  {
+    "Name": "disk_missing_mountpoint",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "usage_percent"
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": { "Schema": "double", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "MountPoint is required for disk sensors -- missing key"
+  },
+  {
+    "Name": "disk_empty_mountpoint",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "total",
+      "MountPoint": ""
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "MountPoint is empty string"
+  },
+  {
+    "Name": "disk_mountpoint_number",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "total",
+      "MountPoint": 42
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "MountPoint must be a string, not a number"
+  },
+  {
+    "Name": "disk_mountpoint_null",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "total",
+      "MountPoint": null
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "MountPoint must be a non-empty string, not null"
+  },
+  {
+    "Name": "disk_mountpoint_array",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "disk",
+      "MetricName": "total",
+      "MountPoint": ["/data"]
+    },
+    "Report": { "Enabled": true, "Interval": 30000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "MountPoint must be a single string, not an array"
+  },
+
+  {
+    "Name": "network_eth0_bytes_sent",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interface": "eth0"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Bytes sent on eth0 (monotonic)",
+      "DisplayName": "TX Bytes (eth0)"
+    },
+    "expect": "valid",
+    "reason": "v1.0/v1.1 single-Interface binding"
+  },
+  {
+    "Name": "network_bytes_sent_list",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interfaces": ["eth0", "eth1"]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "Per-iface TX bytes", "DisplayName": "TX Bytes" },
+    "expect": "valid",
+    "reason": "v1.1 explicit-list mode"
+  },
+  {
+    "Name": "network_bytes_sent_csv",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interfaces": "eth0,eth1"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "CSV form for Interfaces", "DisplayName": "TX Bytes" },
+    "expect": "valid",
+    "reason": "v1.1 explicit-list mode, CSV string variant"
+  },
+  {
+    "Name": "network_bytes_sent_auto_arr",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interfaces": []
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "auto-detect (empty array)", "DisplayName": "TX Bytes" },
+    "expect": "valid",
+    "reason": "empty array = auto-detect every host interface"
+  },
+  {
+    "Name": "network_bytes_sent_auto_str",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interfaces": ""
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "auto-detect (empty string)", "DisplayName": "TX Bytes" },
+    "expect": "valid",
+    "reason": "empty string is treated as auto-detect"
+  },
+  {
+    "Name": "network_bytes_sent_auto_missing",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "auto-detect (omitted)", "DisplayName": "TX Bytes" },
+    "expect": "valid",
+    "reason": "neither Interface nor Interfaces set = auto-detect"
+  },
+  {
+    "Name": "network_bytes_sent_ambiguous",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interface": "eth0",
+      "Interfaces": ["eth1"]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Interface and Interfaces both set non-empty"
+  },
+  {
+    "Name": "network_bytes_sent_iface_empty",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interface": ""
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Interface is empty string"
+  },
+  {
+    "Name": "network_bytes_sent_ifaces_number",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interfaces": 7
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Interfaces must be string or array<string>, not number"
+  },
+  {
+    "Name": "network_bytes_sent_ifaces_mixed",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "network",
+      "MetricName": "bytes_sent",
+      "Interfaces": ["eth0", 42]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": { "Schema": "long", "Description": "...", "DisplayName": "..." },
+    "expect": "invalid",
+    "reason": "Interfaces array element is not a string"
+  },
+
+  {
+    "Name": "system_time",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "system",
+      "MetricName": "time"
+    },
+    "Report": { "Enabled": true, "Interval": 1000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Wall-clock Unix epoch seconds",
+      "DisplayName": "System Time"
+    },
+    "expect": "valid",
+    "reason": "wall-clock seconds since epoch"
+  },
+  {
+    "Name": "system_boot_time",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "system",
+      "MetricName": "boot_time"
+    },
+    "Report": { "Enabled": true, "Interval": 300000 },
+    "SensorInfo": {
+      "Schema": "long",
+      "Description": "Last boot Unix epoch seconds",
+      "DisplayName": "Boot Time"
+    },
+    "expect": "valid",
+    "reason": "constant per boot; used for reboot detection"
+  },
+  {
+    "Name": "system_procs_running",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "system",
+      "MetricName": "procs_running"
+    },
+    "Report": { "Enabled": true, "Interval": 10000 },
+    "SensorInfo": {
+      "Schema": "integer",
+      "Description": "Processes currently in run-queue",
+      "DisplayName": "Procs Running"
+    },
+    "expect": "valid",
+    "reason": "scheduler-state gauge"
+  }
+]

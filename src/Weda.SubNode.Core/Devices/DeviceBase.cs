@@ -506,6 +506,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             // RaiseDataProcessed fires in EnqueueTelemetryAsync after transform/filter
             await EnqueueTelemetryAsync(result.Measures, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Expected during config update / shutdown - not an error
+            _logger.LogDebug("Interval group read cancelled for {SensorCount} sensors", sensors.Count);
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error processing interval group with {SensorCount} sensors", sensors.Count);
@@ -1372,7 +1377,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             string.Equals(s.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
     }
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         // Unregister device from context's device registry
         _context.DeviceRegistry.Unregister(this);

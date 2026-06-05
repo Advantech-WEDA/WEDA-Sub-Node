@@ -385,3 +385,5 @@ reports/
 # User custom SubNode projects (created by /subnode skill)
 # Official examples are in /examples
 apps/
+**/*.lscache
+**/.env

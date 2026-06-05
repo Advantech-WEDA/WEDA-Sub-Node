@@ -28,6 +28,7 @@ public class DiskCollector
                 {
                     DeviceName = deviceName,
                     MountPoint = drive.Name,
+                    FilesystemTotalBytes = drive.TotalSize,
                     FilesystemAvailBytes = drive.AvailableFreeSpace,
                     FilesystemFreeBytes = drive.TotalFreeSpace
                 };
@@ -68,7 +69,7 @@ public class DiskCollector
         return diskList;
     }
 
-    private static async Task<Dictionary<string, DiskIoStats>> ReadLinuxDiskStatsAsync(CancellationToken ct)
+    private async Task<Dictionary<string, DiskIoStats>> ReadLinuxDiskStatsAsync(CancellationToken ct)
     {
         var result = new Dictionary<string, DiskIoStats>();
 
@@ -81,20 +82,30 @@ public class DiskCollector
                 if (parts.Length >= 14)
                 {
                     var deviceName = parts[2];
+                    if (!long.TryParse(parts[3], out var readsCompleted)) continue;
+                    if (!long.TryParse(parts[5], out var sectorsRead)) continue;
+                    if (!long.TryParse(parts[7], out var writesCompleted)) continue;
+                    if (!long.TryParse(parts[9], out var sectorsWritten)) continue;
+                    if (!long.TryParse(parts[12], out var ioTimeMs)) continue;
+
                     result[deviceName] = new DiskIoStats
                     {
-                        ReadsCompleted = long.Parse(parts[3]),
-                        SectorsRead = long.Parse(parts[5]),
-                        WritesCompleted = long.Parse(parts[7]),
-                        SectorsWritten = long.Parse(parts[9]),
-                        IoTimeMs = long.Parse(parts[12])
+                        ReadsCompleted = readsCompleted,
+                        SectorsRead = sectorsRead,
+                        WritesCompleted = writesCompleted,
+                        SectorsWritten = sectorsWritten,
+                        IoTimeMs = ioTimeMs
                     };
                 }
             }
         }
-        catch
+        catch (OperationCanceledException)
         {
-            // Ignore errors reading disk stats
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read /proc/diskstats — I/O stats will be unavailable");
         }
 
         return result;

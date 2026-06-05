@@ -9,8 +9,10 @@
   <ItemGroup>
     <PackageReference Include="ErrorOr" />
     <PackageReference Include="MQTTnet" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" />
     <PackageReference Include="Polly.Core" />
     <PackageReference Include="Polly.Extensions" />
+    <PackageReference Include="System.IO.Ports" />
   </ItemGroup>
 
 </Project>

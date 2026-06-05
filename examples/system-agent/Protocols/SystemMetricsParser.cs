@@ -14,7 +14,6 @@ using Weda.SubNode.Abstractions.Telemetry;
 
 namespace SystemAgentExample.Protocols;
 
-
 public static class SupportedDataType
 {
     public const string Cpu = "cpu";
@@ -186,24 +185,13 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             SupportedDataType.Gpu => metricName != null ? GetGpuMetric(rawData.Gpu, metricName) : null,
             SupportedDataType.System => metricName != null ? GetSystemMetric(rawData.System, metricName) : null,
             SupportedDataType.Hwinfo => metricName != null ? GetHardwareInfoMetric(rawData.HardwareInfo, metricName) : null,
-            SupportedDataType.Temperature => metricName != null ? GetTemperatureMetric(rawData.Temperature, metricName, sensor) : null,
+            SupportedDataType.Temperature => GetTemperatureMetric(rawData.Temperature, metricName, sensor),
             SupportedDataType.Voltage => metricName != null ? GetVoltageMetric(rawData.Voltage, metricName, sensor) : null,
             SupportedDataType.Fanspeed => metricName != null ? GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor) : null,
-            SupportedDataType.Gpio => metricName != null ? GetGpioMetric(rawData.Gpio, metricName, sensor) : null,
+            SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName, sensor),
             SupportedDataType.Watchdog => metricName != null ? GetWatchdogMetric(rawData.Watchdog, metricName) : null,
             SupportedDataType.Thermalprotection => metricName != null ? GetThermalProtectionMetric(rawData.ThermalProtection, metricName) : null,
             _ => null
-        };
-    }
-
-    private object? GetHealthMetric(HealthStatusMetrics health, string? metricName)
-    {
-        return metricName?.ToLowerInvariant() switch
-        {
-            "is_healthy" => health.IsHealthy ? 1 : 0,
-            "error_count" => health.ActiveErrors.Count,
-            "errors" => string.Join("; ", health.ActiveErrors.Select(e => $"{e.Key}:{e.Value}")),
-            _ => health.IsHealthy ? 1 : 0 // Default to boolean health status
         };
     }
 
@@ -271,18 +259,14 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             return null;
         }
 
-        var total = disk.FilesystemAvailBytes + (disk.FilesystemFreeBytes > 0
-            ? disk.FilesystemFreeBytes - disk.FilesystemAvailBytes + disk.FilesystemAvailBytes
-            : disk.FilesystemAvailBytes);
+        var total = disk.FilesystemTotalBytes;
 
-        // Estimate total from available (this is a simplification)
-        // In real implementation, we'd need to get total from statfs
         return metricName.ToLowerInvariant() switch
         {
-            "total" => total > 0 ? total : disk.FilesystemAvailBytes * 2, // Rough estimate
+            "total" => total,
             "available" => disk.FilesystemAvailBytes,
             "free" => disk.FilesystemFreeBytes,
-            "used" => total > disk.FilesystemAvailBytes ? total - disk.FilesystemAvailBytes : 0,
+            "used" => total > 0 ? total - disk.FilesystemAvailBytes : 0,
             "usage_percent" => total > 0 ? Math.Round((1 - (double)disk.FilesystemAvailBytes / total) * 100, 2) : 0,
             "reads_completed" => disk.ReadsCompletedTotal,
             "writes_completed" => disk.WritesCompletedTotal,
@@ -295,23 +279,29 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     private object? GetNetworkMetric(List<NetworkMetrics> networks, string metricName, Sensor sensor)
     {
         var interfaceName = GetParameterValue(sensor, "Interface");
+
         if (interfaceName == null)
         {
-            _logger.LogWarning("Sensor {Name} missing Interface parameter", sensor.Name);
+            _logger.LogWarning("Sensor '{Name}' missing Interface parameter, skipping", sensor.Name);
             return null;
         }
 
-        // Find network interface (case-insensitive, handle sanitized names)
-        var network = networks.FirstOrDefault(n =>
+        // Find specific network interface (case-insensitive, handle sanitized names)
+        var targetNetwork = networks.FirstOrDefault(n =>
             n.InterfaceName.Equals(interfaceName, StringComparison.OrdinalIgnoreCase) ||
             n.InterfaceName.Replace("_", "").Equals(interfaceName.Replace("_", ""), StringComparison.OrdinalIgnoreCase));
 
-        if (network == null)
+        if (targetNetwork == null)
         {
             _logger.LogDebug("Network interface not found: {Interface}", interfaceName);
             return null;
         }
 
+        return GetSingleNetworkMetricValue(targetNetwork, metricName);
+    }
+
+    private static object? GetSingleNetworkMetricValue(NetworkMetrics network, string metricName)
+    {
         return metricName.ToLowerInvariant() switch
         {
             "bytes_sent" => network.TransmitBytesTotal,
@@ -382,79 +372,108 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     {
         if (metrics == null || metrics.Temperatures == null) return null;
 
-        // If metricName is specified, return specific temperature sensor value
-        if (!string.IsNullOrEmpty(metricName))
+        // v1.1: use Source parameter as the sensor source name
+        // v1.0 fallback: use MetricName as the sensor source name
+        var sourceName = GetParameterValue(sensor, "Source") ?? metricName;
+
+        if (string.IsNullOrEmpty(sourceName))
         {
-            // Try exact match first
-            if (metrics.Temperatures.TryGetValue(metricName, out var temp))
-            {
-                return temp;
-            }
-
-            // Try case-insensitive match
-            var key = metrics.Temperatures.Keys
-                .FirstOrDefault(k => k.Equals(metricName, StringComparison.OrdinalIgnoreCase));
-            if (key != null && metrics.Temperatures.TryGetValue(key, out var tempValue))
-            {
-                return tempValue;
-            }
-
-            _logger.LogDebug("Temperature sensor '{MetricName}' not found in collected metrics", metricName);
+            _logger.LogWarning("Sensor '{Name}' missing Source/MetricName for temperature, skipping", sensor.Name);
             return null;
         }
 
-        // Default: return all temperatures as dictionary for backward compatibility
-        return metrics.Temperatures;
+        // Try exact match first
+        if (metrics.Temperatures.TryGetValue(sourceName, out var temp))
+        {
+            return temp;
+        }
+
+        // Try case-insensitive match
+        var key = metrics.Temperatures.Keys
+            .FirstOrDefault(k => k.Equals(sourceName, StringComparison.OrdinalIgnoreCase));
+        if (key != null && metrics.Temperatures.TryGetValue(key, out var tempValue))
+        {
+            return tempValue;
+        }
+
+        _logger.LogDebug("Temperature sensor '{Source}' not found in collected metrics", sourceName);
+        return null;
     }
 
     private object? GetVoltageMetric(VoltageMetrics? metrics, string metricName, Sensor sensor)
     {
         if (metrics == null || metrics.Voltages == null) return null;
 
-        // Return all voltages as dictionary
-        return metrics.Voltages;
+        // Look up specific voltage by metricName, fall back to first if only one exists
+        if (metrics.Voltages.TryGetValue(metricName, out var voltage))
+            return voltage;
+
+        // If metricName is "voltage" and there's exactly one entry, return it
+        if (metricName.Equals("voltage", StringComparison.OrdinalIgnoreCase) && metrics.Voltages.Count == 1)
+            return metrics.Voltages.Values.First();
+
+        return null;
     }
 
     private object? GetFanSpeedMetric(FanSpeedMetrics? metrics, string metricName, Sensor sensor)
     {
         if (metrics == null || metrics.FanSpeeds == null) return null;
 
-        // Return all fan speeds as dictionary
-        return metrics.FanSpeeds;
+        // Look up specific fan speed by metricName, fall back to first if only one exists
+        if (metrics.FanSpeeds.TryGetValue(metricName, out var fanSpeed))
+            return fanSpeed;
+
+        // If metricName is "fanspeed" and there's exactly one entry, return it
+        if (metricName.Equals("fanspeed", StringComparison.OrdinalIgnoreCase) && metrics.FanSpeeds.Count == 1)
+            return metrics.FanSpeeds.Values.First();
+
+        return null;
     }
 
     private object? GetGpioMetric(GpioMetrics? metrics, string? metricName, Sensor sensor)
     {
         if (metrics == null) return null;
 
-        // Handle specific metric names
-        if (metricName != null)
+        if (metricName == null)
         {
-            switch (metricName.ToLowerInvariant())
-            {
-                case "issupported":
-                    return metrics.IsSupported;
-
-                case "pinstate":
-                    var pinId = GetParameterValue(sensor, "PinId");
-                    if (string.IsNullOrEmpty(pinId))
-                    {
-                        _logger.LogWarning("Sensor {Name} missing PinId parameter for pinState metric", sensor.Name);
-                        return null;
-                    }
-
-                    if (metrics.PinStateDetails.TryGetValue(pinId, out var pinState))
-                    {
-                        return pinState;
-                    }
-
-                    _logger.LogDebug("GPIO pin '{PinId}' not found in collected metrics", pinId);
-                    return null;
-            }
+            // Default: return full GPIO metrics object for backward compatibility
+            return metrics;
         }
 
-        // Default: return full GPIO metrics object for backward compatibility
-        return metrics;
+        switch (metricName.ToLowerInvariant())
+        {
+            case "issupported":
+                return metrics.IsSupported;
+
+            case "pinstate":
+                var pinId = GetParameterValue(sensor, "PinId");
+
+                if (string.IsNullOrEmpty(pinId))
+                {
+                    _logger.LogWarning("Sensor '{Name}' missing PinId for GPIO pinState, skipping", sensor.Name);
+                    return null;
+                }
+
+                // Try exact match by pin name first
+                if (metrics.PinStateDetails.TryGetValue(pinId, out var pinState))
+                {
+                    return pinState;
+                }
+
+                // Try numeric index lookup
+                if (int.TryParse(pinId, out var pinIndex) &&
+                    metrics.PinIndexToName.TryGetValue(pinIndex, out var resolvedName) &&
+                    metrics.PinStateDetails.TryGetValue(resolvedName, out var pinStateByIndex))
+                {
+                    return pinStateByIndex;
+                }
+
+                _logger.LogDebug("GPIO pin '{PinId}' not found by name or index in collected metrics", pinId);
+                return null;
+
+            default:
+                return null;
+        }
     }
 
     private object? GetWatchdogMetric(WatchdogMetrics? metrics, string metricName)

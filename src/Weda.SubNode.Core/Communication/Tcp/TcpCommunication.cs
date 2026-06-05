@@ -130,9 +130,8 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
 
     /// <summary>
     /// Send a request and wait for response.
-    /// For TCP, this writes the request data and then reads the response.
-    /// Implements proper Modbus TCP response reading by first reading the MBAP header
-    /// to determine the total message length.
+    /// Pure TCP communication - writes request bytes and reads response bytes.
+    /// Protocol-specific framing (e.g., MBAP for Modbus TCP) should be handled by wrapper classes.
     /// </summary>
     protected override async Task<byte[]> RequestAsyncCore(byte[] request, CancellationToken cancellationToken = default)
     {
@@ -146,79 +145,71 @@ public class TcpCommunication : RequestResponseCommunicationBase<byte[], byte[]>
             await _stream.WriteAsync(request, cancellationToken);
             await _stream.FlushAsync(cancellationToken);
 
-            // Read MBAP header first (6 bytes: Transaction ID 2 + Protocol ID 2 + Length 2)
-            var header = new byte[6];
-            var headerBytesRead = await ReadExactAsync(_stream, header, 0, 6, cancellationToken);
+            // Read response with timeout
+            var buffer = new byte[512];
+            var totalRead = 0;
 
-            if (headerBytesRead == 0)
+            // Use read timeout from settings
+            using var timeoutCts = new CancellationTokenSource(Settings.ReadTimeoutMs);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            try
             {
-                _logger.LogWarning("Connection closed by remote host");
-                State = CommunicationState.Disconnected;
-                return [];
+                // Read available data
+                while (totalRead < buffer.Length)
+                {
+                    if (!_stream.DataAvailable)
+                    {
+                        if (totalRead > 0)
+                        {
+                            // Already have data, wait briefly for more
+                            await Task.Delay(20, linkedCts.Token);
+                            if (!_stream.DataAvailable)
+                                break;
+                        }
+                        else
+                        {
+                            // No data yet, wait
+                            await Task.Delay(10, linkedCts.Token);
+                            continue;
+                        }
+                    }
+
+                    var bytesRead = await _stream.ReadAsync(
+                        buffer.AsMemory(totalRead, buffer.Length - totalRead),
+                        linkedCts.Token);
+
+                    if (bytesRead == 0)
+                    {
+                        _logger.LogWarning("Connection closed by remote host");
+                        State = CommunicationState.Disconnected;
+                        break;
+                    }
+
+                    totalRead += bytesRead;
+                }
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                if (totalRead == 0)
+                    throw new TimeoutException($"No response received within {Settings.ReadTimeoutMs}ms");
             }
 
-            if (headerBytesRead < 6)
-            {
-                _logger.LogWarning("Incomplete MBAP header: {BytesRead} bytes, expected 6", headerBytesRead);
-                return header[..headerBytesRead];
-            }
-
-            // Extract the Length field from MBAP header (bytes 4-5, big-endian)
-            // Length = Unit ID (1) + PDU (function code + data)
-            var pduLength = (header[4] << 8) | header[5];
-
-            // Read the remaining bytes (Unit ID + PDU)
-            var pdu = new byte[pduLength];
-            var pduBytesRead = await ReadExactAsync(_stream, pdu, 0, pduLength, cancellationToken);
-
-            if (pduBytesRead < pduLength)
-            {
-                _logger.LogWarning("Incomplete PDU: {BytesRead} bytes, expected {Expected}", pduBytesRead, pduLength);
-            }
-
-            // Combine header and PDU into complete response
-            var totalLength = 6 + pduBytesRead;
-            var response = new byte[totalLength];
-            Array.Copy(header, 0, response, 0, 6);
-            Array.Copy(pdu, 0, response, 6, pduBytesRead);
-
-            _logger.LogDebug("Received TCP response with {ByteCount} bytes (header: 6, pdu: {PduLength})",
-                totalLength, pduBytesRead);
-            return response;
+            _logger.LogDebug("Received TCP response with {ByteCount} bytes", totalRead);
+            return buffer[..totalRead];
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Caller cancelled (config update / shutdown) - the socket itself is not
+            // faulted, so do not flip State to Error. Otherwise the next polling round
+            // sees a spurious Error state and triggers an unnecessary reconnect.
+            throw;
+        }
+        catch (Exception ex) when (ex is not TimeoutException)
         {
             _logger.LogError(ex, "Error during TCP request-response");
             State = CommunicationState.Error;
             throw;
         }
-    }
-
-    /// <summary>
-    /// Reads exactly the specified number of bytes from the stream, handling partial reads.
-    /// </summary>
-    private static async Task<int> ReadExactAsync(
-        NetworkStream stream,
-        byte[] buffer,
-        int offset,
-        int count,
-        CancellationToken cancellationToken)
-    {
-        var totalBytesRead = 0;
-        while (totalBytesRead < count)
-        {
-            var bytesRead = await stream.ReadAsync(
-                buffer.AsMemory(offset + totalBytesRead, count - totalBytesRead),
-                cancellationToken);
-
-            if (bytesRead == 0)
-            {
-                // Connection closed
-                break;
-            }
-
-            totalBytesRead += bytesRead;
-        }
-        return totalBytesRead;
     }
 }

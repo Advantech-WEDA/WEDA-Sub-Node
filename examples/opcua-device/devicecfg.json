@@ -1,0 +1,82 @@
+{
+  "SubNode": {
+    "Name": "OpcUaDevice",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "Advantech",
+    "Model": "OPC-UA Demo",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "MyOpcUaDeviceConfig": {
+      "Enabled": true,
+      "DeviceCommunication": {
+        "EndpointUrl": "opc.tcp://localhost:4840/WedaOpcUaSimulator",
+        "SecurityMode": "None",
+        "AuthType": "Anonymous"
+      },
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Properties": {},
+      "Sensors": [
+        {
+          "Name": "temperature_sensor",
+          "SensorGroup": "TEMP",
+          "Parameters": {
+            "NodeId": "Temperature",
+            "NamespaceIndex": 2,
+            "DataType": "Float"
+          },
+          "SensorInfo": {
+            "DisplayName": "Temperature Sensor",
+            "Description": "OPC-UA temperature node reading",
+            "Schema": "double"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000,
+            "Unit": "celsius"
+          }
+        },
+        {
+          "Name": "humidity_sensor",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "NodeId": "Humidity",
+            "NamespaceIndex": 2,
+            "DataType": "Float"
+          },
+          "SensorInfo": {
+            "DisplayName": "Humidity Sensor",
+            "Description": "OPC-UA humidity node reading",
+            "Schema": "double"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000,
+            "Unit": "percent"
+          }
+        },
+        {
+          "Name": "pressure_sensor",
+          "SensorGroup": "AI",
+          "Parameters": {
+            "NodeId": "Pressure",
+            "NamespaceIndex": 2,
+            "DataType": "Float"
+          },
+          "SensorInfo": {
+            "DisplayName": "Pressure Sensor",
+            "Description": "OPC-UA pressure node reading",
+            "Schema": "double"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 5000,
+            "Unit": "hPa"
+          }
+        }
+      ]
+    }
+  }
+}

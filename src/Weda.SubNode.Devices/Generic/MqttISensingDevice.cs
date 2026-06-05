@@ -1,6 +1,7 @@
 using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Core.Protocols.ISensing;
 
 namespace Weda.SubNode.Devices.Generic;
 
@@ -9,7 +10,7 @@ namespace Weda.SubNode.Devices.Generic;
 /// Connection-integrated device similar to TcpModbusDevice.
 /// Simplified API using ApplicationContext.
 /// </summary>
-public class MqttISensingDevice : Core.Devices.ISensingDevice
+public class MqttISensingDevice : ISensingDevice
 {
     /// <summary>
     /// Creates an ISensing device with MQTT communication using config key.

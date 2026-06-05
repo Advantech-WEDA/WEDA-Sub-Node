@@ -5,6 +5,7 @@ services:
     image: harbor.arfa.wise-paas.com/edge-coa/system-agent:latest
     container_name: system-agent
     privileged: true
+    pid: host
     restart: unless-stopped
     network_mode: host
     logging:

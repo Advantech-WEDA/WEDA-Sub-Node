@@ -1,0 +1,66 @@
+{
+  "DeviceConfigs": {
+    "SystemAgentDeviceConfig": {
+      "Enabled": true,
+      "Dtdl": { "AutoGenEnabled": true },
+      "Sensors": [
+        {
+          "Name": "cpu_usage",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "cpu", "MetricName": "usage" },
+          "Report": { "Enabled": true, "Interval": 5000 },
+          "SensorInfo": { "Schema": "double", "Description": "CPU usage percentage", "DisplayName": "CPU Usage" }
+        },
+        {
+          "Name": "memory_total",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "memory", "MetricName": "total" },
+          "Report": { "Enabled": true, "Interval": 10000 },
+          "SensorInfo": { "Schema": "long", "Description": "Total memory in bytes", "DisplayName": "Memory Total" }
+        },
+        {
+          "Name": "disk_root_total",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "disk", "MetricName": "total", "MountPoint": "/" },
+          "Report": { "Enabled": true, "Interval": 30000 },
+          "SensorInfo": { "Schema": "long", "Description": "Disk total capacity for root volume", "DisplayName": "Disk Total (root)" }
+        },
+        {
+          "Name": "network_bytes_sent",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "network", "MetricName": "bytes_sent", "Interfaces": ["eth0"] },
+          "Report": { "Enabled": true, "Interval": 5000 },
+          "SensorInfo": { "Schema": "long", "Description": "Total bytes sent", "DisplayName": "Bytes Sent" }
+        },
+        {
+          "Name": "gpu_utilization",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "gpu", "MetricName": "utilization" },
+          "Report": { "Enabled": true, "Interval": 5000 },
+          "SensorInfo": { "Schema": "integer", "Description": "GPU utilization percentage", "DisplayName": "GPU Utilization" }
+        },
+        {
+          "Name": "gpio_pin_4",
+          "SensorGroup": "DI",
+          "Parameters": { "MetricType": "gpio", "MetricName": "pinState", "PinId": 4 },
+          "Report": { "Enabled": true, "Interval": 6000 },
+          "SensorInfo": { "Schema": "integer", "Description": "GPIO pin state at index 4", "DisplayName": "Pin 4 State" }
+        },
+        {
+          "Name": "watchdog_isSupported",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "watchdog", "MetricName": "isSupported" },
+          "Report": { "Enabled": true, "Interval": 6000 },
+          "SensorInfo": { "Schema": "boolean", "Description": "Watchdog support status", "DisplayName": "Watchdog Supported" }
+        },
+        {
+          "Name": "thermalprotection_isSupported",
+          "SensorGroup": "SYS",
+          "Parameters": { "MetricType": "thermalprotection", "MetricName": "isSupported" },
+          "Report": { "Enabled": true, "Interval": 6000 },
+          "SensorInfo": { "Schema": "boolean", "Description": "Thermal protection support status", "DisplayName": "Thermal Protection Supported" }
+        }
+      ]
+    }
+  }
+}

@@ -276,6 +276,47 @@ public class LocalSystemResourceCollector
         return rawData;
     }
 
+    /// <summary>
+    /// Discovers available resource names for sensor resolution (Auto-detect mode).
+    /// Returns network interface names, GPIO pin names, and temperature source names.
+    /// </summary>
+    public DiscoveredResources DiscoverAvailableResources()
+    {
+        var networkInterfaces = _networkCollector.CollectNetworkMetrics()
+            .Select(n => n.InterfaceName)
+            .ToList();
+
+        // For GPIO and temperature sources, we need to handle potential exceptions since they may not be supported on all hardware
+        List<string> gpioPins = [];
+        List<string> temperatureSources = [];
+
+        if (_hardwarePlatformCollector != null)
+        {
+            try
+            {
+                var gpio = _hardwarePlatformCollector.CollectGpioMetrics();
+                if (gpio.IsSupported)
+                    gpioPins = gpio.PinNames?.ToList() ?? [];
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover GPIO pins");
+            }
+
+            try
+            {
+                var temp = _hardwarePlatformCollector.CollectTemperatureMetrics();
+                temperatureSources = temp.Temperatures.Keys.ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover temperature sources");
+            }
+        }
+
+        return new DiscoveredResources(networkInterfaces, gpioPins, temperatureSources);
+    }
+
     private static void AddCollectionError(SystemMetricsRawData rawData, string metricType)
     {
         rawData.Health.IsHealthy = false;
@@ -298,9 +339,12 @@ public class LocalSystemResourceCollector
 
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
-            cts.CancelAfter(attemptTimeout);
-            return await retryPipeline.ExecuteAsync(async ct => await action(ct), cts.Token);
+            return await retryPipeline.ExecuteAsync(async ct =>
+            {
+                using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                attemptCts.CancelAfter(attemptTimeout);
+                return await action(attemptCts.Token);
+            }, parentToken);
         }
         catch (OperationCanceledException)
         {

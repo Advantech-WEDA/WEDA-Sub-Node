@@ -8,7 +8,7 @@ public interface IResult
 {
     /// <summary>
     /// Status code for the command result.
-    /// See <see cref="Contracts.CommandResponseStatusCode"/> for standard values.
+    /// See <see cref="Contracts.CommandStatusCode"/> for standard values.
     /// </summary>
     int Status { get; }
 

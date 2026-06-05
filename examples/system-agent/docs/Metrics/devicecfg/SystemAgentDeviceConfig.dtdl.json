@@ -1,0 +1,233 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SystemAgentDeviceConfig;1",
+  "@type": "Interface",
+  "displayName": "System Agent Device Config",
+  "description": "Validation schema for the DeviceConfigs.SystemAgentDeviceConfig object of devicecfg.json. Each Property and Object Field is co-typed with the ConfigConstraint adjunct (dtmi:advantech:edgesync:validation;1) carrying `required` and `writable`. Allowed values come from native Enums; structure from native Object / Array. Enforced by dtdl-validate/scripts/validate-devicecfg.js.",
+  "comment": "Three checks per member: (1) allowed values -- native DTDL Enum + primitive type; (2) required -- ConfigConstraint.required (true => member MUST be present); (3) writable -- native `writable` on Properties, ConfigConstraint.writable on Object Fields. The extension makes the model contextually-incomplete to stock parsers, which preserve `required`/`writable` under undefinedProperties for the validator to read.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MetricType;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Metric Type",
+      "enumValues": [
+        { "name": "Cpu",               "enumValue": "cpu",               "displayName": "CPU" },
+        { "name": "Memory",            "enumValue": "memory",            "displayName": "Memory" },
+        { "name": "Disk",              "enumValue": "disk",              "displayName": "Disk" },
+        { "name": "Network",           "enumValue": "network",           "displayName": "Network" },
+        { "name": "System",            "enumValue": "system",            "displayName": "System" },
+        { "name": "Gpu",               "enumValue": "gpu",               "displayName": "GPU" },
+        { "name": "Hwinfo",            "enumValue": "hwinfo",            "displayName": "Hardware Info" },
+        { "name": "Temperature",       "enumValue": "temperature",       "displayName": "Temperature" },
+        { "name": "Voltage",           "enumValue": "voltage",           "displayName": "Voltage" },
+        { "name": "Fanspeed",          "enumValue": "fanspeed",          "displayName": "Fan Speed" },
+        { "name": "Gpio",              "enumValue": "gpio",              "displayName": "GPIO" },
+        { "name": "Watchdog",          "enumValue": "watchdog",          "displayName": "Watchdog" },
+        { "name": "ThermalProtection", "enumValue": "thermalprotection", "displayName": "Thermal Protection" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorGroup;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Sensor Group",
+      "enumValues": [
+        { "name": "AI",   "enumValue": "AI",   "displayName": "Analog Input" },
+        { "name": "AO",   "enumValue": "AO",   "displayName": "Analog Output" },
+        { "name": "DI",   "enumValue": "DI",   "displayName": "Digital Input" },
+        { "name": "DO",   "enumValue": "DO",   "displayName": "Digital Output" },
+        { "name": "TEMP", "enumValue": "TEMP", "displayName": "Temperature" },
+        { "name": "PWR",  "enumValue": "PWR",  "displayName": "Power" },
+        { "name": "SYS",  "enumValue": "SYS",  "displayName": "System" }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:WireSchema;1",
+      "@type": "Enum", "valueSchema": "string", "displayName": "Wire Schema",
+      "enumValues": [
+        { "name": "Double",  "enumValue": "double",  "displayName": "double" },
+        { "name": "Long",    "enumValue": "long",    "displayName": "long" },
+        { "name": "Integer", "enumValue": "integer", "displayName": "integer" },
+        { "name": "Boolean", "enumValue": "boolean", "displayName": "boolean" },
+        { "name": "String",  "enumValue": "string",  "displayName": "string" }
+      ]
+    },
+
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:StringList;1",
+      "@type": "Array", "displayName": "String List", "elementSchema": "string"
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:IntegerList;1",
+      "@type": "Array", "displayName": "Integer List", "elementSchema": "integer"
+    },
+
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DtdlSettings;1",
+      "@type": "Object", "displayName": "DTDL Settings",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "AutoGenEnabled",
+          "displayName": "Auto-Gen Enabled", "schema": "boolean",
+          "required": true, "writable": true,
+          "description": "When true the agent auto-generates a DTDL Interface from Sensors[] at startup.",
+          "default": true }
+      ]
+    },
+
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorParameters;1",
+      "@type": "Object", "displayName": "Sensor Parameters",
+      "comment": "Union of every Parameters.* field across all MetricTypes. MetricType / MetricName are required; the type-specific fields are optional and immutable. Which optional fields are valid for which MetricType is a cross-field rule outside this schema.",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricType",
+          "displayName": "Metric Type",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:MetricType;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MetricName",
+          "displayName": "Metric Name", "schema": "string",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "MountPoint",
+          "displayName": "Mount Point", "schema": "string",
+          "required": false, "writable": false,
+          "minLength": 1, "maxLength": 256 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interface",
+          "displayName": "Bound Interface", "schema": "string",
+          "required": false, "writable": false,
+          "minLength": 1, "maxLength": 64,
+          "mutexGroup": "networkBinding" },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interfaces",
+          "displayName": "Interface List",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:StringList;1",
+          "required": false, "writable": false,
+          "mutexGroup": "networkBinding", "csvStringAccepted": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Source",
+          "displayName": "Thermal Source", "schema": "string",
+          "required": false, "writable": false,
+          "minLength": 1, "maxLength": 64,
+          "mutexGroup": "tempSource",
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "therm" } },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Sources",
+          "displayName": "Thermal Source List",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:StringList;1",
+          "required": false, "writable": false,
+          "mutexGroup": "tempSource", "csvStringAccepted": true,
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "therm" } },
+        { "@type": ["Field", "ConfigConstraint"], "name": "PinId",
+          "displayName": "Pin Index", "schema": "integer",
+          "required": false, "writable": false, "minimum": 0,
+          "mutexGroup": "gpioPin",
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "pinState" } },
+        { "@type": ["Field", "ConfigConstraint"], "name": "PinIds",
+          "displayName": "Pin Index List",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:IntegerList;1",
+          "required": false, "writable": false,
+          "mutexGroup": "gpioPin",
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "pinState" } }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorReport;1",
+      "@type": "Object", "displayName": "Sensor Report",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Enabled",
+          "displayName": "Enabled", "schema": "boolean",
+          "required": true, "writable": true,
+          "description": "When true the agent samples and publishes this sensor; when false it is configured but dormant.",
+          "default": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Interval",
+          "displayName": "Interval (ms)", "schema": "integer",
+          "required": true, "writable": true,
+          "minimum": 1, "maximum": 300000,
+          "description": "Publishing cadence in milliseconds.",
+          "default": 5000 }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorInfo;1",
+      "@type": "Object", "displayName": "Sensor Info",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Schema",
+          "displayName": "Wire Schema",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:WireSchema;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Description",
+          "displayName": "Description", "schema": "string",
+          "required": true, "writable": true,
+          "minLength": 1, "maxLength": 512,
+          "description": "Long-form operator-facing description shown in dashboards and audit logs." },
+        { "@type": ["Field", "ConfigConstraint"], "name": "DisplayName",
+          "displayName": "Display Name", "schema": "string",
+          "required": true, "writable": true,
+          "minLength": 1, "maxLength": 64,
+          "description": "Short human-readable label shown in UI lists and twin pages." },
+        { "@type": ["Field", "ConfigConstraint"], "name": "IsReadable",
+          "displayName": "Is Readable", "schema": "boolean",
+          "required": false, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "IsWritable",
+          "displayName": "Is Writable", "schema": "boolean",
+          "required": false, "writable": false }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:Sensor;1",
+      "@type": "Object", "displayName": "Sensor",
+      "fields": [
+        { "@type": ["Field", "ConfigConstraint"], "name": "Name",
+          "displayName": "Sensor Name", "schema": "string",
+          "required": true, "writable": false,
+          "minLength": 1, "maxLength": 64 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "SensorGroup",
+          "displayName": "Sensor Group",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorGroup;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Parameters",
+          "displayName": "Parameters",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorParameters;1",
+          "required": true, "writable": false },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Report",
+          "displayName": "Report",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorReport;1",
+          "required": true, "writable": true },
+        { "@type": ["Field", "ConfigConstraint"], "name": "SensorInfo",
+          "displayName": "Sensor Info",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorInfo;1",
+          "required": true, "writable": true }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorList;1",
+      "@type": "Array", "displayName": "Sensor List",
+      "elementSchema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:Sensor;1"
+    }
+  ],
+  "contents": [
+    {
+      "@type": ["Property", "ConfigConstraint"],
+      "name": "Enabled",
+      "displayName": "Enabled",
+      "schema": "boolean",
+      "writable": true,
+      "required": true,
+      "description": "Master enable for the agent's collectors. When false the agent loads the config but never samples.",
+      "default": true
+    },
+    {
+      "@type": ["Property", "ConfigConstraint"],
+      "name": "Dtdl",
+      "displayName": "DTDL Settings",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:DtdlSettings;1",
+      "writable": true,
+      "required": false,
+      "description": "DTDL behaviour switches. Optional block."
+    },
+    {
+      "@type": ["Property", "ConfigConstraint"],
+      "name": "Sensors",
+      "displayName": "Sensors",
+      "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:SensorList;1",
+      "writable": true,
+      "required": true,
+      "description": "Ordered list of Sensor entries. Each element validates against the Sensor Object."
+    }
+  ]
+}

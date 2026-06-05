@@ -6,7 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>SystemMonitorExample</RootNamespace>
+    <DefaultItemExcludes>$(DefaultItemExcludes);dtdl-validate/**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SystemAgentDevice.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Weda.SubNode.Core\Weda.SubNode.Core.csproj" />

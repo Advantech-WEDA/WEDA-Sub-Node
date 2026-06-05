@@ -86,7 +86,7 @@ public class CommandResponse
         { 
             DeviceCmd = command,
             MsgType = "ack",
-            Status = CommandResponseStatusCode.Success,
+            Status = CommandStatusCode.Success,
             Message = message ?? $"The command {command} for device {deviceId} received",
             ResultData = resultData
         }
@@ -102,7 +102,7 @@ public class CommandResponse
     /// <param name="message">The response message.</param>
     /// <param name="resultData">Optional response data.</param>
     /// <param name="reqSeqId">The request sequence ID for correlation.</param>
-    public static CommandResponse Success(string deviceId, string command, ulong seqId, int status = CommandResponseStatusCode.Success, string? message = null, object? resultData = null, string? reqSeqId = null) => new()
+    public static CommandResponse Success(string deviceId, string command, ulong seqId, int status = CommandStatusCode.Success, string? message = null, object? resultData = null, string? reqSeqId = null) => new()
     {
         DeviceId = deviceId,
         SeqId = seqId,

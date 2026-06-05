@@ -124,11 +124,15 @@ public class ISensingPubSubParser : IPubSubProtocolParser
     {
         try
         {
-            return command.DeviceCmd is "SetDO" or "SetDigitalOutput"
-                ? await ExecuteDigitalOutputControlAsync(command, cancellationToken)
-                : Error.Failure(
-                    code: "Command.NotSupported",
-                    description: $"Command '{command.DeviceCmd}' is not supported by ISensing protocol");
+            return command.DeviceCmd switch
+            {
+                "SetDO" or "SetDigitalOutput" => await ExecuteDigitalOutputControlAsync(command, cancellationToken),
+                "SetAO" or "SetAnalogOutput" => await ExecuteAnalogOutputControlAsync(command, cancellationToken),
+                _ => Error.Failure(
+                        code: "Command.NotSupported",
+                        description: $"Command '{command.DeviceCmd}' is not supported by ISensing protocol")
+            };
+            
         }
         catch (Exception ex)
         {
@@ -177,6 +181,46 @@ public class ISensingPubSubParser : IPubSubProtocolParser
             topic, json);
 
         return new { success = true, name = outputName, state = state.Value };
+    }
+
+    /// <summary>
+    /// Execute AO control using ISensing ctl topic format.
+    /// Topic: {Manufacturer}/{MAC}/ctl/{ao_key}
+    /// Payload: {"v": value} for output state
+    /// </summary>
+    private async Task<ErrorOr<object>> ExecuteAnalogOutputControlAsync(
+        DeviceCommand command,
+        CancellationToken cancellationToken)
+    {
+        var outputName = ExtractStringParameter(command.Parameters, ["name", "outputName", "ao"]);
+        if (string.IsNullOrEmpty(outputName))
+        {
+            return Error.Validation("SetAO.MissingName", "Missing 'name', 'outputName', or 'ao' parameter");
+        }
+
+        var value = ExtractNumericParameter(command.Parameters, "value");
+        if (value is null)
+        {
+            return Error.Validation("SetAO.MissingValue", "Missing 'value' parameter");
+        }
+
+        // ISensing AO control topic: {Manufacturer}/{MAC}/ctl/{ao_key}
+        // Convert AO name to lowercase for topic (e.g., "AO2" -> "ao2")
+        var aoKey = outputName.ToLowerInvariant();
+        var topic = $"{_ctlTopicPrefix}/{aoKey}";
+
+        // ISensing AO control payload: {"v": value}
+        var payloadObj = new { v = value.Value };
+        var json = JsonSerializer.Serialize(payloadObj);
+        var payload = Encoding.UTF8.GetBytes(json);
+
+        await _communication.PublishAsync(topic, payload, cancellationToken);
+
+        _logger.LogInformation(
+            "Published AO control: {Topic} = {Payload}",
+            topic, json);
+
+        return new { success = true, name = outputName, value = value.Value };
     }
 
     #endregion
@@ -365,6 +409,27 @@ public class ISensingPubSubParser : IPubSubProtocolParser
         }
 
         return Convert.ToBoolean(value);
+    }
+
+    /// <summary>
+    /// Extract numeric parameter from dictionary, handling JsonElement
+    /// </summary>
+    private static double? ExtractNumericParameter(Dictionary<string, object> parameters, string key)
+    {
+        if (!parameters.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.Number => jsonElement.GetDouble(),
+                JsonValueKind.String when double.TryParse(jsonElement.GetString(), out var d) => d,
+                _ => throw new InvalidOperationException($"Cannot convert JsonElement of kind {jsonElement.ValueKind} to number")
+            };
+        }
+
+        return Convert.ToDouble(value);
     }
 
     #endregion
