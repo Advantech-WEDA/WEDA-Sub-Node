@@ -33,26 +33,18 @@ WISE-4012 with iSensing intelligent diagnostic features.
 - **Features**: Advanced diagnostics, anomaly detection
 - **Use Case**: Predictive maintenance
 
-## Examples vs Tutorials
+## About These Examples
 
-### Examples (this directory)
 - **Purpose**: Real-world integration scenarios
 - **Environment**: Real connections or real hardware
 - **Target Audience**: Developers implementing production solutions
 - **Code Style**: Production-ready, practical focus
 
-### Tutorials (../tutorials/)
-- **Purpose**: Step-by-step learning, corresponds to wiki documentation
-- **Environment**: Mock Cloud + Simulators (no hardware needed)
-- **Target Audience**: Developers learning the SDK
-- **Code Style**: Heavily commented, educational focus
-
 ## Choosing the Right Example
 
 ### For Learning
-1. Start with **[tutorials/](../tutorials/)** for basic concepts
-2. Review **[wise-4012-builder](wise-4012-builder/)** for production patterns
-3. Study real hardware examples for integration details
+1. Review **[wise-4012-builder](wise-4012-builder/)** for production patterns
+2. Study real hardware examples for integration details
 
 ### For Production
 1. Use **[wise-4012-builder](wise-4012-builder/)** as a template
@@ -124,7 +116,6 @@ Each example typically contains:
 
 ## Getting Help
 
-- **Tutorials**: See [tutorials/](../tutorials/) for learning resources
 - **Documentation**: [Wiki Documentation](../docs/wiki/)
 - **Templates**: Use `dotnet new subnode` or `dotnet new wedabuilder`
 - **Issues**: [GitHub Issues](https://github.com/advantech/edge_subnode/issues)
@@ -138,10 +129,7 @@ When adding new examples:
 3. Follow existing project structure
 4. Test with real hardware before submitting
 
-For tutorial content (Mock Cloud + Simulators), add to [tutorials/](../tutorials/) instead.
-
 ## Related Resources
 
-- [Tutorials Directory](../tutorials/) - Learning examples with Mock Cloud
 - [Templates](../templates/) - Project templates (subnode, wedabuilder)
 - [Documentation Wiki](../docs/wiki/) - Complete SDK documentation
