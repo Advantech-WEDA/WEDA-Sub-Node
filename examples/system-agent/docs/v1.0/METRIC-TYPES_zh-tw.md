@@ -321,3 +321,17 @@
    ```
 3. **通用指標不受影響**：系統資源類指標正常採集
 4. **硬體指標無資料**：相關 sensors 無法採集資料
+
+### 建議
+
+- **開發環境**：可保留所有 sensor 配置，忽略警告日誌
+- **生產環境（非工業電腦）**：建議禁用硬體相關 sensors（設置 `Enabled: false`）
+- **生產環境（工業電腦）**：確保硬體平台驅動正確安裝（如 Advantech 工業電腦需要 SUSI 驅動）
+
+---
+
+## 參考資料
+
+- [QUICK_START.md](01_QUICK_START.md) - 快速開始指南
+- [DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) - Docker 部署說明
+- [README.md](../README.md) - 完整說明文件

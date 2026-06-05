@@ -210,8 +210,8 @@ telnet 192.168.1.100 502
 ## Documentation
 
 - [Weda SubNode SDK Wiki](../../docs/wiki/en/README.md)
-- [Builder Pattern Guide](../../docs/wiki/en/02_core_concepts/wedaapplication_builder.md)
-- [DTDL Integration](../../docs/wiki/en/03_advanced/dtdl_integration.md)
+- [Start with Example](../../docs/wiki/en/02-getting-started/02-start-with-example.md)
+- [Configuration via Code](../../docs/wiki/en/04-sensor-configuration/configuration-via-code.md)
 
 ## Next Steps
 
