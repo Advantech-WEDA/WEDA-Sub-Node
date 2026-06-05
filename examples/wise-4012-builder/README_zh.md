@@ -206,17 +206,16 @@ telnet 192.168.1.100 502
 
 - **[wise-4012](../wise-4012/)** - Manual Context pattern 版本
 - **[wise-4012-isensing](../wise-4012-isensing/)** - iSensing 診斷功能
-- **[tutorials/](../../tutorials/)** - 使用 Mock Cloud 的學習範例
 
 ## 文檔
 
 - [Weda SubNode SDK Wiki](../../docs/wiki/zh/README.md)
-- [Builder Pattern 指南](../../docs/wiki/zh/02_core_concepts/wedaapplication_builder.md)
-- [DTDL 整合](../../docs/wiki/zh/03_advanced/dtdl_integration.md)
+- [從範例開始](../../docs/wiki/zh/02-getting-started/02-start-with-example.md)
+- [透過程式碼配置](../../docs/wiki/zh/04-configuration/01-configuration-via-code.md)
 
 ## 下一步
 
-1. **新增 Transform Pipeline**: 參考 [tutorials/01-transform-dsp-config](../../tutorials/01-transform-dsp-config/)
-2. **新增 DSP Filters**: 參考 [tutorials/02-transform-dsp-programmatic](../../tutorials/02-transform-dsp-programmatic/)
+1. **新增 Transform Pipeline**: 參考 [Data Pipeline - Transformations](../../docs/wiki/zh/05-data-pipeline/02-transformations.md)
+2. **新增 DSP Filters**: 參考 [Data Pipeline - DSP Filters](../../docs/wiki/zh/05-data-pipeline/03-dsp-filters.md)
 3. **多裝置**: 使用 `builder.AddDevice<T>()` 新增更多裝置
 4. **自訂處理**: 在 `MyFirstDevice.cs` 中覆寫 `OnDataReceived`

@@ -403,8 +403,8 @@ services:
 
 - [QUICK_START.md](01_QUICK_START.md) - 快速開始指南（適合技術使用者）
 - [METRIC_TYPES.md](02_METRIC_TYPES.md) - MetricType 配置說明
-- [README.md](README.md) - 完整設定和配置說明
-- [TESTING_GUIDE.md](05_TESTING_GUIDE.md) - 部署驗證和測試
+- [README.md](../README.md) - 完整設定和配置說明
+- [TESTING_GUIDE.md](04_TESTING_GUIDE.md) - 部署驗證和測試
 - [Docker Buildx Documentation](https://docs.docker.com/build/building/multi-platform/)
 - [.NET Runtime Identifier Catalog](https://learn.microsoft.com/en-us/dotnet/core/rid-catalog)
 - [Harbor Multi-platform Images](https://goharbor.io/docs/2.0.0/working-with-projects/working-with-images/managing-multi-platform-images/)

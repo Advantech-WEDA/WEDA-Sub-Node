@@ -36,7 +36,7 @@ Install dependencies manually on your local machine:
 - Git (for cloning repository)
 
 **Setup:**
-Follow the [Installation Guide](docs/wiki/en/01_quick_start/01_install_templates.md) for detailed instructions.
+Follow the [Prerequisites Guide](docs/wiki/en/02-getting-started/01-prerequisites.md) for detailed instructions.
 
 ---
 
@@ -64,9 +64,9 @@ Choose your learning path based on your background:
    ```
 
 3. Follow the documentation:
-   - [Quick Start Guide](docs/wiki/en/01_quick_start/00_overview.md)
-   - [SubNode Basic](docs/wiki/en/01_quick_start/03_subnode_basic.md)
-   - [WedaBuilder Basic](docs/wiki/en/01_quick_start/02_wedabuilder_basic.md)
+   - [Start with Example](docs/wiki/en/02-getting-started/02-start-with-example.md)
+   - [Start with Template](docs/wiki/en/02-getting-started/03-start-with-template.md)
+   - [Configuration via Code](docs/wiki/en/04-sensor-configuration/configuration-via-code.md)
 
 ### Path 2: Study from Examples (For System Integrators)
 
@@ -108,19 +108,19 @@ Choose your learning path based on your background:
 
 ### Key Documentation Sections
 
-- **Quick Start**: Get up and running quickly
-  - [Overview](docs/wiki/en/01_quick_start/00_overview.md)
-  - [Install Templates](docs/wiki/en/01_quick_start/01_install_templates.md)
-  - [WedaBuilder Basic](docs/wiki/en/01_quick_start/02_wedabuilder_basic.md)
-  - [SubNode Basic](docs/wiki/en/01_quick_start/03_subnode_basic.md)
+- **Getting Started**:
+  - [What is SubNode?](docs/wiki/en/01-introduction/01-what-is-subnode.md)
+  - [Prerequisites](docs/wiki/en/02-getting-started/01-prerequisites.md)
+  - [Start with Example](docs/wiki/en/02-getting-started/02-start-with-example.md)
+  - [Start with Template](docs/wiki/en/02-getting-started/03-start-with-template.md)
 
 - **Examples**:
   - [Production Examples](examples/README.md) - Real hardware integration
 
-- **Advanced Topics**:
-  - [Configuration Reference](docs/wiki/en/03_advanced/appsettings_configuration.md)
-  - [Transform & DSP Filters](docs/wiki/en/03_advanced/transform_dsp.md)
-  - [DTDL Integration](docs/wiki/en/03_advanced/dtdl_integration.md)
+- **Configuration & Data**:
+  - [Configuration via JSON](docs/wiki/en/04-sensor-configuration/configuration-via-json.md)
+  - [Configuration Reference](docs/wiki/en/04-sensor-configuration/configuration-reference.md)
+  - [Data Pipeline Overview](docs/wiki/en/05-data-pipeline/01-overview.md)
 
 ---
 

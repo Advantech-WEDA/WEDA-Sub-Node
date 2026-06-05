@@ -4,7 +4,7 @@ System Agent collects CPU, memory, disk, network, etc. metrics from the host sys
 
 ## Quick Start
 
-See [docs/QUICK_START.md](docs/QUICK_START.md) for deployment instructions.
+See [docs/01_QUICK_START.md](docs/01_QUICK_START.md) for deployment instructions.
 
 ## Architecture Overview
 
@@ -158,7 +158,7 @@ dotnet run
 docker compose up -d
 ```
 
-See [docs/DOCKER_DEPLOY.md](docs/DOCKER_DEPLOY.md) for details.
+See [docs/03_DOCKER_DEPLOY.md](docs/03_DOCKER_DEPLOY.md) for details.
 
 ## Troubleshooting
 
@@ -200,11 +200,10 @@ See [docs/DOCKER_DEPLOY.md](docs/DOCKER_DEPLOY.md) for details.
 
 ## Documentation
 
-- [docs/QUICK_START.md](docs/QUICK_START.md) - Quick start and deployment guide
-- [docs/DOCKER_DEPLOY.md](docs/DOCKER_DEPLOY.md) - Docker deployment details
-- [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) - Testing procedures and scripts
-- [docs/METRIC_TYPES.md](docs/METRIC_TYPES.md) - MetricType classification and configuration
-- [docs/PLATFORM_SUPPORT.md](docs/PLATFORM_SUPPORT.md) - Cross-platform support details
+- [docs/01_QUICK_START.md](docs/01_QUICK_START.md) - Quick start and deployment guide
+- [docs/03_DOCKER_DEPLOY.md](docs/03_DOCKER_DEPLOY.md) - Docker deployment details
+- [docs/04_TESTING_GUIDE.md](docs/04_TESTING_GUIDE.md) - Testing procedures and scripts
+- [docs/02_METRIC_TYPES.md](docs/02_METRIC_TYPES.md) - MetricType classification and configuration
 - [../../README.md](../../README.md) - Main project overview
 - [../../docs/wiki/en/](../../docs/wiki/) - Framework documentation
 
