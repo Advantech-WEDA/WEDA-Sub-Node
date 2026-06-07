@@ -42,6 +42,8 @@ public class WedaApplicationBuilder
         = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _useCache;
     private readonly IConfigurationCache _configurationCache;
+    private string? _projectName;
+    private string? _projectDescription;
 
     internal WedaApplicationBuilder(HostApplicationBuilder hostBuilder, bool useCache = true)
     {
@@ -69,6 +71,31 @@ public class WedaApplicationBuilder
     /// Gets the environment information
     /// </summary>
     public IHostEnvironment Environment => _hostBuilder.Environment;
+
+    /// <summary>
+    /// Set the SubNode project's display name. Surfaces in the v1.2 upload payload
+    /// as the wrapper Interface's <c>displayName</c>; cloud / front-end use it as
+    /// the human-readable label for this SubNode.
+    /// </summary>
+    /// <param name="name">Project name (e.g., <c>"MyFirstApplication"</c>).</param>
+    /// <returns>The builder for chaining.</returns>
+    public WedaApplicationBuilder WithName(string name)
+    {
+        _projectName = name;
+        return this;
+    }
+
+    /// <summary>
+    /// Set the SubNode project's description. Surfaces in the v1.2 upload payload
+    /// as the wrapper Interface's <c>description</c>.
+    /// </summary>
+    /// <param name="description">Free-form description.</param>
+    /// <returns>The builder for chaining.</returns>
+    public WedaApplicationBuilder WithDescription(string description)
+    {
+        _projectDescription = description;
+        return this;
+    }
 
     /// <summary>
     /// Add a custom device with strongly-typed configuration (e.g., TcpModbusDeviceConfiguration).
@@ -427,11 +454,13 @@ public class WedaApplicationBuilder
 
         // Register NATS-based clients
         Services.AddSingleton<IDeviceAgentClient>(sp =>
+
         {
             var natsClient = sp.GetRequiredService<NatsClient>();
             var logger = sp.GetService<ILogger<DeviceAgentClient>>();
             var commandRegistry = sp.GetService<CommandRegistry>();
-            return new DeviceAgentClient(natsClient, logger, commandRegistry);
+            var projectInfo = sp.GetService<ProjectInfo>();
+            return new DeviceAgentClient(natsClient, logger, commandRegistry, projectInfo);
         });
 
         Services.AddSingleton<ITelemetryClient>(sp =>
@@ -544,6 +573,10 @@ public class WedaApplicationBuilder
     /// <returns>A configured WedaApplication instance</returns>
     public WedaApplication Build()
     {
+        // Register project metadata (set via WithName / WithDescription) so the
+        // mapping layer can read it when constructing the v1.2 wrapper Interface.
+        Services.AddSingleton(_ => new ProjectInfo(_projectName, _projectDescription));
+
         // Register WedaApplicationContext (which creates SubNodeManager internally)
         Services.AddSingleton<IWedaApplicationContext>(sp =>
         {

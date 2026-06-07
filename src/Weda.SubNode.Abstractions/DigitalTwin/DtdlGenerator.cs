@@ -13,7 +13,7 @@ public static class DtdlGenerator
     /// <summary>
     /// Default DTDL context for v2 specification.
     /// </summary>
-    public const string DtdlContext = "dtmi:dtdl:context;2";
+    public const string DtdlContext = "dtmi:dtdl:context;3";
 
     /// <summary>
     /// Default namespace prefix for auto-generated DTMIs.
@@ -65,6 +65,13 @@ public static class DtdlGenerator
     /// <returns>A DtdlContent representing the sensor as telemetry.</returns>
     public static DtdlContent GenerateTelemetryContent(Sensor sensor)
     {
+        // NOTE: `unit` is intentionally NOT emitted on the Telemetry content.
+        // Core DTDL v3 does not define a `unit` term on a bare Telemetry
+        // (it's a QuantitativeTypes-extension construct that requires
+        // co-typing with a specific quantitative type). DTDLParser rejects
+        // the Interface with "undefined term 'unit'" otherwise.
+        // The unit travels in the upload payload via DeviceCapDto.Sensors[i].Unit
+        // instead, where cloud / front-end can still read it.
         return new DtdlContent
         {
             Id = string.IsNullOrEmpty(sensor.Dtmi)
@@ -74,8 +81,7 @@ public static class DtdlGenerator
             Name = SanitizeName(sensor.Name),
             DisplayName = sensor.GetEffectiveDisplayName(),
             Description = sensor.SensorInfo.Description,
-            Schema = sensor.Schema,
-            Unit = sensor.Report.Unit
+            Schema = sensor.Schema
         };
     }
 

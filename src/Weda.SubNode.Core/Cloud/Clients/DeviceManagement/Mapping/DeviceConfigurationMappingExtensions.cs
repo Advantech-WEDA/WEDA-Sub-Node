@@ -1,8 +1,13 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
+using BitFaster.Caching;
+
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Commands;
@@ -40,7 +45,8 @@ public static class DeviceConfigurationMappingExtensions
     /// </summary>
     public static DeviceConfigurationDto ToConfigurationDto(
         this DeviceConfigurations configs,
-        CommandRegistry? commandRegistry = null)
+        CommandRegistry? commandRegistry = null,
+        ProjectInfo? projectInfo = null)
     {
         if (configs.Count == 0)
         {
@@ -62,7 +68,8 @@ public static class DeviceConfigurationMappingExtensions
         }
 
         var config = configs.First().Value;
-        _ = config.SubNodeInfo ?? throw new InvalidOperationException("SubNodeInfo must be set");
+        var subNodeInfo = config.SubNodeInfo 
+            ?? throw new InvalidOperationException("SubNodeInfo must be set");
 
         var transformDescriptors = TransformFactory.GetDescriptors();
         var dspDescriptors = DspFilterFactory.GetDescriptors();
@@ -72,12 +79,82 @@ public static class DeviceConfigurationMappingExtensions
 
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
-            Dtdl: BuildDtdlList(enabledConfigs, transformDescriptors, dspDescriptors,
-                                commandDescriptors, deviceTypes, sensorTypes),
+            Dtdl: BuildWrapperInterface(enabledConfigs, projectInfo ?? ProjectInfo.Empty, config.DeviceId!, subNodeInfo),
+            RefModels: BuildRefModels(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
             DeviceCapabilities: ToDeviceCapabilitiesDto(
                 enabledConfigs, transformDescriptors, dspDescriptors, commandDescriptors,
                 deviceTypes, sensorTypes));
     }
+
+    /// <summary>
+    /// Build the SubNode wrapper interface - a single DTDL v3 Interface that aggregates
+    /// every enabled device's sensor Telemetries into <c>contents</c>. Maps to cloud's
+    /// <c>DtdlModel.DeviceModel</c>
+    /// </summary>
+    private static JsonObject BuildWrapperInterface(
+        List<DeviceConfiguration> configs,
+        ProjectInfo projectInfo,
+        string deviceId,
+        SubNodeInfo subNodeInfo)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var contents = new JsonArray();
+
+        foreach (var config in configs)
+        {
+            if (ToJsonObject(config.DtdlInterface) is not { } iface) continue;
+            if (iface["contents"] is not JsonArray ifaceContents) continue;
+
+            foreach (var item in ifaceContents)
+            {
+                if (item is not JsonObject content) continue;
+                var id = content["@id"]?.GetValue<string>();
+                if (id is null || !seen.Add(id)) continue;
+
+                // Detach from old parent (DtdlInterface) before adding to wrapper
+                contents.Add(content.DeepClone());
+            }
+        }
+
+        return new JsonObject
+        {
+            ["@context"] = "dtmi:dtdl:context;3",
+            ["@id"] = BuildSubNodeDtmi(deviceId),
+            ["@type"] = "Interface",
+            ["displayName"] = projectInfo.Name ?? subNodeInfo.Name,
+            ["description"] = projectInfo.Description ?? string.Empty,
+            ["contents"] = contents
+        };
+    }
+
+    private static List<JsonObject> BuildRefModels(
+        IReadOnlyList<TransformDescriptorDto> transforms,
+        IReadOnlyList<DspFilterDescriptorDto> dspFilters,
+        IReadOnlyList<CommandDescriptorDto> commands,
+        IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
+        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var refModels = new List<JsonObject>();
+        
+        void AddIfNew(JsonObject iface)
+        {
+            var id = iface["@id"]?.GetValue<string>();
+            if (id is null) return;
+            if (seen.Add(id)) refModels.Add(iface);
+        }
+
+        if (sensorTypes.Count > 0) AddIfNew(SensorBase.GetInterface());
+        foreach (var d in deviceTypes) AddIfNew(d.Schema);
+        foreach (var s in sensorTypes) AddIfNew(s.Schema);
+        foreach (var t in transforms) AddIfNew(t.ParameterSchema);
+        foreach (var f in dspFilters) AddIfNew(f.ParameterSchema);
+        foreach (var c in commands) AddIfNew(c.Schema);
+
+        return refModels;
+    }
+
+
 
     private static DeviceCapDto ToDeviceCapabilitiesDto(
         List<DeviceConfiguration> configs,
@@ -136,47 +213,12 @@ public static class DeviceConfigurationMappingExtensions
             Dtmi: sensor.Dtmi!,
             Name: sensor.Name,
             SensorGroup: sensor.SensorGroup.ToStringValue(),
-            DeviceResourceId: sensor.DeviceResourceId);
-    }
-
-    private static List<JsonObject> BuildDtdlList(
-        List<DeviceConfiguration> configs,
-        IReadOnlyList<TransformDescriptorDto> transformDescriptors,
-        IReadOnlyList<DspFilterDescriptorDto> dspDescriptors,
-        IReadOnlyList<CommandDescriptorDto> commandDescriptors,
-        IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
-        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var dtdl = new List<JsonObject>();
-
-        // 1. Per-device sensor telemetry Interfaces from the untyped (legacy)
-        //    DtdlGenerator / loaded-file path. Typed devices have null
-        //    DtdlInterface (their schema lives in the sensor-type Interfaces below).
-        foreach (var config in configs)
-        {
-            if (ToJsonObject(config.DtdlInterface) is { } iface) AddIfNew(iface);
-        }
-
-        // 2. Strong-typed device + sensor catalog Interfaces (Phase 1 Track B).
-        //    Sensor:base is added on first sensor-type extends-target, dedup keeps it singular.
-        if (sensorTypes.Count > 0) AddIfNew(SensorBase.GetInterface());
-        foreach (var d in deviceTypes) AddIfNew(d.Schema);
-        foreach (var s in sensorTypes) AddIfNew(s.Schema);
-
-        // 3. Capability Interfaces: transform / DSP / command.
-        foreach (var d in transformDescriptors) AddIfNew(d.ParameterSchema);
-        foreach (var d in dspDescriptors) AddIfNew(d.ParameterSchema);
-        foreach (var d in commandDescriptors) AddIfNew(d.Schema);
-
-        return dtdl;
-
-        void AddIfNew(JsonObject iface)
-        {
-            var id = iface["@id"]?.GetValue<string>();
-            if (id is null) return;
-            if (seen.Add(id)) dtdl.Add(iface);
-        }
+            DeviceResourceId: sensor.DeviceResourceId,
+            // Unit lives on the SensorDto (not in the DTDL Telemetry) because
+            // core DTDL v3 does not define `unit` on a bare Telemetry — see
+            // DtdlGenerator.GenerateTelemetryContent. Cloud + front-end keep
+            // access via deviceCapabilities.sensors[i].unit.
+            Unit: string.IsNullOrEmpty(sensor.Report.Unit) ? null : sensor.Report.Unit);
     }
 
     private static JsonObject? ToJsonObject(object? dtdl)
@@ -192,5 +234,24 @@ public static class DeviceConfigurationMappingExtensions
         return schema["@id"]?.GetValue<string>()
             ?? throw new InvalidOperationException(
                 "DTDL Interface is missing required '@id' field; cannot derive catalog dtmi.");
+    }
+
+    private static string BuildSubNodeDtmi(string deviceId)
+    {
+        const int rawSegmentBudget = 32;
+
+        var safeRaw = deviceId.Length > 0
+            && deviceId.Length <= rawSegmentBudget
+            && deviceId.All(c => char.IsLetterOrDigit(c) || c == '_')
+            && char.IsLetterOrDigit(deviceId[^1]);
+
+        var segment = safeRaw ? deviceId : ShortHashOf(deviceId);
+        return $"dtmi:advantech:edgesync:subnode_{segment};1";
+    }
+
+    private static string ShortHashOf(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes, 0, 4).ToLowerInvariant();
     }
 }

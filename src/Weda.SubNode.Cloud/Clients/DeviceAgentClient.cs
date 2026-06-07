@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Net;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Core.Cloud.Clients.DeviceManagement.Mapping;
 using Weda.SubNode.Core.Commands;
@@ -18,16 +19,19 @@ public class DeviceAgentClient : IDeviceAgentClient
     private readonly ILogger<DeviceAgentClient> _logger;
     private readonly NatsClient _client;
     private readonly CommandRegistry? _commandRegistry;
+    private readonly ProjectInfo _projectInfo;
     private DeviceConfigurations? _deviceConfigurations;
 
     public DeviceAgentClient(
         NatsClient client,
         ILogger<DeviceAgentClient>? logger = null,
-        CommandRegistry? commandRegistry = null)
+        CommandRegistry? commandRegistry = null,
+        ProjectInfo? projectInfo = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<DeviceAgentClient>();
         _commandRegistry = commandRegistry;
+        _projectInfo = projectInfo ?? ProjectInfo.Empty;
     }
 
     private const string RegisterDeviceSubject = "eco1j.weda.dm.reg.req";
@@ -72,13 +76,14 @@ public class DeviceAgentClient : IDeviceAgentClient
         // Convert to DTO using mapping extension — pulls Transform / DSP filter
         // descriptors from static factories and command descriptors from the
         // injected registry (empty when registry is not wired up).
-        var dto = configurations.ToConfigurationDto(_commandRegistry);
+        var dto = configurations.ToConfigurationDto(_commandRegistry, _projectInfo);
         var request = ConfigurationUploadRequest.Create(dto);
 
         _logger.LogInformation(
             "Uploading Subode configuration: DeviceId={DeviceId}, DeviceCountSensorCount={SensorCount}",
             dto.DeviceId,
             dto.DeviceCapabilities.Sensors.Count);
+
 
         var response = await _client.RequestAsync<ConfigurationUploadRequest, ConfigurationUploadResponse>(
             subject: UploadDeviceConfigurationSubject,

@@ -25,7 +25,8 @@ public record SensorDto(
     [property: JsonPropertyName("dtmi")] string Dtmi,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("sensorGroup")] string SensorGroup,
-    [property: JsonPropertyName("deviceResourceId")] string DeviceResourceId);
+    [property: JsonPropertyName("deviceResourceId")] string DeviceResourceId,
+    [property: JsonPropertyName("unit")] string? Unit);
 
 public record DeviceCapDto(
     [property: JsonPropertyName("manufacturer")] string Manufacturer,
@@ -42,13 +43,19 @@ public record DeviceCapDto(
     [property: JsonPropertyName("commands")] IReadOnlyList<CatalogRefDto> Commands);
 
 /// <summary>
-/// Device configuration data for upload.
-/// <para><c>Dtdl</c> is a flat list of every DTDL v3 Interface this SubNode contributes
-/// — sensor telemetry, plus one entry per transform / DSP filter / command schema.
-/// <c>DeviceCapabilities</c> carries instance state (sensor entities) and thin
-/// <c>{name, dtmi}</c> catalog references into <c>Dtdl</c>.</para>
+/// Device configuration data for upload (v1.2 shape).
+/// <para><c>Dtdl</c> is the SubNode wrapper Interface (single DTDL v3 Interface)
+/// with every sensor flattened into <c>contents</c> as Telemetry. Cloud maps
+/// this to <c>DtdlModel.DeviceModel</c>.</para>
+/// <para><c>RefModels</c> carries the typed catalog: <c>Sensor:base</c>, every
+/// device-type Interface, every sensor-type Interface (extending <c>Sensor:base</c>),
+/// every transform / DSP / command parameter Interface. Cloud maps this to
+/// <c>DtdlModel.RefModels</c>. Dedup by <c>@id</c>.</para>
+/// <para><c>DeviceCapabilities</c> carries instance state (sensor entities) and thin
+/// <c>{name, dtmi}</c> catalog references into <c>RefModels</c>.</para>
 /// </summary>
 public record DeviceConfigurationDto(
     [property: JsonPropertyName("deviceId")] string DeviceId,
-    [property: JsonPropertyName("dtdl")] IReadOnlyList<JsonObject> Dtdl,
+    [property: JsonPropertyName("dtdl")] JsonObject Dtdl,
+    [property: JsonPropertyName("refModels")] IReadOnlyList<JsonObject> RefModels,
     [property: JsonPropertyName("deviceCapabilities")] DeviceCapDto DeviceCapabilities);

@@ -120,35 +120,83 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         data.DeviceCapabilities.Commands.ShouldNotBeEmpty();
 
         // Every catalog dtmi must resolve to an entry in dtdl[].
-        var dtdlIds = data.Dtdl
+        var refIds = data.RefModels
             .Select(i => i["@id"]?.GetValue<string>())
             .Where(id => id is not null)
             .ToHashSet();
-        foreach (var r in data.DeviceCapabilities.Transforms) dtdlIds.ShouldContain(r.Dtmi);
-        foreach (var r in data.DeviceCapabilities.DspFilters) dtdlIds.ShouldContain(r.Dtmi);
-        foreach (var r in data.DeviceCapabilities.Commands)   dtdlIds.ShouldContain(r.Dtmi);
+        foreach (var r in data.DeviceCapabilities.Transforms) refIds.ShouldContain(r.Dtmi);
+        foreach (var r in data.DeviceCapabilities.DspFilters) refIds.ShouldContain(r.Dtmi);
+        foreach (var r in data.DeviceCapabilities.Commands)   refIds.ShouldContain(r.Dtmi);
 
-        // Every DTDL Interface must construct a WedaDtValidator without throwing
-        // — that's the binary "shadow accepted the DTDL" check.
+        // The wrapper Interface (data.Dtdl) plus every refModels[] entry must each
+        // construct a WedaDtValidator without throwing — that's the binary
+        // "shadow accepted the DTDL" check. We feed each Interface plus the
+        // transitive closure of its `extends` bases so the validator can resolve
+        // inherited Contents.
         data.Dtdl.ShouldNotBeEmpty();
-        foreach (var iface in data.Dtdl)
+        data.RefModels.ShouldNotBeEmpty();
+
+        var byId = data.RefModels
+            .Where(i => i["@id"]?.GetValue<string>() is not null)
+            .ToDictionary(i => i["@id"]!.GetValue<string>(), i => i);
+        
+        ShouldConstructValidator(data.Dtdl, byId, "wrapper Interface");
+
+        foreach (var iface in data.RefModels)
         {
             var id = iface["@id"]?.GetValue<string>() ?? "<no-id>";
-            ShouldConstructValidator(iface, $"interface '{id}'");
+            ShouldConstructValidator(iface, byId, $"refModel '{id}'");
         }
+        
     }
 
-    private static void ShouldConstructValidator(JsonObject schema, string label)
+    private static void ShouldConstructValidator(
+        JsonObject leaf, IReadOnlyDictionary<string, JsonObject> byId, string label)
     {
-        var json = schema.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        var opts = new JsonSerializerOptions { WriteIndented = false };
+        var docs = new List<JsonObject>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        CollectClosure(leaf, byId, docs, seen);
+
+        var jsons = docs.Select(d => d.ToJsonString(opts)).ToList();
         try
         {
-            _ = new WedaDtValidator(json);
+            _ = new WedaDtValidator(jsons);
         }
         catch (Exception ex)
         {
             throw new Xunit.Sdk.XunitException(
-                $"DTDL for {label} failed validator construction: {ex.Message}\n\nPayload:\n{json}");
+                $"DTDL for {label} failed validator construction: {ex.Message}\n\nPayload:\n{jsons[0]}");
+        }
+    }
+
+    private static void CollectClosure(
+        JsonObject node,
+        IReadOnlyDictionary<string, JsonObject> byId,
+        List<JsonObject> docs,
+        HashSet<string> seen)
+    {
+        var id = node["@id"]?.GetValue<string>();
+        if (id is null || !seen.Add(id)) return;
+        docs.Add(node);
+
+        // `extends` is emitted as a string when there's a single base, and as a
+        // JsonArray when there are multiple — handle both shapes.
+        switch (node["extends"])
+        {
+            case JsonValue v when v.TryGetValue<string>(out var single) && byId.TryGetValue(single, out var b1):
+                CollectClosure(b1, byId, docs, seen);
+                break;
+            case JsonArray arr:
+                foreach (var entry in arr)
+                {
+                    if (entry is JsonValue jv && jv.TryGetValue<string>(out var dtmi)
+                        && byId.TryGetValue(dtmi, out var b2))
+                    {
+                        CollectClosure(b2, byId, docs, seen);
+                    }
+                }
+                break;
         }
     }
 }

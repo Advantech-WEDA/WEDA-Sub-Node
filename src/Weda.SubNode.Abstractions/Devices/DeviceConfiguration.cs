@@ -170,29 +170,51 @@ public class DeviceConfiguration
     }
 
     /// <summary>
-    /// Resolves each sensor instance's dtmi for the auto-gen path.
+    /// Builds the per-device autogen Interface and resolves each sensor's dtmi.
     /// <list type="bullet">
-    ///   <item>Typed path (preferred): when the device's runtime class implements
-    ///         <see cref="IConfigurableDevice{TComm, TProps}"/> (signalled via
-    ///         non-null <see cref="DeviceTypeName"/>) and Core's
+    ///   <item>Always: the legacy <c>DtdlGenerator</c> emits one per-device
+    ///         <see cref="DtdlInterface"/> with each sensor as a Telemetry
+    ///         content (autogen <c>@id</c> per content). WedaNode requires this
+    ///         single Interface so the telemetry schema travels with the upload
+    ///         payload; it is added to <c>dtdl[]</c> by the mapping layer.</item>
+    ///   <item>Typed dispatch (preferred): when the device's runtime class
+    ///         implements <see cref="IConfigurableDevice{TComm, TProps}"/>
+    ///         (signalled via non-null <see cref="DeviceTypeName"/>) and Core's
     ///         <c>SensorTypeRegistry</c> has installed
-    ///         <see cref="TypedSensorDispatch.Resolve"/>, each sensor's dtmi is
-    ///         the matching sensor TYPE Interface dtmi. No per-device
-    ///         <see cref="DtdlInterface"/> is built — the type Interfaces
-    ///         (extending <c>Sensor:base</c>) are shipped via the catalog.</item>
-    ///   <item>Untyped fallback: legacy
-    ///         <c>DtdlGenerator</c> auto-gen per sensor name + a per-device
-    ///         Interface. A warning surfaces to drive Phase 2 migration.</item>
+    ///         <see cref="TypedSensorDispatch.Resolve"/>, each sensor's
+    ///         <see cref="Sensor.Dtmi"/> is overwritten to the matching sensor
+    ///         TYPE Interface dtmi for the capabilities mapping. The autogen
+    ///         Interface above already captured the autogen dtmis into its
+    ///         Telemetry <c>@id</c> strings, so the overwrite does not affect
+    ///         it. Type Interfaces (extending <c>Sensor:base</c>) ship via the
+    ///         catalog alongside the autogen Interface.</item>
+    ///   <item>Untyped fallback: no overwrite. <see cref="Sensor.Dtmi"/> stays
+    ///         on the autogen value, matching the legacy single-Interface
+    ///         payload. A warning surfaces to drive migration.</item>
     /// </list>
     /// </summary>
     private void GenerateDtdlFromSensors(ILogger? logger = null)
     {
+        // Build the per-device autogen Interface FIRST, while sensor.Dtmi still
+        // carries the autogen dtmi. WedaNode expects this single Interface
+        // (with each sensor as a Telemetry content) so that the telemetry
+        // schema travels in the upload payload — typed dispatch below will
+        // overwrite sensor.Dtmi to the type Interface dtmi, but the Telemetry
+        // @id strings captured here are unaffected by that later mutation.
+        DtdlGenerator.PopulateSensorDtmis(Sensors);
+
+        DtdlInterface = DtdlGenerator.GenerateInterface(
+            DeviceName,
+            Sensors,
+            displayName: null,
+            description: $"Auto-generated DTDL for {DeviceName}");
+
         if (!string.IsNullOrEmpty(DeviceTypeName) && TypedSensorDispatch.Resolve is { } resolve)
         {
             // Per-sensor try/catch: one mis-shaped sensor must NOT prevent the
-            // remaining sensors from resolving. Failing sensors fall back to the
-            // legacy autogen dtmi so the upload payload still has something
-            // addressable for them; their failure is logged.
+            // remaining sensors from resolving. Failing sensors keep their
+            // autogen dtmi (populated above) so the upload payload still has
+            // something addressable for them; their failure is logged.
             var resolved = 0;
             var failed = new List<string>();
             foreach (var sensor in Sensors)
@@ -210,10 +232,6 @@ public class DeviceConfiguration
 
             if (failed.Count > 0)
             {
-                // Fall back per-failing-sensor to legacy autogen so the upload
-                // payload still references something, and log every failure for
-                // POCO-author fixup.
-                DtdlGenerator.PopulateSensorDtmis(Sensors.Where(s => string.IsNullOrEmpty(s.Dtmi)));
                 logger?.LogWarning(
                     "Typed dispatch partial: {Resolved}/{Total} sensors resolved for device " +
                     "'{DeviceName}' (type '{DeviceType}'). {FailCount} fell back to autogen dtmi:\n  - {Failures}",
@@ -226,33 +244,14 @@ public class DeviceConfiguration
                     "Typed dispatch resolved {SensorCount} sensors for device '{DeviceName}' (type '{DeviceType}')",
                     Sensors.Count, DeviceName, DeviceTypeName);
             }
-
-            // No per-device autogen Interface — the sensor type Interfaces (and
-            // SensorBase) carry the schema, added to dtdl[] by the mapping layer.
-            DtdlInterface = null;
             return;
         }
 
-        // Untyped fallback (X path): legacy DtdlGenerator. Migrate via
-        // IConfigurableDevice + IConfigurableSensor (see Customized Device
-        // Design Guideline) to retire this branch.
-        DtdlGenerator.PopulateSensorDtmis(Sensors);
-
-        DtdlInterface = DtdlGenerator.GenerateInterface(
-            DeviceName,
-            Sensors,
-            displayName: null,
-            description: $"Auto-generated DTDL for {DeviceName}");
-
         if (!string.IsNullOrEmpty(DeviceTypeName))
         {
-            // DeviceTypeName was set (device class implements IConfigurableDevice)
-            // but Core's hook wasn't installed — should be impossible at runtime
-            // since the host loader touches SensorTypeRegistry before InitializeDtdl.
-            // Log louder; suggests a wiring bug.
             logger?.LogWarning(
                 "Device '{DeviceName}' (type '{DeviceType}') is strongly-typed but " +
-                "TypedSensorDispatch.Resolve hook is unset — falling back to legacy autogen. " +
+                "TypedSensorDispatch.Resolve hook is unset — staying on legacy autogen dtmis. " +
                 "Ensure SensorTypeRegistry is initialised before configuration load.",
                 DeviceName, DeviceTypeName);
         }
@@ -260,9 +259,9 @@ public class DeviceConfiguration
         {
             logger?.LogWarning(
                 "Device '{DeviceName}' is not strongly-typed (no IConfigurableDevice registered " +
-                "for its DeviceConfigs section). Falling back to legacy DtdlGenerator autogen " +
+                "for its DeviceConfigs section). Using legacy DtdlGenerator autogen " +
                 "({SensorCount} sensors). Migrate via IConfigurableDevice + IConfigurableSensor " +
-                "to enable strong-typed catalog and retire this path.",
+                "to enable strong-typed catalog.",
                 DeviceName, Sensors.Count);
         }
     }
