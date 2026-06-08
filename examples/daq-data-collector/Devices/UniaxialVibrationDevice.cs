@@ -1,17 +1,15 @@
-using System.Text.Json;
 using daq_data_collector.Communication;
 using daq_data_collector.Communication.Pipeline;
 using daq_data_collector.Protocols;
+
 using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
-using NATS.Net;
+
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
-using Weda.SubNode.Abstractions.Transforms;
 using Weda.SubNode.Core.Devices;
 
 namespace daq_data_collector.Devices;
@@ -25,12 +23,6 @@ namespace daq_data_collector.Devices;
 /// </summary>
 public class UniaxialVibrationDevice : StreamingDeviceBase
 {
-    // ── Window-Aligned Streaming Fields ──────────────────────────────────────────────
-    private NatsClient? _natsClient;
-    private const string CustomTelemetrySubject = "phm.vibration.windowed";
-    private const bool CustomTelemetryEnabled = true;
-    private PhmFeatureTransform? _windowAlignedPhmTransform;
-
     public UniaxialVibrationDevice(IWedaApplicationContext context, string configKey)
         : this(context, context[configKey])
     {
@@ -243,174 +235,6 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         }
     }
 
-    /// <summary>
-    /// Register independent PHM transform with no decimation (always emits 10 features).
-    /// Used for window-aligned feature publication to phm.features.vibration.analysis NATS topic.
-    /// </summary>
-    private void RegisterCustomPhmTransform(
-        IWedaApplicationContext context,
-        DeviceConfiguration configuration,
-        (Dictionary<string, string> PhMSensorResourceIds, string RawSensorResourceId)? resourceMapping)
-    {
-        if (resourceMapping == null) return;
-
-        try
-        {
-            var props = configuration.Properties;
-            var acquisitionRate = props.TryGetValue("AcquisitionRateHz", out var ar)
-                ? int.Parse(ar!.ToString()!) : 1000;
-            var observationWindowSeconds = props.TryGetValue("ObservationWindowSeconds", out var ow)
-                ? double.Parse(ow!.ToString()!) : 1.0;
-            var frameSize = (int)(acquisitionRate * observationWindowSeconds);
-
-            // Calculate observationWindow in milliseconds
-            var observationWindowMs = (int)(observationWindowSeconds * 1000);
-
-            // Create independent transform with ALL sensors set to observationWindowMs interval
-            // This effectively disables decimation: all features always emit together
-            var allSensorsAtObservationWindow = new Dictionary<string, int>
-            {
-                { "timestamp_timestamp", observationWindowMs },
-                { "device_time", observationWindowMs },
-                { "x_axis_rms_mg", observationWindowMs },
-                { "x_axis_peak_mg", observationWindowMs },
-                { "x_axis_peak_to_peak_displacement", observationWindowMs },
-                { "x_axis_oa_velocity", observationWindowMs },
-                { "x_axis_deviation", observationWindowMs },
-                { "x_axis_skewness", observationWindowMs },
-                { "x_axis_kurtosis", observationWindowMs },
-                { "x_axis_crest_factor", observationWindowMs }
-            };
-
-            _windowAlignedPhmTransform = new PhmFeatureTransform(
-                samplingRate: acquisitionRate,
-                fftSize: frameSize,
-                rawPayloadResourceId: resourceMapping.Value.RawSensorResourceId,
-                phMSensorResourceIds: resourceMapping.Value.PhMSensorResourceIds,
-                sensorIntervalMs: allSensorsAtObservationWindow,
-                observationWindowMs: observationWindowMs,
-                logger: context.LoggerFactory.CreateLogger<PhmFeatureTransform>());
-
-            _logger.LogInformation("✅ Custom PHM Transform registered (complete 10 features per cycle)");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to register custom PHM transform");
-        }
-    }
-
-    /// <summary>
-    /// Initialize NATS client for window-aligned feature publishing.
-    /// Reads credentials from systemcfg.json WedaNode section.
-    /// </summary>
-    private async Task InitializeNatsClientAsync(CancellationToken ct)
-    {
-        try
-        {
-            var systemConfigPath = Path.Combine(AppContext.BaseDirectory, "systemcfg.json");
-
-            string natsUrl = "nats://127.0.0.1:4224";
-            string username = "advantech_nats";
-            string password = "3671be64607240cbc2b95af99c9a3b28fb5f9aa3fbe51f501478f1a678e19d48";
-
-            if (File.Exists(systemConfigPath))
-            {
-                var config = JsonDocument.Parse(File.ReadAllText(systemConfigPath)).RootElement;
-                if (config.TryGetProperty("WedaNode", out var wedaNode))
-                {
-                    natsUrl = $"nats://{wedaNode.GetProperty("Url").GetString()}";
-                    username = wedaNode.GetProperty("Username").GetString() ?? username;
-                    password = wedaNode.GetProperty("Password").GetString() ?? password;
-                }
-            }
-
-            var natsOpts = NatsOpts.Default with
-            {
-                Url = natsUrl,
-                AuthOpts = new NatsAuthOpts { Username = username, Password = password }
-            };
-
-            _natsClient = new NatsClient(natsOpts);
-            _logger.LogInformation("✅ NATS client initialized: {Url}", natsUrl);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to initialize custom NATS client");
-        }
-    }
-
-    /// <summary>
-    /// Publish complete 10 PHM features to custom NATS subject.
-    /// Uses independent window-aligned PHM transform with no decimation.
-    /// Uses Sensor.Name from devicecfg.json as sensorId.
-    /// </summary>
-    private async Task SendTransformedFeaturesAsync(
-        List<TelemetryMeasure> rawMeasures,
-        CancellationToken ct = default)
-    {
-        if (_natsClient == null || _windowAlignedPhmTransform == null)
-            return;
-
-        try
-        {
-            // Transform raw measures using custom transform (always produces 10 features)
-            var transformedFeatures = await _windowAlignedPhmTransform.TransformAsync(
-                rawMeasures,
-                new TelemetryTransformContext(),
-                ct);
-
-            if (transformedFeatures.Count != 10)
-            {
-                _logger.LogWarning(
-                    "Expected 10 features from custom transform, got {Count}",
-                    transformedFeatures.Count);
-            }
-
-            var measures = new List<object>();
-
-            foreach (var feature in transformedFeatures)
-            {
-                // Look up Sensor by ResourceId
-                var sensor = Configuration.Sensors?
-                    .FirstOrDefault(s => s.ResourceId == feature.ResourceId);
-                var sensorName = sensor?.Name ?? feature.ResourceId;
-
-                measures.Add(new
-                {
-                    sensorId = sensorName,
-                    resourceId = feature.ResourceId,
-                    value = feature.Value
-                });
-
-                _logger.LogDebug(
-                    "Feature: sensorId={SensorId}, value={Value}",
-                    sensorName, feature.Value);
-            }
-
-            var message = new
-            {
-                deviceId = SubNodeId,
-                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                data = new
-                {
-                    measures = measures,
-                    source = "UniaxialVibrationDevice"
-                }
-            };
-
-            var json = JsonSerializer.Serialize(message);
-            await _natsClient.PublishAsync(CustomTelemetrySubject, json, cancellationToken: ct);
-
-            _logger.LogInformation(
-                "✅ Published {Count} complete PHM features to Subject '{Subject}'",
-                measures.Count, CustomTelemetrySubject);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish transformed features");
-        }
-    }
-
     // ── Lifecycle hooks ───────────────────────────────────────────────────────
 
     protected override async Task OnAfterInitializeAsync(CancellationToken ct)
@@ -421,16 +245,6 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         if (resourceMapping != null)
         {
             RegisterPhmTransform(_context, Configuration, resourceMapping.Value);
-        }
-
-        // Always initialize NATS client for window-aligned streaming
-        if (CustomTelemetryEnabled)
-        {
-            await InitializeNatsClientAsync(ct);
-            RegisterCustomPhmTransform(_context, Configuration, resourceMapping);
-            _logger.LogInformation(
-                "✅ Window-Aligned Streaming enabled: Subject={Subject}",
-                CustomTelemetrySubject);
         }
 
         // Continue with base initialization (e.g., start stream if configured to auto-start)
@@ -527,12 +341,6 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
     private void OnDataReceived(object? sender, DataReceivedEvent e)
     {
         _logger.LogDebug("Telemetry received: {Count} measures", e.Data.Count);
-
-        // Window-aligned streaming: publish complete 10 features per observation window
-        if (_natsClient != null && _windowAlignedPhmTransform != null)
-        {
-            _ = SendTransformedFeaturesAsync(e.Data);
-        }
     }
 
     private void OnDataProcessed(object? sender, DataProcessedEvent e)
