@@ -1,0 +1,58 @@
+{
+    "seqId": 145,
+    "timestamp": 1781577276562,
+    "data": {
+        "measures": [
+            {
+                "sensorId": "a58c1",
+                "value": 1781577272853,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "4724b",
+                "value": 1781577274829,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "4dbb8",
+                "value": 1.4402405304672223E-05,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "bcf5e",
+                "value": 1.5719590507642577E-05,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "55b0c",
+                "value": 2.0146470170047107E-08,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "e247e",
+                "value": 1.3697104457970185E-10,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "d7d22",
+                "value": 2.338745618796326E-05,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "2c0bf",
+                "value": -0.04702018863988178,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "85e51",
+                "value": -1.2033795511640626,
+                "timestamp": 1781577274829
+            },
+            {
+                "sensorId": "1d3a4",
+                "value": 1.2725569515654016,
+                "timestamp": 1781577274829
+            }
+        ]
+    }
+}

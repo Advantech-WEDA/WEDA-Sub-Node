@@ -1,0 +1,231 @@
+{
+    "timestamp": 1781512442238,
+    "reqSeqId": "query-subnode-caps",
+    "rspSeqId": "query-subnode-caps",
+    "code": 0,
+    "message": "OK",
+    "data": {
+        "total": 3,
+        "subNodes": [
+            {
+                "deviceId": "888888888788",
+                "deviceName": "AdvantechWedaMainboardExtension",
+                "deviceType": "systemMonitor",
+                "updatedAt": "2026-05-28T06:39:39Z",
+                "capabilities": {}
+            },
+            {
+                "deviceId": "315384474101612544",
+                "deviceName": "UniaxialVibrationDevice1",
+                "deviceType": "daqDevice",
+                "updatedAt": "2026-05-28T06:42:04Z",
+                "capabilities": {
+                    "deviceInfo": {
+                        "version": ""
+                    },
+                    "deviceName": "UniaxialVibrationDevice1",
+                    "deviceType": "daqDevice",
+                    "manufacturer": "Advantech",
+                    "model": "iDAQ-801\u002BB10BG3",
+                    "sensors": [
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:advantech:app:json",
+                            "name": "daqraw_vibration_payload",
+                            "resourceId": "f51f8b5e-ff01-510e-9c1e-90624555aaf9",
+                            "resourceShortId": "5aaf9",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:bd0b91ae;1",
+                            "name": "x_axis_rms_mg",
+                            "resourceId": "4292e69d-dc95-5466-9804-770838678e83",
+                            "resourceShortId": "78e83",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:ce623840;1",
+                            "name": "x_axis_peak_mg",
+                            "resourceId": "483b9da7-ac25-5cc1-b09f-698f3a06b21a",
+                            "resourceShortId": "6b21a",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:e0bf5c4b;1",
+                            "name": "x_axis_peak_to_peak_displacement",
+                            "resourceId": "8df464f2-063d-580d-91c2-3a48f504f66e",
+                            "resourceShortId": "4f66e",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:0684cbd9;1",
+                            "name": "x_axis_oa_velocity",
+                            "resourceId": "06cb138d-63b1-5716-850d-f236f8192b6e",
+                            "resourceShortId": "92b6e",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:08878a80;1",
+                            "name": "x_axis_deviation",
+                            "resourceId": "ff398fac-4a21-596d-89a9-ee3b1f364d43",
+                            "resourceShortId": "64d43",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:80a5be87;1",
+                            "name": "x_axis_skewness",
+                            "resourceId": "d5273c55-13fc-5059-a041-e3044d4366b4",
+                            "resourceShortId": "366b4",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:fcde5381;1",
+                            "name": "x_axis_kurtosis",
+                            "resourceId": "61bfa7af-1bee-5c76-94ec-26ad2487e03a",
+                            "resourceShortId": "7e03a",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:ai:bcd1d8b1;1",
+                            "name": "x_axis_crest_factor",
+                            "resourceId": "976c7b1b-e584-5674-a3c8-fdd58414ce71",
+                            "resourceShortId": "4ce71",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:sys:622f60f9;1",
+                            "name": "timestamp_timestamp",
+                            "resourceId": "e841cce1-1a9e-5189-8cf3-c7e09c70e4e1",
+                            "resourceShortId": "0e4e1",
+                            "sensorGroup": "SYS"
+                        },
+                        {
+                            "deviceResourceId": "315384474101612544",
+                            "dtmi": "dtmi:autogen:sys:69131eeb;1",
+                            "name": "device_time",
+                            "resourceId": "6e518749-3ee4-5f96-a5f3-e48ece4f284a",
+                            "resourceShortId": "f284a",
+                            "sensorGroup": "SYS"
+                        }
+                    ],
+                    "subNodeSwVersion": ""
+                }
+            },
+            {
+                "deviceId": "318281269764947968",
+                "deviceName": "UniaxialVibrationDevice2",
+                "deviceType": "daqDevice",
+                "updatedAt": "2026-06-10T10:03:15Z",
+                "capabilities": {
+                    "deviceInfo": {
+                        "version": ""
+                    },
+                    "deviceName": "UniaxialVibrationDevice2",
+                    "deviceType": "daqDevice",
+                    "manufacturer": "Advantech",
+                    "model": "iDAQ-801\u002BB10BG3",
+                    "sensors": [
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:advantech:app:json",
+                            "name": "daqraw_vibration_payload",
+                            "resourceId": "568c1cda-39af-59f1-9c7f-0c8d283b3839",
+                            "resourceShortId": "b3839",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:bd0b91ae;1",
+                            "name": "x_axis_rms_mg",
+                            "resourceId": "b73a9e41-9d5a-5f3b-96e9-65ce13c4dbb8",
+                            "resourceShortId": "4dbb8",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:ce623840;1",
+                            "name": "x_axis_peak_mg",
+                            "resourceId": "88913282-f68d-5f97-863b-1f77b99bcf5e",
+                            "resourceShortId": "bcf5e",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:e0bf5c4b;1",
+                            "name": "x_axis_peak_to_peak_displacement",
+                            "resourceId": "4801ef1e-b76f-58c4-85d5-0282f0255b0c",
+                            "resourceShortId": "55b0c",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:0684cbd9;1",
+                            "name": "x_axis_oa_velocity",
+                            "resourceId": "05fb2929-169b-5663-a835-fa2421ce247e",
+                            "resourceShortId": "e247e",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:08878a80;1",
+                            "name": "x_axis_deviation",
+                            "resourceId": "a45b192f-584e-5f3e-94b8-c7ce9ced7d22",
+                            "resourceShortId": "d7d22",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:80a5be87;1",
+                            "name": "x_axis_skewness",
+                            "resourceId": "f71ec1cb-6581-5599-be73-870cb102c0bf",
+                            "resourceShortId": "2c0bf",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:fcde5381;1",
+                            "name": "x_axis_kurtosis",
+                            "resourceId": "3436648a-d2a8-5ec3-b7ca-5be9a0485e51",
+                            "resourceShortId": "85e51",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:ai:bcd1d8b1;1",
+                            "name": "x_axis_crest_factor",
+                            "resourceId": "299f8747-f951-5004-987c-4d1cc891d3a4",
+                            "resourceShortId": "1d3a4",
+                            "sensorGroup": "AI"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:sys:622f60f9;1",
+                            "name": "timestamp_timestamp",
+                            "resourceId": "9046c6b6-6528-5d30-b483-11c57eda58c1",
+                            "resourceShortId": "a58c1",
+                            "sensorGroup": "SYS"
+                        },
+                        {
+                            "deviceResourceId": "318281269764947968",
+                            "dtmi": "dtmi:autogen:sys:69131eeb;1",
+                            "name": "device_time",
+                            "resourceId": "f760cb3f-b405-55c1-96f1-ce189204724b",
+                            "resourceShortId": "4724b",
+                            "sensorGroup": "SYS"
+                        }
+                    ],
+                    "subNodeSwVersion": ""
+                }
+            }
+        ]
+    }
+}
