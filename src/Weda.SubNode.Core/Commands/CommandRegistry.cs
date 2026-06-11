@@ -115,12 +115,14 @@ public class CommandRegistry
             // Wire-shape: single merged Command Interface (goes into dtdl[] for cloud).
             var schema = EmitMergedCommandSchema(commandName, requestType, resultType, description);
 
-            // Step-0 validator: still needs a Property-shaped Interface so its
-            // TryValidate("parameters", ...) call resolves. Built off the request
-            // POCO only; not surfaced anywhere else.
-            // TODO: collapse once WedaDtValidator can target a Command's request directly.
+            // Weda.Dtdl 0.0.5 validates Command request payloads directly: build
+            // the validator from the Command Interface (no shadow Property-shape
+            // Interface). The Interface's @id doubles as the dispatch key fed to
+            // WedaDtValidator.Validate(name, payload) at runtime.
+            using var schemaDoc = JsonDocument.Parse(schema.ToJsonString());
+            var commandDtmi = schema["@id"]!.GetValue<string>();
             var parameterValidator = new WedaDtValidator(
-                EmitValidatorInterface(commandName, requestType).ToJsonString());
+                new[] { schemaDoc.RootElement.Clone() });
 
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
@@ -132,6 +134,7 @@ public class CommandRegistry
                 ParameterType: parameterType,
                 Description: description,
                 Schema: schema,
+                CommandDtmi: commandDtmi,
                 ParameterValidator: parameterValidator);
 
             _logger?.LogDebug(
@@ -172,19 +175,6 @@ public class CommandRegistry
             commandName: SanitizeDtdlName(commandName),
             requestType: requestType,
             responseType: responseType);
-
-    /// <summary>
-    /// Property-shaped Interface kept only for the Step-0 <see cref="WedaDtValidator"/>
-    /// while the validator does not yet understand Command's request directly.
-    /// Not surfaced in descriptors / catalog / dtdl[].
-    /// </summary>
-    private static JsonObject EmitValidatorInterface(string commandName, Type requestType) =>
-        WedaDtdlEmitter.Emit(
-            new WedaDtdlEmitter.Options(
-                Prefix: "dtmi:advantech:weda",
-                Category: "commandValidator",
-                TypeName: commandName),
-            new WedaDtdlEmitter.PropertyBinding(Name: "parameters", Type: requestType));
 
     /// <summary>
     /// Mirror of WedaDtdlEmitter's separator replacement, applied to the
@@ -562,6 +552,7 @@ public record CommandRegistration(
     Type? ParameterType = null,
     string? Description = null,
     JsonObject? Schema = null,
+    string? CommandDtmi = null,
     WedaDtValidator? ParameterValidator = null)
 {
     /// <summary>

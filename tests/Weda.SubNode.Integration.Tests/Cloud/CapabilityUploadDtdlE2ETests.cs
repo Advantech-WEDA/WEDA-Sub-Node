@@ -159,14 +159,22 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         CollectClosure(leaf, byId, docs, seen);
 
         var jsons = docs.Select(d => d.ToJsonString(opts)).ToList();
+        var parsedDocs = jsons.Select(j => JsonDocument.Parse(j)).ToList();
         try
         {
-            _ = new WedaDtValidator(jsons);
+            try
+            {
+                _ = new WedaDtValidator(parsedDocs.Select(d => d.RootElement));
+            }
+            catch (Exception ex)
+            {
+                throw new Xunit.Sdk.XunitException(
+                    $"DTDL for {label} failed validator construction: {ex.Message}\n\nPayload:\n{jsons[0]}");
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            throw new Xunit.Sdk.XunitException(
-                $"DTDL for {label} failed validator construction: {ex.Message}\n\nPayload:\n{jsons[0]}");
+            foreach (var doc in parsedDocs) doc.Dispose();
         }
     }
 

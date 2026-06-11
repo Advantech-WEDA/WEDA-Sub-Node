@@ -67,12 +67,15 @@ public class CommandDispatcher(
         // validation handles missing-required cases inside parameters.
         if (_dtdlValidationOptions.Enabled
             && registration.ParameterValidator is { } dtdlValidator
+            && registration.CommandDtmi is { Length: > 0 } commandDtmi
             && message.Data is { ValueKind: JsonValueKind.Object } envelope
             && envelope.TryGetProperty("parameters", out var paramsElement)
             && paramsElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
         {
-            if (!dtdlValidator.TryValidate("parameters", paramsElement, out var dtdlErrors))
+            var dtdlResult = dtdlValidator.Validate(commandDtmi, paramsElement);
+            if (!dtdlResult.IsSuccess)
             {
+                var dtdlErrors = dtdlResult.Errors;
                 _logger.LogWarning(
                     "DTDL Step 0 validation failed for {CommandName}: {Errors}",
                     commandName, string.Join("; ", dtdlErrors));
