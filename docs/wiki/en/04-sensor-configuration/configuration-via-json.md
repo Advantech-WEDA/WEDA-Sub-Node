@@ -454,7 +454,7 @@ See [examples/wise-4012/devicecfg.json](https://github.com/your-repo/edge_subnod
 
 - [Configuration via Code](./configuration-via-code.md) - Programmatic configuration
 - [Configuration Reference](./configuration-reference.md) - Complete reference
-- [Data Pipeline](../05-data-pipeline/pipeline-overview.md) - Transform details
+- [Data Pipeline](../05-data-pipeline/01-overview.md) - Transform details
 
 import Revision from '@site/src/components/Revision';
 

@@ -8,6 +8,7 @@ public sealed class ValidationResult
     public List<string> Errors { get; } = new();
     public List<string> Warnings { get; } = new();
     public Dictionary<string, bool> WritableMap { get; } = new();
+    public Dictionary<string, string> Defaults { get; } = new();
     public bool Ok => Errors.Count == 0;
 }
 
@@ -41,7 +42,8 @@ public sealed class SchemaValidator
 
     private sealed record MemberRule(
         string Name, JsonElement SchemaRef, bool Required, bool Writable, Bounds Bounds,
-        bool CsvStringAccepted, string? MutexGroup, string? WhenField, string? WhenEquals);
+        bool CsvStringAccepted, string? MutexGroup, string? WhenField, string? WhenEquals,
+        JsonElement? Default);
 
     private static readonly HashSet<string> Primitives = new(StringComparer.Ordinal)
     { "string", "integer", "boolean" };
@@ -100,7 +102,8 @@ public sealed class SchemaValidator
                            (int?)GetNum(member, "minLength"), (int?)GetNum(member, "maxLength")),
                 GetBool(member, "csvStringAccepted", false),
                 GetStr(member, "mutexGroup"),
-                whenField, whenEquals));
+                whenField, whenEquals,
+                member.TryGetProperty("default", out var defEl) ? defEl : (JsonElement?)null));
         }
 
         // Per-member: presence, required, value.
@@ -108,6 +111,7 @@ public sealed class SchemaValidator
         {
             var childSchemaPath = schemaPath.Length == 0 ? rule.Name : $"{schemaPath}.{rule.Name}";
             _r.WritableMap.TryAdd(childSchemaPath, rule.Writable);
+            if (rule.Default is JsonElement dv) _r.Defaults.TryAdd(childSchemaPath, dv.GetRawText());
 
             var childJsonPath = jsonPath.Length == 0 ? rule.Name : $"{jsonPath}.{rule.Name}";
             var present = json.TryGetProperty(rule.Name, out var v)

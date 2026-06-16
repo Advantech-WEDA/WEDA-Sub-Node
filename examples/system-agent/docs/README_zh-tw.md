@@ -85,9 +85,8 @@ docs/
 
 | 路徑 | 說明 |
 |------|------|
-| `dtdl-validate/docker-compose.yml` | 一鍵啟動驗證（包含 .NET 和 Node.js 兩套驗證器） |
-| `dtdl-validate/scripts-dotnet/` | .NET 版驗證器（使用 Microsoft DTDLParser） |
-| `dtdl-validate/scripts/` | Node.js 版驗證器（輕量替代方案） |
+| `dtdl-validate/docker-compose.yml` | 一鍵啟動驗證 |
+| `dtdl-validate/scripts/` | Node.js 版驗證器 |
 
 使用方式：
 

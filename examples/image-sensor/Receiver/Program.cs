@@ -7,6 +7,11 @@ using Receiver.Models;
 
 // ===== Build with configuration =====
 var builder = WebApplication.CreateSlimBuilder(args);
+
+// Optional .env loader — shares ../.env.sample with the ImageSensor docker-compose.
+// Maps shell-style names (WEDA_NODE_URL, ...) onto .NET config keys (WedaNode:Url, ...).
+LoadDotEnv(builder);
+
 builder.Services.Configure<ReceiverOptions>(builder.Configuration.GetSection("Receiver"));
 builder.Services.Configure<WedaNodeOptions>(builder.Configuration.GetSection("WedaNode"));
 
@@ -143,3 +148,35 @@ app.MapGet("/api/images/{id}", (string id) =>
 });
 
 await app.RunAsync();
+
+
+static void LoadDotEnv(WebApplicationBuilder builder)
+{
+    var envFile = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+    if (!File.Exists(envFile)) return;
+
+    var mapping = new Dictionary<string, string>
+    {
+        ["WEDA_NODE_URL"]      = "WedaNode:Url",
+        ["WEDA_NODE_USERNAME"] = "WedaNode:Username",
+        ["WEDA_NODE_PASSWORD"] = "WedaNode:Password",
+    };
+
+    var overrides = new Dictionary<string, string?>();
+    foreach (var line in File.ReadAllLines(envFile))
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+
+        var eq = trimmed.IndexOf('=');
+        if (eq <= 0) continue;
+
+        var key = trimmed[..eq].Trim();
+        var value = trimmed[(eq + 1)..].Trim().Trim('"');
+        if (mapping.TryGetValue(key, out var configKey))
+            overrides[configKey] = value;
+    }
+
+    if (overrides.Count > 0)
+        builder.Configuration.AddInMemoryCollection(overrides);
+}
