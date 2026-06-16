@@ -10,8 +10,7 @@
     "CurrentSensor": {
       "Enabled": true,
       "Dtdl": {
-        "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
-        "AutoGenEnabled": false
+        "AutoGenEnabled": true
       },
       "DeviceCommunication": {
         "Host": "127.0.0.1",
@@ -23,7 +22,6 @@
       "Sensors": [
         {
           "Name": "current001",
-          "Dtmi": "dtmi:custom:current;1",
           "SensorGroup": "AI",
           "Parameters": {
             "RegisterType": "HoldingRegister",
@@ -46,8 +44,7 @@
     "VoltageSensor": {
       "Enabled": true,
       "Dtdl": {
-        "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
-        "AutoGenEnabled": false
+        "AutoGenEnabled": true
       },
       "DeviceCommunication": {
         "Host": "127.0.0.1",
@@ -59,7 +56,6 @@
       "Sensors": [
         {
           "Name": "voltage001",
-          "Dtmi": "dtmi:custom:voltage;1",
           "SensorGroup": "AI",
           "Parameters": {
             "RegisterType": "HoldingRegister",
@@ -82,8 +78,7 @@
     "PowerAggregator": {
       "Enabled": true,
       "Dtdl": {
-        "DtdlPath": "examples/power-aggregation/assets/dtdl/dtmi/custom/aggregator.json",
-        "AutoGenEnabled": false
+        "AutoGenEnabled": true
       },
       "DeviceCommunication": {
         "AggregatorType": "PowerAggregator",
@@ -101,7 +96,6 @@
       "Sensors": [
         {
           "Name": "power001",
-          "Dtmi": "dtmi:custom:power;1",
           "SensorGroup": "PWR",
           "Parameters": {
             "DataType": "Float64",

@@ -1,4 +1,5 @@
 using Xunit;
+using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Dsp;
 
@@ -24,17 +25,13 @@ public class MovingAverageFilterTests
         return result;
     }
 
+    private static IConfigurableDspFilter<MovingAverageFilter, MovingAverageParameters> AsConfigurable(MovingAverageFilter f) => f;
+
     [Fact]
     public void ValidateParameters_ValidWindow_ReturnsSuccess()
     {
         var filter = new MovingAverageFilter(5);
-        var parameters = new Dictionary<string, object>
-        {
-            ["Window"] = 10
-        };
-
-        var result = filter.ValidateParameters(parameters);
-
+        var result = AsConfigurable(filter).ValidateParameters(new MovingAverageParameters { Window = 10 });
         Assert.False(result.IsError);
     }
 
@@ -42,30 +39,18 @@ public class MovingAverageFilterTests
     public void ValidateParameters_WindowZero_ReturnsFailure()
     {
         var filter = new MovingAverageFilter(5);
-        var parameters = new Dictionary<string, object>
-        {
-            ["Window"] = 0
-        };
-
-        var result = filter.ValidateParameters(parameters);
-
+        var result = AsConfigurable(filter).ValidateParameters(new MovingAverageParameters { Window = 0 });
         Assert.True(result.IsError);
-        Assert.Contains("Window", result.FirstError.Description);
+        Assert.Contains("Window", result.FirstError.Code);
     }
 
     [Fact]
     public void ValidateParameters_WindowNegative_ReturnsFailure()
     {
         var filter = new MovingAverageFilter(5);
-        var parameters = new Dictionary<string, object>
-        {
-            ["Window"] = -5
-        };
-
-        var result = filter.ValidateParameters(parameters);
-
+        var result = AsConfigurable(filter).ValidateParameters(new MovingAverageParameters { Window = -5 });
         Assert.True(result.IsError);
-        Assert.Contains("Window", result.FirstError.Description);
+        Assert.Contains("Window", result.FirstError.Code);
     }
 
     [Fact]
@@ -73,29 +58,19 @@ public class MovingAverageFilterTests
     {
         var filter = new MovingAverageFilter(3);
 
-        // Process some values to build buffer
         var input1 = ToAsyncEnumerable(
             CreateMeasure(10.0),
             CreateMeasure(20.0),
             CreateMeasure(30.0));
         var result1 = await ToListAsync(filter.ApplyAsync(input1));
-
-        // Window=3, so avg should be (10+20+30)/3 = 20
         Assert.Equal(20.0, (double)result1[^1].Value!, precision: 5);
 
-        // Update window size
-        filter.UpdateParameters(new Dictionary<string, object>
-        {
-            ["Window"] = 2
-        });
+        filter.UpdateParameters(new MovingAverageParameters { Window = 2 });
 
-        // Process new values - buffer should be reset
         var input2 = ToAsyncEnumerable(
             CreateMeasure(100.0),
             CreateMeasure(200.0));
         var result2 = await ToListAsync(filter.ApplyAsync(input2));
-
-        // With new window=2, avg should be (100+200)/2 = 150
         Assert.Equal(150.0, (double)result2[^1].Value!, precision: 5);
     }
 
@@ -131,11 +106,8 @@ public class MovingAverageFilterTests
         var result = await ToListAsync(filter.ApplyAsync(input));
 
         Assert.Equal(3, result.Count);
-        // First: 10/1 = 10
         Assert.Equal(10.0, (double)result[0].Value!, precision: 5);
-        // Second: (10+20)/2 = 15
         Assert.Equal(15.0, (double)result[1].Value!, precision: 5);
-        // Third: (10+20+30)/3 = 20
         Assert.Equal(20.0, (double)result[2].Value!, precision: 5);
     }
 

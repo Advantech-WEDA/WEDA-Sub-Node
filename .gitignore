@@ -386,4 +386,7 @@ reports/
 # Official examples are in /examples
 apps/
 **/*.lscache
+# Local NuGet feed -- bundled packages required by edge_subnode until
+# the corresponding source repos publish to NuGet.org. See nuget.config.
+!nuget/*.nupkg
 **/.env

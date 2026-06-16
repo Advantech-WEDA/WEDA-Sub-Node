@@ -39,6 +39,17 @@ public class DeviceConfiguration
     [JsonIgnore]
     public object? DtdlInterface { get; set; }
 
+    /// <summary>
+    /// Runtime property: the <c>DeviceTypeName</c> static value of the device's
+    /// runtime class when that class implements
+    /// <see cref="IConfigurableDevice{TCommunication, TProperties}"/>; null otherwise.
+    /// Populated by the host loader from the type registered via
+    /// <c>AddDevice&lt;TDevice&gt;("sectionName")</c>. Non-null triggers the typed
+    /// sensor-dtmi dispatch path; null falls back to legacy <c>DtdlGenerator</c>.
+    /// </summary>
+    [JsonIgnore]
+    public string? DeviceTypeName { get; set; }
+
     public List<Sensor> Sensors { get; set; } = [];
 
     /// <summary>
@@ -130,6 +141,18 @@ public class DeviceConfiguration
 
         _dtdlInitialized = true;
 
+        // Typed dispatch takes precedence over both autogen and manual file
+        // modes: when a device is strongly-typed (DeviceTypeName resolved from
+        // [DeviceType] / IConfigurableDevice via the host loader), the sensor
+        // type Interfaces in the catalog ARE the authoritative DTDL — we
+        // don't want a stale per-sensor autogen Interface OR a hand-written
+        // DtdlPath file overriding them.
+        if (!string.IsNullOrEmpty(DeviceTypeName) && TypedSensorDispatch.Resolve is not null)
+        {
+            GenerateDtdlFromSensors(logger);
+            return;
+        }
+
         // Device-level Dtdl.AutoGenEnabled takes priority over SubNode-level setting
         var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);
 
@@ -147,25 +170,100 @@ public class DeviceConfiguration
     }
 
     /// <summary>
-    /// Generates DTDL interface from sensor definitions.
-    /// Also populates Dtmi for sensors that don't have one.
+    /// Builds the per-device autogen Interface and resolves each sensor's dtmi.
+    /// <list type="bullet">
+    ///   <item>Always: the legacy <c>DtdlGenerator</c> emits one per-device
+    ///         <see cref="DtdlInterface"/> with each sensor as a Telemetry
+    ///         content (autogen <c>@id</c> per content). WedaNode requires this
+    ///         single Interface so the telemetry schema travels with the upload
+    ///         payload; it is added to <c>dtdl[]</c> by the mapping layer.</item>
+    ///   <item>Typed dispatch (preferred): when the device's runtime class
+    ///         implements <see cref="IConfigurableDevice{TComm, TProps}"/>
+    ///         (signalled via non-null <see cref="DeviceTypeName"/>) and Core's
+    ///         <c>SensorTypeRegistry</c> has installed
+    ///         <see cref="TypedSensorDispatch.Resolve"/>, each sensor's
+    ///         <see cref="Sensor.Dtmi"/> is overwritten to the matching sensor
+    ///         TYPE Interface dtmi for the capabilities mapping. The autogen
+    ///         Interface above already captured the autogen dtmis into its
+    ///         Telemetry <c>@id</c> strings, so the overwrite does not affect
+    ///         it. Type Interfaces (extending <c>Sensor:base</c>) ship via the
+    ///         catalog alongside the autogen Interface.</item>
+    ///   <item>Untyped fallback: no overwrite. <see cref="Sensor.Dtmi"/> stays
+    ///         on the autogen value, matching the legacy single-Interface
+    ///         payload. A warning surfaces to drive migration.</item>
+    /// </list>
     /// </summary>
     private void GenerateDtdlFromSensors(ILogger? logger = null)
     {
-        // Populate Dtmi for sensors without one
+        // Build the per-device autogen Interface FIRST, while sensor.Dtmi still
+        // carries the autogen dtmi. WedaNode expects this single Interface
+        // (with each sensor as a Telemetry content) so that the telemetry
+        // schema travels in the upload payload — typed dispatch below will
+        // overwrite sensor.Dtmi to the type Interface dtmi, but the Telemetry
+        // @id strings captured here are unaffected by that later mutation.
         DtdlGenerator.PopulateSensorDtmis(Sensors);
 
-        // Generate the DTDL interface
         DtdlInterface = DtdlGenerator.GenerateInterface(
             DeviceName,
             Sensors,
             displayName: null,
             description: $"Auto-generated DTDL for {DeviceName}");
 
-        logger?.LogInformation(
-            "Auto-generated DTDL for device '{DeviceName}' with {SensorCount} sensors",
-            DeviceName,
-            Sensors.Count);
+        if (!string.IsNullOrEmpty(DeviceTypeName) && TypedSensorDispatch.Resolve is { } resolve)
+        {
+            // Per-sensor try/catch: one mis-shaped sensor must NOT prevent the
+            // remaining sensors from resolving. Failing sensors keep their
+            // autogen dtmi (populated above) so the upload payload still has
+            // something addressable for them; their failure is logged.
+            var resolved = 0;
+            var failed = new List<string>();
+            foreach (var sensor in Sensors)
+            {
+                try
+                {
+                    sensor.Dtmi = resolve(DeviceTypeName, sensor);
+                    resolved++;
+                }
+                catch (Exception ex)
+                {
+                    failed.Add($"{sensor.Name}: {ex.Message}");
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                logger?.LogWarning(
+                    "Typed dispatch partial: {Resolved}/{Total} sensors resolved for device " +
+                    "'{DeviceName}' (type '{DeviceType}'). {FailCount} fell back to autogen dtmi:\n  - {Failures}",
+                    resolved, Sensors.Count, DeviceName, DeviceTypeName, failed.Count,
+                    string.Join("\n  - ", failed));
+            }
+            else
+            {
+                logger?.LogInformation(
+                    "Typed dispatch resolved {SensorCount} sensors for device '{DeviceName}' (type '{DeviceType}')",
+                    Sensors.Count, DeviceName, DeviceTypeName);
+            }
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(DeviceTypeName))
+        {
+            logger?.LogWarning(
+                "Device '{DeviceName}' (type '{DeviceType}') is strongly-typed but " +
+                "TypedSensorDispatch.Resolve hook is unset — staying on legacy autogen dtmis. " +
+                "Ensure SensorTypeRegistry is initialised before configuration load.",
+                DeviceName, DeviceTypeName);
+        }
+        else
+        {
+            logger?.LogWarning(
+                "Device '{DeviceName}' is not strongly-typed (no IConfigurableDevice registered " +
+                "for its DeviceConfigs section). Using legacy DtdlGenerator autogen " +
+                "({SensorCount} sensors). Migrate via IConfigurableDevice + IConfigurableSensor " +
+                "to enable strong-typed catalog.",
+                DeviceName, Sensors.Count);
+        }
     }
 
     /// <summary>

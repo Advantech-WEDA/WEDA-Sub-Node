@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\Weda.SubNode.Host\Weda.SubNode.Host.csproj" />
     <ProjectReference Include="..\..\src\Weda.SubNode.Abstractions\Weda.SubNode.Abstractions.csproj" />
     <ProjectReference Include="..\Weda.SubNode.TestBase\Weda.SubNode.TestBase.csproj" />
+    <PackageReference Include="DTDLParser" />
   </ItemGroup>
 
 </Project>

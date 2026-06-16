@@ -30,6 +30,7 @@ namespace PowerAggregationExample;
 /// }
 /// </code>
 /// </summary>
+[Weda.SubNode.Abstractions.Devices.DeviceType(Sensors.AggregatorDevice.DeviceTypeName)]
 public class PowerAggregatorDevice : AggregatorDevice
 {
     /// <summary>

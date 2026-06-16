@@ -13,6 +13,7 @@ namespace StockMonitor;
 /// Pre-configured stock monitor device for Taiwan Stock Exchange (TWSE) API.
 /// Automatically creates HTTP communication for accessing TWSE real-time quotes.
 /// </summary>
+[DeviceType(Sensors.TwseStockDevice.DeviceTypeName)]
 public class TwseStockMonitorDevice : StockMonitorDevice
 {
     private const int HTTP_TIMEOUT_IN_SECONDS = 30;

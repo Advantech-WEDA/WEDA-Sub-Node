@@ -267,9 +267,11 @@ public class DtdlGeneratorTests
     }
 
     [Fact]
-    public void GenerateTelemetryContent_Should_IncludeUnit()
+    public void GenerateTelemetryContent_Should_NotEmitUnit_BecauseDtdlV3RejectsIt()
     {
-        // Arrange
+        // `unit` on a bare Telemetry is rejected by DTDLParser under core
+        // DTDL v3 (undefined term). The unit travels in the upload payload via
+        // deviceCapabilities.sensors[i].unit instead, not in the DTDL itself.
         var sensor = new Sensor
         {
             Name = "temperature",
@@ -278,11 +280,13 @@ public class DtdlGeneratorTests
             SensorInfo = new SensorInfo { Schema = "double" }
         };
 
-        // Act
         var content = DtdlGenerator.GenerateTelemetryContent(sensor);
 
-        // Assert
-        content.Unit.ShouldBe("celsius");
+        // The DtdlContent.Unit property has been removed entirely; nothing to
+        // assert on directly. The contract is: the serialized JSON must not
+        // contain a "unit" key.
+        var json = System.Text.Json.JsonSerializer.Serialize(content);
+        json.ShouldNotContain("\"unit\"");
     }
 
     #endregion
@@ -306,7 +310,7 @@ public class DtdlGeneratorTests
         // Assert
         dtdlInterface.ShouldNotBeNull();
         dtdlInterface.Type.ShouldBe("Interface");
-        dtdlInterface.Context.ShouldBe("dtmi:dtdl:context;2");
+        dtdlInterface.Context.ShouldBe("dtmi:dtdl:context;3");
         dtdlInterface.Id.ShouldStartWith("dtmi:autogen:interface:");
         dtdlInterface.Contents.Count.ShouldBe(2);
     }
@@ -792,7 +796,7 @@ public class DtdlGeneratorTests
 
         // Assert
         dtdlInterface.ShouldNotBeNull();
-        dtdlInterface.Context.ShouldBe("dtmi:dtdl:context;2");
+        dtdlInterface.Context.ShouldBe("dtmi:dtdl:context;3");
         dtdlInterface.Type.ShouldBe("Interface");
         dtdlInterface.Contents.Count.ShouldBe(3);
 
@@ -803,13 +807,14 @@ public class DtdlGeneratorTests
             sensor.Dtmi.ShouldStartWith("dtmi:");
         }
 
-        // Verify content details
+        // Verify content details. `unit` is intentionally not emitted on the
+        // Telemetry — see DtdlGenerator.GenerateTelemetryContent. The unit
+        // surfaces in the upload payload via DeviceCapDto.Sensors[i].Unit.
         var ch0Content = dtdlInterface.Contents[0];
         ch0Content.Name.ShouldBe("channel_0");
         ch0Content.DisplayName.ShouldBe("Analog Input 0");
         ch0Content.Description.ShouldBe("First analog input channel");
         ch0Content.Schema.ShouldBe("double");
-        ch0Content.Unit.ShouldBe("mV");
 
         var doContent = dtdlInterface.Contents[2];
         doContent.Schema.ShouldBe("boolean");

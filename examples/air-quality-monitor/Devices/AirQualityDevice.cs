@@ -12,6 +12,7 @@ using Weda.SubNode.Core.Devices;
 
 namespace AirQualityMonitor.Devices;
 
+[DeviceType(Sensors.AirQualityDevice.DeviceTypeName)]
 public class AirQualityDevice : RequestResponseDeviceBase
 {   
     private const string DefaultApiKey = "4c89a32a-a214-461b-bf29-30ff32a61a8a";

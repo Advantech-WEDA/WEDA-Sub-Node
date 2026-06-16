@@ -139,9 +139,9 @@ public class ImageChunkingTests
     public async Task ChunkingTransform_SmallData_ShouldPassThrough()
     {
         // Arrange
-        var transform = ChunkingTransform.Create(new Dictionary<string, object>
+        var transform = ChunkingTransform.Create(new ChunkingParameters
         {
-            ["chunkSize"] = 100 * 1024
+            ChunkSize = 100 * 1024,
         });
         var base64 = GenerateBase64(50 * 1024); // 50KB
         var measures = new List<TelemetryMeasure>
@@ -161,9 +161,9 @@ public class ImageChunkingTests
     public async Task ChunkingTransform_LargeData_ShouldChunk()
     {
         // Arrange
-        var transform = ChunkingTransform.Create(new Dictionary<string, object>
+        var transform = ChunkingTransform.Create(new ChunkingParameters
         {
-            ["chunkSize"] = 50 * 1024 // 50KB chunks
+            ChunkSize = 50 * 1024, // 50KB chunks
         });
         var base64 = GenerateBase64(100 * 1024); // ~133KB encoded -> 3 chunks
         var measures = new List<TelemetryMeasure>
@@ -184,9 +184,9 @@ public class ImageChunkingTests
     public async Task ChunkingTransform_Checksum_ShouldMatchReassembledData()
     {
         // Arrange
-        var transform = ChunkingTransform.Create(new Dictionary<string, object>
+        var transform = ChunkingTransform.Create(new ChunkingParameters
         {
-            ["chunkSize"] = 50 * 1024
+            ChunkSize = 50 * 1024,
         });
         var base64 = GenerateBase64(100 * 1024);
         var measures = new List<TelemetryMeasure>
@@ -217,16 +217,14 @@ public class ImageChunkingTests
     {
         // Arrange
         var transform = new ChunkingTransform();
+        var configurable = (IConfigurableTransform<ChunkingTransform, ChunkingParameters>)transform;
 
-        // Act
-        var result = transform.ValidateParameters(new Dictionary<string, object>
-        {
-            ["chunkSize"] = 512 // Less than 1KB
-        });
+        // Act — 512 bytes below [Range(1024, 750*1024)] minimum
+        var result = configurable.ValidateParameters(new ChunkingParameters { ChunkSize = 512 });
 
         // Assert
         result.IsError.ShouldBeTrue();
-        result.FirstError.Description.ShouldContain("at least 1KB");
+        result.FirstError.Code.ShouldContain("ChunkSize");
     }
 
     [Fact]
@@ -234,16 +232,14 @@ public class ImageChunkingTests
     {
         // Arrange
         var transform = new ChunkingTransform();
+        var configurable = (IConfigurableTransform<ChunkingTransform, ChunkingParameters>)transform;
 
-        // Act
-        var result = transform.ValidateParameters(new Dictionary<string, object>
-        {
-            ["chunkSize"] = 1024 * 1024 // 1MB, exceeds 750KB limit
-        });
+        // Act — 1MB above [Range] maximum of 750KB
+        var result = configurable.ValidateParameters(new ChunkingParameters { ChunkSize = 1024 * 1024 });
 
         // Assert
         result.IsError.ShouldBeTrue();
-        result.FirstError.Description.ShouldContain("cannot exceed 750KB");
+        result.FirstError.Code.ShouldContain("ChunkSize");
     }
 
     #endregion

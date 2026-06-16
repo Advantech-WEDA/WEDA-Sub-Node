@@ -1,0 +1,281 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:command:ao_set;1",
+  "@type": "Interface",
+  "displayName": "ao.set",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:Object;1",
+      "@type": "Object",
+      "fields": []
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:AnalogOutputState;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
+          "displayName": "Output Name",
+          "schema": "string",
+          "required": true,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "value",
+          "displayName": "Output Value",
+          "schema": "dtmi:advantech:weda:command:ao_set:Object;1",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:outputsAnalogOutputStateList;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:ao_set:AnalogOutputState;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:Parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "displayName": "Target Device",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "outputs",
+          "displayName": "Outputs to Set",
+          "schema": "dtmi:advantech:weda:command:ao_set:outputsAnalogOutputStateList;1",
+          "required": true,
+          "writable": true,
+          "minLength": 1
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:AnalogOutputOperationResult;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "value",
+          "schema": "dtmi:advantech:weda:command:ao_set:Object;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "success",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "error",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:outputsAnalogOutputOperationResultList;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:ao_set:AnalogOutputOperationResult;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:SetAnalogOutputResultData;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "successCount",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "failureCount",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "outputs",
+          "schema": "dtmi:advantech:weda:command:ao_set:outputsAnalogOutputOperationResultList;1",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:SetAnalogOutputErrorDetails;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errorCode",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "recommendation",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:ao_set:Result;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "status",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "message",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "resultData",
+          "schema": "dtmi:advantech:weda:command:ao_set:SetAnalogOutputResultData;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errorDetails",
+          "schema": "dtmi:advantech:weda:command:ao_set:SetAnalogOutputErrorDetails;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "executedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "completedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@type": "Command",
+      "name": "ao_set",
+      "request": {
+        "name": "parameters",
+        "schema": "dtmi:advantech:weda:command:ao_set:Parameters;1"
+      },
+      "response": {
+        "name": "result",
+        "schema": "dtmi:advantech:weda:command:ao_set:Result;1"
+      }
+    }
+  ]
+}

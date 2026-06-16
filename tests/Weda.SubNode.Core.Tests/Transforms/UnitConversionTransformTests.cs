@@ -13,18 +13,17 @@ public class UnitConversionTransformTests
     private static TelemetryTransformContext CreateContext()
         => new() { DeviceId = "device1", Timestamp = DateTimeOffset.UtcNow };
 
+    private static IConfigurableTransform<UnitConversionTransform, UnitConversionParameters> AsConfigurable(UnitConversionTransform t) => t;
+
     [Fact]
     public void ValidateParameters_ValidUnits_ReturnsSuccess()
     {
         var transform = new UnitConversionTransform("C", "F");
-        var parameters = new Dictionary<string, object>
+        var result = AsConfigurable(transform).ValidateParameters(new UnitConversionParameters
         {
-            ["FromUnit"] = "C",
-            ["ToUnit"] = "K"
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
+            FromUnit = "C",
+            ToUnit = "K",
+        });
         Assert.False(result.IsError);
     }
 
@@ -32,44 +31,26 @@ public class UnitConversionTransformTests
     public void ValidateParameters_EmptyFromUnit_ReturnsFailure()
     {
         var transform = new UnitConversionTransform("C", "F");
-        var parameters = new Dictionary<string, object>
+        var result = AsConfigurable(transform).ValidateParameters(new UnitConversionParameters
         {
-            ["FromUnit"] = ""
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
+            FromUnit = "",
+            ToUnit = "F",
+        });
         Assert.True(result.IsError);
-        Assert.Contains("FromUnit", result.FirstError.Description);
+        Assert.Contains("FromUnit", result.FirstError.Code);
     }
 
     [Fact]
     public void ValidateParameters_EmptyToUnit_ReturnsFailure()
     {
         var transform = new UnitConversionTransform("C", "F");
-        var parameters = new Dictionary<string, object>
+        var result = AsConfigurable(transform).ValidateParameters(new UnitConversionParameters
         {
-            ["ToUnit"] = "   "
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
+            FromUnit = "C",
+            ToUnit = "",
+        });
         Assert.True(result.IsError);
-        Assert.Contains("ToUnit", result.FirstError.Description);
-    }
-
-    [Fact]
-    public void ValidateParameters_NoUnitsProvided_ReturnsSuccess()
-    {
-        var transform = new UnitConversionTransform("C", "F");
-        var parameters = new Dictionary<string, object>
-        {
-            ["SomeOtherParam"] = "value"
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
-        Assert.False(result.IsError);
+        Assert.Contains("ToUnit", result.FirstError.Code);
     }
 
     [Fact]
@@ -77,14 +58,12 @@ public class UnitConversionTransformTests
     {
         var transform = new UnitConversionTransform("C", "F");
 
-        // Update to Celsius to Kelvin
-        transform.UpdateParameters(new Dictionary<string, object>
+        transform.UpdateParameters(new UnitConversionParameters
         {
-            ["FromUnit"] = "C",
-            ["ToUnit"] = "K"
+            FromUnit = "C",
+            ToUnit = "K",
         });
 
-        // 0°C = 273.15K
         var measures = new List<TelemetryMeasure> { CreateMeasure(0.0) };
         var result = await transform.TransformAsync(measures, CreateContext());
 
@@ -98,12 +77,11 @@ public class UnitConversionTransformTests
         var transform = new UnitConversionTransform("C", "F");
         transform.Enabled = false;
 
-        // 0°C should be 32°F if enabled
         var measures = new List<TelemetryMeasure> { CreateMeasure(0.0) };
         var result = await transform.TransformAsync(measures, CreateContext());
 
         Assert.Single(result);
-        Assert.Equal(0.0, result[0].Value); // Not converted
+        Assert.Equal(0.0, result[0].Value);
     }
 
     [Fact]
@@ -111,11 +89,10 @@ public class UnitConversionTransformTests
     {
         var transform = new UnitConversionTransform("C", "F");
 
-        // 0°C = 32°F, 100°C = 212°F
         var measures = new List<TelemetryMeasure>
         {
             CreateMeasure(0.0),
-            CreateMeasure(100.0)
+            CreateMeasure(100.0),
         };
 
         var result = await transform.TransformAsync(measures, CreateContext());
@@ -130,7 +107,6 @@ public class UnitConversionTransformTests
     {
         var transform = new UnitConversionTransform("K", "C");
 
-        // 273.15K = 0°C
         var measures = new List<TelemetryMeasure> { CreateMeasure(273.15) };
         var result = await transform.TransformAsync(measures, CreateContext());
 
@@ -143,7 +119,6 @@ public class UnitConversionTransformTests
     {
         var transform = new UnitConversionTransform("F", "C");
 
-        // 32°F = 0°C
         var measures = new List<TelemetryMeasure> { CreateMeasure(32.0) };
         var result = await transform.TransformAsync(measures, CreateContext());
 
@@ -199,7 +174,6 @@ public class UnitConversionTransformTests
     [Fact]
     public async Task MixedNotation_ConvertsCorrectly()
     {
-        // Use abbreviation for from, full name for to
         var transform = new UnitConversionTransform("C", "fahrenheit");
 
         var measures = new List<TelemetryMeasure> { CreateMeasure(0.0) };
@@ -214,19 +188,17 @@ public class UnitConversionTransformTests
     {
         var transform = new UnitConversionTransform("C", "F");
 
-        transform.UpdateParameters(new Dictionary<string, object>
+        transform.UpdateParameters(new UnitConversionParameters
         {
-            ["FromUnit"] = "celsius",
-            ["ToUnit"] = "kelvin"
+            FromUnit = "celsius",
+            ToUnit = "kelvin",
         });
 
-        // Verify the update was applied (indirectly through conversion)
-        var validationResult = transform.ValidateParameters(new Dictionary<string, object>
+        var validationResult = AsConfigurable(transform).ValidateParameters(new UnitConversionParameters
         {
-            ["FromUnit"] = "celsius",
-            ["ToUnit"] = "kelvin"
+            FromUnit = "celsius",
+            ToUnit = "kelvin",
         });
-
         Assert.False(validationResult.IsError);
     }
 

@@ -10,7 +10,6 @@
     "MyFirstDevice": {
       "Enabled": true,
       "Dtdl": {
-        "DtdlPath": "examples/wise-4012/dtdl/wise-4012.json",
         "AutoGenEnabled": true
       },
       "DeviceCommunication": {
@@ -24,7 +23,6 @@
         {
           "Name": "channel_0",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 0,
@@ -44,7 +42,6 @@
         {
           "Name": "channel_1",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 1,
@@ -64,7 +61,6 @@
         {
           "Name": "channel_2",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 2,
@@ -84,7 +80,6 @@
         {
           "Name": "channel_3",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "RegisterType": "InputRegister",
             "RegisterAddress": 3,
@@ -104,7 +99,6 @@
         {
           "Name": "do_0",
           "SensorGroup": "DO",
-          "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
           "Parameters": {
             "RegisterType": "Coil",
             "RegisterAddress": 16,
@@ -124,7 +118,6 @@
         {
           "Name": "do_1",
           "SensorGroup": "DO",
-          "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
           "Parameters": {
             "RegisterType": "Coil",
             "RegisterAddress": 17,

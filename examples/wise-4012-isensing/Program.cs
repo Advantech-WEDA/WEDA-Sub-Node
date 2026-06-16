@@ -1,25 +1,20 @@
 using Serilog;
+
 using Weda.SubNode.Host;
-using Weda.SubNode.Host.Context;
 using Wise4012ISensingExample;
 
 try
 {
-    await using var subNode = new SubNode(new WedaApplicationContext(args));
-    subNode.AddDevice(new MyFirstISensingDevice(subNode.Context, "MyFirstDevice"));
+    // Switch to the standard WedaApplicationBuilder pipeline so the host
+    // loader records (sectionName -> typeof(MyFirstISensingDevice)) and
+    // resolves DeviceTypeName from the [DeviceType] attribute, enabling typed
+    // sensor-dtmi dispatch. The previous hand-wired
+    // SubNode + WedaApplicationContext path bypassed that tracking.
+    var builder = WedaApplication.CreateDefaultBuilder(args);
+    builder.AddDevice<MyFirstISensingDevice>("MyFirstDevice");
 
-    await subNode.InitializeAsync();
-    await subNode.StartAsync();
-
-    Log.Information("SubNode started. Press Ctrl+C to stop...");
-
-    var cts = new CancellationTokenSource();
-    Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
-    await Task.Delay(Timeout.Infinite, cts.Token);
-}
-catch (OperationCanceledException)
-{
-    Log.Information("Application cancelled");
+    var app = builder.Build();
+    await app.RunAsync();
 }
 catch (Exception ex)
 {

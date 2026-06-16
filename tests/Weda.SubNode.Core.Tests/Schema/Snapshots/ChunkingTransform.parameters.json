@@ -1,0 +1,44 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:transform:chunking;1",
+  "@type": "Interface",
+  "displayName": "chunking",
+  "description": "Split large base64 string measurements into bandwidth-friendly chunks.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:transform:chunking:parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "chunkSize",
+          "description": "Maximum size in bytes for each chunk. Must be between 1KB and 750KB.",
+          "schema": "integer",
+          "required": false,
+          "writable": true,
+          "minimum": 1024,
+          "maximum": 768000,
+          "default": 262144
+        }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:transform:chunking:parameters;1",
+      "required": false,
+      "writable": true
+    }
+  ]
+}

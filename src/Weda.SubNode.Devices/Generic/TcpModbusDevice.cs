@@ -13,6 +13,15 @@ namespace Weda.SubNode.Devices.Generic;
 /// Pre-configured Modbus TCP device implementation
 /// Simplified API using ApplicationContext
 /// </summary>
+/// <remarks>
+/// Carries the <see cref="DeviceTypeAttribute"/> with the same identifier
+/// (<c>"tcp-modbus"</c>) declared on
+/// <c>TcpModbusDeviceConfiguration : IConfigurableDevice&lt;TcpCommunicationSettings, ModbusProperties&gt;</c>.
+/// The attribute lets the host loader recognise <c>AddDevice&lt;MyFirstDevice&gt;("...")</c>
+/// — where <c>MyFirstDevice : TcpModbusDevice</c> inherits the attribute — as a
+/// typed device, triggering strong-typed sensor-dtmi dispatch.
+/// </remarks>
+[DeviceType("tcp-modbus")]
 public class TcpModbusDevice : ModbusDevice
 {
     /// <summary>

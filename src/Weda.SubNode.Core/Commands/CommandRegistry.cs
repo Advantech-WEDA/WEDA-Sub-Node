@@ -1,14 +1,21 @@
+using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 using ErrorOr;
 
 using Microsoft.Extensions.Logging;
 
+using Weda.Dtdl.Emit;
+using Weda.Dtdl.Validation;
+
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Behaviors;
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Core.Schema;
 
 namespace Weda.SubNode.Core.Commands;
 
@@ -101,18 +108,93 @@ public class CommandRegistry
             var behaviorConfigs = ScanHandlerAttributes(type);
             var autoAckEnabled = IsAutoAckEnabled(type);
 
+            var parameterType = GetCommandParameterType(commandType);
+            var description = commandType.GetCustomAttribute<DescriptionAttribute>()?.Description;
+            var requestType = parameterType ?? typeof(EmptyParameters);
+
+            // Wire-shape: single merged Command Interface (goes into dtdl[] for cloud).
+            var schema = EmitMergedCommandSchema(commandName, requestType, resultType, description);
+
+            // Weda.Dtdl 0.0.5 validates Command request payloads directly: build
+            // the validator from the Command Interface (no shadow Property-shape
+            // Interface). The Interface's @id doubles as the dispatch key fed to
+            // WedaDtValidator.Validate(name, payload) at runtime.
+            using var schemaDoc = JsonDocument.Parse(schema.ToJsonString());
+            var commandDtmi = schema["@id"]!.GetValue<string>();
+            var parameterValidator = new WedaDtValidator(
+                new[] { schemaDoc.RootElement.Clone() });
+
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
                 ResultType: resultType,
                 HandlerType: type,
                 BehaviorConfigurations: behaviorConfigs,
-                AutoAckEnabled: autoAckEnabled);
+                AutoAckEnabled: autoAckEnabled,
+                ParameterType: parameterType,
+                Description: description,
+                Schema: schema,
+                CommandDtmi: commandDtmi,
+                ParameterValidator: parameterValidator);
 
             _logger?.LogDebug(
                 "Registered command handler: {CommandName} -> {HandlerType} (Behaviors: {BehaviorCount})",
                 commandName, type.Name, behaviorConfigs.Count);
         }
+    }
+
+    /// <summary>
+    /// Returns the descriptor list for every registered command. Used by
+    /// <c>DeviceConfigurationMappingExtensions</c> when uploading SubNode
+    /// capabilities to cloud.
+    /// </summary>
+    public IReadOnlyList<CommandDescriptorDto> GetDescriptors() =>
+        _registrations.Values
+            .Select(r => new CommandDescriptorDto(
+                Name: r.CommandName,
+                Description: r.Description,
+                Schema: r.Schema
+                    ?? EmitMergedCommandSchema(r.CommandName, typeof(EmptyParameters), typeof(EmptyParameters), description: null)))
+            .ToList();
+
+    /// <summary>
+    /// Emits the wire-shape DTDL v3 Interface for a command: one Interface
+    /// (<c>dtmi:advantech:weda:command:&lt;sanitized&gt;;1</c>) whose
+    /// <c>contents[]</c> has a single <c>@type:"Command"</c> entry referencing
+    /// Parameters / Result Object schemas in <c>schemas[]</c>.
+    /// </summary>
+    private static JsonObject EmitMergedCommandSchema(
+        string commandName, Type requestType, Type responseType, string? description) =>
+        WedaDtdlEmitter.EmitCommand(
+            new WedaDtdlEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "command",
+                TypeName: commandName,
+                DisplayName: commandName,
+                Description: description),
+            commandName: SanitizeDtdlName(commandName),
+            requestType: requestType,
+            responseType: responseType);
+
+    /// <summary>
+    /// Mirror of WedaDtdlEmitter's separator replacement, applied to the
+    /// runtime command name so it becomes a valid DTDL identifier
+    /// (<c>[A-Za-z](?:[A-Za-z0-9_]*[A-Za-z0-9])?</c>) when written verbatim
+    /// into <c>contents[].name</c>. The catalog still uses the raw routing id.
+    /// </summary>
+    private static string SanitizeDtdlName(string name) =>
+        name.Replace('.', '_').Replace('-', '_').Replace(' ', '_');
+
+    /// <summary>
+    /// Resolves the TParameter generic argument from <see cref="ICommand{TParameter}"/>
+    /// on the command type. Returns null if the command does not implement the generic
+    /// variant (rare; falls back to empty parameter schema).
+    /// </summary>
+    private static Type? GetCommandParameterType(Type commandType)
+    {
+        var iface = commandType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICommand<>));
+        return iface?.GetGenericArguments()[0];
     }
 
     /// <summary>
@@ -466,7 +548,12 @@ public record CommandRegistration(
     Type HandlerType,
     object? HandlerInstance = null,
     IReadOnlyList<BehaviorConfiguration>? BehaviorConfigurations = null,
-    bool AutoAckEnabled = true)
+    bool AutoAckEnabled = true,
+    Type? ParameterType = null,
+    string? Description = null,
+    JsonObject? Schema = null,
+    string? CommandDtmi = null,
+    WedaDtValidator? ParameterValidator = null)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.

@@ -10,6 +10,7 @@ namespace ImageSensor;
 /// ImageSensorDevice - Receives image data via MQTT, logs Base64 preview.
 /// Inherits from MqttImageDevice to get MQTT + ImageProtocolParser support.
 /// </summary>
+[DeviceType(Sensors.MqttImageDevice.DeviceTypeName)]
 public class ImageSensorDevice : MqttImageDevice
 {
     public ImageSensorDevice(IWedaApplicationContext context, DeviceConfiguration configuration)

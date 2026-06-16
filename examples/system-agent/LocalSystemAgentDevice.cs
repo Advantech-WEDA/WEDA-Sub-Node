@@ -14,9 +14,16 @@ namespace SystemAgentExample;
 
 /// <summary>
 /// Pre-configured system agent device specialized for local system resource collection.
-/// This concrete implementation automatically creates and manages the LocalSystemCommunication 
+/// This concrete implementation automatically creates and manages the LocalSystemCommunication
 /// instance for accessing local OS APIs.
 /// </summary>
+/// <remarks>
+/// Carries <c>[DeviceType("system-monitor")]</c> so the host loader recognises
+/// <c>AddDevice&lt;LocalSystemAgentDevice&gt;("...")</c> as a typed device, routing
+/// its sensors onto the strong-typed dispatch path via
+/// <see cref="SystemAgentExample.Sensors.LocalSystemMonitorConfiguration"/>.
+/// </remarks>
+[DeviceType(SystemAgentExample.Sensors.SystemMonitor.DeviceTypeName)]
 public class LocalSystemAgentDevice : SystemAgentDeviceBase
 {
     /// <summary>

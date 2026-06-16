@@ -26,6 +26,47 @@ description: 'SubNode SDK 文件中使用的關鍵術語和概念詞彙表'
 
 ---
 
+## SubNode 專案速覽
+
+**SubNode SDK** 是一套基於 .NET 的框架，用於建構橋接實體裝置與 **WedaCore** 雲端平台的邊緣裝置應用程式。SubNode 應用程式扮演聚合根的角色，擁有一個或多個 `Device` 實例；每個裝置暴露一個或多個 `Sensor` 資料點，讀數以 `TelemetryMeasure` 記錄的形式發出，流經可組態的 `Data Pipeline`（Transform + DSP Filter），並透過本機 `WedaNode` 代理經由 NATS 發布到雲端。
+
+SDK 圍繞三個主要關注點組織：
+
+- **連線層（Connectivity）** - `ICommunication` 抽象（Request/Response、Pub/Sub、Streaming）加上 `Protocol Parser` 實作，將通訊協定與裝置邏輯解耦。
+- **資料處理（Data Processing）** - 由 `Transform` 與 `DSP Filter` 組成的可組合管線，將原始值處理為乾淨的遙測資料。
+- **託管與設定（Hosting & Configuration）** - `WedaApplication` + `WedaApplicationBuilder` 提供 .NET Generic Host 封裝；行為由 `devicecfg.json`、`systemcfg.json`、`appsettings.json` 驅動。
+
+端到端的脈絡：**WedaCore**（雲端）<- NATS -> **WedaNode**（本機代理，由 **Device Activator** 安裝）<- NATS -> **SubNode**（你的應用程式）-> 實體裝置。
+
+## 術語快速索引
+
+| 類別 | 術語 | 角色 | 所在位置 |
+|------|------|------|----------|
+| 平台 | **SubNode** | 邊緣應用程式；裝置的聚合根 | 你的行程 |
+| 平台 | **WedaCore** | 雲端平台（分身、遙測、命令） | 雲端 |
+| 平台 | **WedaNode** | 橋接 SubNode <-> WedaCore 的本機 NATS 代理 | `127.0.0.1:4224` |
+| 平台 | **Device Activator** | 安裝/設定 WedaNode 的 GUI 精靈 | 主機 |
+| 裝置 | **Device** | 實體裝置或資料來源的抽象 | `IDevice` / `DeviceBase` |
+| 裝置 | **Sensor** | 裝置擁有的資料點 | 設定中的 `Sensors[]` |
+| 裝置 | **TelemetryMeasure** | 單筆讀數（ResourceId、Value、Timestamp） | 執行期 |
+| 裝置 | **SensorGroup** | 類別標籤：AI、AO、DI、DO、SYS、TEMP、PWR | 感測器中繼資料 |
+| 通訊 | **ICommunication** | SubNode 與裝置間的傳輸契約 | SDK 介面 |
+| 通訊 | **Protocol Parser** | 編碼命令／將原始位元組解碼為 `TelemetryMeasure` | SDK 元件 |
+| 處理 | **Data Pipeline** | 階段鏈：Raw -> Transforms -> DSP -> Final | 每個感測器 |
+| 處理 | **Transform** | 值修改（校正、單位換算、分塊） | `Report.Transforms` |
+| 處理 | **DSP Filter** | 訊號處理（Kalman、MovingAverage、ReLU） | `Report.DspFilters` |
+| 命令 | **Command** | 來自 WedaCore 的遠端操作請求 | NATS 訊息 |
+| 命令 | **Command Handler** | `ICommandHandler<TCmd,TResult>` 實作 | 裝置程式碼 |
+| 設定 | **DeviceConfiguration** | 裝置設定的執行期視圖 | 記憶體中 |
+| 設定 | **devicecfg.json** | 裝置、感測器、通訊、報告 | 專案根目錄 |
+| 設定 | **systemcfg.json** | WedaNode URL、認證策略、憑證 | 專案根目錄 |
+| 設定 | **appsettings.json** | .NET / Serilog 執行期設定 | 專案根目錄 |
+| 託管 | **WedaApplication** | 主應用程式主機 | 進入點 |
+| 託管 | **WedaApplicationBuilder** | 註冊裝置與雲端的 Fluent API | `Program.cs` |
+| 託管 | **IWedaApplicationContext** | 注入到裝置的應用程式範圍服務 | DI 容器 |
+
+---
+
 ## 核心概念
 
 ### SubNode
@@ -286,6 +327,108 @@ await app.RunAsync();
 - Cloud Service
 - Logging
 
+## 概念關係圖
+
+下方圖表把前面定義的術語整理成 graph-RAG 風格的心智圖。實線箭頭代表 *包含／產生*，虛線箭頭代表 *設定／描述*，點線箭頭代表 *跨越行程或網路邊界*。
+
+```mermaid
+graph LR
+    subgraph Cloud["WedaCore (Cloud)"]
+        WC["WedaCore"]
+    end
+
+    subgraph Bridge["Local Bridge"]
+        WN["WedaNode<br/>(127.0.0.1:4224)"]
+        DA["Device Activator"]
+    end
+
+    subgraph Host["SubNode Host Process"]
+        WA["WedaApplication"]
+        WAB["WedaApplicationBuilder"]
+        CTX["IWedaApplicationContext"]
+        SN["SubNode"]
+        D["Device"]
+        S["Sensor"]
+        SG["SensorGroup"]
+        TM["TelemetryMeasure"]
+
+        subgraph Pipeline["Data Pipeline"]
+            T["Transform"]
+            DSP["DSP Filter"]
+        end
+
+        subgraph Comm["Communication Layer"]
+            IC["ICommunication"]
+            PP["Protocol Parser"]
+        end
+
+        subgraph Cmds["Commands"]
+            CMD["Command"]
+            CH["Command Handler"]
+        end
+    end
+
+    subgraph Cfg["Configuration Files"]
+        DCFG["devicecfg.json"]
+        SCFG["systemcfg.json"]
+        ACFG["appsettings.json"]
+        DC["DeviceConfiguration"]
+    end
+
+    PHY[("Physical Device")]
+
+    WAB -->|builds| WA
+    WA -->|hosts| SN
+    WA -->|exposes| CTX
+    CTX -.->|injected into| D
+    SN -->|aggregates| D
+    D -->|owns| S
+    S -->|tagged by| SG
+    S -->|produces| TM
+    TM -->|flows through| T
+    T --> DSP
+    DSP -->|emits| WN
+
+    D -->|uses| IC
+    IC <-->|raw bytes| PHY
+    IC -->|via| PP
+    PP -->|decodes to| TM
+
+    WC <-.->|NATS| WN
+    WN <-.->|NATS| SN
+    DA -.->|installs| WN
+
+    WC -->|sends| CMD
+    CMD -->|handled by| CH
+    CH -->|controls| D
+
+    DCFG -.->|materializes as| DC
+    DC -.->|configures| D
+    DC -.->|defines| S
+    SCFG -.->|configures| WN
+    ACFG -.->|configures| WA
+
+    classDef cloud fill:#e8f0ff,stroke:#3060c0,color:#0a2a6c
+    classDef bridge fill:#fff5e0,stroke:#c08030,color:#5a3010
+    classDef host fill:#eafaea,stroke:#3a8a3a,color:#1a4a1a
+    classDef cfg fill:#f5e8ff,stroke:#7030a0,color:#3a1060
+    classDef phy fill:#f0f0f0,stroke:#606060,color:#202020
+
+    class WC cloud
+    class WN,DA bridge
+    class WA,WAB,CTX,SN,D,S,SG,TM,T,DSP,IC,PP,CMD,CH host
+    class DCFG,SCFG,ACFG,DC cfg
+    class PHY phy
+```
+
+**如何閱讀：**
+
+- **綠色叢集** 是所有存在於你 `dotnet run` 行程中的元件。`WedaApplicationBuilder` 建構出 `WedaApplication`，後者託管一個聚合多個 `Device` 實例的 `SubNode`。
+- 每個 `Device` 擁有一個或多個 `Sensor` 物件（由 `SensorGroup` 標記），這些感測器發出 `TelemetryMeasure` 記錄，於發布前流經 `Data Pipeline`（Transform -> DSP Filter）。
+- **橘色橋接** 是 `WedaNode` — 由 `Device Activator` 安裝的本機 NATS 代理。SubNode 與 **藍色雲端**（`WedaCore`）之間的所有流量都會經過它。
+- **紫色叢集** 是設定平面。磁碟上的 JSON 檔案會具現化為 `DeviceConfiguration`，以及驅動執行期的系統／託管設定。
+- 命令的流向與遙測相反：`WedaCore` -> `WedaNode` -> `SubNode` -> `Command Handler` -> `Device`。
+
 ## Summary
 
 - SubNode 是邊緣應用程式的聚合根，管理多個 Device
@@ -307,3 +450,4 @@ await app.RunAsync();
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0.0 | 2026-03-23 | Rain Hu | Doc created. |
+| 1.1.0 | 2026-06-04 | Rain Hu | 新增專案速覽、術語快速索引表與概念關係圖。 |
