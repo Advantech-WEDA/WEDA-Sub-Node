@@ -29,7 +29,7 @@ This guide provides instructions for unit tests, integration tests, and end-to-e
 ```bash
 # .NET SDK Version
 dotnet --version
-# Should be 8.0.0 or above
+# Should be 10.0.0 or above
 
 # Build project
 cd /home/advantech/vincent/edge_subnode
@@ -424,11 +424,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
-    - uses: actions/setup-dotnet@v1
+    - uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '10.0.x'
     
     - name: Restore dependencies
       run: dotnet restore
@@ -443,7 +443,7 @@ jobs:
       run: dotnet test /p:CollectCoverage=true
     
     - name: Upload coverage
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v4
 ```
 
 ---

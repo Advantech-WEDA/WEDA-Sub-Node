@@ -14,7 +14,9 @@
 Copy the following file templates and upload to device directory:
 - `docker-compose.yml`
 - `appsettings.json`
+- `systemcfg.json`
 - `devicecfg.json`
+- `customcfg.json`
 
 For example, using `/opt/daq-collector`:
 ```bash
@@ -31,16 +33,16 @@ nano appsettings.json
 
 **Required Changes**:
 
-1. **NATS Server Address** - `Nats.Url`
+1. **WEDA Node Address** - `WedaNode.Url` in `systemcfg.json`
    ```json
-   "Nats": {
-     "Url": "nats://192.168.1.100:4222"
+   "WedaNode": {
+     "Url": "192.168.1.100:4224"
    }
    ```
 
-2. **Device Name** - `DeviceName`
-   - **New Device**: Set unique name, e.g., `daq-collector-Device-01`
-   - **Already Registered**: Do not modify `weda-data/.weda` directory to preserve registration info
+2. **Device Name** - `SubNode.Name` in `devicecfg.json`
+   - **New Device**: Set a unique name, e.g., `daq-collector-Device-01`
+   - **Already Registered**: Do not modify the `weda-data/` directory to preserve registration info
 
 **Optional Adjustments - Collection Parameters**:
 
@@ -109,8 +111,8 @@ docker compose ps
 
 **Should see**:
 ```
-NAME             IMAGE                 COMMAND                STATUS
-daq-collector   daq-data-collector:latest "./DaqDataCollect?? Up 10 seconds
+NAME                  IMAGE                       COMMAND   STATUS
+daq-data-collector    daq-data-collector:latest   ...       Up 10 seconds
 ```
 
 - `STATUS` should show `Up`

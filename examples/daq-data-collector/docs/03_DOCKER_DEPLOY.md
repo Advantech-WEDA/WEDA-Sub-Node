@@ -106,49 +106,65 @@ docker compose up -d
 ### docker-compose.yml Structure
 
 ```yaml
-version: '3.8'
-
 services:
-  daq-collector:
+  daq-data-collector:
     image: daq-data-collector:latest
-    container_name: daq-collector
-    
-    # Network configuration
-    network_mode: "host"              # Use host network for NATS communication
-    
-    # Volume mounts (device state persistence)
-    volumes:
-      - ./weda-data:/app/weda-data    # Save registration info
-      - ./logs:/app/logs              # Logs directory
-    
-    # Environment variables
-    environment:
-      - ASPNETCORE_URLS=http://+:5000
-      - LOG_LEVEL=Information
-    
-    # Restart policy
+    container_name: daq-data-collector
+    privileged: true          # Required for SUSI Driver hardware access
+    pid: host
+    network_mode: host        # Use host network for WEDA Node communication
     restart: unless-stopped
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 512M
-        reservations:
-          cpus: '1'
-          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+    # DAQ device character devices from host
+    devices:
+      - /dev/daq0:/dev/daq0
+      - /dev/daq1:/dev/daq1
+      - /dev/daq2:/dev/daq2
+      - /dev/daq3:/dev/daq3
+      - /dev/daq255:/dev/daq255
+
+    volumes:
+      # Configuration files (read-only)
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./appsettings.json:/app/appsettings.json:ro
+
+      # Persist device registration state
+      - ./weda-data:/app/.weda
+
+      # Advantech SUSI Driver (host-mounted, read-only)
+      - /usr/lib/Advantech/:/usr/lib/Advantech/:ro
+      - /lib/libSUSI-4.00.so:/lib/libSUSI-4.00.so:ro
+      - /lib/libSUSI-4.00.so.1:/lib/libSUSI-4.00.so.1:ro
+      - /lib/libSUSI-4.00.so.1.0.0:/lib/libSUSI-4.00.so.1.0.0:ro
+      - /lib/libjansson.so:/lib/libjansson.so:ro
+      - /lib/libjansson.so.4:/lib/libjansson.so.4:ro
+      - /lib/libjansson.so.4.11.0:/lib/libjansson.so.4.11.0:ro
+      - /lib/libSusiIoT.so:/lib/libSusiIoT.so:ro
+      - /lib/libSusiIoT.so.1.0.0:/lib/libSusiIoT.so.1.0.0:ro
+
+      # Advantech DAQNavi resources
+      - /var/lib/daq/:/var/lib/daq/
+      - /opt/advantech/:/opt/advantech/
 ```
 
 ### Key Configuration Items
 
-| Item | Description | Recommended |
-|------|-------------|-------------|
-| `network_mode` | Network mode | `host` (for NATS communication) |
-| `volumes` | Mount volumes | Mount `weda-data` to save state |
-| `restart` | Restart policy | `unless-stopped` (auto-restart) |
-| `cpus` | CPU limit | `2` (adjust per hardware) |
-| `memory` | Memory limit | `512M` (adjust per sampling rate) |
+| Item | Description | Notes |
+|------|-------------|-------|
+| `network_mode: host` | Use host network stack | Required for WEDA Node (NATS) communication |
+| `privileged: true` | Full device access | Required for SUSI Driver and DAQ character devices |
+| `pid: host` | Share host PID namespace | Required for DAQNavi driver interaction |
+| `devices` | DAQ character device mappings | Add or remove `/dev/daqN` entries to match connected hardware |
+| `volumes` (config) | Bind-mount configuration files | Edit files on the host; restart container to apply |
+| `volumes` (weda-data) | Persist device registration | Preserve across container restarts and upgrades |
+| `restart: unless-stopped` | Auto-restart policy | Container restarts after crash or host reboot |
 
 ### Device Mappings for DAQ Devices
 
@@ -385,259 +401,4 @@ services:
     restart: unless-stopped
 ```
 
-```yaml
-version: '3.8'
-
-services:
-  daq-collector:
-    image: daq-data-collector:latest
-    container_name: daq-collector
-    
-    # 网络配置
-    network_mode: "host"              # 使用主机网络，便于访问 NATS
-    
-    # 卷挂载（设备状态持久化）
-    volumes:
-      - ./weda-data:/app/weda-data    # 保存注册信息
-      - ./logs:/app/logs              # 日志目录
-    
-    # 环境变量
-    environment:
-      - ASPNETCORE_URLS=http://+:5000
-      - LOG_LEVEL=Information
-    
-    # 重启策略
-    restart: unless-stopped
-    
-    # 资源限制
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 512M
-        reservations:
-          cpus: '1'
-          memory: 256M
-```
-
-### 关键配置项
-
-| 项目 | 说明 | 建议值 |
-|------|------|---------|
-| `network_mode` | 网络模式 | `host`（便于 NATS 通信）|
-| `volumes` | 挂载卷 | 挂载 `weda-data` 保存状态 |
-| `restart` | 重启策略 | `unless-stopped`（自动重启）|
-| `cpus` | CPU 限制 | `2`（根据硬件调整）|
-| `memory` | 内存限制 | `512M`（根据采样率调整）|
-
-### 调整内存限制
-
-根据采样率和采集间隔调整内存：
-
-| 采样率 | 采集间隔 | 推荐内存 |
-|--------|---------|---------|
-| 1000 Hz | 1 秒 | 256M |
-| 2500 Hz | 1 秒 | 512M |
-| 5000 Hz | 1 秒 | 1GB |
-| 10000 Hz | 1 秒 | 2GB |
-
----
-
-## 部署步骤总结
-
-### 1. 准备镜像
-
-选择以下任一方式获取镜像：
-
-**方式 A**（推荐生产环境）：
-```bash
-docker pull harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
-```
-
-**方式 B**（本地构建）：
-```bash
-cd /home/advantech/vincent/edge_subnode
-docker buildx build --platform linux/arm64 -f examples/daq-data-collector/Dockerfile -t daq-data-collector:latest --load .
-```
-
-### 2. 准备配置文件
-
-在设备上创建部署目录并准备配置：
-
-```bash
-mkdir -p /opt/daq-collector
-cd /opt/daq-collector
-
-# 编辑 appsettings.json
-nano appsettings.json
-# 修改 Nats.Url，例如：
-# "Nats": { "Url": "nats://192.168.1.100:4222" }
-
-# 编辑 devicecfg.json（可选）
-nano devicecfg.json
-# 调整采样参数和特征启用
-```
-
-### 3. 启动容器
-
-```bash
-docker compose up -d
-```
-
-### 4. 验证运行
-
-```bash
-# 查看容器状态
-docker compose ps
-
-# 查看日志
-docker compose logs -f
-
-# 看到 "Device initialized successfully" 即表示成功
-```
-
-### 5. 常见操作
-
-```bash
-# 查看实时日志
-docker compose logs -f daq-collector
-
-# 停止容器
-docker compose stop
-
-# 启动容器
-docker compose start
-
-# 重启容器
-docker compose restart
-
-# 删除容器
-docker compose down
-
-# 删除容器和卷
-docker compose down -v
-```
-
----
-
-## 故障排查
-
-### 镜像加载失败
-
-**错误信息**：
-```
-Docker daemon not running
-Unable to locate image
-```
-
-**解决方案**：
-1. 确保 Docker 已启动
-2. 确保镜像文件正确或网络可连接 Harbor
-3. 检查镜像格式是否正确
-
-```bash
-# 验证镜像
-docker images
-docker inspect daq-data-collector:latest
-```
-
-### 容器启动失败
-
-**错误信息**：
-```
-docker compose up -d
-ERROR: Service 'daq-collector' failed to start
-```
-
-**解决方案**：
-1. 查看详细日志
-   ```bash
-   docker compose logs
-   ```
-2. 检查配置文件格式
-3. 验证 NATS 连接
-
-### 性能问题（CPU 或内存过高）
-
-**排查步骤**：
-1. 检查采样率设置（降低采样率）
-2. 调整内存限制
-3. 查看日志确认特征提取是否正常
-
-```bash
-# 查看资源使用
-docker stats daq-collector
-```
-
-### 数据采集停止
-
-**可能原因**：
-- DAQ 硬件断开连接
-- 驱动程序问题
-- NATS 连接丢失
-
-**解决方案**：
-1. 检查硬件连接
-2. 重启容器
-3. 查看日志确认错误
-
-```bash
-docker compose restart
-docker compose logs -f
-```
-
----
-
-## 高级配置
-
-### 多容器部署
-
-如果需要在同一主机上部署多个 DAQ 收集器：
-
-```yaml
-version: '3.8'
-
-services:
-  daq-collector-1:
-    image: daq-data-collector:latest
-    container_name: daq-collector-1
-    volumes:
-      - ./data-1:/app/weda-data
-    environment:
-      - DEVICE_CONFIG=devicecfg-device1.json
-    restart: unless-stopped
-
-  daq-collector-2:
-    image: daq-data-collector:latest
-    container_name: daq-collector-2
-    volumes:
-      - ./data-2:/app/weda-data
-    environment:
-      - DEVICE_CONFIG=devicecfg-device2.json
-    restart: unless-stopped
-```
-
-### 与 NATS 容器共同部署
-
-```yaml
-version: '3.8'
-
-services:
-  nats:
-    image: nats:latest
-    ports:
-      - "4222:4222"
-    restart: unless-stopped
-
-  daq-collector:
-    image: daq-data-collector:latest
-    container_name: daq-collector
-    depends_on:
-      - nats
-    environment:
-      - NATS_URL=nats://nats:4222
-    volumes:
-      - ./weda-data:/app/weda-data
-    restart: unless-stopped
-```
 
