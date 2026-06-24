@@ -122,7 +122,7 @@ public class DeviceConfiguration
     public void InitializeDtdl(string? basePath = null, ILogger? logger = null)
     {
         // Idempotency check: Skip if DTDL already initialized
-        if (_dtdlInitialized)
+        if (_dtdlInitialized && DtdlInterface != null)
         {
             logger?.LogDebug("DTDL already initialized for device '{DeviceName}', skipping", DeviceName);
             return;

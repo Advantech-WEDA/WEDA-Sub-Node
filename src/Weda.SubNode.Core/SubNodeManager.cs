@@ -578,8 +578,6 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         var hasDtmiDelta = validationResults.Values.Any(r => r.HasDtmiDelta) ||
                           applyResults.Values.Any(r => r.HasDtmiDelta);
 
-        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
-
         // Re-upload configurations if DTMI delta detected
         if (hasDtmiDelta)
         {
@@ -588,6 +586,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             var configurations = new DeviceConfigurations(devices);
             await UploadDeviceConfigurationsAsync(configurations, default);
         }
+        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
 
         _logger.LogInformation("DeviceConfig update transaction completed successfully for {Count} device(s)",
             devicesToUpdate.Count);
