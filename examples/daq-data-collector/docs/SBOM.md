@@ -43,7 +43,7 @@ Packages declared directly in `daq-data-collector.csproj`.
 
 | Package | Version | Source | Purpose | License |
 |---|---|---|---|---|
-| Advantech.Edge | 2.0.2-rc7 | nuget.org | Advantech DAQ hardware abstraction | Proprietary |
+| Advantech.Edge | >= 2.0.2-rc6 | nuget.org | Advantech DAQ hardware abstraction | Proprietary |
 | MathNet.Numerics | 5.0.0 | nuget.org | Signal processing / PHM feature computation | MIT |
 | Serilog | 4.1.0 | nuget.org | Structured logging core | Apache-2.0 |
 | Serilog.Extensions.Logging | 8.0.0 | nuget.org | Microsoft.Extensions.Logging bridge | Apache-2.0 |
@@ -58,9 +58,9 @@ Packages resolved at restore time via `project.assets.json`. All come from nuget
 
 ### 4.1 Advantech / Internal
 
-| Package | Version | License |
-|---|---|---|
-| Advantech.Edge | 2.0.2-rc7 | Proprietary |
+| Package | Version | Source | License |
+|---|---|---|---|
+| Advantech.Edge | >= 2.0.2-rc6 | nuget.org | Proprietary |
 
 ### 4.2 NATS Messaging
 
@@ -271,7 +271,7 @@ These files are not compiled into the binary but are required at runtime.
 
 ## 10. Notes
 
-- `Advantech.Edge 2.0.2-rc7` is published on **nuget.org** and can be restored directly from there. The `local_repo` source in `nuget.config` may still be used for offline or pre-release scenarios but is not required for this version.
+- `Advantech.Edge >= 2.0.2-rc6` is available on **nuget.org** and can be restored directly from there without additional credentials.
 - The application is compiled as a **self-contained** .NET binary (`--self-contained true`). The .NET runtime is bundled inside the Docker image layer rather than installed separately on the host.
 - SUSI and DAQNavi libraries are **host-injected** and are not part of the container image itself; the SBOM entry reflects a runtime dependency, not a build artifact.
 - The `gpgv` APT package is explicitly pinned to `2.4.4-2ubuntu17.4` in the Dockerfile to address a known CVE present in the base Ubuntu Noble image at the time of build.

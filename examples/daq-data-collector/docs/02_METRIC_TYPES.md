@@ -50,7 +50,27 @@ Each Sensor in `devicecfg.json` has the following structure:
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `DaqModuleDeviceNumber` | int | DAQ module device number | 0 |
+| `DaqModuleDeviceNumber` | int | DAQ module device number (see below) | 0 |
+
+To find the correct value, run the following command on the device:
+
+```bash
+sudo /opt/advantech/tools/dndev
+```
+
+Example output:
+
+```
+DAQNavi devices list in system:
+ 0, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-751,BID#1"
+ 1, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-815,BID#2"
+ 2, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-821,BID#3"
+ 3, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-801,BID#4"
+```
+
+The leftmost number is the `DaqModuleDeviceNumber`. Set it to the index of the target DAQ module (e.g., `3` for iDAQ-801 in the example above).
+
+> **Note — Analog channel**: The collector currently reads **channel 0 (X-axis) only**. This is hard-coded in `DaqCollector.cs` and is designed for single-axis accelerometers. Multi-channel support is not available in this version.
 
 ### Properties - Collection Parameters
 

@@ -44,6 +44,24 @@ nano appsettings.json
    - **New Device**: Set a unique name, e.g., `daq-collector-Device-01`
    - **Already Registered**: Do not modify the `weda-data/` directory to preserve registration info
 
+3. **DAQ Module Device Number** - `DeviceCommunication.DaqModuleDeviceNumber` in `devicecfg.json`
+
+   Run the following command on the device to list available DAQ modules:
+   ```bash
+   sudo /opt/advantech/tools/dndev
+   ```
+   Example output:
+   ```
+   DAQNavi devices list in system:
+    0, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-751,BID#1"
+    1, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-815,BID#2"
+    2, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-821,BID#3"
+    3, USB series\iDAQ-934 Chassis, BID#0\"iDAQ-801,BID#4"
+   ```
+   Set `DaqModuleDeviceNumber` to the leftmost index of the target module (e.g., `3` for iDAQ-801).
+
+   > **Note**: The collector reads **channel 0 (X-axis) only** — this is hard-coded and not configurable.
+
 **Optional Adjustments - Collection Parameters**:
 
 Location: `DeviceConfigs.UniaxialVibrationDeviceConfig.Properties`

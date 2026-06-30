@@ -79,7 +79,7 @@ docker save -o daq-data-collector-latest.tar daq-data-collector:latest
 ```bash
 # Using scp
 cd /home/advantech/vincent/edge_subnode/examples/daq-data-collector
-scp -r daq-data-collector-latest.tar docker-compose.yml appsettings.json devicecfg.json ubuntu@192.168.1.100:~/
+scp -r daq-data-collector-latest.tar docker-compose.yml appsettings.json systemcfg.json devicecfg.json customcfg.json ubuntu@192.168.1.100:~/
 ```
 
 **Deploy on Device**:
@@ -90,7 +90,7 @@ docker load -i ~/daq-data-collector-latest.tar
 
 # Prepare deployment directory
 mkdir -p /opt/daq-collector
-mv ~/docker-compose.yml ~/appsettings.json ~/devicecfg.json /opt/daq-collector/
+mv ~/docker-compose.yml ~/appsettings.json ~/systemcfg.json ~/devicecfg.json ~/customcfg.json /opt/daq-collector/
 
 # Start container
 cd /opt/daq-collector
@@ -108,7 +108,7 @@ docker compose up -d
 ```yaml
 services:
   daq-data-collector:
-    image: daq-data-collector:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-data-collector
     privileged: true          # Required for SUSI Driver hardware access
     pid: host
@@ -121,6 +121,7 @@ services:
         max-file: "3"
 
     # DAQ device character devices from host
+    # To discover available DAQ devices, run: find /dev -maxdepth 1 -name 'daq*' | sort
     devices:
       - /dev/daq0:/dev/daq0
       - /dev/daq1:/dev/daq1
@@ -138,11 +139,13 @@ services:
       # Persist device registration state
       - ./weda-data:/app/.weda
 
-      # Advantech SUSI Driver (host-mounted, read-only)
+      # Advantech ARM64 SUSI Driver (host-mounted, read-only)
+      - /etc/board:/etc/board:ro
       - /usr/lib/Advantech/:/usr/lib/Advantech/:ro
       - /lib/libSUSI-4.00.so:/lib/libSUSI-4.00.so:ro
       - /lib/libSUSI-4.00.so.1:/lib/libSUSI-4.00.so.1:ro
       - /lib/libSUSI-4.00.so.1.0.0:/lib/libSUSI-4.00.so.1.0.0:ro
+      - /lib/libjansson.a:/lib/libjansson.a:ro
       - /lib/libjansson.so:/lib/libjansson.so:ro
       - /lib/libjansson.so.4:/lib/libjansson.so.4:ro
       - /lib/libjansson.so.4.11.0:/lib/libjansson.so.4.11.0:ro
@@ -150,6 +153,7 @@ services:
       - /lib/libSusiIoT.so.1.0.0:/lib/libSusiIoT.so.1.0.0:ro
 
       # Advantech DAQNavi resources
+      - /home/advantech:/app/advantech
       - /var/lib/daq/:/var/lib/daq/
       - /opt/advantech/:/opt/advantech/
 ```
@@ -178,6 +182,8 @@ devices:
   # - /dev/daq0:/dev/daq0
   # - /dev/daq1:/dev/daq1
   # - /dev/daq2:/dev/daq2
+  # - /dev/daq3:/dev/daq3
+  # - /dev/daq255:/dev/daq255
 ```
 
 **Key Points**:
@@ -187,7 +193,7 @@ devices:
   ```bash
   find /dev -maxdepth 1 -name 'daq*' | sort
   ```
-- Map only the DAQ devices that your application needs
+- Uncomment and add only the DAQ devices that your application needs
 - Container must run with appropriate permissions (see `privileged: true` in docker-compose.yml)
 
 ### Memory Limit Adjustment
@@ -200,6 +206,16 @@ Adjust memory based on sampling rate and collection interval:
 | 2500 Hz | 1 second | 512M |
 | 5000 Hz | 1 second | 1GB |
 | 10000 Hz | 1 second | 2GB |
+
+Add `mem_limit` under the service in `docker-compose.yml` to enforce the limit:
+
+```yaml
+services:
+  daq-data-collector:
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
+    mem_limit: 512m      # Adjust based on sampling rate — see table above
+    ...
+```
 
 ---
 
