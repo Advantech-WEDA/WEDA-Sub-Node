@@ -1,9 +1,6 @@
 services:
   daq-feature-proxy:
-    build:
-      context: ../..
-      dockerfile: examples/daq-feature-proxy/Dockerfile
-    image: daq-feature-proxy:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-feature-proxy:latest
     container_name: daq-feature-proxy
     network_mode: host
     restart: unless-stopped
