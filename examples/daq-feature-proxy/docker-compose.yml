@@ -1,6 +1,6 @@
 services:
   daq-feature-proxy:
-    image: harbor.arfa.wise-paas.com/edge-coa/edgenode/main/daq-feature-proxy:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-feature-proxy:latest
     container_name: daq-feature-proxy
     network_mode: host
     restart: unless-stopped

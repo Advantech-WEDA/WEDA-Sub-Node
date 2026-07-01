@@ -1,6 +1,6 @@
 services:
   daq-data-collector:
-    image: harbor.arfa.wise-paas.com/edge-coa/edgenode/main/daq-data-collector:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-data-collector
     privileged: true
     pid: host
