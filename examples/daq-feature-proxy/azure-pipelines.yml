@@ -11,8 +11,9 @@ trigger:
 
 variables:
   CONTAINER_REGISTRY_SERVICE_CONNECTION: 'Edge COA Harbor'
+  CONTAINER_NAME: 'edgenode'
   REGISTRY_HOST: 'harbor.arfa.wise-paas.com'
-  IMAGE_REPOSITORY: 'edge-coa/daq-feature-proxy'
+  IMAGE_REPOSITORY: 'edge-coa/$(CONTAINER_NAME)/$(Build.SourceBranchName)/daq-feature-proxy'
   IMAGE_TAG: '$(Build.BuildNumber)'
   IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL: 'CRITICAL,HIGH'
 
