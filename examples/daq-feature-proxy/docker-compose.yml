@@ -1,0 +1,17 @@
+services:
+  daq-feature-proxy:
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-feature-proxy:latest
+    container_name: daq-feature-proxy
+    network_mode: host
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./weda-data:/app/.weda
