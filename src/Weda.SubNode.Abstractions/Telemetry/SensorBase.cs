@@ -75,7 +75,7 @@ public static class SensorBase
                 ["fields"] = new JsonArray
                 {
                     Field("enabled",           "boolean", required: false),
-                    Field("interval",          "integer", required: false, description: "Sampling interval (ms)."),
+                    Field("interval",          "integer", required: false, minimum: 1, description: "Sampling interval (ms)."),
                     Field("unit",              "string",  required: false),
                     Field("transformPipeline", PipelineListDtmi, required: false),
                     Field("dspPipeline",       PipelineListDtmi, required: false),
@@ -90,7 +90,7 @@ public static class SensorBase
                 ["fields"] = new JsonArray
                 {
                     Field("enabled",  "boolean", required: false),
-                    Field("interval", "integer", required: false, description: "Recording interval (ms)."),
+                    Field("interval", "integer", required: false, minimum: 1, description: "Recording interval (ms)."),
                 },
             },
 
@@ -120,6 +120,7 @@ public static class SensorBase
 
     private static JsonObject Field(
         string name, string schema, bool required,
+        int? minimum = null,
         string? description = null)
     {
         var f = new JsonObject
@@ -128,6 +129,7 @@ public static class SensorBase
             ["name"] = name,
         };
         if (description is not null) f["description"] = description;
+        if (minimum.HasValue) f["minimum"] = minimum.Value;
         f["schema"]   = schema;
         f["required"] = required;
         f["writable"] = true;

@@ -145,6 +145,7 @@ public static class DeviceConfigurationMappingExtensions
         }
 
         if (sensorTypes.Count > 0) AddIfNew(SensorBase.GetInterface());
+        if (deviceTypes.Count > 0) AddIfNew(DeviceBaseDtdl.GetInterface());
         foreach (var d in deviceTypes) AddIfNew(d.Schema);
         foreach (var s in sensorTypes) AddIfNew(s.Schema);
         foreach (var t in transforms) AddIfNew(t.ParameterSchema);
@@ -191,6 +192,16 @@ public static class DeviceConfigurationMappingExtensions
             .Select(d => new CatalogRefDto(d.Name, ExtractDtmi(d.Schema)))
             .ToList();
 
+        var deviceConfigs = configs
+            .Select(cfg =>
+            {
+                var reg = DeviceTypeRegistry.Get(cfg.DeviceTypeName ?? "");
+                return reg is null ? null : new CatalogRefDto(cfg.DeviceName, reg.Dtmi);
+            })
+            .Where(r => r is not null)
+            .Cast<CatalogRefDto>()
+            .ToList();
+
         return new DeviceCapDto(
             Manufacturer: subNodeInfo.Manufacturer,
             Model: subNodeInfo.Model,
@@ -203,7 +214,10 @@ public static class DeviceConfigurationMappingExtensions
             SensorTypes: sensorTypeRefs,
             Transforms: transforms,
             DspFilters: dspFilters,
-            Commands: commands);
+            Commands: commands)
+        {
+            DeviceConfigs = deviceConfigs
+        };
     }
 
     private static SensorDto ToSensorDto(this Sensor sensor)
