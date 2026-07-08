@@ -25,7 +25,8 @@ sudo /opt/advantech/tools/dndev
 
 ### 2. Prepare Files
 
-Copy the following file templates and upload to device directory:
+The image ships with default configuration files baked in (`appsettings.json`, `systemcfg.json`, `devicecfg.json`, `customcfg.json`), so you only strictly need `docker-compose.yml` to start the container. However, you'll need to customize at least `systemcfg.json` and `devicecfg.json` (see Step 4), so upload host copies of the templates and mount them over the ones in the image:
+
 - `docker-compose.yml`
 - `appsettings.json` — Serilog (logging) settings only; not used for WedaNode/NATS connection
 - `systemcfg.json` — WedaNode connection settings
@@ -38,6 +39,8 @@ mkdir -p /opt/Advantech/data-collector
 cd /opt/Advantech/data-collector
 # Upload files via scp, rsync, or other method
 ```
+
+Then edit `docker-compose.yml` and uncomment the four config lines under `volumes:` (`./devicecfg.json:/app/devicecfg.json`, etc.) so your host files override the ones baked into the image.
 
 > **Note**: A `weda-data/` directory is created automatically on first `docker compose up` to persist device registration state — you don't need to create it manually.
 
@@ -54,7 +57,7 @@ If your device cannot reach the registry, see [03_DOCKER_DEPLOY.md](03_DOCKER_DE
 
 ### 4. Edit Configuration
 
-Edit `systemcfg.json` and `devicecfg.json` (both uploaded in Step 2). `appsettings.json` only controls logging and normally needs no changes.
+Edit `systemcfg.json` and `devicecfg.json` (both uploaded in Step 2 — make sure their `volumes:` mounts are uncommented in `docker-compose.yml`, otherwise your edits won't take effect). `appsettings.json` only controls logging and normally needs no changes.
 
 ```bash
 nano systemcfg.json

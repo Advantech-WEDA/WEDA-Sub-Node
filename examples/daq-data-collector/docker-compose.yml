@@ -25,11 +25,14 @@ services:
       # - /dev/daq255:/dev/daq255
 
     volumes:
-      # Configuration - .json must be in same directory as docker-compose.yml
-      - ./devicecfg.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      # Configuration files are baked into the image at build time.
+      # Uncomment the lines below to override them with host files instead
+      # (useful for editing without rebuilding the image, or per-device configs).
+      # .json must be in same directory as docker-compose.yml
+      # - ./devicecfg.json:/app/devicecfg.json
+      # - ./systemcfg.json:/app/systemcfg.json
+      # - ./customcfg.json:/app/customcfg.json
+      # - ./appsettings.json:/app/appsettings.json
 
       # Persist .weda directory for device registration
       - ./weda-data:/app/.weda

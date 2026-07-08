@@ -58,6 +58,12 @@ COPY --from=build /app/publish/ ./
 # Copy entrypoint script
 COPY examples/daq-data-collector/entrypoint.sh /app/entrypoint.sh
 
+# Copy default configuration files (can be overridden via docker-compose.yml volume mounts)
+COPY examples/daq-data-collector/devicecfg.json /app/devicecfg.json
+COPY examples/daq-data-collector/systemcfg.json /app/systemcfg.json
+COPY examples/daq-data-collector/customcfg.json /app/customcfg.json
+COPY examples/daq-data-collector/appsettings.json /app/appsettings.json
+
 # Ensure executables have execute permission
 RUN chmod +x daq-data-collector /app/entrypoint.sh
 

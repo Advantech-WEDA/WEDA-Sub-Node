@@ -133,11 +133,14 @@ services:
       # - /dev/daq255:/dev/daq255
 
     volumes:
-      # Configuration files (read-only)
-      - ./devicecfg.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      # Configuration files are baked into the image at build time.
+      # Uncomment the lines below to override them with host files instead
+      # (useful for editing without rebuilding the image, or per-device configs).
+      # .json must be in same directory as docker-compose.yml
+      # - ./devicecfg.json:/app/devicecfg.json
+      # - ./systemcfg.json:/app/systemcfg.json
+      # - ./customcfg.json:/app/customcfg.json
+      # - ./appsettings.json:/app/appsettings.json
 
       # Persist device registration state
       - ./weda-data:/app/.weda
@@ -393,10 +396,10 @@ services:
     image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-collector-1
     volumes:
-      - ./devicecfg-device1.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      - ./devicecfg-device1.json:/app/devicecfg.json
+      - ./systemcfg.json:/app/systemcfg.json
+      - ./customcfg.json:/app/customcfg.json
+      - ./appsettings.json:/app/appsettings.json
       - ./data-1:/app/.weda
     restart: unless-stopped
 
@@ -404,10 +407,10 @@ services:
     image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-collector-2
     volumes:
-      - ./devicecfg-device2.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      - ./devicecfg-device2.json:/app/devicecfg.json
+      - ./systemcfg.json:/app/systemcfg.json
+      - ./customcfg.json:/app/customcfg.json
+      - ./appsettings.json:/app/appsettings.json
       - ./data-2:/app/.weda
     restart: unless-stopped
 ```
@@ -434,10 +437,10 @@ services:
     depends_on:
       - nats
     volumes:
-      - ./devicecfg.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro   # set WedaNode.Url to "nats:4222" to reach the nats service by name
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      - ./devicecfg.json:/app/devicecfg.json
+      - ./systemcfg.json:/app/systemcfg.json   # set WedaNode.Url to "nats:4222" to reach the nats service by name
+      - ./customcfg.json:/app/customcfg.json
+      - ./appsettings.json:/app/appsettings.json
       - ./weda-data:/app/.weda
     restart: unless-stopped
 ```
