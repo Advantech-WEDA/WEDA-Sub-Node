@@ -3,32 +3,65 @@
 ## Prerequisites
 
 - Device has Docker Compose installed
-- Network connectivity to NATS server
+- Network connectivity to the WedaNode's NATS endpoint (WedaNode communicates over the NATS protocol — this is the same host/port you'll set as `WedaNode.Url` below, not a separate standalone NATS server)
+- Read/pull access to the private image registry `harbor.arfa.wise-paas.com` — confirm you can `docker login` before starting
 - DAQ hardware device (iDAQ-801+B10BG3 or compatible) properly connected
-- Required DAQ driver software installed on device
+- Required DAQ driver software (DAQNavi + SUSI) installed on device — verified in Step 1 below
+- (Optional, for the telemetry verification step) [NATS CLI](https://github.com/nats-io/natscli) installed
 
 ## Quick Start
 
-### 1. Prepare Files
+### 1. Verify DAQNavi Driver is Installed
 
-Copy the following file templates and upload to device directory:
-- `docker-compose.yml`
-- `appsettings.json`
-- `systemcfg.json`
-- `devicecfg.json`
-- `customcfg.json`
+Most Advantech iDAQ devices ship with DAQNavi pre-installed. Confirm before proceeding:
 
-For example, using `/opt/daq-collector`:
 ```bash
-mkdir -p /opt/daq-collector
-cd /opt/daq-collector
+sudo /opt/advantech/tools/dndev
+```
+
+- **Lists your DAQ module(s)** (e.g., `DAQNavi devices list in system: ...`) → DAQNavi is ready, continue to Step 2.
+- **Command not found, or no devices listed** → DAQNavi isn't installed (or the hardware isn't detected). Follow [00_DAQNAVI_DRIVER_INSTALL.md](00_DAQNAVI_DRIVER_INSTALL.md) to install the driver for your architecture, then come back here.
+  > **Note**: ARM driver requests can take **3-5 business days** to process — plan for this before committing to a deployment schedule.
+
+### 2. Prepare Files
+
+The image ships with default configuration files baked in (`appsettings.json`, `systemcfg.json`, `devicecfg.json`, `customcfg.json`), so you only strictly need `docker-compose.yml` to start the container. However, you'll need to customize at least `systemcfg.json` and `devicecfg.json` (see Step 4), so upload host copies of the templates and mount them over the ones in the image:
+
+- `docker-compose.yml`
+- `appsettings.json` — Serilog (logging) settings only; not used for WedaNode/NATS connection
+- `systemcfg.json` — WedaNode connection settings
+- `devicecfg.json` — device identity and DAQ collection settings
+- `customcfg.json` — optional free-form config for user-defined settings (loaded into a `CustomConfig` section); this example doesn't use it, so the shipped empty `{}` is expected — leave it as-is
+
+For example, using `/opt/Advantech/data-collector`:
+```bash
+mkdir -p /opt/Advantech/data-collector
+cd /opt/Advantech/data-collector
 # Upload files via scp, rsync, or other method
 ```
 
-### 2. Edit Configuration
+Then edit `docker-compose.yml` and uncomment the four config lines under `volumes:` (`./devicecfg.json:/app/devicecfg.json`, etc.) so your host files override the ones baked into the image.
+
+> **Note**: A `weda-data/` directory is created automatically on first `docker compose up` to persist device registration state — you don't need to create it manually.
+
+### 3. Log In and Pull the Image
+
+The image is hosted on a private registry. Log in once per device, then pull:
 
 ```bash
-nano appsettings.json
+docker login harbor.arfa.wise-paas.com
+docker compose pull
+```
+
+If your device cannot reach the registry, see [03_DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) for offline (tar-based) deployment instead.
+
+### 4. Edit Configuration
+
+Edit `systemcfg.json` and `devicecfg.json` (both uploaded in Step 2 — make sure their `volumes:` mounts are uncommented in `docker-compose.yml`, otherwise your edits won't take effect). `appsettings.json` only controls logging and normally needs no changes.
+
+```bash
+nano systemcfg.json
+nano devicecfg.json
 ```
 
 **Required Changes**:
@@ -46,7 +79,7 @@ nano appsettings.json
 
 3. **DAQ Module Device Number** - `DeviceCommunication.DaqModuleDeviceNumber` in `devicecfg.json`
 
-   Run the following command on the device to list available DAQ modules:
+   Run the following command **on the HOST** (not inside the container — DAQNavi's `dndev` tool reads hardware state that's only set up on the host) to list available DAQ modules:
    ```bash
    sudo /opt/advantech/tools/dndev
    ```
@@ -61,6 +94,8 @@ nano appsettings.json
    Set `DaqModuleDeviceNumber` to the leftmost index of the target module (e.g., `3` for iDAQ-801).
 
    > **Note**: The collector reads **channel 0 (X-axis) only** — this is hard-coded and not configurable.
+
+   > **About `docker-compose.yml`'s `devices:` block**: DAQNavi accesses hardware through `/dev/daqN` character device nodes — the `/opt/advantech/` and `/var/lib/daq/` mounts alone are not sufficient. On the **host**, run `find /dev -maxdepth 1 -name 'daq*' | sort` to see which nodes actually exist, then uncomment the matching `- /dev/daqN:/dev/daqN` lines in `docker-compose.yml` (add more lines if your system exposes additional module indices). The index shown by `find` should line up with the `DaqModuleDeviceNumber` you set above.
 
 **Optional Adjustments - Collection Parameters**:
 
@@ -101,21 +136,15 @@ docker compose down
 docker compose up -d
 ```
 
-### 3. Start Container
+### 5. Start Container
 
 ```bash
 docker compose up -d
 ```
 
-### 4. Verify Deployment Status
+### 6. Verify Deployment Status
 
 See the \"Check Installation Status\" section below
-
-### 5. Stop Container
-
-```bash
-docker compose down
-```
 
 ---
 
@@ -184,7 +213,33 @@ SUBJECT=\"devices/267492018484150272/telemetry\"
 nats sub \"$SUBJECT\"
 ```
 
+### 4. Stop / Restart Container
+
+```bash
+# Stop
+docker compose down
+
+# Restart after config changes (no rebuild needed)
+docker compose up -d
+```
+
 ## Troubleshooting
+
+### Image Pull Failed / Unauthorized
+
+**Check items**:
+```bash
+# Confirm login
+docker login harbor.arfa.wise-paas.com
+
+# Retry pull with verbose output
+docker compose pull
+```
+
+If this fails, verify:
+- Registry credentials are correct and not expired
+- Device has network access to `harbor.arfa.wise-paas.com`
+- If the device cannot reach the registry at all, use the offline (tar-based) deployment method in [03_DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) instead
 
 ### Container Failed to Start
 
@@ -214,11 +269,12 @@ docker compose logs
 
 **Check items**:
 ```bash
-# Test NATS connection
-telnet 192.168.1.100 4222
+# Test connectivity to the port configured in systemcfg.json's WedaNode.Url
+# (example below uses 4224 — replace with your actual configured port)
+telnet 192.168.1.100 4224
 ```
 
 If unable to connect, verify:
-- NATS server is running
+- WedaNode is running
 - Firewall rules allow connection
-- IP address and port are correct
+- IP address and port match `WedaNode.Url` in `systemcfg.json`

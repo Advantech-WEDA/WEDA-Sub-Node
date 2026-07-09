@@ -27,14 +27,20 @@ Each Sensor in `devicecfg.json` has the following structure:
 
 | Field | Description |
 |-------|-------------|
-| `Name` | Unique sensor identifier name |
-| `SensorGroup` | Sensor group (usually `AI` for analog input) |
+| `Name` | Sensor identifier. For the raw payload sensor and the 10 standard PHM/SYS feature sensors below, this **must exactly match** one of the reserved names (case-insensitive) — see warning below |
+| `SensorGroup` | Sensor group (usually `AI` for analog input; `SYS` for system metadata sensors) |
 | `Parameters.FeatureName` | Feature name (select from available features list) |
 | `Report.Enabled` | Whether this sensor is enabled |
-| `Report.Interval` | Report interval (milliseconds) |
+| `Report.Interval` | Report interval (milliseconds) — must be a positive integer multiple of `ObservationWindowSeconds × 1000`, otherwise **the container fails to start** (see below) |
 | `SensorInfo.Schema` | Expected data type (`double`, `long`, `string`, `boolean`, `integer`) |
 | `SensorInfo.Description` | Sensor description |
-| `SensorInfo.DisplayName` | Sensor display name |
+| `SensorInfo.DisplayName` | Sensor display name. **For the raw payload sensor only**, this field is load-bearing: it must contain the substring `Raw Vibration` (case-sensitive) — the pipeline uses this to locate the raw sensor, not `ResourceId` or `Name` |
+
+> ⚠️ **Reserved sensor `Name` values**: The raw payload sensor and the 10 standard feature sensors are matched by fixed, hardcoded names in the pipeline (`UniaxialVibrationDevice.ExtractPhmSensorMapping`). Renaming one **does not raise an error** — that sensor is silently excluded from the feature pipeline and simply stops reporting data.
+>
+> `timestamp_timestamp`, `device_time`, `x_axis_rms_mg`, `x_axis_peak_mg`, `x_axis_peak_to_peak_displacement`, `x_axis_oa_velocity`, `x_axis_deviation`, `x_axis_skewness`, `x_axis_kurtosis`, `x_axis_crest_factor`
+>
+> The raw payload sensor is identified differently: the pipeline looks for a sensor whose `SensorInfo.DisplayName` contains `Raw Vibration` — **not** by `Name` or `ResourceId`. If you customize the raw sensor's `DisplayName` (e.g., translating it), keep the substring `Raw Vibration` in it, or the feature extraction pipeline fails to start with `Raw DAQ payload sensor ('daqraw:vibration:payload') is required but not configured`.
 
 ---
 
@@ -52,7 +58,7 @@ Each Sensor in `devicecfg.json` has the following structure:
 |-----------|------|-------------|---------|
 | `DaqModuleDeviceNumber` | int | DAQ module device number (see below) | 0 |
 
-To find the correct value, run the following command on the device:
+To find the correct value, run the following command **on the HOST** (not inside the container — DAQNavi's `dndev` tool reads hardware state that's only set up on the host):
 
 ```bash
 sudo /opt/advantech/tools/dndev
@@ -88,7 +94,9 @@ The leftmost number is the `DaqModuleDeviceNumber`. Set it to the index of the t
 
 **Parameter Explanations**:
 - **AcquisitionRateHz**: Determines the highest detectable frequency (Nyquist limit = AcquisitionRateHz / 2). Set to at least 2× your highest target frequency.
-- **ObservationWindowSeconds**: Controls FFT frequency resolution (Δf = 1 / ObservationWindowSeconds). Set to at least 1 / lowest target frequency. `FrameSize` is auto-derived as `AcquisitionRateHz × ObservationWindowSeconds`. Per-sensor `Report.Interval` must be a positive integer multiple of `ObservationWindowSeconds × 1000 ms`.
+- **ObservationWindowSeconds**: Controls FFT frequency resolution (Δf = 1 / ObservationWindowSeconds). Set to at least 1 / lowest target frequency. `FrameSize` is auto-derived as `AcquisitionRateHz × ObservationWindowSeconds`.
+
+> ⚠️ **`Report.Interval` is validated at startup, not just a guideline**: every enabled sensor's `Report.Interval` (ms) must be a positive integer multiple of `ObservationWindowSeconds × 1000`. If it isn't, `UniaxialVibrationDevice` throws during initialization and **the container fails to start** — this also applies to configuration updates pushed from the cloud, which are rejected with a validation error instead of being applied.
 
 ---
 
@@ -202,7 +210,7 @@ The leftmost number is the `DaqModuleDeviceNumber`. Set it to the index of the t
 - **Data Type**: JSON string
 - **Description**: Complete JSON data from raw DAQ collection frame
 - **Application**: Internal trigger for `PhmFeatureTransform` — must remain enabled for the feature extraction pipeline to function
-- **Note**: Must have a fixed `ResourceId` (e.g., `"daqraw:vibration:payload"`) so the transform can locate the payload by ResourceId
+- **Note**: The pipeline locates this sensor by `SensorInfo.DisplayName` containing `Raw Vibration` (case-sensitive) — **not** by `ResourceId` or `Name`. Keep that substring in the `DisplayName` if you customize it (see the reserved-name warning above)
 
 **Configuration Example**:
 ```json

@@ -6,7 +6,7 @@
 
 ### Method A: Automatic Build with Azure Pipelines (Recommended for Production)
 
-Configuration file: `.azure-pipelines.yml`
+Configuration file: `azure-pipelines.yml`
 
 ```bash
 # Trigger build
@@ -120,21 +120,27 @@ services:
         max-size: "50m"
         max-file: "3"
 
-    # DAQ device character devices from host
-    # To discover available DAQ devices, run: find /dev -maxdepth 1 -name 'daq*' | sort
+    # DAQ device character devices from host — required for container access to DAQNavi hardware nodes.
+    # 1. Run this on the HOST first to see which daqN nodes actually exist:
+    #      find /dev -maxdepth 1 -name 'daq*' | sort
+    # 2. Uncomment the lines below that match the output (remove ones that don't exist,
+    #    add more if your system exposes additional module indices).
     devices:
-      - /dev/daq0:/dev/daq0
-      - /dev/daq1:/dev/daq1
-      - /dev/daq2:/dev/daq2
-      - /dev/daq3:/dev/daq3
-      - /dev/daq255:/dev/daq255
+      # - /dev/daq0:/dev/daq0
+      # - /dev/daq1:/dev/daq1
+      # - /dev/daq2:/dev/daq2
+      # - /dev/daq3:/dev/daq3
+      # - /dev/daq255:/dev/daq255
 
     volumes:
-      # Configuration files (read-only)
-      - ./devicecfg.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      # Configuration files are baked into the image at build time.
+      # Uncomment the lines below to override them with host files instead
+      # (useful for editing without rebuilding the image, or per-device configs).
+      # .json must be in same directory as docker-compose.yml
+      # - ./devicecfg.json:/app/devicecfg.json
+      # - ./systemcfg.json:/app/systemcfg.json
+      # - ./customcfg.json:/app/customcfg.json
+      # - ./appsettings.json:/app/appsettings.json
 
       # Persist device registration state
       - ./weda-data:/app/.weda
@@ -227,6 +233,7 @@ Choose one of the following methods:
 
 **Method A** (Recommended for production):
 ```bash
+docker login harbor.arfa.wise-paas.com
 docker pull harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
 ```
 
@@ -244,14 +251,14 @@ Create deployment directory and prepare configuration on device:
 mkdir -p /opt/daq-collector
 cd /opt/daq-collector
 
-# Edit appsettings.json
-nano appsettings.json
-# Modify Nats.Url, for example:
-# "Nats": { "Url": "nats://192.168.1.100:4222" }
+# Edit systemcfg.json — set the WedaNode connection URL
+nano systemcfg.json
+# "WedaNode": { "Url": "192.168.1.100:4224" }
 
-# Edit devicecfg.json (optional)
+# Edit devicecfg.json — SubNode.Name, DaqModuleDeviceNumber, sampling parameters, feature enablement
 nano devicecfg.json
-# Adjust sampling parameters and feature enablement
+
+# appsettings.json only controls logging (Serilog) and normally needs no changes
 ```
 
 ### 3. Start Container
@@ -314,6 +321,11 @@ Unable to locate image
 ```bash
 # Verify image
 docker images
+
+# Method A (pulled from Harbor): inspect the full registry-qualified tag
+docker inspect harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
+
+# Method B/C (local build): inspect the local tag instead
 docker inspect daq-data-collector:latest
 ```
 
@@ -331,7 +343,11 @@ ERROR: Service 'daq-collector' failed to start
    docker compose logs
    ```
 2. Verify configuration file format
-3. Test NATS connection
+3. Test connectivity to the port configured in `systemcfg.json`'s `WedaNode.Url`:
+   ```bash
+   # Example below uses 4224 — replace with your actual configured port
+   telnet 192.168.1.100 4224
+   ```
 
 ### Performance Issues (High CPU or Memory)
 
@@ -370,30 +386,40 @@ docker compose logs -f
 
 If deploying multiple DAQ collectors on same host:
 
+> **Note**: The app always reads a file literally named `devicecfg.json` inside the container — there is no `DEVICE_CONFIG` environment variable to select a different filename. To run multiple devices, give each container its own `devicecfg-deviceN.json` on the host and bind-mount it to the same `/app/devicecfg.json` path, as shown below. Each container also needs the other host mounts from the main `docker-compose.yml` (SUSI/DAQNavi library mounts, `devices:`, etc.), omitted here for brevity.
+
 ```yaml
 version: '3.8'
 
 services:
   daq-collector-1:
-    image: daq-data-collector:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-collector-1
     volumes:
-      - ./data-1:/app/weda-data
-    environment:
-      - DEVICE_CONFIG=devicecfg-device1.json
+      - ./devicecfg-device1.json:/app/devicecfg.json
+      - ./systemcfg.json:/app/systemcfg.json
+      - ./customcfg.json:/app/customcfg.json
+      - ./appsettings.json:/app/appsettings.json
+      - ./data-1:/app/.weda
     restart: unless-stopped
 
   daq-collector-2:
-    image: daq-data-collector:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-collector-2
     volumes:
-      - ./data-2:/app/weda-data
-    environment:
-      - DEVICE_CONFIG=devicecfg-device2.json
+      - ./devicecfg-device2.json:/app/devicecfg.json
+      - ./systemcfg.json:/app/systemcfg.json
+      - ./customcfg.json:/app/customcfg.json
+      - ./appsettings.json:/app/appsettings.json
+      - ./data-2:/app/.weda
     restart: unless-stopped
 ```
 
 ### Co-deployment with NATS Container
+
+> **Note**: There is no `NATS_URL` environment variable the app reads — the connection target is `WedaNode.Url` in `systemcfg.json` (bind-mounted like the other config files below).
+>
+> **Caveat**: The main `docker-compose.yml` runs `daq-collector` with `network_mode: host` for hardware access, and a host-networked container cannot resolve other Compose services by name (`nats`) — it would need the host's actual IP:port instead. The example below only works if `daq-collector` uses the default bridge network (i.e., drops `network_mode: host`), which also means it loses direct hardware device access. This pattern is useful for testing WedaNode/NATS communication without hardware attached — not for a real DAQ hardware deployment.
 
 ```yaml
 version: '3.8'
@@ -406,14 +432,16 @@ services:
     restart: unless-stopped
 
   daq-collector:
-    image: daq-data-collector:latest
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
     container_name: daq-collector
     depends_on:
       - nats
-    environment:
-      - NATS_URL=nats://nats:4222
     volumes:
-      - ./weda-data:/app/weda-data
+      - ./devicecfg.json:/app/devicecfg.json
+      - ./systemcfg.json:/app/systemcfg.json   # set WedaNode.Url to "nats:4222" to reach the nats service by name
+      - ./customcfg.json:/app/customcfg.json
+      - ./appsettings.json:/app/appsettings.json
+      - ./weda-data:/app/.weda
     restart: unless-stopped
 ```
 

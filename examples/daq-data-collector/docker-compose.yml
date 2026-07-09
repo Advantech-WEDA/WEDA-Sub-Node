@@ -12,20 +12,27 @@ services:
         max-size: "50m"
         max-file: "3"
     
-    # Device mappings for DAQ devices (e.g., /dev/daq0, /dev/daq1, etc.)
-    # Uncomment and add specific DAQ devices as needed
-    # To discover available DAQ devices, run: find /dev -maxdepth 1 -name 'daq*' | sort
+    # Device mappings for DAQ devices — required for the container to access DAQNavi /dev/daqN hardware nodes.
+    # 1. Run this on the HOST first to see which daqN nodes actually exist on this machine:
+    #      find /dev -maxdepth 1 -name 'daq*' | sort
+    # 2. Uncomment the lines below that match the output (remove ones that don't exist,
+    #    add more if your system exposes additional module indices).
     devices:
       # - /dev/daq0:/dev/daq0
       # - /dev/daq1:/dev/daq1
       # - /dev/daq2:/dev/daq2
-    
+      # - /dev/daq3:/dev/daq3
+      # - /dev/daq255:/dev/daq255
+
     volumes:
-      # Configuration - .json must be in same directory as docker-compose.yml
-      - ./devicecfg.json:/app/devicecfg.json:ro
-      - ./systemcfg.json:/app/systemcfg.json:ro
-      - ./customcfg.json:/app/customcfg.json:ro
-      - ./appsettings.json:/app/appsettings.json:ro
+      # Configuration files are baked into the image at build time.
+      # Uncomment the lines below to override them with host files instead
+      # (useful for editing without rebuilding the image, or per-device configs).
+      # .json must be in same directory as docker-compose.yml
+      # - ./devicecfg.json:/app/devicecfg.json
+      # - ./systemcfg.json:/app/systemcfg.json
+      # - ./customcfg.json:/app/customcfg.json
+      # - ./appsettings.json:/app/appsettings.json
 
       # Persist .weda directory for device registration
       - ./weda-data:/app/.weda
