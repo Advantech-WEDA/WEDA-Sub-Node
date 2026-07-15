@@ -10,8 +10,7 @@
     "MyFirstDevice": {
       "Enabled": true,
       "Dtdl": {
-        "AutoGenEnabled": false,
-        "DtdlPath": "examples/wise-4012-isensing/dtdl/wise-4012.json"
+        "AutoGenEnabled": true
       },
       "DeviceCommunication": {
         "BrokerUrl": "mqtt://172.16.8.122:1883",
@@ -23,7 +22,6 @@
         {
           "Name": "AI1",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "FieldName": "ai1"
           },
@@ -40,7 +38,6 @@
         {
           "Name": "AI2",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "FieldName": "ai2"
           },
@@ -57,7 +54,6 @@
         {
           "Name": "AI3",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "FieldName": "ai3"
           },
@@ -74,7 +70,6 @@
         {
           "Name": "AI4",
           "SensorGroup": "AI",
-          "Dtmi": "dtmi:advantech:EdgeSync:AI;1",
           "Parameters": {
             "FieldName": "ai4"
           },
@@ -91,7 +86,6 @@
         {
           "Name": "DO1",
           "SensorGroup": "DO",
-          "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
           "Parameters": {
             "FieldName": "do1"
           },
@@ -108,7 +102,6 @@
         {
           "Name": "DO2",
           "SensorGroup": "DO",
-          "Dtmi": "dtmi:advantech:EdgeSync:DO;1",
           "Parameters": {
             "FieldName": "do2"
           },

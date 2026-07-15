@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
@@ -24,6 +25,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogInput.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("ai.get")]
+[Display(Name = "Get Analog Input")]
 public class GetAnalogInputCommand : CommandData<GetAnalogInputParameters>
 {
 }
@@ -38,6 +40,7 @@ public class GetAnalogInputParameters
     /// If null or empty, the command applies to all devices that support analog input reading.
     /// </summary>
     [JsonPropertyName("deviceName")]
+    [Display(Name = "Target Device")]
     public string? DeviceName { get; init; }
 
     /// <summary>
@@ -45,5 +48,6 @@ public class GetAnalogInputParameters
     /// If empty, reads all available analog inputs.
     /// </summary>
     [JsonPropertyName("inputs")]
+    [Display(Name = "Input Names")]
     public string[] Inputs { get; init; } = [];
 }

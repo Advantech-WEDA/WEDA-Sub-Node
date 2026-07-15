@@ -206,17 +206,16 @@ telnet 192.168.1.100 502
 
 - **[wise-4012](../wise-4012/)** - Manual Context pattern version
 - **[wise-4012-isensing](../wise-4012-isensing/)** - iSensing diagnostic features
-- **[tutorials/](../../tutorials/)** - Learning examples with Mock Cloud
 
 ## Documentation
 
 - [Weda SubNode SDK Wiki](../../docs/wiki/en/README.md)
-- [Builder Pattern Guide](../../docs/wiki/en/02_core_concepts/wedaapplication_builder.md)
-- [DTDL Integration](../../docs/wiki/en/03_advanced/dtdl_integration.md)
+- [Start with Example](../../docs/wiki/en/02-getting-started/02-start-with-example.md)
+- [Configuration via Code](../../docs/wiki/en/04-sensor-configuration/configuration-via-code.md)
 
 ## Next Steps
 
-1. **Add Transform Pipeline**: See [tutorials/01-transform-dsp-config](../../tutorials/01-transform-dsp-config/)
-2. **Add DSP Filters**: See [tutorials/02-transform-dsp-programmatic](../../tutorials/02-transform-dsp-programmatic/)
+1. **Add Transform Pipeline**: See [Data Pipeline - Transformations](../../docs/wiki/en/05-data-pipeline/02-transformations.md)
+2. **Add DSP Filters**: See [Data Pipeline - DSP Filters](../../docs/wiki/en/05-data-pipeline/03-dsp-filters.md)
 3. **Multiple Devices**: Add more devices using `builder.AddDevice<T>()`
 4. **Custom Processing**: Override `OnDataReceived` in `MyFirstDevice.cs`

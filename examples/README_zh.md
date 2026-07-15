@@ -33,26 +33,18 @@
 - **功能**: 進階診斷、異常檢測
 - **使用案例**: 預測性維護
 
-## Examples vs Tutorials
+## 關於這些範例
 
-### Examples (本目錄)
 - **目的**: 真實世界整合場景
 - **環境**: 真實連線或真實硬體
 - **目標用戶**: 實作生產方案的開發者
 - **程式碼風格**: 生產就緒，實用導向
 
-### Tutorials (../tutorials/)
-- **目的**: 循序漸進學習，對應 wiki 文檔
-- **環境**: Mock Cloud + Simulators (無需硬體)
-- **目標用戶**: 學習 SDK 的開發者
-- **程式碼風格**: 註解豐富，教學導向
-
 ## 選擇正確的範例
 
 ### 用於學習
-1. 從 **[tutorials/](../tutorials/)** 開始了解基本概念
-2. 查看 **[wise-4012-builder](wise-4012-builder/)** 了解生產模式
-3. 研究真實硬體範例了解整合細節
+1. 查看 **[wise-4012-builder](wise-4012-builder/)** 了解生產模式
+2. 研究真實硬體範例了解整合細節
 
 ### 用於生產
 1. 使用 **[wise-4012-builder](wise-4012-builder/)** 作為模板
@@ -124,7 +116,6 @@ dotnet run
 
 ## 取得協助
 
-- **教學**: 查看 [tutorials/](../tutorials/) 獲取學習資源
 - **文檔**: [Wiki 文檔](../docs/wiki/)
 - **模板**: 使用 `dotnet new subnode` 或 `dotnet new wedabuilder`
 - **問題**: [GitHub Issues](https://github.com/advantech/edge_subnode/issues)
@@ -138,10 +129,7 @@ dotnet run
 3. 遵循現有專案結構
 4. 提交前使用真實硬體測試
 
-對於教學內容 (Mock Cloud + Simulators)，請新增到 [tutorials/](../tutorials/)。
-
 ## 相關資源
 
-- [Tutorials 目錄](../tutorials/) - 使用 Mock Cloud 的學習範例
 - [Templates](../templates/) - 專案模板 (subnode, wedabuilder)
 - [文檔 Wiki](../docs/wiki/) - 完整 SDK 文檔

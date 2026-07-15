@@ -13,18 +13,17 @@ public class CalibrationTransformTests
     private static TelemetryTransformContext CreateContext()
         => new() { DeviceId = "device1", Timestamp = DateTimeOffset.UtcNow };
 
+    private static IConfigurableTransform<CalibrationTransform, CalibrationParameters> AsConfigurable(CalibrationTransform t) => t;
+
     [Fact]
     public void ValidateParameters_ValidScale_ReturnsSuccess()
     {
         var transform = new CalibrationTransform();
-        var parameters = new Dictionary<string, object>
+        var result = AsConfigurable(transform).ValidateParameters(new CalibrationParameters
         {
-            ["Scale"] = 1.5,
-            ["Offset"] = 10.0
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
+            Scale = 1.5,
+            Offset = 10.0,
+        });
         Assert.False(result.IsError);
     }
 
@@ -32,28 +31,22 @@ public class CalibrationTransformTests
     public void ValidateParameters_ScaleZero_ReturnsFailure()
     {
         var transform = new CalibrationTransform();
-        var parameters = new Dictionary<string, object>
+        var result = AsConfigurable(transform).ValidateParameters(new CalibrationParameters
         {
-            ["Scale"] = 0.0
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
+            Scale = 0.0,
+        });
         Assert.True(result.IsError);
-        Assert.Contains("Scale", result.FirstError.Description);
+        Assert.Contains("Scale", result.FirstError.Code);
     }
 
     [Fact]
-    public void ValidateParameters_NoScaleProvided_ReturnsSuccess()
+    public void ValidateParameters_DefaultScaleAndOffsetOnly_ReturnsSuccess()
     {
         var transform = new CalibrationTransform();
-        var parameters = new Dictionary<string, object>
+        var result = AsConfigurable(transform).ValidateParameters(new CalibrationParameters
         {
-            ["Offset"] = 5.0
-        };
-
-        var result = transform.ValidateParameters(parameters);
-
+            Offset = 5.0,
+        });
         Assert.False(result.IsError);
     }
 
@@ -62,19 +55,17 @@ public class CalibrationTransformTests
     {
         var transform = new CalibrationTransform(scale: 1.0, offset: 0.0);
 
-        // Update parameters
-        transform.UpdateParameters(new Dictionary<string, object>
+        transform.UpdateParameters(new CalibrationParameters
         {
-            ["Scale"] = 2.0,
-            ["Offset"] = 10.0
+            Scale = 2.0,
+            Offset = 10.0,
         });
 
-        // Apply transform: value * 2.0 + 10.0
         var measures = new List<TelemetryMeasure> { CreateMeasure(5.0) };
         var result = await transform.TransformAsync(measures, CreateContext());
 
         Assert.Single(result);
-        Assert.Equal(20.0, (double)result[0].Value!); // 5 * 2 + 10 = 20
+        Assert.Equal(20.0, (double)result[0].Value!);
     }
 
     [Fact]
@@ -86,14 +77,14 @@ public class CalibrationTransformTests
         var measures = new List<TelemetryMeasure>
         {
             CreateMeasure(5.0),
-            CreateMeasure(10.0)
+            CreateMeasure(10.0),
         };
 
         var result = await transform.TransformAsync(measures, CreateContext());
 
         Assert.Equal(2, result.Count);
-        Assert.Equal(5.0, result[0].Value);  // Not transformed
-        Assert.Equal(10.0, result[1].Value); // Not transformed
+        Assert.Equal(5.0, result[0].Value);
+        Assert.Equal(10.0, result[1].Value);
     }
 
     [Fact]
@@ -104,14 +95,14 @@ public class CalibrationTransformTests
         var measures = new List<TelemetryMeasure>
         {
             CreateMeasure(10.0),
-            CreateMeasure(20.0)
+            CreateMeasure(20.0),
         };
 
         var result = await transform.TransformAsync(measures, CreateContext());
 
         Assert.Equal(2, result.Count);
-        Assert.Equal(25.0, (double)result[0].Value!); // 10 * 2 + 5 = 25
-        Assert.Equal(45.0, (double)result[1].Value!); // 20 * 2 + 5 = 45
+        Assert.Equal(25.0, (double)result[0].Value!);
+        Assert.Equal(45.0, (double)result[1].Value!);
     }
 
     [Fact]
@@ -122,7 +113,7 @@ public class CalibrationTransformTests
         var measure = new TelemetryMeasure
         {
             ResourceId = "sensor1",
-            Value = "text"
+            Value = "text",
         };
 
         var result = await transform.TransformAsync(new List<TelemetryMeasure> { measure }, CreateContext());

@@ -23,7 +23,8 @@ public class DtdlInterface
 
     /// <summary>
     /// The DTDL context specifying the version of DTDL being used.
-    /// Default is "dtmi:dtdl:context;2" for DTDL v2.
+    /// Default is <see cref="DtdlGenerator.DtdlContext"/> (DTDL v3) — needed
+    /// for ConfigStraints / Property constraints in the v1.2 upload payload.
     /// </summary>
     [JsonPropertyName("@context")]
     public object Context { get; set; } = DtdlGenerator.DtdlContext;
@@ -156,12 +157,6 @@ public class DtdlContent
     /// </summary>
     [JsonPropertyName("writable")]
     public bool? Writable { get; set; }
-
-    /// <summary>
-    /// Optional unit for telemetry/property values.
-    /// </summary>
-    [JsonPropertyName("unit")]
-    public string? Unit { get; set; }
 
     /// <summary>
     /// For commands: the request schema.

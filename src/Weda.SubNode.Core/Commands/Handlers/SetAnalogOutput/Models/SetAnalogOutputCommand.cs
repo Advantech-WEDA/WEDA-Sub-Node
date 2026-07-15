@@ -28,6 +28,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.SetAnalogOutput.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("ao.set")]
+[Display(Name = "Set Analog Output")]
 public class SetAnalogOutputCommand : CommandData<SetAnalogOutputParameters>
 {
 }
@@ -42,12 +43,14 @@ public class SetAnalogOutputParameters
     /// If null or empty, the command applies to all devices that support analog output.
     /// </summary>
     [JsonPropertyName("deviceName")]
+    [Display(Name = "Target Device")]
     public string? DeviceName { get; init; }
 
     /// <summary>
     /// List of analog outputs to set.
     /// </summary>
     [JsonPropertyName("outputs")]
+    [Display(Name = "Outputs to Set")]
     [Required(ErrorMessage = "Outputs are required")]
     [MinLength(1, ErrorMessage = "At least one output must be specified")]
     public AnalogOutputState[] Outputs { get; init; } = [];
@@ -63,6 +66,7 @@ public record AnalogOutputState
     /// Must match the sensor name in devicecfg.json.
     /// </summary>
     [JsonPropertyName("name")]
+    [Display(Name = "Output Name")]
     [Required(ErrorMessage = "Output name is required")]
     public string Name { get; init; } = string.Empty;
 
@@ -71,5 +75,6 @@ public record AnalogOutputState
     /// Can be integer, float, or other numeric types dependening on the register configuration.
     /// </summary>
     [JsonPropertyName("value")]
+    [Display(Name = "Output Value")]
     public object Value { get; init; } = 0;
 }

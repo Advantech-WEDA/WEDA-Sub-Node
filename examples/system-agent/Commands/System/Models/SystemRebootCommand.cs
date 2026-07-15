@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Contracts;
@@ -23,6 +24,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.System.Models;
 /// </code>
 /// </remarks>
 [DeviceCmd("system.reboot")]
+[Display(Name = "System Reboot")]
 public class SystemRebootCommand : CommandData<SystemCommandParameters>
 {
 }

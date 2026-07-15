@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +19,7 @@ using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
+using Weda.SubNode.Core.Commands;
 using Weda.SubNode.Core.Storage;
 
 namespace Weda.SubNode.Host;
@@ -35,8 +38,12 @@ public class WedaApplicationBuilder
 {
     private readonly HostApplicationBuilder _hostBuilder;
     private readonly List<Func<IWedaApplicationContext, IDevice>> _deviceFactories = [];
+    private readonly Dictionary<string, Type> _deviceClassesBySection
+        = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _useCache;
     private readonly IConfigurationCache _configurationCache;
+    private string? _projectName;
+    private string? _projectDescription;
 
     internal WedaApplicationBuilder(HostApplicationBuilder hostBuilder, bool useCache = true)
     {
@@ -64,6 +71,31 @@ public class WedaApplicationBuilder
     /// Gets the environment information
     /// </summary>
     public IHostEnvironment Environment => _hostBuilder.Environment;
+
+    /// <summary>
+    /// Set the SubNode project's display name. Surfaces in the v1.2 upload payload
+    /// as the wrapper Interface's <c>displayName</c>; cloud / front-end use it as
+    /// the human-readable label for this SubNode.
+    /// </summary>
+    /// <param name="name">Project name (e.g., <c>"MyFirstApplication"</c>).</param>
+    /// <returns>The builder for chaining.</returns>
+    public WedaApplicationBuilder WithName(string name)
+    {
+        _projectName = name;
+        return this;
+    }
+
+    /// <summary>
+    /// Set the SubNode project's description. Surfaces in the v1.2 upload payload
+    /// as the wrapper Interface's <c>description</c>.
+    /// </summary>
+    /// <param name="description">Free-form description.</param>
+    /// <returns>The builder for chaining.</returns>
+    public WedaApplicationBuilder WithDescription(string description)
+    {
+        _projectDescription = description;
+        return this;
+    }
 
     /// <summary>
     /// Add a custom device with strongly-typed configuration (e.g., TcpModbusDeviceConfiguration).
@@ -167,6 +199,11 @@ public class WedaApplicationBuilder
         }
 
         Log.Information("Using device '{SectionName}' configuration from devicecfg.json", sectionName);
+
+        // Record sectionName -> TDevice mapping so WedaApplicationContext's loader can
+        // probe IConfigurableDevice<,> on TDevice and stash DeviceConfiguration.DeviceTypeName,
+        // enabling typed sensor-dtmi dispatch in DeviceConfiguration.InitializeDtdl.
+        _deviceClassesBySection[sectionName] = typeof(TDevice);
 
         // Create factory that retrieves the configuration from WedaApplicationContext
         // This ensures we use the same configuration instance that was already initialized in WedaApplicationContext
@@ -397,12 +434,39 @@ public class WedaApplicationBuilder
             return new NatsClient(natsOpts);
         });
 
+        // Register CommandRegistry as a singleton so DeviceAgentClient can pick it
+        // up for capability upload. Scans the SDK assembly plus the entry assembly
+        // for user-defined handlers — matching what WedaApplicationContext does on
+        // the non-DI path.
+        Services.AddSingleton<CommandRegistry>(sp =>
+        {
+            var logger = sp.GetService<ILogger<CommandRegistry>>();
+            var registry = new CommandRegistry(logger);
+            registry.ScanAssembly(typeof(CommandRegistry).Assembly);
+
+            var entryAssembly = Assembly.GetEntryAssembly();
+            if (entryAssembly != null && entryAssembly != typeof(CommandRegistry).Assembly)
+            {
+                registry.ScanAssembly(entryAssembly);
+            }
+
+            // Capability-gate exposure: commands marked with
+            // [RequiresDeviceCapability] are only uploaded to cloud when one of
+            // this SubNode's AddDevice<TDevice>() classes implements the
+            // capability. Resolved lazily, so all AddDevice calls have run.
+            registry.SetDeviceClasses(_deviceClassesBySection.Values);
+            return registry;
+        });
+
         // Register NATS-based clients
         Services.AddSingleton<IDeviceAgentClient>(sp =>
+
         {
             var natsClient = sp.GetRequiredService<NatsClient>();
             var logger = sp.GetService<ILogger<DeviceAgentClient>>();
-            return new DeviceAgentClient(natsClient, logger);
+            var commandRegistry = sp.GetService<CommandRegistry>();
+            var projectInfo = sp.GetService<ProjectInfo>();
+            return new DeviceAgentClient(natsClient, logger, commandRegistry, projectInfo);
         });
 
         Services.AddSingleton<ITelemetryClient>(sp =>
@@ -515,6 +579,10 @@ public class WedaApplicationBuilder
     /// <returns>A configured WedaApplication instance</returns>
     public WedaApplication Build()
     {
+        // Register project metadata (set via WithName / WithDescription) so the
+        // mapping layer can read it when constructing the v1.2 wrapper Interface.
+        Services.AddSingleton(_ => new ProjectInfo(_projectName, _projectDescription));
+
         // Register WedaApplicationContext (which creates SubNodeManager internally)
         Services.AddSingleton<IWedaApplicationContext>(sp =>
         {
@@ -549,6 +617,9 @@ public class WedaApplicationBuilder
                 options.ConfigurationCache = configurationCache;
                 // Pass recording options (WedaApplicationContext creates RecordingService internally)
                 options.RecordingOptions = recordingOptions;
+                // Forward AddDevice<TDevice>("sectionName") class registrations so the
+                // loader can stash DeviceConfiguration.DeviceTypeName for typed devices.
+                options.DeviceClassesBySection = _deviceClassesBySection;
             });
         });
 

@@ -1,0 +1,212 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:command:di_get;1",
+  "@type": "Interface",
+  "displayName": "di.get",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:inputsStringList;1",
+      "@type": "Array",
+      "elementSchema": "string"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:Parameters;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "displayName": "Target Device",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "inputs",
+          "displayName": "Input Names",
+          "schema": "dtmi:advantech:weda:command:di_get:inputsStringList;1",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:DigitalInputValue;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "state",
+          "schema": "boolean",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "deviceName",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:valuesDigitalInputValueList;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:di_get:DigitalInputValue;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:DigitalInputError;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "name",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "error",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:errorsDigitalInputErrorList;1",
+      "@type": "Array",
+      "elementSchema": "dtmi:advantech:weda:command:di_get:DigitalInputError;1"
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:GetDigitalInputResultData;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "values",
+          "schema": "dtmi:advantech:weda:command:di_get:valuesDigitalInputValueList;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "errors",
+          "schema": "dtmi:advantech:weda:command:di_get:errorsDigitalInputErrorList;1",
+          "required": false,
+          "writable": true
+        }
+      ]
+    },
+    {
+      "@id": "dtmi:advantech:weda:command:di_get:Result;1",
+      "@type": "Object",
+      "fields": [
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "status",
+          "schema": "integer",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "message",
+          "schema": "string",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "resultData",
+          "schema": "dtmi:advantech:weda:command:di_get:GetDigitalInputResultData;1",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "executedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        },
+        {
+          "@type": [
+            "Field",
+            "ConfigConstraint"
+          ],
+          "name": "completedAt",
+          "schema": "long",
+          "required": false,
+          "writable": true
+        }
+      ]
+    }
+  ],
+  "contents": [
+    {
+      "@type": "Command",
+      "name": "di_get",
+      "request": {
+        "name": "parameters",
+        "schema": "dtmi:advantech:weda:command:di_get:Parameters;1"
+      },
+      "response": {
+        "name": "result",
+        "schema": "dtmi:advantech:weda:command:di_get:Result;1"
+      }
+    }
+  ]
+}

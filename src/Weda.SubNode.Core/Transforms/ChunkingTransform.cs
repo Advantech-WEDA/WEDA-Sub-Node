@@ -1,55 +1,57 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.IO.Hashing;
 using System.Text;
-
-using ErrorOr;
+using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
 
 namespace Weda.SubNode.Core.Transforms;
 
-public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<ChunkingTransform>
+/// <summary>
+/// Configuration parameters for <see cref="ChunkingTransform"/>.
+/// </summary>
+public class ChunkingParameters
 {
-    private int _chunkSize = 256 * 1024; // Default 256KB for bandwidth-limited scenarios
-    
+    [Description("Maximum size in bytes for each chunk. Must be between 1KB and 750KB.")]
+    [JsonPropertyName("chunkSize")]
+    [Range(1024, 750 * 1024)]
+    [DefaultValue(256 * 1024)]
+    public int ChunkSize { get; init; } = 256 * 1024;
+}
+
+/// <summary>
+/// Splits large base64 string measurements into multiple chunks to fit within
+/// bandwidth-limited transports. JSON-shaped strings (starting with '{' or '[')
+/// pass through unchanged.
+/// </summary>
+public class ChunkingTransform
+    : ITelemetryTransform,
+      IConfigurableTransform<ChunkingTransform, ChunkingParameters>
+{
+    private int _chunkSize;
+
     public string Name => "chunking";
     public bool Enabled { get; set; } = true;
 
     public static string TypeName => "chunking";
 
-    public static ChunkingTransform Create(Dictionary<string, object> parameters)
+    public static string? Description =>
+        "Split large base64 string measurements into bandwidth-friendly chunks.";
+
+    public static ChunkingTransform Create(ChunkingParameters parameters) =>
+        new() { _chunkSize = parameters.ChunkSize };
+
+    public void UpdateParameters(ChunkingParameters parameters)
     {
-        var transform = new ChunkingTransform();
-        transform.UpdateParameters(parameters);
-        return transform;
+        _chunkSize = parameters.ChunkSize;
     }
 
-    public ErrorOr<Success> ValidateParameters(Dictionary<string, object> parameters)
-    {
-        if (parameters.TryGetValue("chunkSize", out var value))
-        {
-            if (value is not int and not long and not double)
-                return Error.Failure(description: "chunkSize must be a number");
-
-            var size = Convert.ToInt32(value);
-            if (size < 1024)
-                return Error.Failure(description: "chunkSize must be at least 1KB");
-            if (size > 750 * 1024)
-                return Error.Failure(description: "chunkSize cannot exceed 750KB");
-        }
-
-        return Result.Success;
-    }
-
-    public void UpdateParameters(Dictionary<string, object> parameters)
-    {
-        if (parameters.TryGetValue("chunkSize", out var value))
-        {
-            _chunkSize = Convert.ToInt32(value);
-        }
-    }
-
-    public Task<List<TelemetryMeasure>> TransformAsync(List<TelemetryMeasure> measures, TelemetryTransformContext context, CancellationToken cancellationToken = default)
+    public Task<List<TelemetryMeasure>> TransformAsync(
+        List<TelemetryMeasure> measures,
+        TelemetryTransformContext context,
+        CancellationToken cancellationToken = default)
     {
         var result = new List<TelemetryMeasure>();
 
@@ -86,14 +88,15 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
                 ["transferId"] = transferId,
                 ["chunkIndex"] = i,
                 ["totalChunks"] = totalChunks,
-                ["crc32Checksum"] = checksum
+                ["crc32Checksum"] = checksum,
             };
 
             if (measure.Metadata != null)
             {
                 foreach (var kv in measure.Metadata)
+                {
                     metadata.TryAdd(kv.Key, kv.Value);
-                
+                }
             }
 
             chunks.Add(new TelemetryMeasure
@@ -101,7 +104,7 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
                 ResourceId = measure.ResourceId,
                 Value = chunkValue,
                 Timestamp = measure.Timestamp,
-                Metadata = metadata
+                Metadata = metadata,
             });
         }
 
@@ -111,8 +114,9 @@ public class ChunkingTransform : ITelemetryTransform, IConfigurableTransform<Chu
     private static bool IsJsonString(string str)
     {
         if (string.IsNullOrWhiteSpace(str))
+        {
             return false;
-
+        }
         var trimmed = str.TrimStart();
         return trimmed.StartsWith('{') || trimmed.StartsWith('[');
     }

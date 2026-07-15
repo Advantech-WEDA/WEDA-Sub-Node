@@ -36,7 +36,7 @@
 - Git（用於複製儲存庫）
 
 **設定步驟:**
-請參閱[安裝指南](docs/wiki/zh/01_quick_start/01_install_templates.md)取得詳細說明。
+請參閱[先決條件指南](docs/wiki/zh/02-getting-started/01-prerequisites.md)取得詳細說明。
 
 ---
 
@@ -64,9 +64,9 @@
    ```
 
 3. 遵循文件:
-   - [快速開始指南](docs/wiki/zh/01_quick_start/00_overview.md)
-   - [SubNode 基礎](docs/wiki/zh/01_quick_start/03_subnode_basic.md)
-   - [WedaBuilder 基礎](docs/wiki/zh/01_quick_start/02_wedabuilder_basic.md)
+   - [從範例開始](docs/wiki/zh/02-getting-started/02-start-with-example.md)
+   - [從範本開始](docs/wiki/zh/02-getting-started/03-start-with-template.md)
+   - [透過程式碼配置](docs/wiki/zh/04-configuration/01-configuration-via-code.md)
 
 ### 路徑 2: 從範例學習（適合系統整合商）
 
@@ -75,11 +75,9 @@
 **步驟:**
 1. 瀏覽可用範例:
    - [examples/](examples/) - 生產就緒範例（真實硬體）
-   - [tutorials/](tutorials/) - 學習範例（模擬器）
 
 2. 選擇符合您使用案例的範例:
    - **WISE-4012 工業 I/O**: [examples/wise-4012-builder/](examples/wise-4012-builder/)
-   - **Transform & DSP Filters**: [tutorials/01-transform-dsp-config/](tutorials/01-transform-dsp-config/)
 
 3. 複製並自訂:
    ```bash
@@ -100,7 +98,7 @@
    - 如需要，更新 DTDL 中繼資料
    - 在裝置類別中新增自訂處理邏輯
 
-**[瀏覽所有範例](examples/README_zh.md)** | **[瀏覽所有教學](tutorials/README_zh.md)**
+**[瀏覽所有範例](examples/README_zh.md)**
 
 ---
 
@@ -110,20 +108,19 @@
 
 ### 主要文件章節
 
-- **快速開始**: 快速上手
-  - [概覽](docs/wiki/zh/01_quick_start/00_overview.md)
-  - [安裝範本](docs/wiki/zh/01_quick_start/01_install_templates.md)
-  - [WedaBuilder 基礎](docs/wiki/zh/01_quick_start/02_wedabuilder_basic.md)
-  - [SubNode 基礎](docs/wiki/zh/01_quick_start/03_subnode_basic.md)
+- **開始使用**:
+  - [什麼是 SubNode？](docs/wiki/zh/01-introduction/01-what-is-subnode.md)
+  - [先決條件](docs/wiki/zh/02-getting-started/01-prerequisites.md)
+  - [從範例開始](docs/wiki/zh/02-getting-started/02-start-with-example.md)
+  - [從範本開始](docs/wiki/zh/02-getting-started/03-start-with-template.md)
 
-- **範例與教學**:
+- **範例**:
   - [生產範例](examples/README_zh.md) - 真實硬體整合
-  - [學習教學](tutorials/README_zh.md) - 循序漸進指南
 
-- **進階主題**:
-  - [配置參考](docs/wiki/zh/03_advanced/appsettings_configuration.md)
-  - [Transform & DSP Filters](docs/wiki/zh/03_advanced/transform_dsp.md)
-  - [DTDL 整合](docs/wiki/zh/03_advanced/dtdl_integration.md)
+- **配置與資料**:
+  - [透過 JSON 配置](docs/wiki/zh/04-configuration/02-configuration-via-json.md)
+  - [透過程式碼配置](docs/wiki/zh/04-configuration/01-configuration-via-code.md)
+  - [資料管線概覽](docs/wiki/zh/05-data-pipeline/01-overview.md)
 
 ---
 
@@ -142,7 +139,6 @@
 ```
 edge_subnode/
 ├── examples/          # 生產就緒範例（真實硬體）
-├── tutorials/         # 學習教學（Mock Cloud + 模擬器）
 ├── templates/         # dotnet new 範本
 │   ├── subnode/       # Manual Context pattern
 │   └── wedabuilder/   # Builder pattern
@@ -157,7 +153,6 @@ edge_subnode/
 
 - **文件**: [docs/wiki/zh/README.md](docs/wiki/zh/README.md)
 - **範例**: [examples/README_zh.md](examples/README_zh.md)
-- **教學**: [tutorials/README_zh.md](tutorials/README_zh.md)
 
 ---
 

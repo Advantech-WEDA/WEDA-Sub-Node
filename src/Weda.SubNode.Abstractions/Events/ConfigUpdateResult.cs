@@ -14,9 +14,11 @@ public sealed record ConfigUpdateResult
     public required DeviceConfigUpdateStatus Status { get; init; }
 
     /// <summary>
-    /// Whether a DTMI delta was detected (requires re-upload of configurations).
+    /// Whether DeviceCaps must be re-uploaded so the cloud sees newly assigned DTMIs
+    /// (e.g., when new sensors were added). SubNode owns DTMI assignment under the
+    /// auto-gen-only policy.
     /// </summary>
-    public bool HasDtmiDelta { get; init; }
+    public bool RequiresCapsReupload { get; init; }
 
     /// <summary>
     /// Error message when Status is Invalid or Failed.
@@ -68,13 +70,13 @@ public sealed record ConfigUpdateResult
     /// </summary>
     /// <param name="config">The device configuration.</param>
     /// <param name="deviceTypeName">The device type name.</param>
-    /// <param name="hasDtmiDelta">Whether DTMI delta was detected.</param>
+    /// <param name="requiresCapsReupload">Whether DeviceCaps re-upload is needed (new sensors added).</param>
     /// <returns>A ConfigUpdateResult with Success status.</returns>
-    public static ConfigUpdateResult Success(DeviceConfiguration config, string deviceTypeName, bool hasDtmiDelta = false)
+    public static ConfigUpdateResult Success(DeviceConfiguration config, string deviceTypeName, bool requiresCapsReupload = false)
         => new()
         {
             Status = DeviceConfigUpdateStatus.Success,
-            HasDtmiDelta = hasDtmiDelta,
+            RequiresCapsReupload = requiresCapsReupload,
             Configuration = config,
             DeviceTypeName = deviceTypeName
         };
@@ -139,9 +141,9 @@ public sealed record ConfigUpdateValidationResult
     public bool IsSkipped { get; init; }
 
     /// <summary>
-    /// Whether a DTMI delta was detected (requires re-upload).
+    /// Whether DeviceCaps must be re-uploaded so the cloud sees newly assigned DTMIs.
     /// </summary>
-    public bool HasDtmiDelta { get; init; }
+    public bool RequiresCapsReupload { get; init; }
 
     /// <summary>
     /// Error message when IsValid is false.
@@ -156,12 +158,12 @@ public sealed record ConfigUpdateValidationResult
     /// <summary>
     /// Creates a result indicating validation passed.
     /// </summary>
-    public static ConfigUpdateValidationResult Valid(string deviceTypeName, bool hasDtmiDelta = false)
+    public static ConfigUpdateValidationResult Valid(string deviceTypeName, bool requiresCapsReupload = false)
         => new()
         {
             IsValid = true,
             DeviceTypeName = deviceTypeName,
-            HasDtmiDelta = hasDtmiDelta
+            RequiresCapsReupload = requiresCapsReupload
         };
 
     /// <summary>

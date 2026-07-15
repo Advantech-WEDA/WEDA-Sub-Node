@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using ErrorOr;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
@@ -174,8 +176,11 @@ public class PipelineValidator : IConfigurationPropertyValidator
     }
 
     /// <summary>
-    /// Tries to get ValidateParameters method from a DSP filter
-    /// that implements IConfigurableDspFilter.
+    /// Builds Dict-shaped wrappers around the strongly-typed ValidateParameters /
+    /// UpdateParameters of a DSP filter that implements
+    /// <see cref="IConfigurableDspFilter{TSelf, TParameter}"/>. The wrappers
+    /// deserialize the incoming dictionary into TParameter (via JSON round-trip)
+    /// before invoking the typed methods.
     /// </summary>
     public static bool TryGetConfigurableDspFilter(
         IDspFilter filter,
@@ -185,21 +190,26 @@ public class PipelineValidator : IConfigurationPropertyValidator
         var filterType = filter.GetType();
         var configurableInterface = filterType.GetInterfaces()
             .FirstOrDefault(i => i.IsGenericType &&
-                                 i.GetGenericTypeDefinition() == typeof(IConfigurableDspFilter<>));
+                                 i.GetGenericTypeDefinition() == typeof(IConfigurableDspFilter<,>));
 
-        if (configurableInterface != null)
+        if (configurableInterface is not null)
         {
-            var validateMethod = filterType.GetMethod("ValidateParameters",
-                [typeof(Dictionary<string, object>)]);
-            var updateMethod = filterType.GetMethod("UpdateParameters",
-                [typeof(Dictionary<string, object>)]);
+            var paramType = configurableInterface.GetGenericArguments()[1];
+            var validateMethod = configurableInterface.GetMethod("ValidateParameters", [paramType]);
+            var updateMethod = filterType.GetMethod("UpdateParameters", [paramType]);
 
-            if (validateMethod != null && updateMethod != null)
+            if (validateMethod is not null && updateMethod is not null)
             {
                 validateParams = parameters =>
-                    (ErrorOr<Success>)validateMethod.Invoke(filter, [parameters])!;
+                {
+                    var typed = ConvertToTypedParam(parameters, paramType);
+                    return (ErrorOr<Success>)validateMethod.Invoke(filter, [typed])!;
+                };
                 updateParams = parameters =>
-                    updateMethod.Invoke(filter, [parameters]);
+                {
+                    var typed = ConvertToTypedParam(parameters, paramType);
+                    updateMethod.Invoke(filter, [typed]);
+                };
                 return true;
             }
         }
@@ -210,8 +220,9 @@ public class PipelineValidator : IConfigurationPropertyValidator
     }
 
     /// <summary>
-    /// Tries to get ValidateParameters method from a transform
-    /// that implements IConfigurableTransform.
+    /// Builds Dict-shaped wrappers around the strongly-typed ValidateParameters /
+    /// UpdateParameters of a transform that implements
+    /// <see cref="IConfigurableTransform{TSelf, TParameter}"/>.
     /// </summary>
     public static bool TryGetConfigurableTransform(
         ITelemetryTransform transform,
@@ -221,21 +232,26 @@ public class PipelineValidator : IConfigurationPropertyValidator
         var transformType = transform.GetType();
         var configurableInterface = transformType.GetInterfaces()
             .FirstOrDefault(i => i.IsGenericType &&
-                                 i.GetGenericTypeDefinition() == typeof(IConfigurableTransform<>));
+                                 i.GetGenericTypeDefinition() == typeof(IConfigurableTransform<,>));
 
-        if (configurableInterface != null)
+        if (configurableInterface is not null)
         {
-            var validateMethod = transformType.GetMethod("ValidateParameters",
-                [typeof(Dictionary<string, object>)]);
-            var updateMethod = transformType.GetMethod("UpdateParameters",
-                [typeof(Dictionary<string, object>)]);
+            var paramType = configurableInterface.GetGenericArguments()[1];
+            var validateMethod = configurableInterface.GetMethod("ValidateParameters", [paramType]);
+            var updateMethod = transformType.GetMethod("UpdateParameters", [paramType]);
 
-            if (validateMethod != null && updateMethod != null)
+            if (validateMethod is not null && updateMethod is not null)
             {
                 validateParams = parameters =>
-                    (ErrorOr<Success>)validateMethod.Invoke(transform, [parameters])!;
+                {
+                    var typed = ConvertToTypedParam(parameters, paramType);
+                    return (ErrorOr<Success>)validateMethod.Invoke(transform, [typed])!;
+                };
                 updateParams = parameters =>
-                    updateMethod.Invoke(transform, [parameters]);
+                {
+                    var typed = ConvertToTypedParam(parameters, paramType);
+                    updateMethod.Invoke(transform, [typed]);
+                };
                 return true;
             }
         }
@@ -243,5 +259,19 @@ public class PipelineValidator : IConfigurationPropertyValidator
         validateParams = null!;
         updateParams = null!;
         return false;
+    }
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private static object ConvertToTypedParam(Dictionary<string, object> dict, Type paramType)
+    {
+        var json = JsonSerializer.Serialize(dict, JsonOpts);
+        return JsonSerializer.Deserialize(json, paramType, JsonOpts)
+            ?? throw new InvalidOperationException(
+                $"Failed to deserialize parameters into {paramType.Name}.");
     }
 }

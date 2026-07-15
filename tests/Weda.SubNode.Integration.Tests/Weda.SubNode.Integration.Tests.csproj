@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <PackageReference Include="Testcontainers" />
+    <PackageReference Include="NATS.Net" />
+    <PackageReference Include="Weda.Dtdl" />
   </ItemGroup>
 
   <ItemGroup>

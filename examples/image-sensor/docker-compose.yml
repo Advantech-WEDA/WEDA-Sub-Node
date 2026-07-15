@@ -14,9 +14,8 @@ services:
 
   # ImageSensor Application
   image-sensor:
-    build:
-      context: ../..
-      dockerfile: examples/image-sensor/Dockerfile
+    image: ${IMAGE_SENSOR_IMAGE:-harbor.arfa.wise-paas.com/edge-coa/image-sensor:latest}
+    pull_policy: always
     container_name: image-sensor-app
     network_mode: host
     restart: unless-stopped
@@ -38,6 +37,12 @@ services:
       - SystemConfig__Record__MinFreeDiskSpaceMb=${RECORD_MIN_FREE_DISK_SPACE_MB:-128}
       - SystemConfig__Record__MaxStorageSizeMb=${RECORD_MAX_STORAGE_SIZE_MB:-1024}
       - SystemConfig__Record__RetentionDays=${RECORD_RETENTION_DAYS:-7}
+      # === DeviceConfig.SubNode (identity reported to WedaNode) ===
+      - DeviceConfig__SubNode__Name=${SUBNODE_NAME:-ImageSensorDemo}
+      - DeviceConfig__SubNode__SubNodeType=${SUBNODE_TYPE:-CustomDevice}
+      - DeviceConfig__SubNode__Manufacturer=${SUBNODE_MANUFACTURER:-Advantech}
+      - DeviceConfig__SubNode__Model=${SUBNODE_MODEL:-MNIST-Demo}
+      - DeviceConfig__SubNode__SwVersion=${SUBNODE_SW_VERSION:-1.0.0}
     logging:
       driver: "json-file"
       options:
@@ -50,4 +55,4 @@ services:
       - ./devicecfg.json:/app/devicecfg.json:ro
       - ./systemcfg.json:/app/systemcfg.json:ro
       # Persist .weda directory for device registration
-      - ./weda-data:/app/.weda
+      - ./.weda:/app/.weda

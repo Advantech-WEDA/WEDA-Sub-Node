@@ -59,6 +59,7 @@
 |---|---------|-----------|--------------|
 | 1 | 01-configuration.md | ⬜ Pending | ⬜ Pending |
 | 2 | 02-command.md | ⬜ Pending | ⬜ Pending |
+| 3 | 03-command-capability-gating.md | ⬜ Pending | 🔄 In Progress (en-first) |
 
 ### 07-use-cases
 
@@ -121,7 +122,7 @@
 | 03-hierarchy | 2 | 2 | 2 |
 | 04-configuration | 3 | 3 | 3 |
 | 05-data-pipeline | 3 | 3 | 3 |
-| 06-remote-control | 2 | 0 | 0 |
+| 06-remote-control | 3 | 0 | 0 |
 | 07-use-cases | 7 | 0 | 0 |
 | 08-examples | 6 | 0 | 0 |
 | 09-customization | 14 | 0 | 0 |

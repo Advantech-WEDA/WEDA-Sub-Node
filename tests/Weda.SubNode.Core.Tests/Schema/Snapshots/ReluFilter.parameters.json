@@ -1,0 +1,29 @@
+{
+  "@context": [
+    "dtmi:dtdl:context;3",
+    "dtmi:advantech:edgesync:validation;1"
+  ],
+  "@id": "dtmi:advantech:weda:dspfilter:relu;1",
+  "@type": "Interface",
+  "displayName": "relu",
+  "description": "Rectified Linear Unit: clamps negative numeric measurements to zero.",
+  "schemas": [
+    {
+      "@id": "dtmi:advantech:weda:dspfilter:relu:parameters;1",
+      "@type": "Object",
+      "fields": []
+    }
+  ],
+  "contents": [
+    {
+      "@type": [
+        "Property",
+        "ConfigConstraint"
+      ],
+      "name": "parameters",
+      "schema": "dtmi:advantech:weda:dspfilter:relu:parameters;1",
+      "required": false,
+      "writable": true
+    }
+  ]
+}

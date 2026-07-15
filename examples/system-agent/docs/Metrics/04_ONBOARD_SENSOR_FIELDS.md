@@ -107,20 +107,22 @@ Single merged table covering both versions. The **Required (v1.0 / v1.1)** colum
 
 | Hierarchy Key Name | Schema | Changeable | Required (v1.0 / v1.1) | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|------------------------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<source>` (e.g., `temperature_cpU-therm`). | Free-form, e.g., `temperature_cpu_therm` (bound) or `temperature` (generic in v1.1). | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64` (after expansion suffix in v1.1); unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Temperature uses `TEMP`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. v1.1: after expansion, runtime appends `_<source>` (e.g., `temperature_cpU-therm`). | Free-form, e.g., `temperature_cpu_therm` (bound) or `temperature` (generic in v1.1). | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Temperature uses `TEMP`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `TemperatureSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `temperature` | Must equal `temperature` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | v1.0: hardware sensor source name. v1.1: recommended fixed value `"therm"` when using `Source`/`Sources`; otherwise the source name (v1.0 compatible). | v1.0: e.g., `cpU-therm`, `gpU-therm` (hardware-dependent). v1.1: `therm`, or any source name (compat). | Non-empty string. Case-insensitive when matched as a source name. |
-| `Parameters.Source` | string | ❌ | n/a / ❌ | **v1.1 only.** Bound mode: single source name. Overrides `Sources` and auto-detect. Used only when `MetricName = "therm"`. | e.g., `cpU-therm`. | Non-empty string. Case-insensitive. Semantically mutually exclusive with `Sources`. |
-| `Parameters.Sources` | `oneOf: [array<string>, string]` | ❌ | n/a / ❌ | **v1.1 only.** List of source names, or empty for auto-detect. Used only when `MetricName = "therm"`. | JSON array `["cpU-therm","gpU-therm"]`; CSV `"cpU-therm,gpU-therm"`; `[]`; `""`. | Array of strings or a single string. Empty array/string → auto-detect. |
+| `Parameters.MetricName` | string | ❌ | ✅ | v1.0: hardware sensor source name. v1.1: recommended fixed value `"therm"` when using `Source`/`Sources`; otherwise the source name (v1.0 compatible). | v1.0: e.g., `cpU-therm`, `gpU-therm` (hardware-dependent). v1.1: `therm`, or any source name (compat). | Non-empty string; `minLength: 1`, `maxLength: 64`. Not enumerated by the schema (free-form `string`). Case-insensitive when matched as a source name. |
+| `Parameters.Source` | string | ❌ | n/a / ❌ | **v1.1 only.** Bound mode: single source name. Overrides `Sources` and auto-detect. Used only when `MetricName = "therm"`. | e.g., `cpU-therm`. | Non-empty string; `minLength: 1`, `maxLength: 64`. Allowed only when `MetricName = "therm"` (`allowedOnlyWhen`). Mutually exclusive with `Sources` (`mutexGroup: tempSource`). |
+| `Parameters.Sources` | `array<string>` (or CSV string) | ❌ | n/a / ❌ | **v1.1 only.** List of source names, or empty for auto-detect. Used only when `MetricName = "therm"`. | JSON array `["cpU-therm","gpU-therm"]`; CSV `"cpU-therm,gpU-therm"`; `[]`; `""`. | JSON array of strings; a comma-separated / empty string is also accepted (`csvStringAccepted`). Empty → auto-detect. Allowed only when `MetricName = "therm"` (`allowedOnlyWhen`). Mutually exclusive with `Source` (`mutexGroup: tempSource`). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `1000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `1000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For temperature: `double`. | Must equal `double`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. v1.1: runtime appends ` (<source>)` after expansion. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. v1.1: runtime prepends `<source> ` after expansion. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. v1.1: runtime appends ` (<source>)` after expansion. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. v1.1: runtime prepends `<source> ` after expansion. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds and the `Source`/`Sources` mutual exclusivity + `MetricName = "therm"` conditional come from [`devicecfg/TemperatureSensor.dtdl.json`](devicecfg/TemperatureSensor.dtdl.json) (`ConfigConstraint` extension). A v1.0-compat sensor (`MetricName ≠ "therm"`) carrying `Source`/`Sources` is rejected.
 
 > Footnote on `Source` / `Sources` / `MetricName` in v1.1: the validator should accept any of the four modes above. If `Source` and `Sources` are both set, the runtime breaks the tie by priority (`Source` wins). If `MetricName ≠ "therm"` and `Source`/`Sources` are present, the runtime treats `MetricName` as a source name (v1.0 mode) and ignores the others.
 
@@ -166,24 +168,28 @@ The `voltage` MetricType has no additional Parameters and behaves identically be
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `voltage`, `voltage_5v`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Voltage conventionally uses `PWR`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `voltage`, `voltage_5v`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Voltage conventionally uses `PWR`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `VoltageSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `voltage` | Must equal `voltage` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific voltage metric. | `voltage` | Must equal `voltage` (const). |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific voltage metric — the onboard voltage rail name. | Free-form non-empty string, e.g., `v_in`, `voltage`. The rail set is platform-dependent. | Non-empty string; `minLength: 1`, `maxLength: 64`. Not enumerated by the schema (free-form `string`). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For voltage: `double`. | Must equal `double`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/VoltageSensor.dtdl.json`](devicecfg/VoltageSensor.dtdl.json) (`ConfigConstraint` extension). `MetricName` is a free-form `string` — the rail set is platform-dependent.
 
 ### Voltage MetricName → Schema Mapping
 
-| MetricName | `SensorInfo.Schema` | Unit |
-|------------|---------------------|------|
-| `voltage` | `double` | V |
+`MetricName` is a free-form `string`; every `voltage` MetricName maps to `SensorInfo.Schema = "double"`. The row below is representative.
+
+| MetricName (example) | `SensorInfo.Schema` | Unit |
+|----------------------|---------------------|------|
+| `v_in` | `double` | V |
 
 ---
 
@@ -217,24 +223,28 @@ The `fanspeed` MetricType has no additional Parameters and behaves identically b
 
 | Hierarchy Key Name | Schema | Changeable | Required | Description | Allowed Values | Validation Rule |
 |--------------------|--------|------------|----------|-------------|----------------|-----------------|
-| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `fanspeed`, `fan_cpu`. | Pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; `maxLength: 64`; unique. |
-| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Fanspeed conventionally uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above. |
+| `Name` | string | ❌ | ✅ | Unique sensor identifier. | Free-form, e.g., `fanspeed`, `fan_cpu`. | Non-empty string; `minLength: 1`, `maxLength: 64`; pattern `^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$`; unique. |
+| `SensorGroup` | string | ❌ | ✅ | Logical grouping. Fanspeed conventionally uses `SYS`. | `AI`, `AO`, `DI`, `DO`, `TEMP`, `PWR`, `SYS` | Enum constraint above (the `FanspeedSensor` schema permits all seven). |
 | `Parameters` | object | — | ✅ | Container for metric routing parameters. | — | Must contain `MetricType` and `MetricName`. |
 | `Parameters.MetricType` | string | ❌ | ✅ | Metric type discriminator. | `fanspeed` | Must equal `fanspeed` (const). |
-| `Parameters.MetricName` | string | ❌ | ✅ | Specific fanspeed metric. | `fanspeed` | Must equal `fanspeed` (const). |
+| `Parameters.MetricName` | string | ❌ | ✅ | Specific fanspeed metric — the onboard fan tachometer name. | Free-form non-empty string, e.g., `fan_in`, `fanspeed`. The fan set is platform-dependent. | Non-empty string; `minLength: 1`, `maxLength: 64`. Not enumerated by the schema (free-form `string`). |
 | `Report` | object | — | ✅ | Container for periodic reporting settings. | — | Must contain `Enabled` and `Interval`. |
 | `Report.Enabled` | boolean | ✅ | ✅ | Enable/disable reporting. | `true`, `false` | Boolean. |
-| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | `> 0`. |
+| `Report.Interval` | integer | ✅ | ✅ | Reporting period in milliseconds. | Positive integer, e.g., `5000`. | Integer; `1 ≤ value ≤ 300000`. |
 | `SensorInfo` | object | — | ✅ | Container for sensor metadata. | — | Must contain `Schema`, `Description`, `DisplayName`. |
 | `SensorInfo.Schema` | string | ❌ | ✅ | Expected return data type. | For fanspeed: `double`. | Must equal `double`. |
-| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | None. |
-| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | None. |
+| `SensorInfo.Description` | string | ✅ | ✅ | Human-readable description. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 512`. |
+| `SensorInfo.DisplayName` | string | ✅ | ✅ | Human-readable display name. | Any string. | Non-empty string; `minLength: 1`, `maxLength: 64`. |
+
+> Schema-enforced bounds above come from [`devicecfg/FanspeedSensor.dtdl.json`](devicecfg/FanspeedSensor.dtdl.json) (`ConfigConstraint` extension). `MetricName` is a free-form `string` — the fan set is platform-dependent.
 
 ### Fanspeed MetricName → Schema Mapping
 
-| MetricName | `SensorInfo.Schema` | Unit |
-|------------|---------------------|------|
-| `fanspeed` | `double` | RPM |
+`MetricName` is a free-form `string`; every `fanspeed` MetricName maps to `SensorInfo.Schema = "double"`. The row below is representative.
+
+| MetricName (example) | `SensorInfo.Schema` | Unit |
+|----------------------|---------------------|------|
+| `fan_in` | `double` | RPM |
 
 ---
 

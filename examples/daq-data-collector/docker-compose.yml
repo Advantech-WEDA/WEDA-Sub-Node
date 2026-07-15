@@ -1,0 +1,56 @@
+services:
+  daq-data-collector:
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-data-collector:latest
+    container_name: daq-data-collector
+    privileged: true
+    pid: host
+    restart: unless-stopped
+    network_mode: host
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    
+    # Device mappings for DAQ devices — required for the container to access DAQNavi /dev/daqN hardware nodes.
+    # 1. Run this on the HOST first to see which daqN nodes actually exist on this machine:
+    #      find /dev -maxdepth 1 -name 'daq*' | sort
+    # 2. Uncomment the lines below that match the output (remove ones that don't exist,
+    #    add more if your system exposes additional module indices).
+    devices:
+      # - /dev/daq0:/dev/daq0
+      # - /dev/daq1:/dev/daq1
+      # - /dev/daq2:/dev/daq2
+      # - /dev/daq3:/dev/daq3
+      # - /dev/daq255:/dev/daq255
+
+    volumes:
+      # Configuration files are baked into the image at build time.
+      # Uncomment the lines below to override them with host files instead
+      # (useful for editing without rebuilding the image, or per-device configs).
+      # .json must be in same directory as docker-compose.yml
+      # - ./devicecfg.json:/app/devicecfg.json
+      # - ./systemcfg.json:/app/systemcfg.json
+      # - ./customcfg.json:/app/customcfg.json
+      # - ./appsettings.json:/app/appsettings.json
+
+      # Persist .weda directory for device registration
+      - ./weda-data:/app/.weda
+
+      # Advantech ARM64 Advantech SUSI Driver mounts
+      - /etc/board:/etc/board:ro
+      - /usr/lib/Advantech/:/usr/lib/Advantech/:ro
+      - /lib/libSUSI-4.00.so:/lib/libSUSI-4.00.so:ro
+      - /lib/libSUSI-4.00.so.1:/lib/libSUSI-4.00.so.1:ro
+      - /lib/libSUSI-4.00.so.1.0.0:/lib/libSUSI-4.00.so.1.0.0:ro
+      - /lib/libjansson.a:/lib/libjansson.a:ro
+      - /lib/libjansson.so:/lib/libjansson.so:ro
+      - /lib/libjansson.so.4:/lib/libjansson.so.4:ro
+      - /lib/libjansson.so.4.11.0:/lib/libjansson.so.4.11.0:ro
+      - /lib/libSusiIoT.so:/lib/libSusiIoT.so:ro
+      - /lib/libSusiIoT.so.1.0.0:/lib/libSusiIoT.so.1.0.0:ro
+
+      # Advantech DAQNavi resources
+      - /home/advantech:/app/advantech
+      - /var/lib/daq/:/var/lib/daq/
+      - /opt/advantech/:/opt/advantech/

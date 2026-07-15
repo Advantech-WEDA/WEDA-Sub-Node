@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
+using Weda.SubNode.Core.Communication.Tcp;
 using Weda.SubNode.Core.Utilities;
 
 namespace Weda.SubNode.Core.Protocols.Modbus;
@@ -12,8 +13,31 @@ namespace Weda.SubNode.Core.Protocols.Modbus;
 /// Strongly-typed configuration for TCP Modbus devices.
 /// Provides IntelliSense-friendly programmatic configuration without needing to consult documentation.
 /// </summary>
-public class TcpModbusDeviceConfiguration : IDeviceConfiguration
+/// <remarks>
+/// Implements <see cref="IConfigurableDevice{TCommunication, TProperties}"/> with
+/// <see cref="TcpCommunicationSettings"/> as the transport-layer POCO and
+/// <see cref="ModbusProperties"/> as the protocol-specific POCO. The
+/// capability scanner reflects on these generic arguments at startup to emit
+/// the device's DTDL Interface (Category <c>"Device"</c>, TypeName
+/// <c>"tcp-modbus"</c>).
+/// </remarks>
+public class TcpModbusDeviceConfiguration
+    : IDeviceConfiguration,
+      IConfigurableDevice<TcpCommunicationSettings, ModbusProperties>
 {
+    /// <summary>
+    /// Stable identifier for this device kind, used by the capability scanner
+    /// and the cloud-side device type registration.
+    /// </summary>
+    public static string DeviceTypeName => "tcp-modbus";
+
+    /// <summary>
+    /// Human-readable description surfaced into the emitted DTDL Interface.
+    /// </summary>
+    public static string? Description =>
+        "Modbus/TCP master client. Reads coil / discrete / input / holding registers " +
+        "over TCP from a remote Modbus slave.";
+
     /// <summary>
     /// Device ID (optional, will be auto-generated if not provided)
     /// </summary>
@@ -215,8 +239,34 @@ public class TcpModbusDeviceConfiguration : IDeviceConfiguration
 /// <summary>
 /// Strongly-typed sensor configuration for Modbus sensors
 /// </summary>
+/// <remarks>
+/// Implements <see cref="IConfigurableSensor{TParameter}"/> with
+/// <see cref="ModbusSensorParameters"/> as the parameter POCO. The capability
+/// scanner reflects on this generic argument at startup to emit the sensor's
+/// DTDL Interface (Category <c>"Sensor"</c>, namespaced under the parent
+/// device's <see cref="DeviceTypeName"/>).
+/// </remarks>
 public class ModbusSensorReporturation
+    : IConfigurableSensor<ModbusSensorParameters>
 {
+    /// <summary>
+    /// The parent device kind under which this sensor is registered.
+    /// Bound to <see cref="TcpModbusDeviceConfiguration.DeviceTypeName"/> so the
+    /// pair stays in sync if the device-type identifier is ever renamed.
+    /// </summary>
+    public static string DeviceTypeName => TcpModbusDeviceConfiguration.DeviceTypeName;
+
+    /// <summary>
+    /// Stable identifier of this sensor shape within the parent device kind.
+    /// </summary>
+    public static string SensorTypeName => "modbus-register";
+
+    /// <summary>
+    /// Human-readable description surfaced into the emitted DTDL Interface.
+    /// </summary>
+    public static string? Description =>
+        "Single / multi-register Modbus read sensor.";
+
     /// <summary>
     /// Resource ID (optional, will be auto-generated if not provided)
     /// </summary>

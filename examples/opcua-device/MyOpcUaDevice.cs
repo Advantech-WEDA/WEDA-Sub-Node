@@ -14,6 +14,7 @@ namespace opcua_device;
 ///   TcpOpcUaPubSubDevice
 /// No other code changes needed — the parser supports both patterns.
 /// </summary>
+[DeviceType(Sensors.OpcUaDevice.DeviceTypeName)]
 public class MyOpcUaDevice : TcpOpcUaRequestResponseDevice
 {
     public MyOpcUaDevice(

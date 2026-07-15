@@ -1,159 +1,192 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using System.Text.Json;
+
+using Weda.Dtdl.Emit;
+
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Abstractions.Transforms;
+using Weda.SubNode.Core.Schema;
 
 namespace Weda.SubNode.Core.Transforms;
 
 /// <summary>
-/// Transform factory delegate type.
+/// Factory for creating <see cref="ITelemetryTransform"/> instances from
+/// <see cref="TransformConfig"/>, with assembly scanning for self-registering
+/// implementations of <see cref="IConfigurableTransform{TSelf, TParameter}"/>.
 /// </summary>
-public delegate ITelemetryTransform TransformFactoryDelegate(Dictionary<string, object> parameters);
-
-/// <summary>
-/// Factory for creating ITelemetryTransform instances from TransformConfig.
-/// Automatically discovers and registers all ITelemetryTransform implementations
-/// using static abstract interface members.
-/// </summary>
+/// <remarks>
+/// Each discovered implementation caches a DTDL v3 Interface emitted by
+/// <see cref="WedaDtdlEmitter"/> from its parameter type at registration
+/// time; the cache is exposed through <see cref="GetDescriptors"/> for
+/// capability upload.
+/// </remarks>
 public static class TransformFactory
 {
-    /// <summary>
-    /// Lazy-initialized registry of transform factories keyed by type name (case-insensitive).
-    /// </summary>
-    private static readonly Lazy<Dictionary<string, TransformFactoryDelegate>> _registry
+    private static readonly Lazy<Dictionary<string, TransformRegistration>> _registry
         = new(BuildRegistry);
 
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     /// <summary>
-    /// Gets the registered transform type names (for diagnostics/debugging).
+    /// Registered transform type names, keyed case-insensitively.
     /// </summary>
     public static IReadOnlyCollection<string> RegisteredTypes => _registry.Value.Keys;
 
     /// <summary>
-    /// Builds the registry by scanning assemblies for ITelemetryTransform implementations.
+    /// Returns the descriptor list for every registered transform.
+    /// Used by <c>DeviceConfigurationMappingExtensions</c> when uploading
+    /// SubNode capabilities to cloud.
     /// </summary>
-    private static Dictionary<string, TransformFactoryDelegate> BuildRegistry()
-    {
-        var registry = new Dictionary<string, TransformFactoryDelegate>(StringComparer.OrdinalIgnoreCase);
-
-        // Scan assemblies for ITelemetryTransform implementations
-        var assemblies = new[]
-        {
-            typeof(TransformFactory).Assembly, // Weda.SubNode.Core
-        };
-
-        foreach (var assembly in assemblies)
-        {
-            ScanAssembly(assembly, registry);
-        }
-
-        return registry;
-    }
+    public static IReadOnlyList<TransformDescriptorDto> GetDescriptors() =>
+        _registry.Value.Values
+            .Select(r => new TransformDescriptorDto(r.TypeName, r.Description, r.ParameterSchema))
+            .ToList();
 
     /// <summary>
-    /// Scans an assembly for IConfigurableTransform implementations and registers them.
+    /// Scans additional assemblies for transform implementations. Must be called
+    /// before the first <see cref="CreateTransform"/> / <see cref="GetDescriptors"/>
+    /// invocation.
     /// </summary>
-    private static void ScanAssembly(Assembly assembly, Dictionary<string, TransformFactoryDelegate> registry)
-    {
-        var configurableInterface = typeof(IConfigurableTransform<>);
-
-        foreach (var type in assembly.GetTypes())
-        {
-            // Skip abstract classes and interfaces
-            if (type.IsAbstract || type.IsInterface)
-                continue;
-
-            // Check if implements IConfigurableTransform<TSelf>
-            var implementsConfigurable = type.GetInterfaces()
-                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == configurableInterface);
-
-            if (!implementsConfigurable)
-                continue;
-
-            // Get static TypeName property
-            var typeNameProp = type.GetProperty("TypeName",
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-            if (typeNameProp == null)
-                continue;
-
-            var typeName = (string?)typeNameProp.GetValue(null);
-            if (string.IsNullOrEmpty(typeName))
-                continue;
-
-            // Get static Create method
-            var createMethod = type.GetMethod("Create",
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy,
-                [typeof(Dictionary<string, object>)]);
-            if (createMethod == null)
-                continue;
-
-            // Register factory delegate
-            registry[typeName] = parameters =>
-                (ITelemetryTransform)createMethod.Invoke(null, [parameters])!;
-        }
-    }
-
-    /// <summary>
-    /// Registers additional assemblies for transform discovery.
-    /// Call this before first use of CreateTransform/CreateFromConfigs.
-    /// </summary>
-    /// <param name="assemblies">Assemblies to scan for transforms</param>
     public static void RegisterAssemblies(params Assembly[] assemblies)
     {
-        // Force initialization if not already done
         var registry = _registry.Value;
-
         foreach (var assembly in assemblies)
         {
             ScanAssembly(assembly, registry);
         }
     }
 
-    /// <summary>
-    /// Creates a list of transforms from configuration.
-    /// Execution order is determined by the array index in the configuration.
-    /// </summary>
-    /// <param name="configs">Transform configurations</param>
-    /// <returns>List of instantiated transforms</returns>
     public static List<ITelemetryTransform> CreateFromConfigs(List<TransformConfig> configs)
     {
-        if (configs == null || configs.Count == 0)
+        if (configs is null || configs.Count == 0)
+        {
             return [];
+        }
 
         var transforms = new List<ITelemetryTransform>();
-
-        // Process in array order (index 0, 1, 2, ...) - no sorting
-        // Only filter out disabled transforms
         foreach (var config in configs.Where(c => c.Enabled))
         {
             var transform = CreateTransform(config);
-            if (transform != null)
+            if (transform is not null)
             {
                 transforms.Add(transform);
             }
         }
-
         return transforms;
     }
 
-    /// <summary>
-    /// Creates a single transform from configuration.
-    /// </summary>
-    /// <param name="config">Transform configuration</param>
-    /// <returns>Transform instance or null if disabled</returns>
-    /// <exception cref="NotSupportedException">Thrown when transform type is not registered</exception>
     public static ITelemetryTransform? CreateTransform(TransformConfig config)
     {
         if (!config.Enabled)
-            return null;
-
-        var typeName = config.Type;
-
-        if (_registry.Value.TryGetValue(typeName, out var factory))
         {
-            return factory(config.Parameters);
+            return null;
+        }
+
+        if (_registry.Value.TryGetValue(config.Type, out var registration))
+        {
+            return registration.Factory(config.Parameters);
         }
 
         throw new NotSupportedException(
             $"Transform type '{config.Type}' is not supported. " +
             $"Registered types: [{string.Join(", ", _registry.Value.Keys)}]");
+    }
+
+    private static Dictionary<string, TransformRegistration> BuildRegistry()
+    {
+        var registry = new Dictionary<string, TransformRegistration>(StringComparer.OrdinalIgnoreCase);
+        ScanAssembly(typeof(TransformFactory).Assembly, registry);
+        return registry;
+    }
+
+    private static void ScanAssembly(Assembly assembly, Dictionary<string, TransformRegistration> registry)
+    {
+        var configurableInterface = typeof(IConfigurableTransform<,>);
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAbstract || type.IsInterface)
+            {
+                continue;
+            }
+
+            var iface = type.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == configurableInterface);
+            if (iface is not null)
+            {
+                TryRegister(type, iface, registry);
+            }
+        }
+    }
+
+    private static void TryRegister(
+        Type type, Type configurableIface, Dictionary<string, TransformRegistration> registry)
+    {
+        var paramType = configurableIface.GetGenericArguments()[1];
+
+        var typeName = GetStaticProperty<string>(type, "TypeName");
+        if (string.IsNullOrEmpty(typeName))
+        {
+            return;
+        }
+
+        var description = GetStaticProperty<string?>(type, "Description");
+
+        var createMethod = type.GetMethod(
+            "Create", BindingFlags.Public | BindingFlags.Static, [paramType]);
+        if (createMethod is null)
+        {
+            return;
+        }
+
+        var schema = WedaDtdlEmitter.Emit(
+            new WedaDtdlEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "transform",
+                TypeName: typeName,
+                DisplayName: typeName,
+                Description: description),
+            new WedaDtdlEmitter.PropertyBinding(
+                Name: "parameters",
+                Type: paramType));
+
+        ITelemetryTransform Factory(Dictionary<string, object> dict)
+        {
+            var json = JsonSerializer.Serialize(dict, JsonOpts);
+            var typed = JsonSerializer.Deserialize(json, paramType, JsonOpts)
+                ?? throw new InvalidOperationException(
+                    $"Transform '{typeName}': failed to deserialize parameters into {paramType.Name}.");
+
+            var ctx = new ValidationContext(typed);
+            var results = new List<ValidationResult>();
+            if (!Validator.TryValidateObject(typed, ctx, results, validateAllProperties: true))
+            {
+                var detail = string.Join("; ", results.Select(r => r.ErrorMessage));
+                throw new ValidationException(
+                    $"Transform '{typeName}': parameter validation failed — {detail}");
+            }
+
+            return (ITelemetryTransform)createMethod.Invoke(null, [typed])!;
+        }
+
+        registry[typeName] = new TransformRegistration(
+            TypeName: typeName,
+            Description: description,
+            ParameterType: paramType,
+            Factory: Factory,
+            ParameterSchema: schema);
+    }
+
+    private static T? GetStaticProperty<T>(Type type, string propertyName)
+    {
+        var prop = type.GetProperty(propertyName,
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        return prop is null ? default : (T?)prop.GetValue(null);
     }
 }

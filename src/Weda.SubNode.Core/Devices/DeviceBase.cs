@@ -708,7 +708,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         SubNodeConfigUpdateMessage message,
         CancellationToken ct)
     {
-        var hasDtmiDelta = false;
+        var requiresReupload = false;
         var deviceTypeName = Configuration.SubNodeType.ToString();
 
         // Step 1: Validate the configuration update using virtual method
@@ -837,20 +837,12 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 }
             }
 
-            // Check for DTMI delta - SubNodeManager will trigger re-upload if needed
-            if (ConfigurationUpdateHelper.HasDtmiDelta(Configuration, desiredConfig.Sensors))
+            // New sensors require re-uploading DeviceCaps so the cloud sees the
+            // SubNode-assigned DTMIs. SubNodeManager triggers the re-upload.
+            if (ConfigurationUpdateHelper.HasNewSensors(Configuration, desiredConfig.Sensors))
             {
-                hasDtmiDelta = true;
+                requiresReupload = true;
 
-                var changes = ConfigurationUpdateHelper.GetDtmiChanges(Configuration, desiredConfig.Sensors);
-                _logger.LogInformation("DTMI delta detected: {Count} changes", changes.Count);
-
-                foreach (var (sensorName, oldDtmi, newDtmi) in changes)
-                {
-                    _logger.LogDebug("  Sensor '{Sensor}': '{OldDtmi}' -> '{NewDtmi}'", sensorName, oldDtmi, newDtmi);
-                }
-
-                // Add new sensors
                 var addedSensors = ConfigurationUpdateHelper.ApplyNewSensors(Configuration, desiredConfig.Sensors!, Configuration.DeviceId!);
                 if (addedSensors.Count > 0)
                 {
@@ -858,7 +850,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         addedSensors.Count, string.Join(", ", addedSensors));
                 }
 
-                // Re-initialize DTDL (auto-generate when AutoGenEnabled=true, or loads from file)
+                // Re-initialize DTDL (auto-generates DTMIs for the newly added sensors)
                 Configuration.InitializeDtdl(null, logger: _logger);
                 _logger.LogDebug("DTDL re-initialized");
             }
@@ -900,7 +892,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
             _logger.LogInformation("Configuration update completed successfully for device: {DeviceName}", Configuration.DeviceName);
 
-            return ConfigUpdateResult.Success(Configuration, deviceTypeName, hasDtmiDelta);
+            return ConfigUpdateResult.Success(Configuration, deviceTypeName, requiresReupload);
         }
         catch (Exception updateEx)
         {
@@ -976,10 +968,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 return ConfigUpdateValidationResult.Skipped(deviceTypeName);
             }
 
-            // Check for DTMI delta
-            var hasDtmiDelta = ConfigurationUpdateHelper.HasDtmiDelta(Configuration, desiredConfig.Sensors);
+            // Cloud may declare new sensors — SubNodeManager re-uploads DeviceCaps so
+            // the cloud sees the SubNode-assigned DTMIs.
+            var requiresReupload = ConfigurationUpdateHelper.HasNewSensors(Configuration, desiredConfig.Sensors);
 
-            return ConfigUpdateValidationResult.Valid(deviceTypeName, hasDtmiDelta);
+            return ConfigUpdateValidationResult.Valid(deviceTypeName, requiresReupload);
         }
         finally
         {
@@ -1070,7 +1063,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 }
 
                 // Apply Dtdl.AutoGenEnabled if changed
-                var hasDtmiDelta = sensorResult.RequiresDtdlRegeneration;
+                var requiresReupload = sensorResult.RequiresDtdlRegeneration;
                 if (desiredConfig.Dtdl != null)
                 {
                     var previousAutoGenEnabled = Configuration.Dtdl.AutoGenEnabled;
@@ -1087,13 +1080,13 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         if (desiredAutoGenEnabled)
                         {
                             Configuration.DtdlInterface = null;
-                            hasDtmiDelta = true;
+                            requiresReupload = true;
                         }
                     }
                 }
 
                 // Regenerate DTDL if needed
-                if (hasDtmiDelta)
+                if (requiresReupload)
                 {
                     Configuration.InitializeDtdl(null, logger: _logger);
                 }
@@ -1132,7 +1125,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                 // Post-hook
                 await OnAfterConfigUpdateAsync(e, ct);
 
-                return ConfigUpdateResult.Success(Configuration, deviceTypeName, hasDtmiDelta);
+                return ConfigUpdateResult.Success(Configuration, deviceTypeName, requiresReupload);
             }
             catch (Exception ex)
             {

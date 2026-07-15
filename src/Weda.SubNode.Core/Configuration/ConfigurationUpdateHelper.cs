@@ -243,14 +243,6 @@ public static partial class ConfigurationUpdateHelper
                 wasUpdated = true;
             }
 
-            // Apply Dtmi update if provided and different
-            if (!string.IsNullOrEmpty(desiredSensor.Dtmi) &&
-                !string.Equals(sensor.Dtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
-            {
-                sensor.Dtmi = desiredSensor.Dtmi;
-                wasUpdated = true;
-            }
-
             if (wasUpdated)
             {
                 updatedSensors.Add(sensor.Name);
@@ -382,14 +374,6 @@ public static partial class ConfigurationUpdateHelper
     private static bool UpdateExistingSensor(Sensor sensor, SubNodeSensorReportDto desired)
     {
         var wasUpdated = false;
-
-        // Update Dtmi if provided and different
-        if (!string.IsNullOrEmpty(desired.Dtmi) &&
-            !string.Equals(sensor.Dtmi, desired.Dtmi, StringComparison.Ordinal))
-        {
-            sensor.Dtmi = desired.Dtmi;
-            wasUpdated = true;
-        }
 
         // Update Report config if provided
         if (desired.Config != null)
@@ -894,67 +878,21 @@ public static partial class ConfigurationUpdateHelper
     }
 
     /// <summary>
-    /// Detects if there are new sensor or new DTMIs that require re-uploading DeviceCaps.
-    /// A delta exists when:
-    /// 1. A new sensor is added (not in current devicecfg)
-    /// 2. An existing sensor's DTMI is changed
+    /// Detects whether new sensors have appeared in the desired config that aren't in
+    /// the current devicecfg. When true, DeviceCaps must be re-uploaded so the cloud
+    /// sees the SubNode-owned DTMIs for the new sensors. SubNode owns DTMI assignment
+    /// (auto-gen only), so cloud-supplied Dtmi values are ignored.
     /// </summary>
-    /// <param name="currentCfg">Current device configuration</param>
-    /// <param name="desiredSensors">Desired sensor configurations from cloud</param>
-    /// <returns>True if DeviceCaps needs to be re-uploaded</returns>
-    public static bool HasDtmiDelta(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
+    public static bool HasNewSensors(DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
     {
         if (desiredSensors == null || desiredSensors.Count == 0)
             return false;
 
-        var currentDtmis = currentCfg.Sensors
-            .ToDictionary(s => s.Name, s => s.Dtmi, StringComparer.OrdinalIgnoreCase);
+        var currentNames = currentCfg.Sensors
+            .Select(s => s.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var desiredSensor in desiredSensors)
-        {
-            // Case 1: New sensor (not in current config)
-            if (!currentDtmis.TryGetValue(desiredSensor.Name, out var currentDtmi))
-            {
-                return true;
-            }
-
-            // Case 2: DTMI changed
-            if (!string.IsNullOrEmpty(desiredSensor.Dtmi) && 
-                !string.Equals(currentDtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }    
-
-        return false;
-    }
-
-    public static List<(string SensorName, string? OldDtmi, string? NewDtmi)> GetDtmiChanges(
-        DeviceConfiguration currentCfg, IReadOnlyList<SubNodeSensorReportDto>? desiredSensors)
-    {
-        var changes = new List<(string SensorName, string? OldDtmi, string? NewDtmi)>();
-
-        if (desiredSensors == null || desiredSensors.Count == 0)
-            return changes;
-
-        var currentDtmis = currentCfg.Sensors
-            .ToDictionary(s => s.Name, s => s.Dtmi, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var desiredSensor in desiredSensors)
-        {
-            // Case 1: New sensor (not in current config)
-            if (!currentDtmis.TryGetValue(desiredSensor.Name, out var currentDtmi))
-            {
-                changes.Add((desiredSensor.Name, null, desiredSensor.Dtmi));
-            } 
-            else if (!string.IsNullOrEmpty(desiredSensor.Dtmi) && 
-                     !string.Equals(currentDtmi, desiredSensor.Dtmi, StringComparison.Ordinal))
-            {
-                changes.Add((desiredSensor.Name, currentDtmi, desiredSensor.Dtmi));
-            }
-        }    
-
-        return changes;
+        return desiredSensors.Any(s => !currentNames.Contains(s.Name));
     }
 
     private static Sensor MapToSensor(SubNodeSensorReportDto dto, string subNodeDeviceId, string deviceName, bool deviceEnabled = true)

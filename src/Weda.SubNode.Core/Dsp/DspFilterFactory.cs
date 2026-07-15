@@ -1,159 +1,192 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using System.Text.Json;
+
+using Weda.Dtdl.Emit;
+
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Dsp;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Schema;
 
 namespace Weda.SubNode.Core.Dsp;
 
 /// <summary>
-/// DSP filter factory delegate type.
+/// Factory for creating <see cref="IDspFilter"/> instances from
+/// <see cref="DspFilterConfig"/>, with assembly scanning for self-registering
+/// implementations of <see cref="IConfigurableDspFilter{TSelf, TParameter}"/>.
 /// </summary>
-public delegate IDspFilter DspFilterFactoryDelegate(Dictionary<string, object> parameters);
-
-/// <summary>
-/// Factory for creating IDspFilter instances from DspFilterConfig.
-/// Automatically discovers and registers all IConfigurableDspFilter implementations
-/// using static abstract interface members.
-/// </summary>
+/// <remarks>
+/// Each discovered implementation caches a DTDL v3 Interface emitted by
+/// <see cref="WedaDtdlEmitter"/> from its parameter type at registration
+/// time; the cache is exposed through <see cref="GetDescriptors"/> for
+/// capability upload.
+/// </remarks>
 public static class DspFilterFactory
 {
-    /// <summary>
-    /// Lazy-initialized registry of filter factories keyed by type name (case-insensitive).
-    /// </summary>
-    private static readonly Lazy<Dictionary<string, DspFilterFactoryDelegate>> _registry
+    private static readonly Lazy<Dictionary<string, DspFilterRegistration>> _registry
         = new(BuildRegistry);
 
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     /// <summary>
-    /// Gets the registered filter type names (for diagnostics/debugging).
+    /// Registered filter type names, keyed case-insensitively.
     /// </summary>
     public static IReadOnlyCollection<string> RegisteredTypes => _registry.Value.Keys;
 
     /// <summary>
-    /// Builds the registry by scanning assemblies for IConfigurableDspFilter implementations.
+    /// Returns the descriptor list for every registered DSP filter.
+    /// Used by <c>DeviceConfigurationMappingExtensions</c> when uploading
+    /// SubNode capabilities to cloud.
     /// </summary>
-    private static Dictionary<string, DspFilterFactoryDelegate> BuildRegistry()
-    {
-        var registry = new Dictionary<string, DspFilterFactoryDelegate>(StringComparer.OrdinalIgnoreCase);
-
-        // Scan assemblies for IConfigurableDspFilter implementations
-        var assemblies = new[]
-        {
-            typeof(DspFilterFactory).Assembly, // Weda.SubNode.Core
-        };
-
-        foreach (var assembly in assemblies)
-        {
-            ScanAssembly(assembly, registry);
-        }
-
-        return registry;
-    }
+    public static IReadOnlyList<DspFilterDescriptorDto> GetDescriptors() =>
+        _registry.Value.Values
+            .Select(r => new DspFilterDescriptorDto(r.TypeName, r.Description, r.ParameterSchema))
+            .ToList();
 
     /// <summary>
-    /// Scans an assembly for IConfigurableDspFilter implementations and registers them.
+    /// Scans additional assemblies for filter implementations. Must be called
+    /// before the first <see cref="CreateFilter"/> / <see cref="GetDescriptors"/>
+    /// invocation.
     /// </summary>
-    private static void ScanAssembly(Assembly assembly, Dictionary<string, DspFilterFactoryDelegate> registry)
-    {
-        var configurableInterface = typeof(IConfigurableDspFilter<>);
-
-        foreach (var type in assembly.GetTypes())
-        {
-            // Skip abstract classes and interfaces
-            if (type.IsAbstract || type.IsInterface)
-                continue;
-
-            // Check if implements IConfigurableDspFilter<TSelf>
-            var implementsConfigurable = type.GetInterfaces()
-                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == configurableInterface);
-
-            if (!implementsConfigurable)
-                continue;
-
-            // Get static TypeName property
-            var typeNameProp = type.GetProperty("TypeName",
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-            if (typeNameProp == null)
-                continue;
-
-            var typeName = (string?)typeNameProp.GetValue(null);
-            if (string.IsNullOrEmpty(typeName))
-                continue;
-
-            // Get static Create method
-            var createMethod = type.GetMethod("Create",
-                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy,
-                [typeof(Dictionary<string, object>)]);
-            if (createMethod == null)
-                continue;
-
-            // Register factory delegate
-            registry[typeName] = parameters =>
-                (IDspFilter)createMethod.Invoke(null, [parameters])!;
-        }
-    }
-
-    /// <summary>
-    /// Registers additional assemblies for filter discovery.
-    /// Call this before first use of CreateFilter/CreateFromConfigs.
-    /// </summary>
-    /// <param name="assemblies">Assemblies to scan for filters</param>
     public static void RegisterAssemblies(params Assembly[] assemblies)
     {
-        // Force initialization if not already done
         var registry = _registry.Value;
-
         foreach (var assembly in assemblies)
         {
             ScanAssembly(assembly, registry);
         }
     }
 
-    /// <summary>
-    /// Creates a list of DSP filters from configuration.
-    /// Execution order is determined by the array index in the configuration.
-    /// </summary>
-    /// <param name="configs">DSP filter configurations</param>
-    /// <returns>List of instantiated filters</returns>
     public static List<IDspFilter> CreateFromConfigs(List<DspFilterConfig> configs)
     {
-        if (configs == null || configs.Count == 0)
+        if (configs is null || configs.Count == 0)
+        {
             return [];
+        }
 
         var filters = new List<IDspFilter>();
-
-        // Process in array order (index 0, 1, 2, ...) - no sorting
-        // Only filter out disabled filters
         foreach (var config in configs.Where(c => c.Enabled))
         {
             var filter = CreateFilter(config);
-            if (filter != null)
+            if (filter is not null)
             {
                 filters.Add(filter);
             }
         }
-
         return filters;
     }
 
-    /// <summary>
-    /// Creates a single DSP filter from configuration.
-    /// </summary>
-    /// <param name="config">DSP filter configuration</param>
-    /// <returns>Filter instance or null if disabled</returns>
-    /// <exception cref="NotSupportedException">Thrown when filter type is not registered</exception>
     public static IDspFilter? CreateFilter(DspFilterConfig config)
     {
         if (!config.Enabled)
-            return null;
-
-        var typeName = config.Type;
-
-        if (_registry.Value.TryGetValue(typeName, out var factory))
         {
-            return factory(config.Parameters);
+            return null;
+        }
+
+        if (_registry.Value.TryGetValue(config.Type, out var registration))
+        {
+            return registration.Factory(config.Parameters);
         }
 
         throw new NotSupportedException(
             $"DSP filter type '{config.Type}' is not supported. " +
             $"Registered types: [{string.Join(", ", _registry.Value.Keys)}]");
+    }
+
+    private static Dictionary<string, DspFilterRegistration> BuildRegistry()
+    {
+        var registry = new Dictionary<string, DspFilterRegistration>(StringComparer.OrdinalIgnoreCase);
+        ScanAssembly(typeof(DspFilterFactory).Assembly, registry);
+        return registry;
+    }
+
+    private static void ScanAssembly(Assembly assembly, Dictionary<string, DspFilterRegistration> registry)
+    {
+        var configurableInterface = typeof(IConfigurableDspFilter<,>);
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAbstract || type.IsInterface)
+            {
+                continue;
+            }
+
+            var iface = type.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == configurableInterface);
+            if (iface is not null)
+            {
+                TryRegister(type, iface, registry);
+            }
+        }
+    }
+
+    private static void TryRegister(
+        Type type, Type configurableIface, Dictionary<string, DspFilterRegistration> registry)
+    {
+        var paramType = configurableIface.GetGenericArguments()[1];
+
+        var typeName = GetStaticProperty<string>(type, "TypeName");
+        if (string.IsNullOrEmpty(typeName))
+        {
+            return;
+        }
+
+        var description = GetStaticProperty<string?>(type, "Description");
+
+        var createMethod = type.GetMethod(
+            "Create", BindingFlags.Public | BindingFlags.Static, [paramType]);
+        if (createMethod is null)
+        {
+            return;
+        }
+
+        var schema = WedaDtdlEmitter.Emit(
+            new WedaDtdlEmitter.Options(
+                Prefix: "dtmi:advantech:weda",
+                Category: "dspfilter",
+                TypeName: typeName,
+                DisplayName: typeName,
+                Description: description),
+            new WedaDtdlEmitter.PropertyBinding(
+                Name: "parameters",
+                Type: paramType));
+
+        IDspFilter Factory(Dictionary<string, object> dict)
+        {
+            var json = JsonSerializer.Serialize(dict, JsonOpts);
+            var typed = JsonSerializer.Deserialize(json, paramType, JsonOpts)
+                ?? throw new InvalidOperationException(
+                    $"DSP filter '{typeName}': failed to deserialize parameters into {paramType.Name}.");
+
+            var ctx = new ValidationContext(typed);
+            var results = new List<ValidationResult>();
+            if (!Validator.TryValidateObject(typed, ctx, results, validateAllProperties: true))
+            {
+                var detail = string.Join("; ", results.Select(r => r.ErrorMessage));
+                throw new ValidationException(
+                    $"DSP filter '{typeName}': parameter validation failed — {detail}");
+            }
+
+            return (IDspFilter)createMethod.Invoke(null, [typed])!;
+        }
+
+        registry[typeName] = new DspFilterRegistration(
+            TypeName: typeName,
+            Description: description,
+            ParameterType: paramType,
+            Factory: Factory,
+            ParameterSchema: schema);
+    }
+
+    private static T? GetStaticProperty<T>(Type type, string propertyName)
+    {
+        var prop = type.GetProperty(propertyName,
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        return prop is null ? default : (T?)prop.GetValue(null);
     }
 }
