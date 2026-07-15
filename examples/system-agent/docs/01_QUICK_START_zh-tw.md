@@ -260,7 +260,7 @@ System.DllNotFoundException: Unable to load shared library 'libSUSI-4.00.so' or 
 - 在非 Advantech 裝置上，建議移除 `appsettings.json` 中的硬體感測器相關的 sensors（設置 `Enabled: false`）
 - 在非 Advantech 裝置上，這些 sensors 不會採集資料
 
-**注意**：硬體感測器使用通用名稱（temperature、voltage 等），但當前實作依賴 Advantech SUSI 驅動，未來可能支援其他供應商的硬體。詳見 [METRIC_TYPES.md](METRIC_TYPES.md)
+**注意**：硬體感測器使用通用名稱（temperature、voltage 等），但當前實作依賴 Advantech SUSI 驅動，未來可能支援其他供應商的硬體。詳見 [METRIC_TYPES.md](02_METRIC_TYPES.md)
 
 ---
 
@@ -296,14 +296,13 @@ volumes:
 
 - 檢查 `docker compose logs` - 診斷問題
 - 確認 `Nats.Url` 和網路連接正常  
-- 檢查 [README.md](README.md) - 完整設定和配置說明
+- 檢查 [README.md](../README.md) - 完整設定和配置說明
 
 ## 下一步
 
 部署成功後可以：
 - 在雲端平台查看裝置監測資料
-- 參考 [METRIC_TYPES.md](METRIC_TYPES.md) 了解所有支援的 MetricType 和配置方法
-- 參考 [README.md](README.md#configuration-validation) 了解完整配置和架構設計
-- 參考 [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) 了解多平台支援和如何新增平台
+- 參考 [METRIC_TYPES.md](02_METRIC_TYPES.md) 了解所有支援的 MetricType 和配置方法
+- 參考 [README.md](../README.md#configuration-validation) 了解完整配置和架構設計
 
 ---

@@ -247,5 +247,5 @@ If monitor-advantech.sh shows continuous memory growth:
 
 ## Related Documentation
 
-- [README.md](README.md) - Architecture and configuration
-- [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md) - Docker deployment
+- [README.md](../README.md) - Architecture and configuration
+- [DOCKER_DEPLOY.md](03_DOCKER_DEPLOY.md) - Docker deployment
