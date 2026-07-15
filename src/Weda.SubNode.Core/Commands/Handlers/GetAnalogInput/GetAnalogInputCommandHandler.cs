@@ -25,6 +25,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogInput;
 /// </remarks>
 [Validation(typeof(GetAnalogInputCommandValidator))]
 [Logging(LogLevel.Debug)]
+[RequiresDeviceCapability(typeof(IAnalogInputReadable))]
 public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputCommand, GetAnalogInputResult>
 {
     public async Task<ErrorOr<GetAnalogInputResult>> HandleAsync(
