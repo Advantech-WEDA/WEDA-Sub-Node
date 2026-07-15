@@ -24,6 +24,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetDigitalOutput;
 /// </remarks>
 [Validation(typeof(GetDigitalOutputCommandValidator))]
 [Logging(LogLevel.Debug)]
+[RequiresDeviceCapability(typeof(IDigitalOutputReadable))]
 public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCommand, GetDigitalOutputResult>
 {
     public async Task<ErrorOr<GetDigitalOutputResult>> HandleAsync(

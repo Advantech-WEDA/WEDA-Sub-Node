@@ -25,6 +25,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetDigitalInput;
 /// </remarks>
 [Validation(typeof(GetDigitalInputCommandValidator))]
 [Logging(LogLevel.Debug)]
+[RequiresDeviceCapability(typeof(IDigitalInputReadable))]
 public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputCommand, GetDigitalInputResult>
 {
     public async Task<ErrorOr<GetDigitalInputResult>> HandleAsync(

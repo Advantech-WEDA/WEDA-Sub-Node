@@ -349,6 +349,14 @@ public class WedaApplicationContext : IWedaApplicationContext
             commandRegistry.ScanAssembly(entryAssembly);
         }
 
+        // 3. Capability-gate exposure: [RequiresDeviceCapability] commands
+        // are only uploaded to cloud when one of this SubNode's registered
+        // device classes implements the capability.
+        if (_options.DeviceClassesBySection is { } deviceClasses)
+        {
+            commandRegistry.SetDeviceClasses(deviceClasses.Values);
+        }
+
         // Setup cloud service
         if (_options.CloudService != null)
         {

@@ -105,9 +105,10 @@ public static class DeviceTypeRegistry
                 Category: "device",
                 TypeName: deviceTypeName,
                 DisplayName: deviceTypeName,
-                Description: description),
-            new WedaDtdlEmitter.PropertyBinding("Communication", commType),
-            new WedaDtdlEmitter.PropertyBinding("Properties",    propsType));
+                Description: description,
+                Extends: [DeviceBaseDtdl.Dtmi]),
+            new WedaDtdlEmitter.PropertyBinding("DeviceCommunication", commType),
+            new WedaDtdlEmitter.PropertyBinding("Properties",          propsType));
 
         var dtmi = (string)schema["@id"]!;
 

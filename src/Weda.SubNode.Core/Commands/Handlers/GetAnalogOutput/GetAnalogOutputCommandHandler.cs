@@ -25,6 +25,7 @@ namespace Weda.SubNode.Core.Commands.Handlers.GetAnalogOutput;
 /// </remarks>
 [Validation(typeof(GetAnalogOutputCommandValidator))]
 [Logging(LogLevel.Debug)]
+[RequiresDeviceCapability(typeof(IAnalogOutputReadable))]
 public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputCommand, GetAnalogOutputResult>
 {
     public async Task<ErrorOr<GetAnalogOutputResult>> HandleAsync(

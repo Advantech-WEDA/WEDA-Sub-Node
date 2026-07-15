@@ -449,6 +449,12 @@ public class WedaApplicationBuilder
             {
                 registry.ScanAssembly(entryAssembly);
             }
+
+            // Capability-gate exposure: commands marked with
+            // [RequiresDeviceCapability] are only uploaded to cloud when one of
+            // this SubNode's AddDevice<TDevice>() classes implements the
+            // capability. Resolved lazily, so all AddDevice calls have run.
+            registry.SetDeviceClasses(_deviceClassesBySection.Values);
             return registry;
         });
 

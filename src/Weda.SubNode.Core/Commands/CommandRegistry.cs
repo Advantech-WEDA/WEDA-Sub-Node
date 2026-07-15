@@ -124,6 +124,10 @@ public class CommandRegistry
             var parameterValidator = new WedaDtValidator(
                 new[] { schemaDoc.RootElement.Clone() });
 
+            var requiredCapabilities = type
+                .GetCustomAttribute<RequiresDeviceCapabilityAttribute>(inherit: true)
+                ?.Capabilities ?? [];
+
             _registrations[commandName] = new CommandRegistration(
                 CommandName: commandName,
                 CommandType: commandType,
@@ -135,7 +139,8 @@ public class CommandRegistry
                 Description: description,
                 Schema: schema,
                 CommandDtmi: commandDtmi,
-                ParameterValidator: parameterValidator);
+                ParameterValidator: parameterValidator,
+                RequiredCapabilities: requiredCapabilities);
 
             _logger?.LogDebug(
                 "Registered command handler: {CommandName} -> {HandlerType} (Behaviors: {BehaviorCount})",
@@ -144,12 +149,40 @@ public class CommandRegistry
     }
 
     /// <summary>
-    /// Returns the descriptor list for every registered command. Used by
-    /// <c>DeviceConfigurationMappingExtensions</c> when uploading SubNode
-    /// capabilities to cloud.
+    /// Declares the CLR classes of the devices actually configured on this
+    /// SubNode (from <c>AddDevice&lt;TDevice&gt;()</c> registrations). Once set,
+    /// <see cref="GetDescriptors"/> exposes a capability-gated command only
+    /// when one of these classes implements a required capability interface.
+    /// Never called (e.g. bare registry in tests) = expose everything.
+    /// </summary>
+    public void SetDeviceClasses(IEnumerable<Type> deviceClasses)
+    {
+        _deviceClasses = deviceClasses.Distinct().ToList();
+    }
+
+    private IReadOnlyList<Type>? _deviceClasses;
+
+    /// <summary>
+    /// A command is exposable when it declares no required capability, when
+    /// no device-class context was provided (legacy behavior), or when any
+    /// configured device class implements any required capability interface.
+    /// Dispatch is NOT gated — an unexposed command still executes and its
+    /// handler's own device lookup reports the missing capability.
+    /// </summary>
+    private bool IsExposable(CommandRegistration registration) =>
+        registration.RequiredCapabilities.Count == 0
+        || _deviceClasses is null
+        || registration.RequiredCapabilities.Any(
+            cap => _deviceClasses.Any(cap.IsAssignableFrom));
+
+    /// <summary>
+    /// Returns the descriptor list for every exposable registered command.
+    /// Used by <c>DeviceConfigurationMappingExtensions</c> when uploading
+    /// SubNode capabilities to cloud.
     /// </summary>
     public IReadOnlyList<CommandDescriptorDto> GetDescriptors() =>
         _registrations.Values
+            .Where(IsExposable)
             .Select(r => new CommandDescriptorDto(
                 Name: r.CommandName,
                 Description: r.Description,
@@ -553,11 +586,19 @@ public record CommandRegistration(
     string? Description = null,
     JsonObject? Schema = null,
     string? CommandDtmi = null,
-    WedaDtValidator? ParameterValidator = null)
+    WedaDtValidator? ParameterValidator = null,
+    IReadOnlyList<Type>? RequiredCapabilities = null)
 {
     /// <summary>
     /// Gets the behavior configurations, never null.
     /// </summary>
     public IReadOnlyList<BehaviorConfiguration> BehaviorConfigurations { get; init; } =
         BehaviorConfigurations ?? [];
+
+    /// <summary>
+    /// Capability interfaces declared via <see cref="RequiresDeviceCapabilityAttribute"/>
+    /// on the handler. Empty = exposed unconditionally.
+    /// </summary>
+    public IReadOnlyList<Type> RequiredCapabilities { get; init; } =
+        RequiredCapabilities ?? [];
 }

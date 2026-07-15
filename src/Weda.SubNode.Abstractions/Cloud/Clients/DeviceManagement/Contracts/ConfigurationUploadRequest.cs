@@ -40,7 +40,14 @@ public record DeviceCapDto(
     [property: JsonPropertyName("sensorTypes")] IReadOnlyList<SensorTypeCatalogRefDto> SensorTypes,
     [property: JsonPropertyName("transforms")] IReadOnlyList<CatalogRefDto> Transforms,
     [property: JsonPropertyName("dspFilters")] IReadOnlyList<CatalogRefDto> DspFilters,
-    [property: JsonPropertyName("commands")] IReadOnlyList<CatalogRefDto> Commands);
+    [property: JsonPropertyName("commands")] IReadOnlyList<CatalogRefDto> Commands)
+{
+    // Non-positional init property — does not change the constructor signature.
+    // Defaults to empty list so existing new DeviceCapDto(...) call sites compile unchanged.
+    // device-agent (Go) silently ignores unknown JSON fields, so this addition is wire-safe.
+    [JsonPropertyName("deviceConfigs")]
+    public IReadOnlyList<CatalogRefDto> DeviceConfigs { get; init; } = [];
+}
 
 /// <summary>
 /// Device configuration data for upload (v1.2 shape).
