@@ -578,9 +578,9 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         var requiresCapsReupload = validationResults.Values.Any(r => r.RequiresCapsReupload) ||
                                    applyResults.Values.Any(r => r.RequiresCapsReupload);
 
-        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
-
         // New sensors require re-uploading DeviceCaps so the cloud sees SubNode-assigned DTMIs.
+        // Upload BEFORE publishing the aggregated report so ShadowAgent's DB is
+        // updated before the devicecfg.doc notification fires (null-DTDL fix).
         if (requiresCapsReupload)
         {
             _logger.LogInformation("New sensors detected, triggering DeviceCaps re-upload");
@@ -588,6 +588,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             var configurations = new DeviceConfigurations(devices);
             await UploadDeviceConfigurationsAsync(configurations, default);
         }
+        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
 
         _logger.LogInformation("DeviceConfig update transaction completed successfully for {Count} device(s)",
             devicesToUpdate.Count);
