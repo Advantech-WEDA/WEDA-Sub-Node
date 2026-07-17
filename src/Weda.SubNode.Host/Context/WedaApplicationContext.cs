@@ -379,7 +379,8 @@ public class WedaApplicationContext : IWedaApplicationContext
             _deviceRegistry,
             _loggerFactory.CreateLogger<SubNodeManager>(),
             commandDispatcher,
-            _recordingService);
+            _recordingService,
+            _configurationCache);
     }
 
     /// <summary>

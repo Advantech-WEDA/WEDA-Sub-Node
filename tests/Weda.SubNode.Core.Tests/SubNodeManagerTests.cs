@@ -8,6 +8,7 @@ using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Tests.Fakes;
@@ -23,6 +24,7 @@ namespace Weda.SubNode.Core.Tests;
 public class SubNodeManagerTests : IAsyncDisposable
 {
     private readonly IWedaCloudService _mockCloudService;
+    private readonly IConfigurationCache _mockConfigurationCache;
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly SubNodeInfo _subNodeInfo;
     private readonly ConnectionOptions _connectionOptions;
@@ -33,6 +35,7 @@ public class SubNodeManagerTests : IAsyncDisposable
     public SubNodeManagerTests()
     {
         _mockCloudService = Substitute.For<IWedaCloudService>();
+        _mockConfigurationCache = Substitute.For<IConfigurationCache>();
         _deviceRegistry = new DeviceRegistry();
         _subNodeInfo = new SubNodeInfo
         {
@@ -82,7 +85,8 @@ public class SubNodeManagerTests : IAsyncDisposable
             _subNodeInfo,
             _connectionOptions,
             _deviceRegistry,
-            _logger);
+            _logger,
+            configurationCache: _mockConfigurationCache);
         return _manager;
     }
 
@@ -428,6 +432,306 @@ public class SubNodeManagerTests : IAsyncDisposable
         // Act & Assert - should not throw
         _capturedConfigCallback.ShouldNotBeNull();
         await Should.NotThrowAsync(async () => await _capturedConfigCallback!(updateEvent));
+    }
+
+    #endregion
+
+    #region Config Reset Tests (task #44829)
+
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceCfgNull_ShouldApplyBaseConfigAndDeleteCache()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        SubNodeConfigUpdateMessage? publishedReport = null;
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedReport = x.Arg<SubNodeConfigUpdateMessage>());
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        // Base config comes directly from devicecfg.json
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            {
+              "SubNode": { "Name": "TestDevice" },
+              "DeviceConfigs": {
+                "device-1": { "Enabled": true, "Sensors": [] }
+              }
+            }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        var resetEvent = CreateDeviceConfigResetEvent();
+
+        try
+        {
+            // Act
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(resetEvent);
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        // Assert - base config applied through the normal transaction pipeline
+        device1.ApplyCallCount.ShouldBe(1, "reset should apply the base configuration");
+        device1.LastApplyMessage.ShouldNotBeNull();
+        var appliedConfigs = device1.LastApplyMessage!.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
+        appliedConfigs.ShouldNotBeNull();
+        appliedConfigs!.ContainsKey("device-1").ShouldBeTrue("apply message should carry the base DeviceConfigs");
+
+        // Assert - the message dispatched to devices is the base copy, NOT the incoming null
+        device1.LastApplyMessage.Data!.Cfg!.Desired!.IsDeviceCfgReset.ShouldBeFalse(
+            "devices must receive a copy of devicecfg.json, never the null version");
+
+        // Assert - success report published, echoing the cloud's original desired state
+        // (devicecfg null), not the synthetic base message
+        publishedReport.ShouldNotBeNull();
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Success);
+        publishedReport.Data?.Cfg?.Desired?.IsDeviceCfgReset.ShouldBe(true,
+            "the report must echo the original desired state (devicecfg null)");
+
+        // Assert - the devicecfg cache (latest desired state) is deleted: after reset
+        // there is no desired state anymore, so the next startup loads devicecfg.json
+        await _mockConfigurationCache.Received(1).DeleteCacheAsync(
+            SubscriptionTypes.DeviceConfig, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceCfgNull_WithoutBaseConfig_ShouldPublishFailedReport()
+    {
+        // Arrange - device has no BaseDeviceCfgJson (e.g. no devicecfg.json on disk)
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        SubNodeConfigUpdateMessage? publishedReport = null;
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedReport = x.Arg<SubNodeConfigUpdateMessage>());
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        // Point at a devicecfg.json that does not exist
+        manager.BaseDeviceCfgPath = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.json");
+
+        var resetEvent = CreateDeviceConfigResetEvent();
+
+        // Act
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(resetEvent);
+
+        // Assert - nothing applied, failed report published, cache left intact
+        device1.ApplyCallCount.ShouldBe(0, "reset without base config must not apply anything");
+        publishedReport.ShouldNotBeNull();
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Failed);
+        await _mockConfigurationCache.DidNotReceive().DeleteCacheAsync(
+            Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceConfigsNull_ShouldTriggerReset()
+    {
+        // Arrange - DeviceConfigs explicitly null inside devicecfg is also a reset (cheat table #2)
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            { "DeviceConfigs": { "device-1": { "Enabled": true, "Sensors": [] } } }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson(
+            """{"devicecfg":{"SubNode":{"Name":"TestDevice"},"DeviceConfigs":null}}""");
+
+        try
+        {
+            // Act
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(updateEvent);
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        // Assert - reset performed: base config applied and cache deleted
+        device1.ApplyCallCount.ShouldBe(1);
+        await _mockConfigurationCache.Received(1).DeleteCacheAsync(
+            SubscriptionTypes.DeviceConfig, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("""{}""")]                                      // devicecfg key absent (cheat table #3)
+    [InlineData("""{"devicecfg":{}}""")]                        // empty devicecfg object (cheat table #4)
+    [InlineData("""{"devicecfg":{"DeviceConfigs":{}}}""")]      // empty DeviceConfigs (cheat table #5)
+    public async Task HandleDeviceConfigUpdate_NoOpDesiredVariants_ShouldNotTriggerReset(string desiredJson)
+    {
+        // Arrange - absent key / empty object are NOT null: existing no-op behavior must be kept
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1")
+            .WithValidationResult(ConfigUpdateValidationResult.Skipped("adamEthernet"));
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.NoUpdateRequired(device1.Configuration, "adamEthernet")));
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson(desiredJson);
+
+        // Act
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        // Assert - no reset: nothing applied, cache untouched
+        device1.ApplyCallCount.ShouldBe(0);
+        await _mockConfigurationCache.DidNotReceive().DeleteCacheAsync(
+            Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("{ this is not valid json")]   // malformed devicecfg.json
+    [InlineData("""{"SubNode":{}}""")]         // devicecfg.json without DeviceConfigs
+    public async Task HandleDeviceConfigUpdate_DeviceCfgNull_UnusableBaseConfig_ShouldPublishFailedReport(
+        string baseCfgContent)
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        SubNodeConfigUpdateMessage? publishedReport = null;
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedReport = x.Arg<SubNodeConfigUpdateMessage>());
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, baseCfgContent);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        var resetEvent = CreateDeviceConfigResetEvent();
+
+        try
+        {
+            // Act
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(resetEvent);
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        // Assert - nothing applied, failed report published, cache left intact
+        device1.ApplyCallCount.ShouldBe(0);
+        publishedReport.ShouldNotBeNull();
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Failed);
+        await _mockConfigurationCache.DidNotReceive().DeleteCacheAsync(
+            Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceCfgNull_ApplyFails_ShouldRollbackAndKeepCache()
+    {
+        // Arrange - reset transaction fails during apply: rollback, Failed report, cache intact
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        SubNodeConfigUpdateMessage? publishedReport = null;
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedReport = x.Arg<SubNodeConfigUpdateMessage>());
+
+        var device1 = CreateFakeDevice("device-1");
+        device1.WithApplyResult(ConfigUpdateResult.Failed(device1.Configuration, "adamEthernet", "apply blew up"));
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            { "DeviceConfigs": { "device-1": { "Enabled": true, "Sensors": [] } } }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        var resetEvent = CreateDeviceConfigResetEvent();
+
+        try
+        {
+            // Act
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(resetEvent);
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        // Assert - rolled back, Failed report, cache untouched
+        device1.RollbackCallCount.ShouldBe(1, "failed reset apply must roll back the device");
+        publishedReport.ShouldNotBeNull();
+        publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status.ShouldBe(ConfigUpdateStatus.Failed);
+        await _mockConfigurationCache.DidNotReceive().DeleteCacheAsync(
+            Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
+    }
+
+    private UpdateConfigurationEvent CreateDeviceConfigResetEvent() =>
+        CreateDeviceConfigUpdateEventFromDesiredJson("""{"devicecfg":null}""");
+
+    private UpdateConfigurationEvent CreateDeviceConfigUpdateEventFromDesiredJson(string desiredJson)
+    {
+        // Deserialize the full desired section so RawDeviceCfg is populated by the converter,
+        // exactly as it happens for a real cloud message
+        var desired = System.Text.Json.JsonSerializer.Deserialize<SubNodeDesiredConfigSections>(desiredJson);
+
+        var message = new SubNodeConfigUpdateMessage
+        {
+            SeqId = 99,
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    Desired = desired
+                }
+            }
+        };
+
+        return new UpdateConfigurationEvent(
+            DeviceId: "test-subnode-001",
+            ConfigType: SubscriptionTypes.DeviceConfig,
+            Message: message,
+            Timestamp: DateTimeOffset.UtcNow);
     }
 
     #endregion
