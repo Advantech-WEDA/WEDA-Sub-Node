@@ -126,6 +126,83 @@ public class DtdlGeneratorTests
         dtmi.ShouldContain(":aichannel1:");
     }
 
+    [Fact]
+    public void GenerateDtmi_Should_UseSubNamespaceWhenDeviceKeyProvided()
+    {
+        // Arrange
+        var name = "channel.0";
+
+        // Act
+        var dtmi = DtdlGenerator.GenerateDtmi(name, "AI", deviceKey: "MyFirstDevice");
+
+        // Assert
+        dtmi.ShouldStartWith("dtmi:sub:MyFirstDevice:ai:");
+        dtmi.ShouldEndWith(";1");
+    }
+
+    [Fact]
+    public void GenerateDtmi_Should_PreserveDeviceKeyCasingAndUnderscores()
+    {
+        // The device key must stay recognizable in the DTMI so users can tell
+        // which device a flattened sensor came from.
+        var dtmi = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "ModbusTcp_DeviceConfig");
+
+        dtmi.ShouldStartWith("dtmi:sub:ModbusTcp_DeviceConfig:ai:");
+    }
+
+    [Fact]
+    public void GenerateDtmi_Should_FallBackToAutogenWhenDeviceKeyMissing()
+    {
+        // Arrange & Act
+        var withNull = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: null);
+        var withEmpty = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "");
+
+        // Assert
+        withNull.ShouldStartWith("dtmi:autogen:ai:");
+        withEmpty.ShouldStartWith("dtmi:autogen:ai:");
+    }
+
+    [Fact]
+    public void GenerateDtmi_Should_SanitizeDeviceKey()
+    {
+        // Dots, dashes and spaces become underscores; casing is preserved.
+        var dtmi = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "My Modbus-Device.1");
+
+        dtmi.ShouldStartWith("dtmi:sub:My_Modbus_Device_1:ai:");
+    }
+
+    [Fact]
+    public void GenerateDtmi_Should_PrefixDeviceKeyStartingWithDigit()
+    {
+        // DTMI path segments must start with a letter.
+        var dtmi = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "4012-Wise");
+
+        dtmi.ShouldStartWith("dtmi:sub:d_4012_Wise:ai:");
+    }
+
+    [Fact]
+    public void GenerateDtmi_Should_FallBackToHashSegmentWhenKeyHasNoAsciiChars()
+    {
+        // Non-ASCII keys (e.g. Chinese device names) fall back to a hash-based
+        // segment so distinct devices still get distinct namespaces.
+        var dtmiA = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "溫度計");
+        var dtmiB = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "濕度計");
+
+        dtmiA.ShouldMatch(@"^dtmi:sub:d[a-f0-9]{8}:ai:");
+        dtmiA.ShouldNotBe(dtmiB);
+    }
+
+    [Fact]
+    public void GenerateDtmi_Should_ProduceDistinctDtmisForSameSensorOnDifferentDevices()
+    {
+        // The device-cfg-key namespace exists so that same-named sensors on
+        // different devices no longer collide on the same hash-based DTMI.
+        var deviceA = DtdlGenerator.GenerateDtmi("channel.0", "AI", deviceKey: "DeviceA");
+        var deviceB = DtdlGenerator.GenerateDtmi("channel.0", "AI", deviceKey: "DeviceB");
+
+        deviceA.ShouldNotBe(deviceB);
+    }
+
     #endregion
 
     #region GenerateTelemetryContent Tests
@@ -311,7 +388,7 @@ public class DtdlGeneratorTests
         dtdlInterface.ShouldNotBeNull();
         dtdlInterface.Type.ShouldBe("Interface");
         dtdlInterface.Context.ShouldBe("dtmi:dtdl:context;3");
-        dtdlInterface.Id.ShouldStartWith("dtmi:autogen:interface:");
+        dtdlInterface.Id.ShouldStartWith("dtmi:sub:MyModbusDevice:interface:");
         dtdlInterface.Contents.Count.ShouldBe(2);
     }
 

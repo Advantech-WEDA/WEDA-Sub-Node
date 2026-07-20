@@ -16,9 +16,25 @@ public static class DtdlGenerator
     public const string DtdlContext = "dtmi:dtdl:context;3";
 
     /// <summary>
-    /// Default namespace prefix for auto-generated DTMIs.
+    /// Fallback namespace prefix for auto-generated DTMIs when no device key is available.
     /// </summary>
     public const string DefaultNamespacePrefix = "dtmi:autogen";
+
+    /// <summary>
+    /// Namespace prefix for auto-generated DTMIs scoped to a device:
+    /// dtmi:sub:{device-cfg-key}:... — the device key is the DeviceConfigs
+    /// section key from devicecfg.json, so sensors with the same name on
+    /// different devices get distinct DTMIs.
+    /// </summary>
+    public const string SubNodeNamespacePrefix = "dtmi:sub";
+
+    /// <summary>
+    /// Maximum allowed length of a device config key (DeviceConfigs section key).
+    /// The key becomes a DTMI namespace segment (dtmi:sub:{device-cfg-key}:...),
+    /// so an unbounded key would produce unbounded DTMIs. Enforced fail-fast at
+    /// startup by the Host configuration loader.
+    /// </summary>
+    public const int MaxDeviceKeyLength = 32;
 
     /// <summary>
     /// Generates a DTDL interface from a collection of sensors.
@@ -34,7 +50,7 @@ public static class DtdlGenerator
         string? displayName = null,
         string? description = null)
     {
-        var interfaceId = GenerateDtmi(deviceName, "Interface");
+        var interfaceId = GenerateDtmi(deviceName, "Interface", deviceKey: deviceName);
 
         var dtdlInterface = new DtdlInterface
         {
@@ -51,7 +67,7 @@ public static class DtdlGenerator
             if (IsMimeType(sensor.SensorInfo.Schema)) 
                 continue;
 
-            var content = GenerateTelemetryContent(sensor);
+            var content = GenerateTelemetryContent(sensor, deviceKey: deviceName);
             dtdlInterface.Contents.Add(content);
         }
 
@@ -62,8 +78,9 @@ public static class DtdlGenerator
     /// Generates a DTDL telemetry content from a sensor definition.
     /// </summary>
     /// <param name="sensor">The sensor to convert to DTDL content.</param>
+    /// <param name="deviceKey">Optional device config key used to namespace an auto-generated DTMI.</param>
     /// <returns>A DtdlContent representing the sensor as telemetry.</returns>
-    public static DtdlContent GenerateTelemetryContent(Sensor sensor)
+    public static DtdlContent GenerateTelemetryContent(Sensor sensor, string? deviceKey = null)
     {
         // NOTE: `unit` is intentionally NOT emitted on the Telemetry content.
         // Core DTDL v3 does not define a `unit` term on a bare Telemetry
@@ -75,7 +92,7 @@ public static class DtdlGenerator
         return new DtdlContent
         {
             Id = string.IsNullOrEmpty(sensor.Dtmi)
-                ? GenerateDtmi(sensor.Name, sensor.SensorGroup.ToString())
+                ? GenerateDtmi(sensor.Name, sensor.SensorGroup.ToString(), deviceKey: deviceKey)
                 : sensor.Dtmi,
             Type = "Telemetry",
             Name = SanitizeName(sensor.Name),
@@ -87,20 +104,26 @@ public static class DtdlGenerator
 
     /// <summary>
     /// Generates a DTMI (Digital Twin Model Identifier) using a short hash.
-    /// Format: dtmi:autogen:{namespace}:{shortId};1
+    /// Format: dtmi:sub:{deviceKey}:{namespace}:{shortId};1 when a device key is
+    /// provided, otherwise dtmi:autogen:{namespace}:{shortId};1.
     /// </summary>
     /// <param name="name">The name to generate the DTMI from.</param>
     /// <param name="namespaceSegment">Optional namespace segment (e.g., "AI", "Interface").</param>
     /// <param name="version">DTMI version number (default: 1).</param>
+    /// <param name="deviceKey">Optional device config key (DeviceConfigs section key) used to namespace the DTMI per device.</param>
     /// <returns>A valid DTMI string.</returns>
-    public static string GenerateDtmi(string name, string? namespaceSegment = null, int version = 1)
+    public static string GenerateDtmi(string name, string? namespaceSegment = null, int version = 1, string? deviceKey = null)
     {
         var shortId = GenerateShortId(name);
         var ns = string.IsNullOrEmpty(namespaceSegment)
             ? string.Empty
             : $":{SanitizeNamespace(namespaceSegment)}";
 
-        return $"{DefaultNamespacePrefix}{ns}:{shortId};{version}";
+        var prefix = string.IsNullOrEmpty(deviceKey)
+            ? DefaultNamespacePrefix
+            : $"{SubNodeNamespacePrefix}:{SanitizeDeviceKey(deviceKey)}";
+
+        return $"{prefix}{ns}:{shortId};{version}";
     }
 
     /// <summary>
@@ -121,7 +144,8 @@ public static class DtdlGenerator
     /// Call this when AutoGenEnabled is true.
     /// </summary>
     /// <param name="sensors">The sensors to populate DTMIs for.</param>
-    public static void PopulateSensorDtmis(IEnumerable<Sensor> sensors)
+    /// <param name="deviceKey">Optional device config key (DeviceConfigs section key) used to namespace generated DTMIs per device.</param>
+    public static void PopulateSensorDtmis(IEnumerable<Sensor> sensors, string? deviceKey = null)
     {
         foreach (var sensor in sensors)
         {
@@ -131,7 +155,7 @@ public static class DtdlGenerator
 
                 sensor.Dtmi = IsMimeType(schema)
                     ? GenerateMimeTypeDtmi(schema)
-                    : GenerateDtmi(sensor.Name, sensor.SensorGroup.ToString());
+                    : GenerateDtmi(sensor.Name, sensor.SensorGroup.ToString(), deviceKey: deviceKey);
             }
         }
     }
@@ -201,6 +225,34 @@ public static class DtdlGenerator
         return new string(segment.ToLowerInvariant()
             .Where(c => char.IsLetterOrDigit(c))
             .ToArray());
+    }
+
+    /// <summary>
+    /// Sanitizes a device config key into a valid DTMI path segment while keeping
+    /// it human-readable: original casing and underscores are preserved so users
+    /// can recognize the device in the DTMI (segment rule:
+    /// <c>[A-Za-z][A-Za-z0-9_]*</c>, must not end with underscore).
+    /// A key with no usable ASCII characters (e.g. fully non-ASCII) falls back to
+    /// a hash-based segment so distinct devices still get distinct namespaces.
+    /// </summary>
+    private static string SanitizeDeviceKey(string deviceKey)
+    {
+        var sanitized = new string(deviceKey
+            .Replace('.', '_')
+            .Replace('-', '_')
+            .Replace(' ', '_')
+            .Where(c => char.IsAsciiLetterOrDigit(c) || c == '_')
+            .ToArray());
+
+        while (sanitized.Contains("__"))
+            sanitized = sanitized.Replace("__", "_");
+
+        sanitized = sanitized.Trim('_');
+
+        if (sanitized.Length == 0)
+            return "d" + GenerateShortId(deviceKey);
+
+        return char.IsAsciiLetter(sanitized[0]) ? sanitized : "d_" + sanitized;
     }
 
     /// <summary>

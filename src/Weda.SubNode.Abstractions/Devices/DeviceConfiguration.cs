@@ -201,7 +201,7 @@ public class DeviceConfiguration
         // schema travels in the upload payload — typed dispatch below will
         // overwrite sensor.Dtmi to the type Interface dtmi, but the Telemetry
         // @id strings captured here are unaffected by that later mutation.
-        DtdlGenerator.PopulateSensorDtmis(Sensors);
+        DtdlGenerator.PopulateSensorDtmis(Sensors, deviceKey: DeviceName);
 
         DtdlInterface = DtdlGenerator.GenerateInterface(
             DeviceName,
