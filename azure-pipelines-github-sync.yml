@@ -63,7 +63,9 @@ steps:
   - script: |
       set -euo pipefail
 
-      BRANCH="$(Build.SourceBranchName)"
+      # Build.SourceBranchName only yields the last path segment (release/v1.1.0 -> v1.1.0),
+      # so strip refs/heads/ from the full ref to keep multi-segment branch names intact
+      BRANCH="${BUILD_SOURCEBRANCH#refs/heads/}"
       echo "=== Syncing branch: $BRANCH ==="
       echo "    Source commit : $(Build.SourceVersion)"
       echo "    Target repo   : $(GITHUB_REPO)"
@@ -89,7 +91,7 @@ steps:
 
   # ── 5. Report sync result ────────────────────────────────────────────────────
   - script: |
-      BRANCH="$(Build.SourceBranchName)"
+      BRANCH="${BUILD_SOURCEBRANCH#refs/heads/}"
       COMMIT="$(Build.SourceVersion)"
       SHORT="${COMMIT:0:8}"
       echo "##vso[task.setvariable variable=SyncSummary]Synced $BRANCH @ $SHORT → github.com/Advantech-WISE-Edge/WEDA-Sub-Node"
