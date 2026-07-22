@@ -14,6 +14,23 @@
       },
       "Sensors": [
         {
+          "Name": "hb",
+          "Dtmi": "dtmi:com:advantech:weda:Heartbeat;1",
+          "SensorGroup": "SYS",
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "Record": {
+            "Enabled": false
+          },
+          "SensorInfo": {
+            "Schema": "boolean",
+            "Description": "Reserved platform liveness ping. Declaring this sensor enables the SubNode heartbeat; it is never polled and its value is synthesized by the SDK.",
+            "DisplayName": "Heartbeat"
+          }
+        },
+        {
           "Name": "cpu_usage",
           "SensorGroup": "SYS",
           "Parameters": {

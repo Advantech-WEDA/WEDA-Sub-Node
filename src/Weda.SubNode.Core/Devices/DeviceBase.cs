@@ -533,11 +533,17 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// Groups enabled sensors by their configured interval.
     /// Used by all device types to create interval-based polling/sampling tasks.
     /// </summary>
+    /// <remarks>
+    /// The reserved heartbeat sensor is excluded. It is configuration, not a reading: no
+    /// protocol parser can produce a liveness value, and polling it would push a sensor
+    /// with no register address, node id or topic through every device's read path. The
+    /// SDK synthesises its value instead — see <see cref="Heartbeat"/>.
+    /// </remarks>
     /// <returns>List of (interval in ms, sensors in that group)</returns>
     protected List<(int IntervalMs, List<Sensor> Sensors)> GroupSensorsByInterval()
     {
         return Configuration.Sensors
-            .Where(s => s.IsEffectivelyEnabled)
+            .Where(s => s.IsEffectivelyEnabled && !Heartbeat.IsHeartbeat(s))
             .GroupBy(s => (int)s.Report.Interval)
             .Select(g => (IntervalMs: g.Key, Sensors: g.ToList()))
             .ToList();
