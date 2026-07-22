@@ -14,7 +14,7 @@
       },
       "Sensors": [
         {
-          "Name": "hb",
+          "Name": "heartbeat",
           "Dtmi": "dtmi:com:advantech:weda:Heartbeat;1",
           "SensorGroup": "SYS",
           "Report": {
