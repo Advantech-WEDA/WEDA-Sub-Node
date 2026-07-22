@@ -5,6 +5,22 @@ All notable changes to the Weda SubNode SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- SubNode liveness heartbeat — a SubNode can report that it is alive so the platform can derive `Connected` / `Abnormal` / `Disconnected` from when the last beat arrived. Enabled by declaring one reserved sensor in `devicecfg.json` with `Dtmi: dtmi:com:advantech:weda:Heartbeat;1`; no `Program.cs` or `systemcfg.json` change. **Disabled by default** — a SubNode that declares no such sensor emits nothing, so upgrading the SDK never starts a heartbeat on its own. See [Liveness Heartbeat](./docs/wiki/en/04-sensor-configuration/heartbeat.md).
+  - The beat is synthesised by the SDK and never polled, so it works identically on Modbus / OPC UA / MQTT / custom devices; it needs no `Parameters`, and `GroupSensorsByInterval` excludes it from every device's read path.
+  - Sent on the SubNode DeviceId, so one SubNode emits one liveness signal regardless of device count.
+  - Declared as a real sensor, so it receives a `ResourceId` and appears in the generated DTDL, the capability upload and the device-management sensor registry — enriched telemetry resolves it instead of falling back to `"unknown"`.
+  - Identified on the wire by an `hb` key in the measure `metadata`, which is present on the raw message so platform-side detection stays pre-enrichment.
+  - Default cadence `T` = 60 s, clamped to a 1 s floor. Transport faults are logged and retried on the next beat rather than tearing down the loop.
+
+### Changed
+- **Auto-gen-only DTMI policy — one sanctioned exception.** The reserved liveness heartbeat is the sole sensor entry permitted to carry a `Dtmi` in `devicecfg.json`. Its DTMI is its identity and is platform-owned rather than derived from a sensor type, so typed sensor dispatch skips it and preserves the value.
+
+### Fixed
+- Sensor configuration reference documented `Record.Enabled` as defaulting to `false` and listed a non-existent `Path` property; the default is `true` and the second property is `Interval`.
+
 ## [1.2.0] - 2026-06-02
 
 ### Added

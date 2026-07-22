@@ -43,6 +43,7 @@ Configure your devices and sensors:
 | [Configuration via JSON](./04-sensor-configuration/configuration-via-json.md) | JSON-based setup (recommended) |
 | [Configuration via Code](./04-sensor-configuration/configuration-via-code.md) | Programmatic configuration |
 | [Configuration Reference](./04-sensor-configuration/configuration-reference.md) | Complete options reference |
+| [Liveness Heartbeat](./04-sensor-configuration/heartbeat.md) | Report SubNode connectivity to the platform |
 
 ### Data Processing
 
