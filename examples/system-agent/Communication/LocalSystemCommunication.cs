@@ -77,6 +77,11 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
     public DiscoveredResources DiscoverAvailableResources() => _collector.DiscoverAvailableResources();
 
     /// <summary>
+    /// Load/health snapshot of the Advantech HAL, surfaced in the SubNode capability report.
+    /// </summary>
+    public AdvantechHalStatus HalStatus => _collector.HalStatus;
+
+    /// <summary>
     /// Implements the Request-Response pattern for system metrics collection.
     /// </summary>
     /// <param name="request">System metrics request containing metric types to collect</param>
