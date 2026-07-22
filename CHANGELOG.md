@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ModbusTcpCommunication` / `ModbusRtuCommunication` now subscribe to inner transport `StateChanged` events and mirror state changes (remote close, IO error) onto the wrapper.
 - Cancellation noise silenced in device read paths during shutdown / config update.
 - AI / AO / DI / DO connection-state bugs.
+- Check `advantechEdgeDevice` `InitializationFailed` state early.
 - nats-cli download link 404 in Dockerfile.
 
 ## [1.0.0] - 2026-03-05

@@ -67,6 +67,7 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - `ModbusTcpCommunication` / `ModbusRtuCommunication` 改為訂閱 inner transport 的 `StateChanged` 事件，遠端關閉或 IO 錯誤造成的內層狀態變化會即時鏡射到 wrapper。
 - shutdown / config update 期間裝置讀取路徑的取消噪音 log 已靜音。
 - AI / AO / DI / DO 的連線狀態 bug。
+- 提前確認 `advantechEdgeDevice` 是否為 `InitializationFailed` 狀態。
 - Dockerfile 中 nats-cli 下載連結 404 的問題。
 
 ## [1.0.0] - 2026-03-05
