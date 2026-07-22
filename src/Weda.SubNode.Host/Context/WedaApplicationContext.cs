@@ -12,6 +12,7 @@ using Weda.SubNode.Abstractions.Cloud.Nats;
 using Weda.SubNode.Abstractions.Cloud.Subscriptions;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Cloud;
@@ -660,6 +661,26 @@ public class WedaApplicationContext : IWedaApplicationContext
 
             try
             {
+                // Fail fast: the DeviceConfigs key becomes the per-device DTMI
+                // namespace segment (dtmi:sub:<device-cfg-key>:...), so an
+                // unbounded key would produce unbounded DTMIs.
+                if (configKey.Length > DtdlGenerator.MaxDeviceKeyLength)
+                {
+                    logger.LogError(
+                        "Device configuration key '{ConfigKey}' is {Length} characters long, exceeding the maximum of {MaxLength}. " +
+                        "Rename the DeviceConfigs key in devicecfg.json to at most {MaxLength} characters.",
+                        configKey, configKey.Length,
+                        DtdlGenerator.MaxDeviceKeyLength,
+                        DtdlGenerator.MaxDeviceKeyLength);
+
+                    throw new InvalidOperationException(
+                        $"Device configuration key '{configKey}' is {configKey.Length} characters long, " +
+                        $"exceeding the maximum of {DtdlGenerator.MaxDeviceKeyLength}. " +
+                        $"The key is used as the DTMI namespace (dtmi:sub:<device-cfg-key>:...); " +
+                        $"rename the DeviceConfigs key in devicecfg.json to at most " +
+                        $"{DtdlGenerator.MaxDeviceKeyLength} characters.");
+                }
+
                 // Check for duplicate keys (case-insensitive)
                 if (configs.ContainsKey(configKey))
                 {

@@ -98,6 +98,7 @@ public static class DeviceConfigurationMappingExtensions
         SubNodeInfo subNodeInfo)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
         var contents = new JsonArray();
 
         foreach (var config in configs)
@@ -110,6 +111,13 @@ public static class DeviceConfigurationMappingExtensions
                 if (item is not JsonObject content) continue;
                 var id = content["@id"]?.GetValue<string>();
                 if (id is null || !seen.Add(id)) continue;
+
+                // DTDL requires content names to be unique within an Interface.
+                // Device-namespaced DTMIs (dtmi:sub:<device>:...) no longer collide
+                // on @id when two devices expose a same-named sensor, so guard on
+                // name too — first device wins, matching the old dedup behavior.
+                var name = content["name"]?.GetValue<string>();
+                if (name is not null && !seenNames.Add(name)) continue;
 
                 // Detach from old parent (DtdlInterface) before adding to wrapper
                 contents.Add(content.DeepClone());
