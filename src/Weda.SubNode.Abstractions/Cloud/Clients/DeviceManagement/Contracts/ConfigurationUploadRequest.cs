@@ -50,6 +50,14 @@ public record DeviceCapDto(
 }
 
 /// <summary>
+/// Materialized grouping of <see cref="DeviceConfigurationDto.RefModels"/> 
+/// for consumers that want a category slice without inferring from @id / extends.
+/// </summary>
+public record RefModelsMapDto(
+    [property: JsonPropertyName("configs")] IReadOnlyList<JsonObject> Configs,
+    [property: JsonPropertyName("commands")] IReadOnlyList<JsonObject> Commands);
+
+/// <summary>
 /// Device configuration data for upload (v1.2 shape).
 /// <para><c>Dtdl</c> is the SubNode wrapper Interface (single DTDL v3 Interface)
 /// with every sensor flattened into <c>contents</c> as Telemetry. Cloud maps
@@ -65,4 +73,5 @@ public record DeviceConfigurationDto(
     [property: JsonPropertyName("deviceId")] string DeviceId,
     [property: JsonPropertyName("dtdl")] JsonObject Dtdl,
     [property: JsonPropertyName("refModels")] IReadOnlyList<JsonObject> RefModels,
+    [property: JsonPropertyName("refModelsMap")] RefModelsMapDto RefModelsMap,
     [property: JsonPropertyName("deviceCapabilities")] DeviceCapDto DeviceCapabilities);
