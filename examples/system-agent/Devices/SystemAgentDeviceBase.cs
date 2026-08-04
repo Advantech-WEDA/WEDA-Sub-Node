@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
+using SystemAgentExample.Models;
 using SystemAgentExample.Protocols;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -17,6 +18,8 @@ namespace SystemAgentExample.Devices;
 /// </summary>
 public class SystemAgentDeviceBase : RequestResponseDeviceBase
 {
+    private readonly LocalSystemCommunication _localCommunication;
+
     /// <summary>
     /// Initializes a new instance of SystemAgentDeviceBase.
     /// Sensors are resolved according to their mode (Bound / Explicit list / Auto-detect)
@@ -31,9 +34,28 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
         LocalSystemCommunication communication)
         : base(context, ResolveSensors(context, configuration, communication), CreateParser(context, configuration, communication))
     {
+        _localCommunication = communication;
+
         _logger.LogInformation(
             "SystemAgentDevice initialized ({SensorCount} sensors after resolution)",
             configuration.Sensors.Count);
+    }
+
+    /// <summary>
+    /// Publishes the Advantech HAL load stats into the SubNode capability report.
+    /// Runs during device initialization (before configurations are aggregated and uploaded),
+    /// writing into <c>SubNodeInfo.Metadata</c> which is mapped to <c>DeviceCapDto.deviceInfo</c>.
+    /// </summary>
+    protected override async Task OnAfterInitializeAsync(CancellationToken ct)
+    {
+        var halStatus = _localCommunication.HalStatus;
+        _context.SubNodeInfo.Metadata[AdvantechHalStatus.MetadataKey] = halStatus.ToMetadata();
+
+        _logger.LogInformation(
+            "Advantech HAL status published to device capability (loaded={Loaded}, driver={Driver}, library={Library})",
+            halStatus.Loaded, halStatus.DriverVersion, halStatus.LibraryVersion);
+
+        await base.OnAfterInitializeAsync(ct);
     }
 
     /// <summary>
