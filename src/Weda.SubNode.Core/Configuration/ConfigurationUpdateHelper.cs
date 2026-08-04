@@ -918,7 +918,7 @@ public static partial class ConfigurationUpdateHelper
         var dtmi = dto.Dtmi;
         if (string.IsNullOrEmpty(dtmi))
         {
-            dtmi = DtdlGenerator.GenerateDtmi(dto.Name, sensorGroup.ToString());
+            dtmi = DtdlGenerator.GenerateDtmi(dto.Name, sensorGroup.ToString(), deviceKey: deviceName);
         }
 
         var sensor = new Sensor

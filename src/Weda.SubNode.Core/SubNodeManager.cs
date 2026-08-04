@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Weda.SubNode.Abstractions.Cloud;
@@ -29,6 +30,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private readonly IDeviceRegistry _deviceRegistry;
     private readonly IRecordingService? _recordingService;
     private readonly CommandDispatcher? _commandDispatcher;
+    private readonly IConfigurationCache? _configurationCache;
     private readonly ILogger<SubNodeManager> _logger;
 
     private readonly ResiliencePipeline<bool> _pipeline;
@@ -55,13 +57,15 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         IDeviceRegistry deviceRegistry,
         ILogger<SubNodeManager> logger,
         CommandDispatcher? commandDispatcher = null,
-        IRecordingService? recordingService = null)
+        IRecordingService? recordingService = null,
+        IConfigurationCache? configurationCache = null)
     {
         _cloudService = cloudService ?? throw new ArgumentNullException(nameof(cloudService));
         _subNodeInfo = subNodeInfo ?? throw new ArgumentNullException(nameof(subNodeInfo));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _recordingService = recordingService;
         _commandDispatcher = commandDispatcher;
+        _configurationCache = configurationCache;
         var policyOptions = ConnectionPolicyOptions.FromConnectionOptions(connectionOptions);
         _pipeline = ConnectionPolicies.CreateDeviceConnectionPipeline(_logger, policyOptions);
         _deviceRegistry = deviceRegistry;
@@ -444,6 +448,192 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return;
         }
 
+        // Explicit devicecfg null (or DeviceConfigs null) means "reset to base configuration".
+        // An absent devicecfg key or an empty object keeps the existing no-update behavior.
+        if (message.Data?.Cfg?.Desired?.IsDeviceCfgReset == true)
+        {
+            await HandleDeviceConfigResetAsync(e, message);
+            return;
+        }
+
+        await ProcessDeviceConfigTransactionAsync(e, applyMessage: message, reportMessage: message);
+    }
+
+    /// <summary>
+    /// Outcome of a device-config transaction, used by the reset flow to decide
+    /// whether the cached cloud configuration should be deleted.
+    /// </summary>
+    private enum DeviceConfigTransactionOutcome
+    {
+        NoTargets,
+        AllSkipped,
+        ValidationFailed,
+        ApplyFailed,
+        Success
+    }
+
+    /// <summary>
+    /// Handles a config reset request (desired devicecfg explicitly set to null).
+    /// Restores the pristine base configuration (devicecfg.json captured at startup)
+    /// by running it through the normal transaction pipeline, then deletes the
+    /// device-config cache so the base config also survives restarts.
+    /// </summary>
+    private async Task HandleDeviceConfigResetAsync(UpdateConfigurationEvent e, SubNodeConfigUpdateMessage message)
+    {
+        _logger.LogInformation("DeviceConfig reset requested (desired devicecfg is null): SeqId={SeqId}", message.SeqId);
+
+        // Load the pristine base configuration directly from devicecfg.json
+        var baseRaw = LoadBaseDeviceCfgJson();
+
+        SubNodeDeviceCfgDto? baseDeviceCfg = null;
+        string? error = null;
+
+        if (!baseRaw.HasValue)
+        {
+            error = "Config reset requested but base configuration (devicecfg.json) is unavailable";
+        }
+        else
+        {
+            try
+            {
+                baseDeviceCfg = JsonSerializer.Deserialize<SubNodeDeviceCfgDto>(baseRaw.Value.GetRawText());
+            }
+            catch (JsonException ex)
+            {
+                error = $"Config reset failed: base configuration could not be parsed ({ex.Message})";
+            }
+
+            if (error == null && (baseDeviceCfg?.DeviceConfigs == null || baseDeviceCfg.DeviceConfigs.Count == 0))
+            {
+                error = "Config reset failed: base configuration contains no device configurations";
+            }
+        }
+
+        if (error != null)
+        {
+            _logger.LogError("{Error}", error);
+            var failedValidations = _deviceRegistry.GetAllDevices().ToDictionary(
+                d => d.Configuration.DeviceName,
+                d => ConfigUpdateValidationResult.Invalid(d.Configuration.SubNodeType.ToString(), error),
+                StringComparer.OrdinalIgnoreCase);
+            await PublishAggregatedReportAsync(e, message, failedValidations, null, ConfigUpdateStatus.Failed);
+            return;
+        }
+
+        // Build a synthetic update message carrying the base configuration and run it
+        // through the normal transaction pipeline (validate -> backup -> apply -> report).
+        // The original message is used for reporting so the cloud sees its own desired
+        // state (devicecfg null) echoed back together with the restored configuration.
+        var applyMessage = new SubNodeConfigUpdateMessage
+        {
+            ProtoVer = message.ProtoVer,
+            DeviceId = message.DeviceId,
+            GroupId = message.GroupId,
+            Cmd = message.Cmd,
+            SeqId = message.SeqId,
+            ReqSeqId = message.ReqSeqId,
+            Timestamp = message.Timestamp,
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    Desired = new SubNodeDesiredConfigSections
+                    {
+                        DeviceCfg = baseDeviceCfg,
+                        RawDeviceCfg = baseRaw!.Value.Clone()
+                    }
+                }
+            }
+        };
+
+        var outcome = await ProcessDeviceConfigTransactionAsync(e, applyMessage, reportMessage: message);
+
+        // The devicecfg cache represents the latest desired state from cloud. A reset
+        // means that desired state no longer exists, so the cache must be deleted.
+        // The incoming null is never persisted (reset is intercepted before dispatch),
+        // and the synthetic base message saved during apply is removed here, so after
+        // a successful reset the cache does not exist and the next startup loads
+        // devicecfg.json directly.
+        if (outcome is DeviceConfigTransactionOutcome.Success or DeviceConfigTransactionOutcome.AllSkipped)
+        {
+            await DeleteDeviceConfigCacheAsync();
+            _logger.LogInformation("DeviceConfig reset completed: SeqId={SeqId}", message.SeqId);
+        }
+        else
+        {
+            _logger.LogWarning("DeviceConfig reset did not complete (outcome: {Outcome}); cache left intact", outcome);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the device-config cache after a successful reset.
+    /// </summary>
+    private async Task DeleteDeviceConfigCacheAsync()
+    {
+        if (_configurationCache == null)
+        {
+            _logger.LogWarning("Configuration cache not available; cached devicecfg cannot be deleted after reset");
+            return;
+        }
+
+        try
+        {
+            await _configurationCache.DeleteCacheAsync(SubscriptionTypes.DeviceConfig);
+            _logger.LogInformation("Deleted device configuration cache: {CachePath}",
+                _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete device configuration cache after reset");
+        }
+    }
+
+    /// <summary>
+    /// Path of the base device configuration file used to restore configuration on reset.
+    /// Defaults to devicecfg.json in the working directory (same file the Host loads at
+    /// startup). Settable for testing.
+    /// </summary>
+    public string BaseDeviceCfgPath { get; set; } =
+        Path.Combine(Directory.GetCurrentDirectory(), "devicecfg.json");
+
+    /// <summary>
+    /// Loads the pristine base configuration from devicecfg.json.
+    /// Returns null when the file is missing or unreadable.
+    /// </summary>
+    private JsonElement? LoadBaseDeviceCfgJson()
+    {
+        try
+        {
+            if (!File.Exists(BaseDeviceCfgPath))
+            {
+                _logger.LogWarning("Base configuration file not found: {Path}", BaseDeviceCfgPath);
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(File.ReadAllText(BaseDeviceCfgPath));
+            return doc.RootElement.Clone();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load base configuration from {Path}", BaseDeviceCfgPath);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Runs the device-config update transaction.
+    /// Validation and apply use <paramref name="applyMessage"/>; aggregated reports are
+    /// built from <paramref name="reportMessage"/> so its desired state is echoed back.
+    /// For normal updates both are the same message; for resets the apply message is a
+    /// synthetic message carrying the base configuration.
+    /// </summary>
+    private async Task<DeviceConfigTransactionOutcome> ProcessDeviceConfigTransactionAsync(
+        UpdateConfigurationEvent e,
+        SubNodeConfigUpdateMessage applyMessage,
+        SubNodeConfigUpdateMessage reportMessage)
+    {
+        var message = applyMessage;
+
         // Determine which devices to update
         var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
         var targetDeviceNames = GetTargetDeviceNames(deviceConfigs);
@@ -451,7 +641,7 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         if (targetDeviceNames.Count == 0)
         {
             _logger.LogDebug("No target devices for config update");
-            return;
+            return DeviceConfigTransactionOutcome.NoTargets;
         }
 
         _logger.LogInformation("Processing config update for {Count} device(s): {Devices}",
@@ -485,15 +675,15 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         if (hasValidationFailure)
         {
             _logger.LogError("Transaction aborted: validation failed for one or more devices");
-            await PublishAggregatedReportAsync(e, message, validationResults, null, ConfigUpdateStatus.Invalid);
-            return;
+            await PublishAggregatedReportAsync(e, reportMessage, validationResults, null, ConfigUpdateStatus.Invalid);
+            return DeviceConfigTransactionOutcome.ValidationFailed;
         }
 
         // Check if all devices are skipped (no update required)
         if (validationResults.Values.All(r => r.IsSkipped))
         {
             _logger.LogDebug("All devices skipped - no update required");
-            return;
+            return DeviceConfigTransactionOutcome.AllSkipped;
         }
 
         // ===== Phase 2: Create Backups =====
@@ -566,8 +756,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 }
             }
 
-            await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Failed);
-            return;
+            await PublishAggregatedReportAsync(e, reportMessage, validationResults, applyResults, ConfigUpdateStatus.Failed);
+            return DeviceConfigTransactionOutcome.ApplyFailed;
         }
 
         // ===== Phase 4: Update RawDeviceCfgJson and Publish Aggregated Success Report =====
@@ -588,10 +778,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             var configurations = new DeviceConfigurations(devices);
             await UploadDeviceConfigurationsAsync(configurations, default);
         }
-        await PublishAggregatedReportAsync(e, message, validationResults, applyResults, ConfigUpdateStatus.Success);
+        await PublishAggregatedReportAsync(e, reportMessage, validationResults, applyResults, ConfigUpdateStatus.Success);
 
         _logger.LogInformation("DeviceConfig update transaction completed successfully for {Count} device(s)",
             devicesToUpdate.Count);
+
+        return DeviceConfigTransactionOutcome.Success;
     }
 
     /// <summary>

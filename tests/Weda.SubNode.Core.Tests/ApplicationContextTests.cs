@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Shouldly;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Core.Communication.Tcp;
@@ -103,5 +104,46 @@ public class ApplicationContextTests
 
         // Act & Assert
         Should.NotThrow(() => context.Dispose());
+    }
+
+    [Fact]
+    public void Constructor_Should_FailFastWhenDeviceConfigKeyExceedsMaxLength()
+    {
+        // The DeviceConfigs key becomes the DTMI namespace segment
+        // (dtmi:sub:<device-cfg-key>:...), so its length is capped at
+        // DtdlGenerator.MaxDeviceKeyLength.
+        var longKey = new string('D', Abstractions.DigitalTwin.DtdlGenerator.MaxDeviceKeyLength + 1);
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"DeviceConfig:DeviceConfigs:{longKey}:Enabled"] = "true"
+            })
+            .Build();
+
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            new WedaApplicationContext(options => options.Configuration = configuration));
+
+        ex.Message.ShouldContain(longKey);
+        ex.Message.ShouldContain(Abstractions.DigitalTwin.DtdlGenerator.MaxDeviceKeyLength.ToString());
+    }
+
+    [Fact]
+    public void Constructor_Should_AcceptDeviceConfigKeyAtMaxLength()
+    {
+        // Arrange
+        var maxKey = new string('D', Abstractions.DigitalTwin.DtdlGenerator.MaxDeviceKeyLength);
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"DeviceConfig:DeviceConfigs:{maxKey}:Enabled"] = "true",
+                [$"DeviceConfig:DeviceConfigs:{maxKey}:Dtdl:AutoGenEnabled"] = "true"
+            })
+            .Build();
+
+        // Act
+        using var context = new WedaApplicationContext(options => options.Configuration = configuration);
+
+        // Assert
+        context.DeviceConfigs.Keys.ShouldContain(maxKey);
     }
 }

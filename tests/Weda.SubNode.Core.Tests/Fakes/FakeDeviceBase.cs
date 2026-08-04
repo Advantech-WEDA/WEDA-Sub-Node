@@ -70,12 +70,15 @@ public class FakeDevice : IDevice
         return Task.FromResult(_validationResult);
     }
 
+    public SubNodeConfigUpdateMessage? LastApplyMessage { get; private set; }
+
     public Task<ConfigUpdateResult> ApplyValidatedConfigurationAsync(
         SubNodeConfigUpdateMessage message,
         DeviceConfigurationBackup backup,
         CancellationToken ct)
     {
         ApplyCallCount++;
+        LastApplyMessage = message;
         return Task.FromResult(_applyResult);
     }
 

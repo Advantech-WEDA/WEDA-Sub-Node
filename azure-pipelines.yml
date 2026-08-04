@@ -46,12 +46,15 @@ stages:
               version: $(dotnetVersion)
               includePreviewVersions: true
 
-          # Restore
+          # Restore — use the repo nuget.config so the bundled Weda.Dtdl
+          # .nupkg under ./nuget/ is resolvable (not yet on NuGet.org)
           - task: DotNetCoreCLI@2
             displayName: 'Restore'
             inputs:
               command: 'restore'
               projects: '**/*.csproj'
+              feedsToUse: 'config'
+              nugetConfigPath: 'nuget.config'
 
           # Build
           - task: DotNetCoreCLI@2

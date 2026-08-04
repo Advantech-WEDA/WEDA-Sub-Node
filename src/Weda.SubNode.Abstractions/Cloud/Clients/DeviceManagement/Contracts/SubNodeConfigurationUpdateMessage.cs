@@ -323,6 +323,36 @@ public class SubNodeDesiredConfigSections : SubNodeConfigSections
     /// </summary>
     [JsonIgnore]
     public JsonElement? RawDeviceCfg { get; set; }
+
+    /// <summary>
+    /// True when the cloud explicitly set devicecfg (or its DeviceConfigs) to JSON null,
+    /// which is interpreted as a request to reset the device configuration back to the
+    /// local base configuration (devicecfg.json). An absent devicecfg key or an empty
+    /// object is NOT a reset and keeps the existing no-update behavior.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsDeviceCfgReset
+    {
+        get
+        {
+            if (RawDeviceCfg is not { } raw)
+                return false;
+
+            if (raw.ValueKind == JsonValueKind.Null)
+                return true;
+
+            if (raw.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in raw.EnumerateObject())
+                {
+                    if (string.Equals(prop.Name, "DeviceConfigs", StringComparison.OrdinalIgnoreCase))
+                        return prop.Value.ValueKind == JsonValueKind.Null;
+                }
+            }
+
+            return false;
+        }
+    }
 }
 
 /// <summary>
