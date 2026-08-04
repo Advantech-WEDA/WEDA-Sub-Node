@@ -1,0 +1,263 @@
+<title>OD → WEDA Core · The Full Journey</title>
+<style>
+  :root{
+    --bg:#090C12; --bg2:#0E141D; --panel:#131B27; --panel2:#18222F;
+    --line:#24303F; --line2:#2E3C4F;
+    --ink:#D5DEEC; --dim:#8592A6; --mut:#55637A;
+    --cyan:#35D0E6; --amber:#F6A544; --good:#46E08A; --violet:#9C8CF0;
+    --cyan-soft:rgba(53,208,230,.14); --amber-soft:rgba(246,165,68,.14);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;color:var(--ink);font-family:var(--sans);
+    background:radial-gradient(120% 90% at 50% -10%,#10202b 0%,var(--bg) 55%),var(--bg);
+    display:grid;place-items:center;overflow:hidden}
+  .stage{position:relative;width:min(97vw,calc(96vh*16/9));aspect-ratio:16/9;
+    background:linear-gradient(180deg,var(--bg2),#0a0f16 120%);
+    border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 30px 90px -40px #000,inset 0 0 0 1px rgba(255,255,255,.02);
+    overflow:hidden;container-type:size;--u:1cqmin;display:flex;flex-direction:column}
+  .stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:60;
+    background:linear-gradient(180deg,transparent,rgba(53,208,230,.045),transparent);
+    background-size:100% calc(var(--u)*42);animation:scan 8s linear infinite;opacity:.5}
+  @keyframes scan{from{background-position:0 -42cqmin}to{background-position:0 142cqmin}}
+
+  .top{display:flex;align-items:center;gap:calc(var(--u)*1.6);z-index:40;
+    padding:calc(var(--u)*2) calc(var(--u)*3);border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:calc(var(--u)*1.55);letter-spacing:.05em;color:var(--dim);
+    background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+  .lights{display:flex;gap:calc(var(--u)*1)} .lights i{width:calc(var(--u)*1.3);height:calc(var(--u)*1.3);border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+  .top .who{color:var(--ink);font-weight:600} .top .path{color:var(--mut)} .top .branch{color:var(--cyan)}
+  .top .sep{flex:1}
+  .top .live{display:flex;align-items:center;gap:calc(var(--u)*.8);color:var(--good)}
+  .top .live b{width:calc(var(--u)*1);height:calc(var(--u)*1);border-radius:50%;background:var(--good);box-shadow:0 0 calc(var(--u)*1.2) var(--good);animation:blink 2.2s infinite}
+  @keyframes blink{50%{opacity:.35}}
+
+  .body{position:relative;flex:1;min-height:0}
+  .act{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .8s ease}
+  .act.on{opacity:1;visibility:visible}
+
+  /* ---------- ACT 1 : JOURNEY (chat replay) ---------- */
+  #journey{display:flex;flex-direction:column}
+  .strip{padding:calc(var(--u)*1.8) calc(var(--u)*3.5) calc(var(--u)*.4)}
+  .strip .eyebrow{font-family:var(--mono);font-size:calc(var(--u)*1.5);letter-spacing:.34em;text-transform:uppercase;color:var(--amber)}
+  .strip h1{margin:calc(var(--u)*.6) 0 0;font-size:calc(var(--u)*2.9);font-weight:700;letter-spacing:-.01em}
+  .strip h1 .od{color:var(--amber)} .strip h1 .wc{color:var(--cyan)}
+  .conv{flex:1;overflow:hidden;padding:calc(var(--u)*1.2) calc(var(--u)*3.5);scroll-behavior:smooth;
+    mask:linear-gradient(180deg,transparent 0,#000 calc(var(--u)*3),#000 calc(100% - var(--u)*2.5),transparent 100%)}
+  .conv-inner{display:flex;flex-direction:column;gap:calc(var(--u)*1.8)}
+  .msg{display:none;flex-direction:column;gap:calc(var(--u)*.8);transform:translateY(calc(var(--u)*1.6));opacity:0;
+    transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+  .msg.show{display:flex} .msg.in{transform:none;opacity:1}
+  .role{display:flex;align-items:center;gap:calc(var(--u)*1);font-family:var(--mono);font-size:calc(var(--u)*1.4);letter-spacing:.14em;text-transform:uppercase}
+  .role .av{width:calc(var(--u)*2.3);height:calc(var(--u)*2.3);border-radius:calc(var(--u)*.6);display:grid;place-items:center;font-size:calc(var(--u)*1.35);font-weight:700}
+  .msg.user .role{color:var(--cyan)} .msg.user .av{background:var(--cyan-soft);color:var(--cyan);border:1px solid rgba(53,208,230,.4)}
+  .msg.claude .role{color:var(--violet)} .msg.claude .av{background:rgba(156,140,240,.13);color:var(--violet);border:1px solid rgba(156,140,240,.4)}
+  .bubble{font-size:calc(var(--u)*2.05);line-height:1.35;border:1px solid var(--line2);border-radius:calc(var(--u)*1.2);
+    padding:calc(var(--u)*1.4) calc(var(--u)*2);background:linear-gradient(180deg,var(--panel),var(--panel2));max-width:calc(var(--u)*120)}
+  .msg.user .bubble{border-color:rgba(53,208,230,.28);background:linear-gradient(180deg,#0f1c25,#0d1720)}
+  /* user turn rendered as a real chat input box */
+  .inputbox{display:flex;align-items:center;gap:calc(var(--u)*1.6);padding:calc(var(--u)*1.2) calc(var(--u)*1.2) calc(var(--u)*1.2) calc(var(--u)*2);
+    border-radius:calc(var(--u)*1.6)}
+  .inputbox .txt{flex:1;word-break:break-word;color:var(--ink)}
+  .inputbox .send{flex:none;width:calc(var(--u)*3.2);height:calc(var(--u)*3.2);border-radius:50%;
+    background:var(--cyan);color:#08131a;display:grid;place-items:center;font-weight:800;font-size:calc(var(--u)*1.9);
+    box-shadow:0 0 calc(var(--u)*1.6) var(--cyan-soft)}
+  .msg.user.in .inputbox .send{animation:sendpop .5s ease}
+  @keyframes sendpop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+  .url{font-family:var(--mono);font-size:.8em;color:var(--cyan);word-break:break-all}
+  .mono{font-family:var(--mono);font-size:.86em;color:var(--cyan)} .cmd{font-family:var(--mono);color:var(--amber)}
+  .tools{display:flex;flex-wrap:wrap;gap:calc(var(--u)*.9)}
+  .chip{font-family:var(--mono);font-size:calc(var(--u)*1.3);color:var(--dim);border:1px solid var(--line2);border-radius:99px;
+    padding:calc(var(--u)*.5) calc(var(--u)*1.3);display:flex;align-items:center;gap:calc(var(--u)*.8);background:#0d1420}
+  .chip .sp{width:calc(var(--u)*1);height:calc(var(--u)*1);border-radius:50%;background:var(--cyan);box-shadow:0 0 calc(var(--u)*1.2) var(--cyan)}
+  .msg.in .chip .sp{animation:pulse 1s ease-in-out 2}
+  @keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
+  .result{display:flex;align-items:center;gap:calc(var(--u)*1.1);font-size:calc(var(--u)*1.85);margin-top:calc(var(--u)*.3)}
+  .result .ok{color:var(--good);font-weight:700;font-family:var(--mono)}
+  .result b{color:var(--cyan);font-weight:600} .result .am{color:var(--amber)}
+
+  /* ---------- ACT 2 : PAYOFF (live dashboard) ---------- */
+  #payoff{display:grid;place-items:center;padding:calc(var(--u)*5) calc(var(--u)*6)}
+  .pcol{display:flex;flex-direction:column;gap:calc(var(--u)*3.4);width:100%;max-width:calc(var(--u)*150);align-items:center}
+  .phead{display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*1.2);text-align:center}
+  .phead .eyebrow{font-family:var(--mono);font-size:calc(var(--u)*1.6);letter-spacing:.3em;text-transform:uppercase;color:var(--good)}
+  .phead h2{margin:0;font-size:calc(var(--u)*4.2);font-weight:700;letter-spacing:-.015em;text-wrap:balance;max-width:calc(var(--u)*110)}
+  .phead h2 .od{color:var(--amber)} .phead h2 .wc{color:var(--cyan)}
+  .pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:calc(var(--u)*1);width:100%;max-width:calc(var(--u)*120)}
+  .node{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line2);border-radius:calc(var(--u)*1.4);
+    padding:calc(var(--u)*1.8) calc(var(--u)*1.6);text-align:center;display:flex;flex-direction:column;gap:calc(var(--u)*.7)}
+  .node .ic{font-size:calc(var(--u)*3.2);line-height:1} .node .nm{font-size:calc(var(--u)*1.85);font-weight:650}
+  .node.od{border-color:rgba(246,165,68,.4)} .node.wc{border-color:rgba(53,208,230,.4)}
+  .link{position:relative;height:calc(var(--u)*.35);background:var(--line2);border-radius:99px;min-width:calc(var(--u)*6)}
+  .link .lbl{position:absolute;left:50%;top:calc(var(--u)*-2.4);transform:translateX(-50%);font-family:var(--mono);font-size:calc(var(--u)*1.25);letter-spacing:.14em;color:var(--dim);white-space:nowrap}
+  .link .pkt{position:absolute;top:50%;left:0;width:calc(var(--u)*1.2);height:calc(var(--u)*1.2);margin-top:calc(var(--u)*-.6);border-radius:50%;background:var(--cyan);box-shadow:0 0 calc(var(--u)*1.8) var(--cyan)}
+  .act.on .link .pkt{animation:travel 1.7s linear infinite} .link.amber .pkt{background:var(--amber);box-shadow:0 0 calc(var(--u)*1.8) var(--amber)}
+  @keyframes travel{from{left:2%;opacity:0}12%{opacity:1}88%{opacity:1}to{left:98%;opacity:0}}
+  .dash{display:grid;grid-template-columns:repeat(5,1fr);gap:calc(var(--u)*1.5);width:100%}
+  .tile{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:calc(var(--u)*1.1);
+    padding:calc(var(--u)*1.5) calc(var(--u)*1.6);display:flex;flex-direction:column;gap:calc(var(--u)*.5)}
+  .tile .tk{font-family:var(--mono);font-size:calc(var(--u)*1.25);letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .tile .tv{font-family:var(--mono);font-size:calc(var(--u)*3.4);font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .tile .tv.cyan{color:var(--cyan)} .tile .tv.am{color:var(--amber)}
+  .footline{display:flex;align-items:center;gap:calc(var(--u)*1.5);font-family:var(--mono);font-size:calc(var(--u)*1.5);color:var(--dim);flex-wrap:wrap;justify-content:center}
+  .footline .pill{border:1px solid var(--line2);border-radius:99px;padding:calc(var(--u)*.55) calc(var(--u)*1.5)}
+  .footline .run{color:var(--good);border-color:rgba(70,224,138,.35)} .footline b{color:var(--cyan)}
+
+  /* timeline */
+  .timeline{display:flex;align-items:center;gap:calc(var(--u)*2);z-index:40;
+    padding:calc(var(--u)*1.4) calc(var(--u)*3.5) calc(var(--u)*1.8);font-family:var(--mono);font-size:calc(var(--u)*1.4);color:var(--dim);border-top:1px solid var(--line)}
+  .phase{min-width:calc(var(--u)*24);color:var(--violet)} .phase.pay{color:var(--good)}
+  .track{position:relative;flex:1;height:calc(var(--u)*.5);border-radius:99px;background:var(--line)}
+  .fill{position:absolute;inset:0 auto 0 0;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--cyan));box-shadow:0 0 calc(var(--u)*1.3) var(--cyan-soft)}
+  .ticks i{position:absolute;top:50%;width:calc(var(--u)*.85);height:calc(var(--u)*.85);transform:translate(-50%,-50%);border-radius:50%;background:var(--bg2);border:1px solid var(--line2)}
+  .ticks i.split{background:var(--good);border-color:var(--good)}
+  .clock{color:var(--ink);min-width:calc(var(--u)*9);text-align:right}
+
+  .ctrl{position:fixed;right:14px;bottom:14px;z-index:100;display:flex;gap:8px}
+  .ctrl button{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .ctrl button:hover{border-color:var(--cyan);color:var(--cyan)} .ctrl button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .hint{position:fixed;left:14px;bottom:16px;z-index:100;font-family:var(--mono);font-size:11px;color:var(--mut)}
+  @media (prefers-reduced-motion:reduce){.stage::after,.chip .sp,.top .live b,.link .pkt{animation:none!important}.conv{scroll-behavior:auto}.msg,.act{transition-duration:.2s}}
+</style>
+
+<div class="stage" id="stage">
+  <div class="top">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span class="who">Claude Code</span><span class="path">~/edge_subnode</span><span class="branch">feature/advantech_identify</span>
+    <span class="sep"></span><span class="live"><b></b><span id="livelbl">session replay</span></span>
+  </div>
+
+  <div class="body">
+    <!-- ACT 1 -->
+    <div class="act" id="journey">
+      <div class="strip">
+        <div class="eyebrow">My Journey</div>
+        <h1>A SubNode that bridges an <span class="od">OD container</span> into <span class="wc">WEDA&nbsp;Core</span></h1>
+      </div>
+      <div class="conv" id="conv"><div class="conv-inner" id="conv-inner"></div></div>
+    </div>
+
+    <!-- ACT 2 -->
+    <div class="act" id="payoff">
+      <div class="pcol">
+        <div class="phead">
+          <div class="eyebrow">● Live on WEDA Core</div>
+          <h2><span class="od">Edge-AI object detection</span>, streaming as <span class="wc">WEDA</span> telemetry</h2>
+        </div>
+        <div class="pipe">
+          <div class="node od"><div class="ic">🎥</div><div class="nm">YOLO&nbsp;OD</div></div>
+          <div class="link amber"><span class="lbl">MQTT</span><span class="pkt"></span></div>
+          <div class="node"><div class="ic">🧩</div><div class="nm">Vision&nbsp;SubNode</div></div>
+          <div class="link"><span class="lbl">NATS</span><span class="pkt"></span></div>
+          <div class="node wc"><div class="ic">☁️</div><div class="nm">WEDA&nbsp;Core</div></div>
+        </div>
+        <div class="dash">
+          <div class="tile"><span class="tk">object_count</span><span class="tv am" id="p-oc">7</span></div>
+          <div class="tile"><span class="tk">inference_fps</span><span class="tv cyan" id="p-fps">13.77</span></div>
+          <div class="tile"><span class="tk">confidence_max</span><span class="tv cyan" id="p-cmax">0.915</span></div>
+          <div class="tile"><span class="tk">confidence_avg</span><span class="tv cyan" id="p-cavg">0.782</span></div>
+          <div class="tile"><span class="tk">bottle_count</span><span class="tv am" id="p-bottle">7</span></div>
+        </div>
+        <div class="footline">
+          <span class="pill run">● container running</span>
+          <span class="pill">74fe488d5d54 · EPC-R7300</span>
+          <span class="pill">aarch64 · Jetson Orin</span>
+          <span>@ 1&nbsp;Hz → <b>WEDA Core</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline">
+    <span class="phase" id="phase">Setup</span>
+    <div class="track"><div class="ticks" id="ticks"></div><div class="fill" id="fill"></div></div>
+    <span class="clock" id="clock">00 / 96s</span>
+  </div>
+</div>
+
+<div class="ctrl"><button id="btn-play">❚❚ Pause</button><button id="btn-replay">↻ Replay</button></div>
+<div class="hint">Screen-record this window (16:9) · space = pause</div>
+
+<script>
+(function(){
+  var TOTAL=96, SPLIT=64; // journey then payoff
+  // verbatim prompts from the real session (login password masked)
+  var beats=[
+    {t:0.4,phase:'Setup',user:'load the skills in the project',tools:['Skill'],result:'Loaded project skill <b>subnode</b> — WEDA edge SubNode scaffolding.'},
+    {t:6,phase:'Discover',user:'check the api <span class="url">https://github.com/Advantech-Containers/Advantech-YOLO-Vision-Applications/…/cv-container-overview.md</span>',tools:['WebFetch'],result:'Parsed the MQTT contract: <b>advantech/&lt;id&gt;/vision/detections</b> @ 1&nbsp;Hz.'},
+    {t:13,phase:'Build',user:'create a container sub node to integrae object detection demo container',tools:['Write ×6','Bash · dotnet test'],result:'Built <b>vision-object-detection</b> · <span class="ok">10/10 tests ✓</span>'},
+    {t:21,phase:'Package',user:'buid a container image',tools:['Bash · docker build'],result:'Image built — 306&nbsp;MB, self-contained (<span class="am">amd64</span>).'},
+    {t:28,phase:'Ship',user:'yes, build for arm64 and push to the registry',tools:['Bash · docker buildx --push'],result:'Pushed <span class="am">amd64 + arm64</span> → <b>harbor…/vision-object-detection:latest</b>'},
+    {t:36,phase:'Auth',user:'<span class="cmd">/weda-login</span> username=kevin.chien@advantech.com.tw password=••••••••',tools:['Skill · weda-login'],result:'WISE-SSO OIDC → <b>WEDA JWT</b> (admin · tenant central).'},
+    {t:44,phase:'Deploy',user:'<span class="cmd">/weda-container-mgmt</span> deploy the od container to adlk.edgedevice.2',tools:['Bash · stack-configs','Bash · revisions:deploy'],result:'Deployed → Jetson <b>74fe488d5d54</b> · <span class="ok">running ✓</span>'},
+    {t:52,phase:'Verify',user:'show me the telemetry data of the detection',tools:['Skill · edge-ssh','Bash · mosquitto_sub'],result:'Live: <span class="am">6–7 bottles</span> @ 13.77&nbsp;fps → sensors'}
+  ];
+
+  var inner=document.getElementById('conv-inner'), conv=document.getElementById('conv');
+  var fill=document.getElementById('fill'), clock=document.getElementById('clock'),
+      phase=document.getElementById('phase'), livelbl=document.getElementById('livelbl');
+  var jAct=document.getElementById('journey'), pAct=document.getElementById('payoff');
+
+  beats.forEach(function(b,i){
+    var m=document.createElement('div'); m.className='msg user'; m.dataset.i=i;
+    m.innerHTML='<div class="role"><span class="av">Y</span>You</div>'+
+      '<div class="bubble inputbox"><span class="txt">'+b.user+'</span><span class="send" aria-hidden="true">↑</span></div>';
+    inner.appendChild(m);
+    var c=document.createElement('div'); c.className='msg claude'; c.dataset.i=i;
+    var chips=(b.tools||[]).map(function(t){return '<span class="chip"><span class="sp"></span>'+t+'</span>';}).join('');
+    c.innerHTML='<div class="role"><span class="av">C</span>Claude</div><div class="tools">'+chips+'</div>'+
+      '<div class="result"><span class="ok">✓</span><span>'+b.result+'</span></div>';
+    inner.appendChild(c);
+  });
+  var msgs=Array.prototype.slice.call(inner.children);
+
+  var ticks=document.getElementById('ticks');
+  beats.forEach(function(b){var i=document.createElement('i');i.style.left=(b.t/TOTAL*100)+'%';ticks.appendChild(i);});
+  var sp=document.createElement('i'); sp.className='split'; sp.style.left=(SPLIT/TOTAL*100)+'%'; ticks.appendChild(sp);
+
+  // real captured telemetry
+  var S=[
+    {oc:7,fps:13.67,cmax:0.8881,cavg:0.697,bottle:7},{oc:6,fps:13.72,cmax:0.9054,cavg:0.780,bottle:6},
+    {oc:7,fps:13.73,cmax:0.8916,cavg:0.734,bottle:7},{oc:6,fps:13.77,cmax:0.8987,cavg:0.768,bottle:6},
+    {oc:7,fps:13.77,cmax:0.8767,cavg:0.711,bottle:7},{oc:6,fps:13.77,cmax:0.9154,cavg:0.782,bottle:6},
+    {oc:6,fps:13.77,cmax:0.8911,cavg:0.786,bottle:6},{oc:7,fps:13.77,cmax:0.8764,cavg:0.729,bottle:7}
+  ];
+  function txt(id,v){var e=document.getElementById(id);if(e)e.textContent=v;}
+  function tick(k){var s=S[k%S.length];
+    txt('p-oc',s.oc);txt('p-fps',s.fps.toFixed(2));txt('p-cmax',s.cmax.toFixed(3));txt('p-cavg',s.cavg.toFixed(3));txt('p-bottle',s.bottle);}
+
+  var revealed=-1;
+  function revealUpTo(t){var target=-1;for(var i=0;i<beats.length;i++){if(t>=beats[i].t)target=i;}
+    if(target===revealed)return;
+    msgs.forEach(function(m){var bi=+m.dataset.i;if(bi<=target&&!m.classList.contains('show')){m.classList.add('show');requestAnimationFrame(function(){m.classList.add('in');});}});
+    revealed=target;requestAnimationFrame(function(){conv.scrollTop=conv.scrollHeight;});}
+  function resetReveal(){revealed=-1;msgs.forEach(function(m){m.classList.remove('show','in');});conv.scrollTop=0;}
+  function phaseAt(t){var p=beats[0].phase;for(var i=0;i<beats.length;i++){if(t>=beats[i].t)p=beats[i].phase;}return p;}
+
+  var start=performance.now(),playing=true,pausedAt=0,lastSec=-1;
+  function loop(now){
+    var t=playing?((now-start)/1000):pausedAt;
+    if(t>=TOTAL+2.5){start=performance.now();resetReveal();lastSec=-1;t=0;}
+    var tc=Math.min(TOTAL,t);
+    fill.style.width=(tc/TOTAL*100)+'%';
+    clock.textContent=(tc<10?'0':'')+Math.floor(tc)+' / '+TOTAL+'s';
+    // journey visible until the split; payoff crossfades in just before
+    jAct.classList.toggle('on', t<SPLIT);
+    pAct.classList.toggle('on', t>=SPLIT-1);
+    if(t<SPLIT){ revealUpTo(t); phase.textContent=phaseAt(t); phase.classList.remove('pay'); livelbl.textContent='session replay'; }
+    else { phase.textContent='Live · WEDA Core'; phase.classList.add('pay'); livelbl.textContent='live telemetry';
+      var sec=Math.floor(t); if(sec!==lastSec){lastSec=sec;tick(sec);} }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  var btnP=document.getElementById('btn-play'),btnR=document.getElementById('btn-replay');
+  function setPlay(p){playing=p;btnP.textContent=p?'❚❚ Pause':'▶ Play';if(p)start=performance.now()-pausedAt*1000;else pausedAt=Math.min(TOTAL,(performance.now()-start)/1000);}
+  btnP.addEventListener('click',function(){setPlay(!playing);});
+  btnR.addEventListener('click',function(){resetReveal();lastSec=-1;start=performance.now();pausedAt=0;setPlay(true);});
+  window.addEventListener('keydown',function(e){if(e.code==='Space'){e.preventDefault();setPlay(!playing);}});
+})();
+</script>
