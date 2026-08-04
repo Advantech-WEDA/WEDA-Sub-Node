@@ -21,6 +21,11 @@ namespace SystemAgentExample.Devices;
 /// can recover array values that were lost during Dictionary binding by reading
 /// the raw section children (e.g., "Sensors:0:Parameters:Interfaces:0" = "eth0").
 ///
+/// Cloud-delivered sensors (configuration updates over NATS) take a different route: the
+/// framework converts their JsonElements to native types first, so arrays arrive as
+/// List&lt;object&gt;. No IConfigurationSection is available on that path — it is indexed
+/// positionally against devicecfg.json, which no longer matches the live sensor list.
+///
 /// After normalization, list parameters (Interfaces, PinIds, Sources) are always string[].
 /// </summary>
 internal static class ParameterNormalizer
@@ -92,6 +97,13 @@ internal static class ParameterNormalizer
             IEnumerable<string> enumerable => enumerable.ToArray(),
             JsonElement element => NormalizeJsonElement(element),
             string str => ParseCommaSeparated(str),
+            // Cloud-delivered arrays arrive as List<object> (JsonElements already converted
+            // to native types by the framework), so they must be flattened to strings here.
+            IEnumerable<object> objects => objects
+                .Where(o => o != null)
+                .Select(o => o.ToString()!)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToArray(),
             _ => RecoverFromSection(parametersSection, key) // System.Object — try section recovery
         };
     }
