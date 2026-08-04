@@ -74,6 +74,18 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
                 executedAt);
         }
 
+        // 2b. Verify the container can actually reach the host. Without pid: host, nsenter
+        // targets this container's init and reboot() kills this PID namespace instead of
+        // rebooting the machine — reporting success for a reboot that never happens.
+        if (!HostPidNamespaceGuard.IsHostPidNamespace(out var pidNsReason))
+        {
+            logger.LogError("Cannot reboot host: {Reason}", pidNsReason);
+            return SystemRebootResult.Error(
+                SystemCommandStatusCode.NotSupported,
+                $"Cannot reboot host: {pidNsReason}",
+                executedAt);
+        }
+
         // 3. Initiate reboot in the background so we can return the result response first
         _ = Task.Run(async () =>
         {

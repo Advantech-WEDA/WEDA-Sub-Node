@@ -74,6 +74,18 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
                 executedAt);
         }
 
+        // 2b. Verify the container can actually reach the host. Without pid: host, nsenter
+        // targets this container's init and reboot() kills this PID namespace instead of
+        // powering the machine off — reporting success for a shutdown that never happens.
+        if (!HostPidNamespaceGuard.IsHostPidNamespace(out var pidNsReason))
+        {
+            logger.LogError("Cannot shut down host: {Reason}", pidNsReason);
+            return SystemShutdownResult.Error(
+                SystemCommandStatusCode.NotSupported,
+                $"Cannot shut down host: {pidNsReason}",
+                executedAt);
+        }
+
         // 3. Initiate shutdown in the background so we can return the result response first
         _ = Task.Run(async () =>
         {
