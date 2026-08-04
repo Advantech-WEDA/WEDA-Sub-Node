@@ -1,0 +1,298 @@
+{
+  "SubNode": {
+    "Name": "CfxLineGateway",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "Advantech",
+    "Model": "CFX-Gateway",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "CfxEndpoint": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "DeviceCommunication": {
+        "BrokerHost": "127.0.0.1",
+        "BrokerPort": 1884,
+        "ClientId": "wiseiot-cfx-sub-001",
+        "Username": "cfx",
+        "HandleSegments": 3
+      },
+      "Sensors": [
+        {
+          "Name": "cfx_endpoint_connected",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.EndpointConnected"
+          },
+          "SensorInfo": {
+            "DisplayName": "Endpoint Connected",
+            "Description": "Endpoint joined the CFX network",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_station_online",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.ResourcePerformance.StationOnline"
+          },
+          "SensorInfo": {
+            "DisplayName": "Station Online",
+            "Description": "Station ready for communication to resume",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_magazine_arrived",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.Hermes.MagazineArrived"
+          },
+          "SensorInfo": {
+            "DisplayName": "Magazine Arrived",
+            "Description": "Hermes magazine arrived, with its per-slot unit data",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_units_arrived",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.UnitsArrived"
+          },
+          "SensorInfo": {
+            "DisplayName": "Units Arrived",
+            "Description": "Production units physically arrived at the endpoint",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_identifiers_read",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Sensor.Identification.IdentifiersRead"
+          },
+          "SensorInfo": {
+            "DisplayName": "Identifiers Read",
+            "Description": "Barcode or RFID identifiers read",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_units_initialized",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.UnitsInitialized"
+          },
+          "SensorInfo": {
+            "DisplayName": "Units Initialized",
+            "Description": "Units first introduced into the process flow",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_units_loaded",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.LoadingAndUnloading.UnitsLoaded"
+          },
+          "SensorInfo": {
+            "DisplayName": "Units Loaded",
+            "Description": "Units loaded from a carrier",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_work_started",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.WorkStarted"
+          },
+          "SensorInfo": {
+            "DisplayName": "Work Started",
+            "Description": "Process stage started",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_units_inspected",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.TestAndInspection.UnitsInspected"
+          },
+          "SensorInfo": {
+            "DisplayName": "Units Inspected",
+            "Description": "Inspection result, measurements and defects",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_work_completed",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.WorkCompleted"
+          },
+          "SensorInfo": {
+            "DisplayName": "Work Completed",
+            "Description": "Process stage completed",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_units_unloaded",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.LoadingAndUnloading.UnitsUnloaded"
+          },
+          "SensorInfo": {
+            "DisplayName": "Units Unloaded",
+            "Description": "Units unloaded into a carrier",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_units_departed",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.UnitsDeparted"
+          },
+          "SensorInfo": {
+            "DisplayName": "Units Departed",
+            "Description": "Units physically departed the endpoint",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_magazine_departed",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.Production.Hermes.MagazineDeparted"
+          },
+          "SensorInfo": {
+            "DisplayName": "Magazine Departed",
+            "Description": "Hermes magazine departed, with its per-slot unit data",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_endpoint_shutting_down",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.EndpointShuttingDown"
+          },
+          "SensorInfo": {
+            "DisplayName": "Endpoint Shutting Down",
+            "Description": "Endpoint about to disconnect from the CFX network",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_station_state_changed",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.ResourcePerformance.StationStateChanged"
+          },
+          "SensorInfo": {
+            "DisplayName": "Station State Changed",
+            "Description": "SEMI E10/E58 production state transition",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_fault_occurred",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.ResourcePerformance.FaultOccurred"
+          },
+          "SensorInfo": {
+            "DisplayName": "Fault Occurred",
+            "Description": "Fault raised, with code and severity",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "cfx_fault_cleared",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "MessageName": "CFX.ResourcePerformance.FaultCleared"
+          },
+          "SensorInfo": {
+            "DisplayName": "Fault Cleared",
+            "Description": "Previously raised fault cleared",
+            "Schema": "application/json"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        }
+      ]
+    }
+  }
+}

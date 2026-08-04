@@ -42,6 +42,33 @@ public class PubSubDeviceBase : DeviceBase
 
     private readonly List<Task> _samplingTasks = new();
     private Task? _subscriptionTask;
+    private CancellationToken _runningToken = CancellationToken.None;
+
+    /// <summary>
+    /// When <c>true</c>, telemetry is enqueued as each message arrives instead of being sampled from
+    /// <see cref="_sensorCache"/> on <c>Report.Interval</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The default (<c>false</c>) cache-and-sample behaviour models a continuous channel: the cache
+    /// holds the latest value and the sampler reports it every interval. That is correct for a
+    /// temperature or a register, where "the current value" is always meaningful.
+    /// </para>
+    /// <para>
+    /// It is wrong for discrete events. Because <see cref="SensorCache.Read(IEnumerable{string})"/>
+    /// is non-destructive, an event is re-reported on every interval until another message of the
+    /// same type replaces it; and because <see cref="SensorCache.Push(TelemetryMeasure)"/>
+    /// overwrites, two messages arriving inside one interval collapse to the last one. An
+    /// event-shaped protocol therefore both duplicates and drops.
+    /// </para>
+    /// <para>
+    /// Override to <c>true</c> for protocols whose messages are events carrying their own publisher
+    /// timestamps, so each message is reported exactly once. <c>Report.Interval</c> then no longer
+    /// governs reporting frequency — the publisher does. The cache is still populated, so
+    /// <see cref="DeviceBase.ReadSensorTelemetryAsync"/> and cached-value accessors keep working.
+    /// </para>
+    /// </remarks>
+    protected virtual bool UseEventDrivenTelemetry => false;
 
     /// <summary>
     /// Initializes a new instance of PubSubDeviceBase.
@@ -159,6 +186,9 @@ public class PubSubDeviceBase : DeviceBase
         // Clear previous tasks reference (for restart scenarios)
         _samplingTasks.Clear();
 
+        // Captured for the event-driven path, which enqueues outside any sampling loop.
+        _runningToken = cancellationToken;
+
         // Unsubscribe first to avoid duplicate subscriptions on restart
         _parser.OnTelemetryReceived -= OnTelemetryReceived;
 
@@ -210,7 +240,19 @@ public class PubSubDeviceBase : DeviceBase
             }
         }, cancellationToken);
 
-        // 2. Create interval loop tasks for each group (using helper from DeviceBase)
+        // 2. Create interval loop tasks for each group (using helper from DeviceBase).
+        // Skipped entirely in event-driven mode: the publisher, not a timer, decides when a value is
+        // reported, and sampling a cache of discrete events would duplicate them.
+        if (UseEventDrivenTelemetry)
+        {
+            _logger.LogInformation(
+                "Event-driven telemetry enabled for device {SubNodeId}: reporting on message arrival, "
+                + "Report.Interval is not used for sampling",
+                SubNodeId);
+
+            return Task.CompletedTask;
+        }
+
         foreach (var (intervalMs, sensors) in sensorGroups)
         {
             // Use RunIntervalLoopAsync with initialDelay=true to allow message broker data to arrive
@@ -240,13 +282,15 @@ public class PubSubDeviceBase : DeviceBase
 
     /// <summary>
     /// Handles telemetry data received from parser subscription.
-    /// Pushes data into SensorCache (like writing to Modbus registers).
+    /// Pushes data into SensorCache (like writing to Modbus registers), and additionally reports it
+    /// immediately when <see cref="UseEventDrivenTelemetry"/> is enabled.
     /// </summary>
     private void OnTelemetryReceived(List<TelemetryMeasure> measures)
     {
         try
         {
-            // Push into sensor cache (like Modbus registers)
+            // Push into sensor cache (like Modbus registers) so cached-value reads keep working in
+            // both modes.
             _sensorCache.Push(measures);
 
             _logger.LogDebug(
@@ -256,6 +300,45 @@ public class PubSubDeviceBase : DeviceBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error pushing telemetry into cache for device {SubNodeId}", SubNodeId);
+            return;
+        }
+
+        if (UseEventDrivenTelemetry)
+        {
+            // Fire and forget: this runs on the transport's receive callback, which must not be
+            // blocked by the transform/filter/enqueue pipeline.
+            _ = ReportImmediatelyAsync(measures);
+        }
+    }
+
+    /// <summary>
+    /// Reports measures as soon as they arrive, bypassing interval sampling.
+    /// </summary>
+    private async Task ReportImmediatelyAsync(List<TelemetryMeasure> measures)
+    {
+        try
+        {
+            // Mirrors the sampling path's ordering: raw event first, then transform/filter/enqueue.
+            RaiseDataReceived(measures);
+
+            await EnqueueTelemetryAsync(measures, _runningToken);
+
+            _logger.LogDebug(
+                "Enqueued {Count} event-driven telemetry measures",
+                measures.Count);
+        }
+        catch (OperationCanceledException) when (_runningToken.IsCancellationRequested)
+        {
+            // Device is shutting down; dropping in-flight measures is expected.
+        }
+        catch (Exception ex)
+        {
+            // Never propagate: this task is unobserved, and a throw here would terminate the process
+            // on an unhandled task exception rather than losing one batch.
+            _logger.LogError(
+                ex,
+                "Failed to enqueue event-driven telemetry for device {SubNodeId}",
+                SubNodeId);
         }
     }
 }

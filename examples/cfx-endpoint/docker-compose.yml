@@ -1,0 +1,50 @@
+# CFX SubNode deployment.
+#
+# The SubNode subscribes to the CFX AMQP-to-MQTT bridge (RabbitMQ with rabbitmq_mqtt) and forwards
+# captured messages to a WedaNode. Host networking is used so the bridge and the WedaNode can both be
+# reached at their host addresses.
+#
+# Standing deployment:
+#   docker compose up -d
+#
+# Smoke-test with the captured payloads (publishes onto the same bridge, then stop it again):
+#   docker compose --profile replay up -d cfx-replay
+#   docker compose --profile replay stop cfx-replay
+#
+# Secrets come from .env (gitignored); see .env.example.
+services:
+  cfx-subnode:
+    build:
+      context: ../..
+      dockerfile: examples/cfx-endpoint/Dockerfile
+    environment:
+      # Broker and WedaNode credentials are kept out of the JSON config files. Environment variables
+      # are applied after the JSON providers, so these win over the file values.
+      DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__Password: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
+      SystemConfig__WedaNode__Password: ${WEDA_NATS_PASSWORD:?set WEDA_NATS_PASSWORD in examples/cfx-endpoint/.env}
+    volumes:
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./weda-data:/app/.weda
+    network_mode: host
+    restart: unless-stopped
+
+  # Not part of the standing deployment. Replays the captured CFX payloads onto the same bridge so
+  # the deployment can be verified end-to-end while the production line is idle.
+  cfx-replay:
+    profiles: ["replay"]
+    build:
+      context: ../..
+      dockerfile: tools/cfx-replay/Dockerfile
+    environment:
+      CFX_BROKER_HOST: 127.0.0.1
+      CFX_BROKER_PORT: "1884"
+      CFX_BROKER_USERNAME: cfx
+      CFX_BROKER_PASSWORD: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
+      CFX_INTERVAL_MS: "700"
+      CFX_CYCLE_DELAY_MS: "5000"
+      CFX_LOOP: "true"
+    network_mode: host
+    restart: "no"
