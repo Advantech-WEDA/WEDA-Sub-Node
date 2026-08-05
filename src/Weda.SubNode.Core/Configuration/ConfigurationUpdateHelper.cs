@@ -217,26 +217,26 @@ public static partial class ConfigurationUpdateHelper
             var wasUpdated = false;
 
             // Apply config updates (PATCH semantics - only update provided fields)
-            if (desiredSensor.Config != null)
+            if (desiredSensor.Report != null)
             {
                 sensor.Report.Enabled = desiredSensor.Report?.Enabled ?? sensor.Report.Enabled;
-                sensor.Report.Interval = desiredSensor.Config.Interval;
+                sensor.Report.Interval = desiredSensor.Report.Interval;
 
                 // Only update unit if provided
-                if (!string.IsNullOrEmpty(desiredSensor.Config.Unit))
+                if (!string.IsNullOrEmpty(desiredSensor.Report.Unit))
                 {
-                    sensor.Report.Unit = desiredSensor.Config.Unit;
+                    sensor.Report.Unit = desiredSensor.Report.Unit;
                 }
 
                 // Apply thresholds if provided
-                if (desiredSensor.Config.Thresholds != null)
+                if (desiredSensor.Report.Thresholds != null)
                 {
                     sensor.Report.Thresholds = new ThresholdConfig
                     {
-                        UpperCritical = desiredSensor.Config.Thresholds.UpperCritical,
-                        UpperWarning = desiredSensor.Config.Thresholds.UpperWarning,
-                        LowerWarning = desiredSensor.Config.Thresholds.LowerWarning,
-                        LowerCritical = desiredSensor.Config.Thresholds.LowerCritical
+                        UpperCritical = desiredSensor.Report.Thresholds.UpperCritical,
+                        UpperWarning = desiredSensor.Report.Thresholds.UpperWarning,
+                        LowerWarning = desiredSensor.Report.Thresholds.LowerWarning,
+                        LowerCritical = desiredSensor.Report.Thresholds.LowerCritical
                     };
                 }
 
@@ -376,24 +376,24 @@ public static partial class ConfigurationUpdateHelper
         var wasUpdated = false;
 
         // Update Report config if provided
-        if (desired.Config != null)
+        if (desired.Report != null)
         {
             sensor.Report.Enabled = desired.Report?.Enabled ?? sensor.Report.Enabled;
-            sensor.Report.Interval = desired.Config.Interval;
+            sensor.Report.Interval = desired.Report.Interval;
 
-            if (!string.IsNullOrEmpty(desired.Config.Unit))
+            if (!string.IsNullOrEmpty(desired.Report.Unit))
             {
-                sensor.Report.Unit = desired.Config.Unit;
+                sensor.Report.Unit = desired.Report.Unit;
             }
 
-            if (desired.Config.Thresholds != null)
+            if (desired.Report.Thresholds != null)
             {
                 sensor.Report.Thresholds = new ThresholdConfig
                 {
-                    UpperCritical = desired.Config.Thresholds.UpperCritical,
-                    UpperWarning = desired.Config.Thresholds.UpperWarning,
-                    LowerWarning = desired.Config.Thresholds.LowerWarning,
-                    LowerCritical = desired.Config.Thresholds.LowerCritical
+                    UpperCritical = desired.Report.Thresholds.UpperCritical,
+                    UpperWarning = desired.Report.Thresholds.UpperWarning,
+                    LowerWarning = desired.Report.Thresholds.LowerWarning,
+                    LowerCritical = desired.Report.Thresholds.LowerCritical
                 };
             }
 
@@ -628,7 +628,7 @@ public static partial class ConfigurationUpdateHelper
                 continue;
 
             // Apply DSP pipeline updates
-            if (desiredSensor.Config?.DspPipeline != null && desiredSensor.Report?.DspPipeline != null)
+            if (desiredSensor.Report?.DspPipeline != null)
             {
                 var dspResult = ApplyDspPipelineUpdates(sensor.Report, desiredSensor.Report.DspPipeline);
                 if (dspResult.IsError)
@@ -641,7 +641,7 @@ public static partial class ConfigurationUpdateHelper
             }
 
             // Apply Transform pipeline updates
-            if (desiredSensor.Config?.TransformPipeline != null && desiredSensor.Report?.TransformPipeline != null)
+            if (desiredSensor.Report?.TransformPipeline != null)
             {
                 var transformResult = ApplyTransformPipelineUpdates(sensor.Report, desiredSensor.Report.TransformPipeline);
                 if (transformResult.IsError)
@@ -757,7 +757,7 @@ public static partial class ConfigurationUpdateHelper
                 Dtmi = s.Dtmi,
                 SensorGroup = s.SensorGroup.ToString(),
                 Parameters = s.Parameters,
-                Config = new SubNodeSensorRuntimeConfigDto
+                Report = new SubNodeSensorRuntimeConfigDto
                 {
                     Enabled = s.Report.Enabled,
                     Interval = (int)s.Report.Interval,

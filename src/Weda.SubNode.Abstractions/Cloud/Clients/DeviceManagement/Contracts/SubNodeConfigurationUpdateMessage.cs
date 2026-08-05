@@ -952,16 +952,6 @@ public class SubNodeSensorReportDto
     public SubNodeSensorRuntimeConfigDto? Report { get; set; }
 
     /// <summary>
-    /// Backward compatibility: Config is an alias for Report
-    /// </summary>
-    [JsonIgnore]
-    public SubNodeSensorRuntimeConfigDto? Config
-    {
-        get => Report;
-        set => Report = value;
-    }
-
-    /// <summary>
     /// Additional metadata
     /// </summary>
     [JsonPropertyName("Metadata")]
