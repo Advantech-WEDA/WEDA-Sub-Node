@@ -224,7 +224,9 @@ public static class DeviceConfigurationMappingExtensions
             DspFilters: dspFilters,
             Commands: commands)
         {
-            DeviceConfigs = deviceConfigs
+            DeviceConfigs = deviceConfigs,
+            SdkVersion = subNodeInfo.SdkVersion,
+            SchemaVersion = subNodeInfo.SchemaVersion
         };
     }
 

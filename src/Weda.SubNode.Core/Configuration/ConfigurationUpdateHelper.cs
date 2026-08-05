@@ -1088,7 +1088,7 @@ public static partial class ConfigurationUpdateHelper
 
         if (rawDeviceCfg.HasValue)
         {
-            reported.SetRawDeviceCfgWithMessage(rawDeviceCfg.Value, message);
+            reported.SetRawDeviceCfgWithMessage(rawDeviceCfg.Value, message, SubNodeInfo.CurrentSdkVersion, SubNodeInfo.CurrentSchemaVersion);
         }
         else
         {
@@ -1168,7 +1168,7 @@ public static partial class ConfigurationUpdateHelper
 
         if (baseRawJson.HasValue)
         {
-            reported.SetRawDeviceCfgWithMessage(baseRawJson.Value, message);
+            reported.SetRawDeviceCfgWithMessage(baseRawJson.Value, message, SubNodeInfo.CurrentSdkVersion, SubNodeInfo.CurrentSchemaVersion);
         }
         else
         {
