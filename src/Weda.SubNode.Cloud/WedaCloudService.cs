@@ -1,13 +1,9 @@
 using System.Text.Json;
-
 using ErrorOr;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NATS.Client.Core;
 using NATS.Net;
-
 using Weda.SubNode.Abstractions.Cloud;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
@@ -20,6 +16,7 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Cloud.Serialization;
 using Weda.SubNode.Cloud.Subscriptions;
 using Weda.SubNode.Core.Storage;
 
@@ -542,9 +539,20 @@ public sealed class WedaCloudService : IWedaCloudService
 
         try
         {
+            // Force the ENTIRE outbound payload to camelCase before publishing.
+            // Serializing the typed report through the NATS JSON serializer alone
+            // leaves the raw-echoed devicecfg (a verbatim JsonElement) and dictionary
+            // keys (Parameters/Metadata/DeviceInfo/DeviceConfigs entries) in their
+            // authored casing. Serializing here with the same options the registry
+            // uses, then normalizing the bytes, guarantees strict camelCase on the
+            // wire for the schemaVersion=2 cloud validator. Published as raw bytes so
+            // the NATS serializer passes them through untouched.
+            var payload = CamelCaseJsonNormalizer.SerializeAndNormalize(
+                report, WedaNatsSerializerRegistry.DefaultOptions);
+
             await _client.PublishAsync(
                 subject: reportedTopic,
-                data: report,
+                data: payload,
                 cancellationToken: cancellationToken);
 
             _logger.LogDebug(

@@ -56,13 +56,29 @@ stages:
               feedsToUse: 'config'
               nugetConfigPath: 'nuget.config'
 
+          # Derive the SDK version stamped into the assemblies from the release
+          # branch (release/vX.Y.Z) plus a -ci.<BuildId> suffix. This is what
+          # SubNodeInfo.ResolveSdkVersion() reports as `sdkVersion` in the
+          # devicecfg subNode section. Non-release branches fall back to 0.0.0.
+          - bash: |
+              BR="$(Build.SourceBranch)"
+              if [[ "$BR" =~ release/v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+                BASE="${BASH_REMATCH[1]}"
+              else
+                BASE="0.0.0"
+              fi
+              SDK_VERSION="${BASE}-ci.$(Build.BuildId)"
+              echo "Derived SDK version: ${SDK_VERSION} (branch: ${BR})"
+              echo "##vso[task.setvariable variable=sdkVersion]${SDK_VERSION}"
+            displayName: 'Derive SDK version from release branch'
+
           # Build
           - task: DotNetCoreCLI@2
             displayName: 'Build'
             inputs:
               command: 'build'
               projects: '**/*.csproj'
-              arguments: '--configuration $(buildConfiguration) --no-restore'
+              arguments: '--configuration $(buildConfiguration) --no-restore -p:Version=$(sdkVersion)'
 
           # Test (don't block pipeline)
           - task: DotNetCoreCLI@2

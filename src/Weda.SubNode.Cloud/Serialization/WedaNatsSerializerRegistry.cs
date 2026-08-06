@@ -21,17 +21,27 @@ public class WedaNatsSerializerRegistry : INatsSerializerRegistry
     public static readonly WedaNatsSerializerRegistry Default = new();
 
     /// <summary>
+    /// The JSON serializer options used by the default registry instance.
+    /// Exposed so outbound choke points (e.g. configuration upload/report) can
+    /// serialize a payload with the exact same options the NATS JSON serializer
+    /// would use, before running <see cref="CamelCaseJsonNormalizer"/> over the
+    /// resulting bytes to force every key (including raw-echoed devicecfg keys and
+    /// dictionary keys) to camelCase.
+    /// </summary>
+    public static readonly JsonSerializerOptions DefaultOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+
+    /// <summary>
     /// Creates a new instance of <see cref="WedaNatsSerializerRegistry"/> with default JSON options.
     /// </summary>
     public WedaNatsSerializerRegistry()
-        : this(new JsonSerializerOptions
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
-        })
+        : this(DefaultOptions)
     {
     }
     
