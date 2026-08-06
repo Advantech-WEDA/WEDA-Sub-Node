@@ -21,9 +21,13 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// 2. Publishes a result response indicating the shutdown is commencing.
 /// 3. Initiates a system shutdown after an optional delay.
 ///
-/// Primary: nsenter into host namespace (graceful, via host's init system).
-/// Fallback: libc reboot() syscall with POWER_OFF (hard shutdown, does not notify host services).
-/// Both require docker-compose: privileged: true + pid: host.
+/// Escalation order, cheapest dependencies first:
+/// 1. sysrq (/proc/sysrq-trigger) — syncs and remounts read-only, then powers off. Needs only a
+///    privileged container and CONFIG_MAGIC_SYSRQ; notably NOT pid: host, since sysrq is not
+///    PID-namespaced. Does not notify host services.
+/// 2. nsenter into the host namespace (graceful, via the host's init system).
+/// 3. libc reboot() syscall with POWER_OFF (hard shutdown, does not notify host services).
+/// Paths 2 and 3 additionally require docker-compose: privileged: true + pid: host.
 ///
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
@@ -74,16 +78,28 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
                 executedAt);
         }
 
-        // 2b. Verify the container can actually reach the host. Without pid: host, nsenter
-        // targets this container's init and reboot() kills this PID namespace instead of
-        // powering the machine off — reporting success for a shutdown that never happens.
-        if (!HostPidNamespaceGuard.IsHostPidNamespace(out var pidNsReason))
+        // 2b. Verify at least one escalation path can reach the host. sysrq needs no pid: host;
+        // nsenter and reboot() both do, and without it they silently restart this container
+        // instead of powering the machine off. Fail only when neither path is usable, so the
+        // operator never gets a success for a shutdown that cannot happen.
+        var sysrqAvailable = SysrqPowerControl.IsAvailable(out var sysrqReason);
+        var hostPidNamespace = HostPidNamespaceGuard.IsHostPidNamespace(out var pidNsReason);
+
+        if (!sysrqAvailable && !hostPidNamespace)
         {
-            logger.LogError("Cannot shut down host: {Reason}", pidNsReason);
+            var detail = $"sysrq unavailable ({sysrqReason}); {pidNsReason}";
+            logger.LogError("Cannot shut down host: {Reason}", detail);
             return SystemShutdownResult.Error(
                 SystemCommandStatusCode.NotSupported,
-                $"Cannot shut down host: {pidNsReason}",
+                $"Cannot shut down host: {detail}",
                 executedAt);
+        }
+
+        if (!sysrqAvailable)
+        {
+            logger.LogWarning(
+                "sysrq unavailable ({Reason}); falling back to nsenter/shutdown, which require pid: host",
+                sysrqReason);
         }
 
         // 3. Initiate shutdown in the background so we can return the result response first
@@ -111,14 +127,21 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
     }
 
     /// <summary>
-    /// Executes the shutdown command.
-    /// Primary: nsenter into host PID 1 namespace for graceful shutdown via host's init system.
-    /// Fallback: libc reboot() syscall with POWER_OFF (hard shutdown if nsenter is unavailable).
-    /// Requires docker-compose: privileged: true + pid: host.
+    /// Executes the shutdown command, trying each escalation path until one takes effect.
+    /// 1. sysrq — sync, remount read-only, power off. No pid: host required.
+    /// 2. nsenter into host PID 1 namespace for a graceful shutdown via the host's init system.
+    /// 3. libc reboot() syscall with POWER_OFF (hard shutdown).
+    /// Paths 2 and 3 require docker-compose: privileged: true + pid: host.
     /// </summary>
     private static void ExecuteShutdown(ILogger logger)
     {
-        // Primary: nsenter (graceful shutdown via host's init/systemd)
+        // Primary: sysrq. Fewest dependencies of the three — no pid: host (sysrq is not
+        // PID-namespaced), no nsenter binary, no host /bin/sh, no P/Invoke, and immune to
+        // container/host glibc skew. Syncs and remounts read-only before triggering.
+        if (SysrqPowerControl.TryPowerOff(logger))
+            return;
+
+        // Secondary: nsenter (graceful shutdown via host's init/systemd)
         try
         {
             var psi = new ProcessStartInfo("nsenter")

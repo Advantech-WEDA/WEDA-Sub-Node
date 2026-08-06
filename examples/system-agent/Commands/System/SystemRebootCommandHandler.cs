@@ -21,9 +21,13 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// 2. Publishes a result response indicating the reboot is commencing.
 /// 3. Initiates a system reboot after an optional delay.
 ///
-/// Primary: nsenter into host namespace (graceful, via host's init system).
-/// Fallback: libc reboot() syscall (hard reboot, does not notify host services).
-/// Both require docker-compose: privileged: true + pid: host.
+/// Escalation order, cheapest dependencies first:
+/// 1. sysrq (/proc/sysrq-trigger) — syncs and remounts read-only, then resets. Needs only a
+///    privileged container and CONFIG_MAGIC_SYSRQ; notably NOT pid: host, since sysrq is not
+///    PID-namespaced. Does not notify host services.
+/// 2. nsenter into the host namespace (graceful, via the host's init system).
+/// 3. libc reboot() syscall (hard reboot, does not notify host services).
+/// Paths 2 and 3 additionally require docker-compose: privileged: true + pid: host.
 ///
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
@@ -74,16 +78,28 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
                 executedAt);
         }
 
-        // 2b. Verify the container can actually reach the host. Without pid: host, nsenter
-        // targets this container's init and reboot() kills this PID namespace instead of
-        // rebooting the machine — reporting success for a reboot that never happens.
-        if (!HostPidNamespaceGuard.IsHostPidNamespace(out var pidNsReason))
+        // 2b. Verify at least one escalation path can reach the host. sysrq needs no pid: host;
+        // nsenter and reboot() both do, and without it they silently restart this container
+        // instead of rebooting the machine. Fail only when neither path is usable, so the
+        // operator never gets a success for a reboot that cannot happen.
+        var sysrqAvailable = SysrqPowerControl.IsAvailable(out var sysrqReason);
+        var hostPidNamespace = HostPidNamespaceGuard.IsHostPidNamespace(out var pidNsReason);
+
+        if (!sysrqAvailable && !hostPidNamespace)
         {
-            logger.LogError("Cannot reboot host: {Reason}", pidNsReason);
+            var detail = $"sysrq unavailable ({sysrqReason}); {pidNsReason}";
+            logger.LogError("Cannot reboot host: {Reason}", detail);
             return SystemRebootResult.Error(
                 SystemCommandStatusCode.NotSupported,
-                $"Cannot reboot host: {pidNsReason}",
+                $"Cannot reboot host: {detail}",
                 executedAt);
+        }
+
+        if (!sysrqAvailable)
+        {
+            logger.LogWarning(
+                "sysrq unavailable ({Reason}); falling back to nsenter/reboot(), which require pid: host",
+                sysrqReason);
         }
 
         // 3. Initiate reboot in the background so we can return the result response first
@@ -111,14 +127,21 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
     }
 
     /// <summary>
-    /// Executes the reboot command.
-    /// Primary: nsenter into host PID 1 namespace for graceful reboot via host's init system.
-    /// Fallback: libc reboot() syscall (hard reboot if nsenter is unavailable).
-    /// Requires docker-compose: privileged: true + pid: host.
+    /// Executes the reboot command, trying each escalation path until one takes effect.
+    /// 1. sysrq — sync, remount read-only, reset. No pid: host required.
+    /// 2. nsenter into host PID 1 namespace for a graceful reboot via the host's init system.
+    /// 3. libc reboot() syscall (hard reboot).
+    /// Paths 2 and 3 require docker-compose: privileged: true + pid: host.
     /// </summary>
     private static void ExecuteReboot(ILogger logger)
     {
-        // Primary: nsenter (graceful reboot via host's init/systemd)
+        // Primary: sysrq. Fewest dependencies of the three — no pid: host (sysrq is not
+        // PID-namespaced), no nsenter binary, no host /bin/sh, no P/Invoke, and immune to
+        // container/host glibc skew. Syncs and remounts read-only before triggering.
+        if (SysrqPowerControl.TryReboot(logger))
+            return;
+
+        // Secondary: nsenter (graceful reboot via host's init/systemd)
         try
         {
             var process = Process.Start(new ProcessStartInfo
