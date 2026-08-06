@@ -137,7 +137,7 @@ public class SensorsValidatorTests
                 {
                     Name = sensorName,
                     SensorGroup = "AI",
-                    Config = new SubNodeSensorRuntimeConfigDto
+                    Report = new SubNodeSensorRuntimeConfigDto
                     {
                         Enabled = true,
                         Interval = 1000
@@ -164,7 +164,7 @@ public class SensorsValidatorTests
         {
             Name = name,
             SensorGroup = "AI",
-            Config = new SubNodeSensorRuntimeConfigDto
+            Report = new SubNodeSensorRuntimeConfigDto
             {
                 Enabled = true,
                 Interval = 1000

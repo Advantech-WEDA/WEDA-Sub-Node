@@ -312,7 +312,7 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!.Interval = -1;
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Report!.Interval = -1;
         var currentConfig = CreateDeviceConfiguration("TestDevice");
 
         // Act
@@ -332,7 +332,7 @@ public class ConfigurationUpdateHelperTests
             new SubNodeSensorReportDto
             {
                 Name = "unknown_sensor",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
                 SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
             });
         var currentConfig = CreateDeviceConfiguration("TestDevice");
@@ -356,7 +356,7 @@ public class ConfigurationUpdateHelperTests
             new SubNodeSensorReportDto
             {
                 Name = "unknown_sensor",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
                 SensorInfo = new SubNodeSensorInfoDto { Schema = "double" }
             });
         var currentConfig = CreateDeviceConfiguration("TestDevice");
@@ -413,7 +413,7 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!;
+        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Report!;
         sensorConfig.Thresholds = new SubNodeThresholdsDto
         {
             UpperCritical = 80,
@@ -435,7 +435,7 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!;
+        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Report!;
         sensorConfig.Thresholds = new SubNodeThresholdsDto
         {
             LowerWarning = 10,
@@ -457,7 +457,7 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!;
+        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Report!;
         sensorConfig.Thresholds = new SubNodeThresholdsDto
         {
             UpperWarning = 30,
@@ -479,7 +479,7 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!;
+        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Report!;
         sensorConfig.Thresholds = new SubNodeThresholdsDto
         {
             UpperCritical = 100,
@@ -501,7 +501,7 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Config!;
+        var sensorConfig = message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Sensors![0].Report!;
         sensorConfig.Thresholds = new SubNodeThresholdsDto
         {
             UpperCritical = 10,
@@ -598,7 +598,7 @@ public class ConfigurationUpdateHelperTests
             new()
             {
                 Name = "channel_0",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 1000 }
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 1000 }
             }
         };
 
@@ -622,7 +622,7 @@ public class ConfigurationUpdateHelperTests
             new()
             {
                 Name = "channel_0",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 5000 }
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 5000 }
             }
         };
 
@@ -645,7 +645,7 @@ public class ConfigurationUpdateHelperTests
             new()
             {
                 Name = "channel_0",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000, Unit = "V" }
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000, Unit = "V" }
             }
         };
 
@@ -667,7 +667,7 @@ public class ConfigurationUpdateHelperTests
             new()
             {
                 Name = "unknown_sensor",
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 9999 }
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 9999 }
             }
         };
 
@@ -690,7 +690,7 @@ public class ConfigurationUpdateHelperTests
             new()
             {
                 Name = "CHANNEL_0", // Uppercase
-                Config = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 1000 }
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = false, Interval = 1000 }
             }
         };
 
@@ -713,7 +713,7 @@ public class ConfigurationUpdateHelperTests
             new()
             {
                 Name = "channel_0",
-                Config = new SubNodeSensorRuntimeConfigDto
+                Report = new SubNodeSensorRuntimeConfigDto
                 {
                     Enabled = true,
                     Interval = 1000,
@@ -935,8 +935,8 @@ public class ConfigurationUpdateHelperTests
 
         var cachedMessage = CreateValidMessage();
         var deviceConfig = cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"];
-        deviceConfig.Sensors![0].Config!.Enabled = false;
-        deviceConfig.Sensors[0].Config!.Interval = 5000;
+        deviceConfig.Sensors![0].Report!.Enabled = false;
+        deviceConfig.Sensors[0].Report!.Interval = 5000;
 
         // Act
         var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
@@ -1111,7 +1111,7 @@ public class ConfigurationUpdateHelperTests
                                             Name = "channel_0",
                                             Dtmi = "dtmi:test:sensor;1",
                                             SensorGroup = "AI",
-                                            Config = new SubNodeSensorRuntimeConfigDto
+                                            Report = new SubNodeSensorRuntimeConfigDto
                                             {
                                                 Enabled = true,
                                                 Interval = 1000
@@ -1123,7 +1123,7 @@ public class ConfigurationUpdateHelperTests
                                             Name = "channel_1",
                                             Dtmi = "dtmi:test:sensor;1",
                                             SensorGroup = "AI",
-                                            Config = new SubNodeSensorRuntimeConfigDto
+                                            Report = new SubNodeSensorRuntimeConfigDto
                                             {
                                                 Enabled = true,
                                                 Interval = 1000

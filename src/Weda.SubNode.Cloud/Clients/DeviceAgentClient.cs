@@ -5,6 +5,7 @@ using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Cloud.Serialization;
 using Weda.SubNode.Core.Cloud.Clients.DeviceManagement.Mapping;
 using Weda.SubNode.Core.Commands;
 
@@ -85,9 +86,19 @@ public class DeviceAgentClient : IDeviceAgentClient
             dto.DeviceCapabilities.Sensors.Count);
 
 
-        var response = await _client.RequestAsync<ConfigurationUploadRequest, ConfigurationUploadResponse>(
+        // Force the ENTIRE outbound payload to camelCase before sending. The DTO
+        // envelope carries dictionary keys (each sensor's Parameters, DeviceInfo,
+        // Communication, etc.) and DeviceConfigs entry names that would otherwise
+        // reach the wire in their authored casing. Serialize with the same options
+        // the NATS JSON serializer uses, normalize the bytes to strict camelCase for
+        // the schemaVersion=2 cloud validator, then send as raw bytes (passed through
+        // untouched by the NATS serializer).
+        var payload = CamelCaseJsonNormalizer.SerializeAndNormalize(
+            request, WedaNatsSerializerRegistry.DefaultOptions);
+
+        var response = await _client.RequestAsync<byte[], ConfigurationUploadResponse>(
             subject: UploadDeviceConfigurationSubject,
-            data: request,
+            data: payload,
             cancellationToken: cancellationToken);
 
         _deviceConfigurations = configurations;

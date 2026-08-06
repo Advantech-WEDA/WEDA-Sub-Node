@@ -450,7 +450,7 @@ public class JsonConfigurationCacheTests : IDisposable
                 new SubNodeSensorReportDto
                 {
                     Name = "sensor.0",
-                    Config = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 }
+                    Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 }
                 }
             },
             Periods = new SubNodePeriodsDto { ReportHealth = 30000 }
@@ -546,7 +546,7 @@ public class JsonConfigurationCacheTests : IDisposable
                                             Name = "channel.0",
                                             Dtmi = "dtmi:test:sensor;1",
                                             SensorGroup = "AI",
-                                            Config = new SubNodeSensorRuntimeConfigDto
+                                            Report = new SubNodeSensorRuntimeConfigDto
                                             {
                                                 Enabled = true,
                                                 Interval = 1000
@@ -557,7 +557,7 @@ public class JsonConfigurationCacheTests : IDisposable
                                             Name = "channel.1",
                                             Dtmi = "dtmi:test:sensor;1",
                                             SensorGroup = "AI",
-                                            Config = new SubNodeSensorRuntimeConfigDto
+                                            Report = new SubNodeSensorRuntimeConfigDto
                                             {
                                                 Enabled = true,
                                                 Interval = 1000
