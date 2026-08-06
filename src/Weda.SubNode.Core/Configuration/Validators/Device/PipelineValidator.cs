@@ -52,7 +52,7 @@ public class PipelineValidator : IConfigurationPropertyValidator
                 continue;
 
             // Validate DSP pipeline parameters
-            if (desiredSensor.Config?.DspPipeline != null && desiredSensor.Report?.DspPipeline != null)
+            if (desiredSensor.Report?.DspPipeline != null)
             {
                 var dspValidationResult = ValidateDspPipelineParameters(
                     sensor.Name,
@@ -65,7 +65,7 @@ public class PipelineValidator : IConfigurationPropertyValidator
             }
 
             // Validate Transform pipeline parameters
-            if (desiredSensor.Config?.TransformPipeline != null && desiredSensor.Report?.TransformPipeline != null)
+            if (desiredSensor.Report?.TransformPipeline != null)
             {
                 var transformValidationResult = ValidateTransformPipelineParameters(
                     sensor.Name,

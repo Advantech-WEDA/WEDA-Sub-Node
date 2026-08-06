@@ -124,7 +124,6 @@ public class ConfigurationValidatorRegistry
             // Pipeline is validated when Sensors are provided (pipelines are inside sensors)
             // Check if any sensor has pipeline configurations
             var hasPipeline = desiredConfig.Sensors.Any(s =>
-                s.Config?.DspPipeline != null || s.Config?.TransformPipeline != null ||
                 s.Report?.DspPipeline != null || s.Report?.TransformPipeline != null);
 
             if (hasPipeline)
