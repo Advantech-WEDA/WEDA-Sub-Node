@@ -147,7 +147,26 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
             var id = iface["@id"]?.GetValue<string>() ?? "<no-id>";
             ShouldConstructValidator(iface, byId, $"refModel '{id}'");
         }
-        
+
+        // refModelsMap is a lossless partition of refModels: commands = command
+        // Interfaces, configs = everything else, configs ∪ commands (by @id) ==
+        // refModels. The flat list is retained for DTDL parsing; the map lets
+        // consumers take a category slice without inferring from @id / extends.
+        var map = data.RefModelsMap;
+        map.ShouldNotBeNull();
+
+        map.Configs.ShouldNotBeEmpty();
+        map.Commands.ShouldNotBeEmpty();
+        map.Commands.ShouldAllBe(i => i["@id"]!.GetValue<string>().Contains(":command:"));
+        map.Configs.ShouldAllBe(i => !i["@id"]!.GetValue<string>().Contains(":command:"));
+
+        var mapIds = map.Configs.Concat(map.Commands)
+            .Select(i => i["@id"]!.GetValue<string>())
+            .ToHashSet();
+        var flatIds = data.RefModels
+            .Select(i => i["@id"]!.GetValue<string>())
+            .ToHashSet();
+        mapIds.SetEquals(flatIds).ShouldBeTrue();
     }
 
     private static void ShouldConstructValidator(
