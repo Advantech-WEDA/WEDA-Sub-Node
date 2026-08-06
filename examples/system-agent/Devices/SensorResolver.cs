@@ -29,6 +29,59 @@ internal static class SensorResolver
     }
 
     /// <summary>
+    /// Returns true when at least one sensor is still an unresolved template
+    /// (Explicit list / Auto-detect mode) and would be expanded by <see cref="Resolve"/>.
+    /// </summary>
+    /// <remarks>
+    /// Used by the runtime re-resolution path: a cloud configuration update replaces the
+    /// live sensor list with the cloud's desired state, which holds the original template
+    /// sensors (e.g. <c>network_bytes_sent</c> with <c>Interfaces: []</c>) rather than the
+    /// per-resource sensors produced at startup. Without re-resolution those templates are
+    /// polled unresolved and skipped by the parser, silently stopping their telemetry.
+    /// </remarks>
+    internal static bool NeedsResolution(IEnumerable<Sensor> sensors)
+        => sensors.Any(IsUnresolvedTemplate);
+
+    /// <summary>
+    /// Returns true when a sensor is a template that <see cref="Resolve"/> would expand.
+    /// Single source of truth for the Bound-mode checks used by the Resolve* methods.
+    /// </summary>
+    private static bool IsUnresolvedTemplate(Sensor sensor)
+    {
+        var metricType = GetParam(sensor, "MetricType")?.ToLowerInvariant();
+
+        return metricType switch
+        {
+            SupportedDataType.Network => !IsNetworkBound(sensor),
+            SupportedDataType.Gpio => IsGpioPinStateSensor(sensor) && !IsGpioBound(sensor),
+            SupportedDataType.Temperature => !IsTemperatureBound(sensor),
+            _ => false
+        };
+    }
+
+    /// <summary>Already bound to a specific interface.</summary>
+    private static bool IsNetworkBound(Sensor sensor) => GetParam(sensor, "Interface") != null;
+
+    /// <summary>Only the 'pinState' metric is per-pin; other GPIO metrics are device-wide.</summary>
+    private static bool IsGpioPinStateSensor(Sensor sensor)
+        => GetParam(sensor, "MetricName")?.ToLowerInvariant() == "pinstate";
+
+    /// <summary>Already bound to a specific pin.</summary>
+    private static bool IsGpioBound(Sensor sensor) => GetParam(sensor, "PinId") != null;
+
+    /// <summary>
+    /// Already bound to a specific source. Includes the v1.0 compatibility rule:
+    /// a MetricName without Source/Sources means the MetricName itself acts as the source.
+    /// </summary>
+    private static bool IsTemperatureBound(Sensor sensor)
+    {
+        if (GetParam(sensor, "Source") != null)
+            return true;
+
+        return GetParam(sensor, "Sources") == null && GetParam(sensor, "MetricName") != null;
+    }
+
+    /// <summary>
     /// Resolves a single sensor based on its MetricType.
     /// Returns one or more sensors: either the resolved per-resource sensors,
     /// or the original sensor unchanged if already in Bound mode.
@@ -52,7 +105,7 @@ internal static class SensorResolver
     private static List<Sensor> ResolveNetwork(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
         // Already bound to a specific interface → keep as-is
-        if (GetParam(sensor, "Interface") != null)
+        if (IsNetworkBound(sensor))
             return [sensor];
 
         var interfaces = ResolveResourceList(sensor, "Interfaces", discovered);
@@ -73,12 +126,11 @@ internal static class SensorResolver
 
     private static List<Sensor> ResolveGpio(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
-        var metricName = GetParam(sensor, "MetricName")?.ToLowerInvariant();
-        if (metricName != "pinstate")
+        if (!IsGpioPinStateSensor(sensor))
             return [sensor];
 
         // Already bound to a specific pin → keep as-is
-        if (GetParam(sensor, "PinId") != null)
+        if (IsGpioBound(sensor))
             return [sensor];
 
         var pins = ResolveResourceList(sensor, "PinIds", discovered);
@@ -99,13 +151,8 @@ internal static class SensorResolver
 
     private static List<Sensor> ResolveTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
     {
-        // Already bound to a specific source → keep as-is
-        if (GetParam(sensor, "Source") != null)
-            return [sensor];
-
-        // v1.0 compat: MetricName without Source means already bound (MetricName acts as source)
-        if (GetParam(sensor, "Source") == null && GetParam(sensor, "Sources") == null
-            && GetParam(sensor, "MetricName") != null)
+        // Already bound to a specific source, or v1.0 compat where MetricName acts as the source
+        if (IsTemperatureBound(sensor))
             return [sensor];
 
         var sources = ResolveResourceList(sensor, "Sources", discovered);
@@ -153,7 +200,7 @@ internal static class SensorResolver
         Sensor template, string resourceName, string arrayParamKey, string singleParamKey)
     {
         var parameters = new Dictionary<string, object>(
-            template.Parameters?.Where(p => p.Key != arrayParamKey) 
+            template.Parameters?.Where(p => p.Key != arrayParamKey)
                 ?? Enumerable.Empty<KeyValuePair<string, object>>())
         {
             [singleParamKey] = resourceName
