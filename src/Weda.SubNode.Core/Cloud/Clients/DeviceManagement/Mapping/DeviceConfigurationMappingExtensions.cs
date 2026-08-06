@@ -4,8 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
-using BitFaster.Caching;
-
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -81,6 +79,7 @@ public static class DeviceConfigurationMappingExtensions
             DeviceId: config.DeviceId!,
             Dtdl: BuildWrapperInterface(enabledConfigs, projectInfo ?? ProjectInfo.Empty, config.DeviceId!, subNodeInfo),
             RefModels: BuildRefModels(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
+            RefModelsMap: BuildRefModelsMap(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
             DeviceCapabilities: ToDeviceCapabilitiesDto(
                 enabledConfigs, transformDescriptors, dspDescriptors, commandDescriptors,
                 deviceTypes, sensorTypes));
@@ -163,7 +162,38 @@ public static class DeviceConfigurationMappingExtensions
         return refModels;
     }
 
+    private static RefModelsMapDto BuildRefModelsMap(
+        IReadOnlyList<TransformDescriptorDto> transforms,
+        IReadOnlyList<DspFilterDescriptorDto> dspFilters,
+        IReadOnlyList<CommandDescriptorDto> commands,
+        IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
+        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var configBucket = new List<JsonObject>();
+        var commandBucket = new List<JsonObject>();
 
+        void Add(List<JsonObject> bucket, JsonObject iface)
+        {
+            var id = iface["@id"]?.GetValue<string>();
+            if (id is null || !seen.Add(id)) return;
+            bucket.Add(iface.DeepClone().AsObject());
+        }
+
+        if (sensorTypes.Count > 0) Add(configBucket, SensorBase.GetInterface());
+        if (deviceTypes.Count > 0) Add(configBucket, DeviceBaseDtdl.GetInterface());
+
+        foreach (var el in deviceTypes) Add(configBucket, el.Schema);
+        foreach (var el in sensorTypes) Add(configBucket, el.Schema);
+        foreach (var el in transforms) Add(configBucket, el.ParameterSchema);
+        foreach (var el in dspFilters) Add(configBucket, el.ParameterSchema);
+
+        foreach (var cmd in commands) Add(commandBucket, cmd.Schema);
+        
+        return new RefModelsMapDto(
+            Configs: configBucket,
+            Commands: commandBucket);
+    }
 
     private static DeviceCapDto ToDeviceCapabilitiesDto(
         List<DeviceConfiguration> configs,
