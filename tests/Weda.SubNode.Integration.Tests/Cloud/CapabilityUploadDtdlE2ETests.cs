@@ -114,40 +114,25 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         captured.ShouldNotBeNull();
         var data = captured!.Data!;
 
-        // Catalog references are thin (name + dtmi); definitions live in dtdl[].
+        // Catalog references are thin (name + dtmi); they are the "map" cloud uses
+        // to resolve model definitions (refModelsMap), so they must be present.
         data.DeviceCapabilities.Transforms.ShouldNotBeEmpty();
         data.DeviceCapabilities.DspFilters.ShouldNotBeEmpty();
         data.DeviceCapabilities.Commands.ShouldNotBeEmpty();
 
-        // Every catalog dtmi must resolve to an entry in dtdl[].
-        var refIds = data.RefModels
-            .Select(i => i["@id"]?.GetValue<string>())
-            .Where(id => id is not null)
-            .ToHashSet();
-        foreach (var r in data.DeviceCapabilities.Transforms) refIds.ShouldContain(r.Dtmi);
-        foreach (var r in data.DeviceCapabilities.DspFilters) refIds.ShouldContain(r.Dtmi);
-        foreach (var r in data.DeviceCapabilities.Commands)   refIds.ShouldContain(r.Dtmi);
+        // refModels is obsolete and must always ride the wire empty — the full
+        // typed-catalog DTDL is no longer uploaded (bandwidth), it is resolved
+        // cloud-side from the thin refs above via refModelsMap.
+#pragma warning disable CS0618 // Type or member is obsolete
+        data.RefModels.ShouldBeEmpty();
+#pragma warning restore CS0618
 
-        // The wrapper Interface (data.Dtdl) plus every refModels[] entry must each
-        // construct a WedaDtValidator without throwing — that's the binary
-        // "shadow accepted the DTDL" check. We feed each Interface plus the
-        // transitive closure of its `extends` bases so the validator can resolve
-        // inherited Contents.
+        // The wrapper Interface (data.Dtdl) must still construct a WedaDtValidator
+        // without throwing — that's the binary "shadow accepted the DTDL" check.
+        // The wrapper is self-contained (sensor Telemetries are flattened into its
+        // contents), so no refModels closure is needed to resolve it.
         data.Dtdl.ShouldNotBeEmpty();
-        data.RefModels.ShouldNotBeEmpty();
-
-        var byId = data.RefModels
-            .Where(i => i["@id"]?.GetValue<string>() is not null)
-            .ToDictionary(i => i["@id"]!.GetValue<string>(), i => i);
-        
-        ShouldConstructValidator(data.Dtdl, byId, "wrapper Interface");
-
-        foreach (var iface in data.RefModels)
-        {
-            var id = iface["@id"]?.GetValue<string>() ?? "<no-id>";
-            ShouldConstructValidator(iface, byId, $"refModel '{id}'");
-        }
-        
+        ShouldConstructValidator(data.Dtdl, new Dictionary<string, JsonObject>(), "wrapper Interface");
     }
 
     private static void ShouldConstructValidator(

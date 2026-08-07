@@ -15,10 +15,10 @@ namespace Weda.SubNode.Abstractions.Devices;
 /// <see cref="WedaDtdlEmitter.PropertyBinding"/> yet (FR-E: primitive property
 /// binding).</para>
 ///
-/// <para>Ships once per upload: <c>DeviceTypeRegistry</c> adds it to
-/// <c>DeviceConfigurationDto.RefModels</c> the first time a typed device type is
-/// registered; dedup-by-@id in <c>DeviceConfigurationMappingExtensions</c> keeps
-/// it singular.</para>
+/// <para>The definition is still emitted for local parsing/validation, but is no
+/// longer uploaded: <c>DeviceConfigurationDto.RefModels</c> is obsolete and now
+/// rides the wire empty, with the cloud resolving the base Interface from the
+/// shared <c>Weda.Dtdl</c> catalog via <c>refModelsMap</c>.</para>
 /// </summary>
 public static class DeviceBaseDtdl
 {

@@ -80,7 +80,10 @@ public static class DeviceConfigurationMappingExtensions
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
             Dtdl: BuildWrapperInterface(enabledConfigs, projectInfo ?? ProjectInfo.Empty, config.DeviceId!, subNodeInfo),
-            RefModels: BuildRefModels(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
+            // refModels is obsolete: the full typed-catalog DTDL is redundant with the
+            // thin {name, dtmi} refs in deviceCapabilities and is resolved cloud-side
+            // via refModelsMap. Upload an empty array to save message bandwidth.
+            RefModels: [],
             DeviceCapabilities: ToDeviceCapabilitiesDto(
                 enabledConfigs, transformDescriptors, dspDescriptors, commandDescriptors,
                 deviceTypes, sensorTypes));
@@ -134,35 +137,6 @@ public static class DeviceConfigurationMappingExtensions
             ["contents"] = contents
         };
     }
-
-    private static List<JsonObject> BuildRefModels(
-        IReadOnlyList<TransformDescriptorDto> transforms,
-        IReadOnlyList<DspFilterDescriptorDto> dspFilters,
-        IReadOnlyList<CommandDescriptorDto> commands,
-        IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
-        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var refModels = new List<JsonObject>();
-        
-        void AddIfNew(JsonObject iface)
-        {
-            var id = iface["@id"]?.GetValue<string>();
-            if (id is null) return;
-            if (seen.Add(id)) refModels.Add(iface);
-        }
-
-        if (sensorTypes.Count > 0) AddIfNew(SensorBase.GetInterface());
-        if (deviceTypes.Count > 0) AddIfNew(DeviceBaseDtdl.GetInterface());
-        foreach (var d in deviceTypes) AddIfNew(d.Schema);
-        foreach (var s in sensorTypes) AddIfNew(s.Schema);
-        foreach (var t in transforms) AddIfNew(t.ParameterSchema);
-        foreach (var f in dspFilters) AddIfNew(f.ParameterSchema);
-        foreach (var c in commands) AddIfNew(c.Schema);
-
-        return refModels;
-    }
-
 
 
     private static DeviceCapDto ToDeviceCapabilitiesDto(
