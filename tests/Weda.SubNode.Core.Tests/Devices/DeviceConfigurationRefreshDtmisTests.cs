@@ -4,6 +4,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Telemetry;
+using Weda.SubNode.Core.Telemetry;
 
 using Xunit;
 
@@ -26,6 +27,18 @@ public class DeviceConfigurationRefreshDtmisTests
 {
     private const string DeviceType = "system-monitor";
     private const string CatalogDtmi = "dtmi:advantech:weda:sensor:system_monitor_network_metric;1";
+
+    static DeviceConfigurationRefreshDtmisTests()
+    {
+        // Force SensorTypeRegistry's lazy init up front. Its BuildRegistry() does a
+        // one-time global write to TypedSensorDispatch.Resolve; because it fires from
+        // whichever parallel test class touches the registry first, that write could
+        // otherwise land in the middle of a test here (these tests save/set/restore
+        // that same global static) and clobber the hook — a pre-existing cross-class
+        // race. Materializing once, before any test method runs, closes the window:
+        // the Lazy fires exactly once, so afterwards only this class writes Resolve.
+        _ = SensorTypeRegistry.HasAny;
+    }
 
     private static DeviceConfiguration CreateConfig(bool typed, bool autoGen = true)
     {
