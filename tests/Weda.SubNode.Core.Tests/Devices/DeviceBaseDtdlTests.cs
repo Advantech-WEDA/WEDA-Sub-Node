@@ -62,7 +62,7 @@ public class DeviceBaseDtdlTests
     }
 
     [Fact]
-    public void SensorRef_CarriesNameAndDtmi_AsRequiredStringFields()
+    public void SensorRef_CarriesFullSensorEnvelope_OnlyNameRequired()
     {
         var fields = Items(DeviceBaseDtdl.GetInterface(), "schemas")
             .Single(s => s["@id"]?.GetValue<string>() == SensorRefDtmi)["fields"]!
@@ -71,12 +71,50 @@ public class DeviceBaseDtdlTests
             .ToList();
 
         fields.Select(f => f["name"]!.GetValue<string>())
-            .ShouldBe(new[] { "name", "dtmi" });
+            .ShouldBe(new[] { "name", "dtmi", "sensorGroup", "report", "record", "sensorInfo" });
 
+        // Only name is required: the SubNode owns DTMI assignment and every other
+        // envelope field is defaultable, so a cloud-written Sensors value carrying a
+        // bare {name} entry must still validate.
         foreach (var f in fields)
         {
-            f["schema"]!.GetValue<string>().ShouldBe("string");
-            f["required"]!.GetValue<bool>().ShouldBeTrue();
+            var required = f["required"]!.GetValue<bool>();
+            required.ShouldBe(f["name"]!.GetValue<string>() == "name");
         }
+
+        // Envelope fields use device-scoped schema copies (shape-shared with
+        // sensor:base via SensorEnvelopeSchemas).
+        Schema(fields, "name").ShouldBe("string");
+        Schema(fields, "dtmi").ShouldBe("string");
+        Schema(fields, "sensorGroup").ShouldBe("string");
+        Schema(fields, "report").ShouldBe("dtmi:advantech:weda:device:base:Report;1");
+        Schema(fields, "record").ShouldBe("dtmi:advantech:weda:device:base:Record;1");
+        Schema(fields, "sensorInfo").ShouldBe("dtmi:advantech:weda:device:base:SensorInfo;1");
     }
+
+    [Fact]
+    public void Interface_IsSelfContained_EveryReferencedSchemaIsDefinedLocally()
+    {
+        // The shadow validator parses each Interface with only its extends closure,
+        // so every dtmi-valued schema reference must resolve inside this Interface.
+        var iface = DeviceBaseDtdl.GetInterface();
+        var schemas = Items(iface, "schemas");
+
+        var definedIds = schemas
+            .Select(s => s["@id"]!.GetValue<string>())
+            .ToHashSet();
+
+        var referencedIds = schemas
+            .SelectMany(s => s["fields"]?.AsArray().OfType<JsonObject>() ?? Enumerable.Empty<JsonObject>())
+            .Select(f => f["schema"]!.GetValue<string>())
+            .Concat(schemas.Select(s => s["elementSchema"]?.GetValue<string>()).OfType<string>())
+            .Concat(Items(iface, "contents").Select(c => c["schema"]!.GetValue<string>()))
+            .Where(s => s.StartsWith("dtmi:", StringComparison.Ordinal));
+
+        foreach (var id in referencedIds)
+            definedIds.ShouldContain(id);
+    }
+
+    private static string Schema(IEnumerable<JsonObject> fields, string fieldName)
+        => fields.Single(f => f["name"]!.GetValue<string>() == fieldName)["schema"]!.GetValue<string>();
 }
