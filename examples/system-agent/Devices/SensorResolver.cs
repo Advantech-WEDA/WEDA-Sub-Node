@@ -18,13 +18,24 @@ internal static class SensorResolver
     /// per-resource sensors accordingly. Each sensor is independently resolved.
     /// Priority: Bound > Explicit list > Auto-detect.
     /// </summary>
+    /// <remarks>
+    /// An expanded template is kept in the result as a disabled capability-only entry,
+    /// so the original sensor name (e.g. <c>network_bytes_sent</c>) still appears in
+    /// <c>deviceCapabilities.sensors[]</c> alongside its per-resource clones. Clones
+    /// whose names already exist in the input list are not generated again, which makes
+    /// resolution idempotent over a list that already contains template + clones.
+    /// </remarks>
     internal static List<Sensor> Resolve(
         IEnumerable<Sensor> sensors,
         DiscoveredResources resources,
         ILogger logger)
     {
-        return sensors
-            .SelectMany(sensor => ResolveSensor(sensor, resources, logger))
+        var sensorList = sensors.ToList();
+        var existingNames = new HashSet<string>(
+            sensorList.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
+
+        return sensorList
+            .SelectMany(sensor => ResolveSensor(sensor, resources, existingNames, logger))
             .ToList();
     }
 
@@ -89,20 +100,22 @@ internal static class SensorResolver
     private static List<Sensor> ResolveSensor(
         Sensor sensor,
         DiscoveredResources resources,
+        ISet<string> existingNames,
         ILogger logger)
     {
         var metricType = GetParam(sensor, "MetricType")?.ToLowerInvariant();
 
         return metricType switch
         {
-            SupportedDataType.Network => ResolveNetwork(sensor, resources.NetworkInterfaces, logger),
-            SupportedDataType.Gpio => ResolveGpio(sensor, resources.GpioPins, logger),
-            SupportedDataType.Temperature => ResolveTemperature(sensor, resources.TemperatureSources, logger),
+            SupportedDataType.Network => ResolveNetwork(sensor, resources.NetworkInterfaces, existingNames, logger),
+            SupportedDataType.Gpio => ResolveGpio(sensor, resources.GpioPins, existingNames, logger),
+            SupportedDataType.Temperature => ResolveTemperature(sensor, resources.TemperatureSources, existingNames, logger),
             _ => [sensor]
         };
     }
 
-    private static List<Sensor> ResolveNetwork(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ResolveNetwork(
+        Sensor sensor, IReadOnlyList<string> discovered, ISet<string> existingNames, ILogger logger)
     {
         // Already bound to a specific interface → keep as-is
         if (IsNetworkBound(sensor))
@@ -119,12 +132,11 @@ internal static class SensorResolver
             "Resolving sensor '{Name}' into {Count} sensors for interfaces: {Interfaces}",
             sensor.Name, interfaces.Count, string.Join(", ", interfaces));
 
-        return interfaces
-            .Select(iface => CloneSensor(sensor, iface, "Interfaces", "Interface"))
-            .ToList();
+        return ExpandTemplate(sensor, interfaces, "Interfaces", "Interface", existingNames);
     }
 
-    private static List<Sensor> ResolveGpio(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ResolveGpio(
+        Sensor sensor, IReadOnlyList<string> discovered, ISet<string> existingNames, ILogger logger)
     {
         if (!IsGpioPinStateSensor(sensor))
             return [sensor];
@@ -144,12 +156,11 @@ internal static class SensorResolver
             "Resolving sensor '{Name}' into {Count} sensors for pins: {Pins}",
             sensor.Name, pins.Count, string.Join(", ", pins));
 
-        return pins
-            .Select(pin => CloneSensor(sensor, pin, "PinIds", "PinId"))
-            .ToList();
+        return ExpandTemplate(sensor, pins, "PinIds", "PinId", existingNames);
     }
 
-    private static List<Sensor> ResolveTemperature(Sensor sensor, IReadOnlyList<string> discovered, ILogger logger)
+    private static List<Sensor> ResolveTemperature(
+        Sensor sensor, IReadOnlyList<string> discovered, ISet<string> existingNames, ILogger logger)
     {
         // Already bound to a specific source, or v1.0 compat where MetricName acts as the source
         if (IsTemperatureBound(sensor))
@@ -166,9 +177,63 @@ internal static class SensorResolver
             "Resolving sensor '{Name}' into {Count} sensors for sources: {Sources}",
             sensor.Name, sources.Count, string.Join(", ", sources));
 
-        return sources
-            .Select(source => CloneSensor(sensor, source, "Sources", "Source"))
-            .ToList();
+        return ExpandTemplate(sensor, sources, "Sources", "Source", existingNames);
+    }
+
+    /// <summary>
+    /// Expands a template into per-resource clones, keeping the template itself at the
+    /// head of the result as a disabled capability-only entry — disabled sensors are
+    /// excluded from sampling but still uploaded in <c>deviceCapabilities.sensors[]</c>,
+    /// which is exactly why the original name is kept. Clones whose names already exist
+    /// in the input list are skipped: the live sensor passes through its own resolution
+    /// unchanged, so re-resolving a template+clones list never duplicates sensors.
+    /// </summary>
+    private static List<Sensor> ExpandTemplate(
+        Sensor template,
+        IReadOnlyList<string> resourceNames,
+        string arrayParamKey,
+        string singleParamKey,
+        ISet<string> existingNames)
+    {
+        var resolved = new List<Sensor> { AsCapabilityTemplate(template) };
+
+        resolved.AddRange(resourceNames
+            .Select(resource => CloneSensor(template, resource, arrayParamKey, singleParamKey))
+            .Where(clone => !existingNames.Contains(clone.Name)));
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// Returns the template as a capability-only entry: same identity (name, DTMI,
+    /// ResourceId) and parameters, but with reporting disabled so it is never polled —
+    /// the per-resource clones carry the live telemetry. A template that is already
+    /// disabled is returned as-is to preserve object identity across re-resolutions.
+    /// </summary>
+    private static Sensor AsCapabilityTemplate(Sensor template)
+    {
+        if (!template.Report.Enabled)
+            return template;
+
+        return new Sensor
+        {
+            Name = template.Name,
+            Dtmi = template.Dtmi,
+            ResourceId = template.ResourceId,
+            SensorGroup = template.SensorGroup,
+            SensorInfo = template.SensorInfo,
+            Parameters = template.Parameters,
+            Report = new SensorReport
+            {
+                Enabled = false,
+                Interval = template.Report.Interval,
+                Unit = template.Report.Unit
+            },
+            Record = template.Record,
+            Metadata = template.Metadata,
+            DeviceResourceId = template.DeviceResourceId,
+            DeviceEnabled = template.DeviceEnabled,
+        };
     }
 
     /// <summary>
