@@ -23,11 +23,12 @@ namespace Weda.SubNode.Core.Protocols.Cfx;
 /// silently succeeding.
 /// </para>
 /// <para>
-/// Each configured sensor binds to exactly one CFX message name and reports that message's body as
-/// raw JSON text, with the envelope's routing fields carried in
-/// <see cref="TelemetryMeasure.Metadata"/>. Nothing in the payload is flattened or discarded, which
-/// keeps deeply nested bodies (a 24-slot Hermes magazine, an inspection report with per-measurement
-/// discriminators) intact for downstream consumers.
+/// Each configured sensor binds to exactly one CFX message name and reports an
+/// <c>application/json</c> value carrying that message's body together with the envelope's routing
+/// fields — see <see cref="CfxTelemetryPayload"/> for the shape, and for why the routing fields
+/// travel in the value rather than in <see cref="TelemetryMeasure.Metadata"/>. Nothing in the
+/// payload is flattened or discarded, which keeps deeply nested bodies (a 24-slot Hermes magazine,
+/// an inspection report with per-measurement discriminators) intact for downstream consumers.
 /// </para>
 /// </remarks>
 public sealed class CfxPubSubParser : IPubSubProtocolParser
@@ -40,14 +41,6 @@ public sealed class CfxPubSubParser : IPubSubProtocolParser
 
     /// <summary>Configuration key overriding the handle segment count used by the any-endpoint filter.</summary>
     public const string HandleSegmentsKey = "HandleSegments";
-
-    /// <summary>Metadata keys attached to every emitted measure.</summary>
-    private const string MetaMessageName = "cfxMessageName";
-    private const string MetaSource = "cfxSource";
-    private const string MetaUniqueId = "cfxUniqueId";
-    private const string MetaVersion = "cfxVersion";
-    private const string MetaTimeStamp = "cfxTimeStamp";
-    private const string MetaTopic = "cfxTopic";
 
     private readonly IPubSub _communication;
     private readonly DeviceConfiguration _configuration;
@@ -267,7 +260,7 @@ public sealed class CfxPubSubParser : IPubSubProtocolParser
         }
 
         var timestamp = (envelope.TimeStamp ?? DateTimeOffset.UtcNow).ToUnixTimeMilliseconds();
-        var metadata = BuildMetadata(envelope, topic);
+        var value = CfxTelemetryPayload.Compose(envelope, topic);
         var measures = new List<TelemetryMeasure>(sensors.Count);
 
         foreach (var sensor in sensors)
@@ -278,12 +271,13 @@ public sealed class CfxPubSubParser : IPubSubProtocolParser
                 continue;
             }
 
+            // Metadata is deliberately left unset: it is the framework's chunked-transfer
+            // descriptor, and an application/json value is never chunked. See CfxTelemetryPayload.
             measures.Add(new TelemetryMeasure
             {
                 ResourceId = sensor.ResourceId,
-                Value = envelope.MessageBodyJson,
+                Value = value,
                 Timestamp = timestamp,
-                Metadata = metadata,
             });
         }
 
@@ -299,36 +293,6 @@ public sealed class CfxPubSubParser : IPubSubProtocolParser
             measures.Count);
 
         OnTelemetryReceived?.Invoke(measures);
-    }
-
-    private static IReadOnlyDictionary<string, object> BuildMetadata(CfxEnvelope envelope, string? topic)
-    {
-        var metadata = new Dictionary<string, object>(6)
-        {
-            [MetaMessageName] = envelope.MessageName,
-        };
-
-        // Metadata carries the envelope's routing fields; the body itself is the measure's value.
-        AddIfPresent(metadata, MetaSource, envelope.Source);
-        AddIfPresent(metadata, MetaUniqueId, envelope.UniqueId);
-        AddIfPresent(metadata, MetaVersion, envelope.Version);
-        AddIfPresent(metadata, MetaTopic, topic);
-
-        if (envelope.TimeStamp is { } stamp)
-        {
-            // Round-trip format keeps the endpoint's original UTC offset legible downstream.
-            metadata[MetaTimeStamp] = stamp.ToString("O");
-        }
-
-        return metadata;
-    }
-
-    private static void AddIfPresent(Dictionary<string, object> metadata, string key, string? value)
-    {
-        if (!string.IsNullOrWhiteSpace(value))
-        {
-            metadata[key] = value;
-        }
     }
 
     #endregion

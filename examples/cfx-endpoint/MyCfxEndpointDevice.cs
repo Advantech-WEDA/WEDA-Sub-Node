@@ -58,20 +58,18 @@ public class MyCfxEndpointDevice : MqttCfxDevice
         foreach (var sensor in Configuration.Sensors)
         {
             var measure = e.Data.FirstOrDefault(m => m.ResourceId == sensor.ResourceId);
-            if (measure?.Value is not string bodyJson)
+            if (measure?.Value is not string payloadJson)
             {
                 continue;
             }
 
-            var source = measure.Metadata?.TryGetValue("cfxSource", out var s) == true
-                ? s.ToString()
-                : "unknown";
+            var (source, summary) = Describe(payloadJson);
 
             _logger.LogInformation(
                 "{SensorName} from {Source}: {Summary}",
                 sensor.Name,
                 source,
-                Summarize(bodyJson));
+                summary);
         }
     }
 
@@ -96,31 +94,43 @@ public class MyCfxEndpointDevice : MqttCfxDevice
     }
 
     /// <summary>
-    /// Renders a one-line summary of a CFX message body for the log.
+    /// Reads the publishing endpoint and a one-line body summary out of a reported CFX value.
     /// </summary>
     /// <remarks>
-    /// CFX bodies range from two fields to a 24-slot magazine, so the full JSON is unreadable in a
-    /// console. The most identifying scalar fields are picked out when present, and array lengths are
-    /// reported rather than contents.
+    /// The value is the <c>application/json</c> document built by <c>CfxTelemetryPayload</c>: the
+    /// envelope's routing fields plus the message body under <c>body</c>. CFX bodies range from two
+    /// fields to a 24-slot magazine, so the full JSON is unreadable in a console — the most
+    /// identifying scalar fields are picked out when present, and array lengths are reported rather
+    /// than contents.
     /// </remarks>
-    private static string Summarize(string bodyJson)
+    private static (string Source, string Summary) Describe(string payloadJson)
     {
         try
         {
-            using var document = JsonDocument.Parse(bodyJson);
+            using var document = JsonDocument.Parse(payloadJson);
             var root = document.RootElement;
+
+            var source = root.TryGetProperty("source", out var sourceElement)
+                ? sourceElement.GetString() ?? "unknown"
+                : "unknown";
+
+            if (!root.TryGetProperty("body", out var body))
+            {
+                return (source, $"{payloadJson.Length} bytes");
+            }
+
             var parts = new List<string>();
 
             foreach (var name in InterestingFields)
             {
-                if (root.TryGetProperty(name, out var value)
+                if (body.TryGetProperty(name, out var value)
                     && value.ValueKind is JsonValueKind.String or JsonValueKind.Number)
                 {
                     parts.Add($"{name}={value}");
                 }
             }
 
-            foreach (var property in root.EnumerateObject())
+            foreach (var property in body.EnumerateObject())
             {
                 if (property.Value.ValueKind == JsonValueKind.Array)
                 {
@@ -128,15 +138,15 @@ public class MyCfxEndpointDevice : MqttCfxDevice
                 }
             }
 
-            return parts.Count > 0
-                ? string.Join(", ", parts)
-                : $"{bodyJson.Length} bytes";
+            return (
+                source,
+                parts.Count > 0 ? string.Join(", ", parts) : $"{payloadJson.Length} bytes");
         }
         catch (JsonException)
         {
-            // The parser only emits bodies it has already parsed, so this is unreachable in practice;
-            // fall back to a byte count rather than throwing out of a log statement.
-            return $"unparseable ({bodyJson.Length} bytes)";
+            // The parser only emits documents it has already composed, so this is unreachable in
+            // practice; fall back to a byte count rather than throwing out of a log statement.
+            return ("unknown", $"unparseable ({payloadJson.Length} bytes)");
         }
     }
 

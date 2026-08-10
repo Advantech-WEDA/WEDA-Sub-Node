@@ -131,15 +131,15 @@ public class CfxPubSubParserTests
         var measure = Assert.Single(received);
         Assert.Equal($"{messageName}-resource", measure.ResourceId);
 
-        // The value is the message body verbatim, so nothing in the payload is lost.
-        using var body = JsonDocument.Parse(Assert.IsType<string>(measure.Value));
+        // The body is nested verbatim under "body", so nothing in the payload is lost.
+        using var payload = JsonDocument.Parse(Assert.IsType<string>(measure.Value));
         Assert.Equal(
             $"{messageName}, CFX",
-            body.RootElement.GetProperty("$type").GetString());
+            payload.RootElement.GetProperty("body").GetProperty("$type").GetString());
     }
 
     [Fact]
-    public async Task Deliver_AttachesEnvelopeFieldsAsMetadata()
+    public async Task Deliver_CarriesEnvelopeFieldsInsideJsonValue()
     {
         // Arrange
         var transport = new FakePubSub();
@@ -155,14 +155,40 @@ public class CfxPubSubParserTests
         transport.Deliver(topic, CfxFixtures.GzipPayload(StationStateChanged));
 
         // Assert
-        var metadata = Assert.Single(received!).Metadata;
-        Assert.NotNull(metadata);
-        Assert.Equal(StationStateChanged, metadata["cfxMessageName"]);
-        Assert.Equal(Handle, metadata["cfxSource"]);
-        Assert.Equal("edd39f23-41b2-4e22-b4c2-3dd35c78afde", metadata["cfxUniqueId"]);
-        Assert.Equal("1.3", metadata["cfxVersion"]);
-        Assert.Equal(topic, metadata["cfxTopic"]);
-        Assert.Contains("+08:00", (string)metadata["cfxTimeStamp"]);
+        var measure = Assert.Single(received!);
+
+        using var payload = JsonDocument.Parse(Assert.IsType<string>(measure.Value));
+        var root = payload.RootElement;
+
+        Assert.Equal(StationStateChanged, root.GetProperty("messageName").GetString());
+        Assert.Equal(Handle, root.GetProperty("source").GetString());
+        Assert.Equal("edd39f23-41b2-4e22-b4c2-3dd35c78afde", root.GetProperty("uniqueId").GetString());
+        Assert.Equal("1.3", root.GetProperty("version").GetString());
+        Assert.Equal(topic, root.GetProperty("topic").GetString());
+        Assert.Contains("+08:00", root.GetProperty("timeStamp").GetString());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("body").ValueKind);
+    }
+
+    [Fact]
+    public async Task Deliver_LeavesMeasureMetadataUnset()
+    {
+        // A measure's metadata is the framework's chunked-transfer descriptor. An application/json
+        // value is never chunked, so it never receives a transferId — and the WedaNode telemetry
+        // proxy rejects any measure that carries metadata without one, which silently drops every
+        // CFX message. Regression guard for that failure.
+        // Arrange
+        var transport = new FakePubSub();
+        var parser = CreateParser(transport, Handle, StationStateChanged);
+
+        List<TelemetryMeasure>? received = null;
+        parser.OnTelemetryReceived += measures => received = measures;
+        await parser.StartAsync();
+
+        // Act
+        transport.Deliver(TopicFor(StationStateChanged), CfxFixtures.GzipPayload(StationStateChanged));
+
+        // Assert
+        Assert.Null(Assert.Single(received!).Metadata);
     }
 
     [Fact]
