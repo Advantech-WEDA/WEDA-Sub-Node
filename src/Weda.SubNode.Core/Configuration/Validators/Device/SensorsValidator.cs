@@ -66,18 +66,18 @@ public class SensorsValidator : IConfigurationPropertyValidator
             }
 
             // Validate sensor config values
-            if (options.ValidateSensors && sensor.Config != null)
+            if (options.ValidateSensors && sensor.Report != null)
             {
-                if (sensor.Config.Interval <= 0)
+                if (sensor.Report.Interval <= 0)
                 {
                     return ConfigurationValidationResult.Failure(
                         $"Sensor '{sensor.Name}' interval must be greater than 0");
                 }
 
                 // Validate thresholds if provided (if enabled)
-                if (options.ValidateThresholds && sensor.Config.Thresholds != null)
+                if (options.ValidateThresholds && sensor.Report.Thresholds != null)
                 {
-                    var thresholdResult = ValidateThresholds(sensor.Name, sensor.Config.Thresholds);
+                    var thresholdResult = ValidateThresholds(sensor.Name, sensor.Report.Thresholds);
                     if (!thresholdResult.IsValid)
                         return thresholdResult;
                 }

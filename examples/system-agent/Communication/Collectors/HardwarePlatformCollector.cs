@@ -116,6 +116,109 @@ public class HardwarePlatformCollector : IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Reads a load/health snapshot of the Advantech HAL (versions and per-subsystem
+    /// support). Only reachable once the <see cref="Device"/> has initialized successfully, so
+    /// <see cref="AdvantechHalStatus.IsLoaded"/> is always <c>true</c> here; the "failed to load"
+    /// case is produced by the caller when construction throws.
+    /// Marshalled to the dedicated native thread (thread-affinity requirement).
+    /// </summary>
+    public AdvantechHalStatus GetHalStatus()
+    {
+        // Backend detection reads the process module map (pure file IO), so it does not need
+        // the native thread — but it must run after the Device has dlopen'd its backend, which
+        // is guaranteed here since the collector only exists once initialization succeeded.
+        var (backend, backendLibrary) = ResolveLoadedBackend();
+
+        return RunOnNativeThread(() =>
+        {
+            var libraryName = ResolveLibraryName();
+            var packageVersion = ResolvePackageVersion();
+            try
+            {
+                var info = _advantechEdgeDevice.PlatformInformation;
+                return AdvantechHalStatus.Ok(
+                    name: libraryName,
+                    backend: backend,
+                    backendLibrary: backendLibrary,
+                    packageVersion: packageVersion,
+                    driverVersion: info.DriverVersion ?? string.Empty,
+                    libraryVersion: info.LibraryVersion ?? string.Empty,
+                    onboardSensorsSupported: _advantechEdgeDevice.OnboardSensors?.IsSupported ?? false,
+                    gpioSupported: _advantechEdgeDevice.Gpio?.IsSupported ?? false,
+                    watchdogSupported: _advantechEdgeDevice.Watchdog?.IsSupported ?? false,
+                    thermalProtectionSupported: _advantechEdgeDevice.ThermalProtection?.IsSupported ?? false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Advantech HAL loaded but reading platform status failed");
+                return AdvantechHalStatus.LoadedWithError(libraryName, backend, backendLibrary, packageVersion, ex);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Name of the backing library, read from the loaded Advantech.Edge assembly (the library result).
+    /// </summary>
+    private static string ResolveLibraryName()
+        => typeof(Device).Assembly.GetName().Name ?? AdvantechHalStatus.DefaultName;
+
+    /// <summary>
+    /// Best-effort package version read from the loaded Advantech.Edge assembly.
+    /// </summary>
+    private static string ResolvePackageVersion()
+        => typeof(Device).Assembly.GetName().Version?.ToString() ?? "unknown";
+
+    // Maps native backend module markers Advantech.Edge can bind to onto the two customer-facing
+    // technology names: the SUSI family (libSusiIoT.so / libSUSI-4.00.so) reports as "SUSI", and
+    // the EAPI library (libEAPI.so) reports as "PlatformSDK" — per Advantech.Edge's own docs, which
+    // describe libEAPI as the "PlatformSDK" library. Ordered longest-match-first so "susiiot" wins
+    // over "susi".
+    private static readonly (string Marker, string Backend)[] BackendMarkers =
+    {
+        ("susiiot", AdvantechHalStatus.SusiBackend),
+        ("eapi", AdvantechHalStatus.PlatformSdkBackend),
+        ("susi", AdvantechHalStatus.SusiBackend),
+    };
+
+    /// <summary>
+    /// Determines which native backend library Advantech.Edge actually loaded by scanning the
+    /// process module map (<c>/proc/self/maps</c>) for the mapped shared object. This is
+    /// authoritative for "what is loaded right now" and independent of the SDK's internal
+    /// selection API (which is not publicly accessible). Returns <c>(Unknown, "")</c> off Linux
+    /// or when no known backend module is mapped.
+    /// </summary>
+    private (string Backend, string Library) ResolveLoadedBackend()
+    {
+        const string mapsPath = "/proc/self/maps";
+        try
+        {
+            if (!File.Exists(mapsPath))
+                return (AdvantechHalStatus.UnknownBackend, string.Empty);
+
+            foreach (var (marker, backend) in BackendMarkers)
+            {
+                foreach (var line in File.ReadLines(mapsPath))
+                {
+                    var slash = line.IndexOf('/');
+                    if (slash < 0)
+                        continue; // anonymous / [heap] / [stack] mappings have no path
+
+                    var moduleName = Path.GetFileName(line[slash..]);
+                    if (moduleName.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                        return (backend, moduleName);
+                }
+            }
+
+            return (AdvantechHalStatus.UnknownBackend, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not determine Advantech HAL native backend from process module map");
+            return (AdvantechHalStatus.UnknownBackend, string.Empty);
+        }
+    }
+
     public HardwareInfoMetrics CollectHardwareInfoMetrics()
     {
         return RunOnNativeThread(() =>

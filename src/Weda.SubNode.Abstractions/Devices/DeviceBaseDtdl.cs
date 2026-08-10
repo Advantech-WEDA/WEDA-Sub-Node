@@ -24,10 +24,22 @@ public static class DeviceBaseDtdl
 {
     public const string Dtmi = "dtmi:advantech:weda:device:base;1";
 
+    private const string SensorRefDtmi  = "dtmi:advantech:weda:device:base:SensorRef;1";
+    private const string SensorListDtmi = "dtmi:advantech:weda:device:base:SensorList;1";
+
     /// <summary>
     /// Builds a fresh <see cref="JsonObject"/> for the base Interface. Returns a
     /// new instance each call so callers can mutate freely without aliasing.
     /// </summary>
+    /// <remarks>
+    /// The <c>Sensors</c> Property makes device-to-sensor containment self-describing
+    /// from the schema alone — mirroring how <c>sensor:base:Report.transformPipeline</c>
+    /// declares that a sensor carries a transform pipeline. Each <c>SensorRef</c>
+    /// references a sensor-type Interface by DTMI (resolve in <c>refModels[]</c>),
+    /// exactly as <c>sensor:base:PipelineStep</c> references a transform/dsp capability.
+    /// This describes placement only; sensor-type↔device-type compatibility remains a
+    /// catalog fact (<c>deviceCapabilities.sensorTypes[].deviceType</c>).
+    /// </remarks>
     public static JsonObject GetInterface() => new()
     {
         ["@context"]    = new JsonArray("dtmi:dtdl:context;3", "dtmi:advantech:edgesync:validation;1"),
@@ -36,12 +48,55 @@ public static class DeviceBaseDtdl
         ["displayName"] = "Device config (base)",
         ["description"] = "Universal device-config envelope inherited by every typed device Interface.",
 
+        ["schemas"] = new JsonArray
+        {
+            // SensorRef: a sensor contributed by this device config. Mirrors
+            // sensor:base:PipelineStep — the referenced sensor-type Interface in
+            // refModels[] describes the Parameters / Report shape.
+            new JsonObject
+            {
+                ["@id"] = SensorRefDtmi,
+                ["@type"] = "Object",
+                ["fields"] = new JsonArray
+                {
+                    Field("name", "string", required: true, description: "Sensor name, unique within the device config."),
+                    Field("dtmi", "string", required: true, description: "DTMI of the chosen sensor-type Interface; resolve in refModels[] for Parameters/Report shape."),
+                },
+            },
+
+            // SensorList: Array<SensorRef>.
+            new JsonObject
+            {
+                ["@id"] = SensorListDtmi,
+                ["@type"] = "Array",
+                ["elementSchema"] = SensorRefDtmi,
+            },
+        },
+
         ["contents"] = new JsonArray
         {
             Property("Enabled", "boolean", required: false, writable: true,
                 description: "Whether this device configuration is active."),
+            Property("Sensors", SensorListDtmi, required: false, writable: true,
+                description: "Sensors contributed by this device config; each entry references a sensor-type Interface by DTMI."),
         },
     };
+
+    private static JsonObject Field(
+        string name, string schema, bool required,
+        string? description = null)
+    {
+        var f = new JsonObject
+        {
+            ["@type"] = new JsonArray("Field", "ConfigConstraint"),
+            ["name"] = name,
+        };
+        if (description is not null) f["description"] = description;
+        f["schema"]   = schema;
+        f["required"] = required;
+        f["writable"] = true;
+        return f;
+    }
 
     private static JsonObject Property(
         string name, string schema, bool required, bool writable,

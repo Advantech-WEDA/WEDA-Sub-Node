@@ -25,6 +25,14 @@ public class LocalSystemResourceCollector
     private readonly SystemCollector _systemCollector;
     private readonly GpuCollector _gpuCollector;
     private readonly HardwarePlatformCollector? _hardwarePlatformCollector;
+    private readonly AdvantechHalStatus _halStatus;
+
+    /// <summary>
+    /// Load/health snapshot of the Advantech HAL captured at construction time.
+    /// Reported in the SubNode capability <c>deviceInfo.advantechHal</c>. When the HAL fails to load,
+    /// this carries <see cref="AdvantechHalStatus.IsLoaded"/> = <c>false</c> and the failure reason.
+    /// </summary>
+    public AdvantechHalStatus HalStatus => _halStatus;
 
     public LocalSystemResourceCollector(ILogger logger)
     {
@@ -45,10 +53,14 @@ public class LocalSystemResourceCollector
         {
             _logger.LogInformation("Initializing HardwarePlatformCollector (Device init on dedicated native thread)...");
             _hardwarePlatformCollector = new HardwarePlatformCollector(_logger);
-            _logger.LogInformation("HardwarePlatformCollector initialized successfully");
+            _halStatus = _hardwarePlatformCollector.GetHalStatus();
+            _logger.LogInformation(
+                "HardwarePlatformCollector initialized successfully (Advantech HAL loaded: backend={Backend} ({BackendLibrary}), package={Package}, driver={Driver}, library={Library})",
+                _halStatus.Backend, _halStatus.BackendLibrary, _halStatus.PackageVersion, _halStatus.DriverVersion, _halStatus.LibraryVersion);
         }
         catch (Exception ex)
         {
+            _halStatus = AdvantechHalStatus.Failed(ex);
             _logger.LogWarning(ex, "HardwarePlatformCollector initialization failed ({ExceptionType}). Hardware metrics unavailable.", ex.GetType().Name);
         }
     }

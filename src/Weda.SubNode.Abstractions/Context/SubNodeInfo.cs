@@ -1,3 +1,4 @@
+using System.Reflection;
 
 using Weda.SubNode.Abstractions.Devices;
 
@@ -21,6 +22,48 @@ namespace Weda.SubNode.Abstractions.Context;
 /// </remarks>
 public class SubNodeInfo
 {
+    /// <summary>
+    /// Current wire-contract schema version the SDK reports in the <c>subNode</c>
+    /// section. <b>2</b> = the camelCase contract this SDK emits. The cloud-side
+    /// validator enforces strict camelCase for v2, so every cloud-bound payload
+    /// this SDK produces MUST be camelCase (envelope and parameter keys alike).
+    /// A payload with no <c>schemaVersion</c> defaults to v1 (the legacy
+    /// PascalCase-tolerant contract) — that is how already-deployed devices that
+    /// predate this field keep validating.
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
+
+    /// <summary>
+    /// The SDK version this build reports, resolved once from the assembly
+    /// informational version. Exposed statically so cloud-report assembly code
+    /// (which has no <see cref="SubNodeInfo"/> instance) can stamp it.
+    /// </summary>
+    public static string CurrentSdkVersion => ResolvedSdkVersion;
+
+    /// <summary>
+    /// SDK version resolved once from this assembly's informational/product version.
+    /// Falls back to the assembly file version, then to "1.0.0".
+    /// </summary>
+    private static readonly string ResolvedSdkVersion = ResolveSdkVersion();
+
+    private static string ResolveSdkVersion()
+    {
+        var assembly = typeof(SubNodeInfo).Assembly;
+
+        var informational = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            // Strip any SemVer build-metadata suffix (e.g. "1.2.0+abc1234").
+            var plus = informational.IndexOf('+');
+            return plus >= 0 ? informational[..plus] : informational;
+        }
+
+        return assembly.GetName().Version?.ToString() ?? "1.0.0";
+    }
+
     /// <summary>
     /// Gets or sets the Sub-Node name used for cloud registration.
     /// This name identifies the Sub-Node when registering with WEDA Node.
@@ -57,6 +100,20 @@ public class SubNodeInfo
     /// Gets or sets the software version.
     /// </summary>
     public string SwVersion { get; set; } = "1.0.0";
+
+    /// <summary>
+    /// Gets or sets the SubNode SDK package version.
+    /// Defaults to the SDK assembly's informational/product version resolved at runtime
+    /// (with any <c>+&lt;git-sha&gt;</c> build-metadata suffix stripped).
+    /// </summary>
+    /// <example>"1.2.0"</example>
+    public string SdkVersion { get; set; } = ResolvedSdkVersion;
+
+    /// <summary>
+    /// Gets or sets the wire-contract schema version of the reported <c>subNode</c>
+    /// section. Defaults to <see cref="CurrentSchemaVersion"/>.
+    /// </summary>
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     /// <summary>
     /// Gets or sets the device type for cloud registration.

@@ -850,9 +850,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                         addedSensors.Count, string.Join(", ", addedSensors));
                 }
 
-                // Re-initialize DTDL (auto-generates DTMIs for the newly added sensors)
-                Configuration.InitializeDtdl(null, logger: _logger);
-                _logger.LogDebug("DTDL re-initialized");
+                // Regenerate DTMIs for the newly added sensors. InitializeDtdl cannot be used
+                // here: it is idempotent and would silently no-op, leaving cloud-added sensors
+                // on the autogen dtmi fallback instead of their catalog sensor type dtmi.
+                if (Configuration.RefreshSensorDtmis(_logger))
+                    _logger.LogDebug("DTDL regenerated for {Count} sensors", Configuration.Sensors.Count);
             }
 
             // Apply background task periods if provided (PATCH semantics)
@@ -1085,10 +1087,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
                     }
                 }
 
-                // Regenerate DTDL if needed
+                // Regenerate DTDL if the sensor set changed. InitializeDtdl cannot be used here:
+                // it is idempotent and would silently no-op, leaving sensors rebuilt from the
+                // cloud desired state on the autogen dtmi fallback (the cloud sends dtmi=null)
+                // instead of their catalog sensor type dtmi, and the autogen Interface still
+                // describing the previous sensor set.
                 if (requiresReupload)
                 {
-                    Configuration.InitializeDtdl(null, logger: _logger);
+                    Configuration.RefreshSensorDtmis(_logger);
                 }
 
                 // Apply periods

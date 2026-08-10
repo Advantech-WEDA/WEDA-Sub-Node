@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Cloud.Clients.Common;
+using Weda.SubNode.Abstractions.Context;
 
 namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 
@@ -47,7 +48,24 @@ public record DeviceCapDto(
     // device-agent (Go) silently ignores unknown JSON fields, so this addition is wire-safe.
     [JsonPropertyName("deviceConfigs")]
     public IReadOnlyList<CatalogRefDto> DeviceConfigs { get; init; } = [];
+
+    // Non-positional init properties — additive, do not change the constructor signature.
+    // sdkVersion carries the SubNode SDK package version; schemaVersion marks the
+    // camelCase wire-contract version. device-agent (Go) ignores unknown fields, so wire-safe.
+    [JsonPropertyName("sdkVersion")]
+    public string SdkVersion { get; init; } = string.Empty;
+
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; init; } = SubNodeInfo.CurrentSchemaVersion;
 }
+
+/// <summary>
+/// Materialized grouping of <see cref="DeviceConfigurationDto.RefModels"/> 
+/// for consumers that want a category slice without inferring from @id / extends.
+/// </summary>
+public record RefModelsMapDto(
+    [property: JsonPropertyName("configs")] IReadOnlyList<JsonObject> Configs,
+    [property: JsonPropertyName("commands")] IReadOnlyList<JsonObject> Commands);
 
 /// <summary>
 /// Device configuration data for upload (v1.2 shape).
@@ -69,4 +87,5 @@ public record DeviceConfigurationDto(
     [property: JsonPropertyName("refModels")]
     [property: Obsolete("refModels no longer carries content; the SubNode always uploads []. The typed catalog is resolved cloud-side via refModelsMap. Do not read or populate this field.")]
     IReadOnlyList<JsonObject> RefModels,
+    [property: JsonPropertyName("refModelsMap")] RefModelsMapDto RefModelsMap,
     [property: JsonPropertyName("deviceCapabilities")] DeviceCapDto DeviceCapabilities);
