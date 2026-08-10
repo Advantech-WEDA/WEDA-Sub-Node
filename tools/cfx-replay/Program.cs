@@ -1,3 +1,7 @@
+using System.IO.Compression;
+using System.Text;
+using System.Text.Json.Nodes;
+
 using MQTTnet;
 using MQTTnet.Client;
 
@@ -10,9 +14,11 @@ namespace CfxReplay;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Publishes the captured payloads byte-for-byte — GZip-compressed envelope JSON, exactly as a
-/// RabbitMQ AMQP-to-MQTT bridge delivers them — so a subscriber under test sees real wire bytes
-/// rather than re-encoded approximations.
+/// Publishes GZip-compressed envelope JSON, exactly as a RabbitMQ AMQP-to-MQTT bridge delivers it.
+/// By default the envelope's <c>TimeStamp</c> is restamped to publish time so a replay lands as
+/// live data; set <c>CFX_RESTAMP=false</c> to publish the captures byte-for-byte instead, so a
+/// subscriber under test sees real wire bytes rather than re-encoded approximations. See
+/// <see cref="BuildPayloadBytes"/> for the trade-off.
 /// </para>
 /// <para>
 /// Each topic is derived from the envelope's own <c>Source</c> handle and <c>MessageName</c>, so the
@@ -28,6 +34,9 @@ internal static class Program
     /// </summary>
     private static readonly string[] ReplayOrder = [.. CfxMessageCatalog.SupportedMessageNames];
 
+    /// <summary>Envelope property carrying the publisher's timestamp.</summary>
+    private const string TimeStampProperty = "TimeStamp";
+
     private static async Task<int> Main()
     {
         var host = Env("CFX_BROKER_HOST", "localhost");
@@ -38,6 +47,7 @@ internal static class Program
         var intervalMs = int.Parse(Env("CFX_INTERVAL_MS", "1000"));
         var cycleDelayMs = int.Parse(Env("CFX_CYCLE_DELAY_MS", "5000"));
         var loop = bool.Parse(Env("CFX_LOOP", "true"));
+        var restamp = bool.Parse(Env("CFX_RESTAMP", "true"));
 
         var payloads = LoadPayloads(payloadDirectory);
         if (payloads.Count == 0)
@@ -47,6 +57,10 @@ internal static class Program
         }
 
         Log($"Loaded {payloads.Count} captured CFX payloads from {Path.GetFullPath(payloadDirectory)}");
+        Log(restamp
+            ? "Restamping envelope TimeStamp to publish time (CFX_RESTAMP=true)"
+            : "Publishing captured bytes verbatim; measures will land at their original capture time "
+              + "(CFX_RESTAMP=false)");
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
@@ -90,16 +104,17 @@ internal static class Program
                     }
 
                     var topic = TopicFor(messageName, payload);
+                    var bytes = BuildPayloadBytes(payload, restamp);
 
                     await client.PublishAsync(
                         new MqttApplicationMessageBuilder()
                             .WithTopic(topic)
-                            .WithPayload(payload.Bytes)
+                            .WithPayload(bytes)
                             .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
                             .Build(),
                         cts.Token);
 
-                    Log($"published {payload.Bytes.Length,5} B -> {topic}");
+                    Log($"published {bytes.Length,5} B -> {topic}");
 
                     await Task.Delay(intervalMs, cts.Token);
                 }
@@ -154,6 +169,58 @@ internal static class Program
     }
 
     /// <summary>
+    /// Produces the bytes to publish for a capture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A capture carries the <c>TimeStamp</c> the endpoint stamped when it was recorded, and the
+    /// SubNode's parser reports that as the measure's time — correct against a live line, but it
+    /// means replayed data lands however old the captures are, where no recent-window query or
+    /// dashboard will show it. Restamping to publish time makes a replay look live.
+    /// </para>
+    /// <para>
+    /// Restamping costs the byte-for-byte fidelity of the verbatim path: the envelope is re-serialized
+    /// and re-compressed, so whitespace and compressed length change even though every value is
+    /// preserved. Set <c>CFX_RESTAMP=false</c> to publish the original bytes when exercising the
+    /// decoder against real wire bytes matters more than timestamp freshness.
+    /// </para>
+    /// </remarks>
+    private static byte[] BuildPayloadBytes(Payload payload, bool restamp)
+    {
+        if (!restamp)
+        {
+            return payload.Bytes;
+        }
+
+        var envelope = JsonNode.Parse(payload.Json)?.AsObject();
+        if (envelope is null)
+        {
+            // Parsed cleanly at load time, so this cannot normally happen; fall back rather than
+            // dropping the message from the replay.
+            return payload.Bytes;
+        }
+
+        // Only the envelope's own TimeStamp drives the measure time. Body-level timestamps are left
+        // as captured: they are process data, not the reporting clock.
+        envelope[TimeStampProperty] = DateTimeOffset.Now.ToString("O");
+
+        return Gzip(envelope.ToJsonString());
+    }
+
+    private static byte[] Gzip(string json)
+    {
+        using var output = new MemoryStream();
+
+        using (var gzip = new GZipStream(output, CompressionLevel.Optimal, leaveOpen: true))
+        {
+            var bytes = Encoding.UTF8.GetBytes(json);
+            gzip.Write(bytes, 0, bytes.Length);
+        }
+
+        return output.ToArray();
+    }
+
+    /// <summary>
     /// Rebuilds the topic a capture was originally published on, from the envelope it contains.
     /// </summary>
     private static string TopicFor(string messageName, Payload payload)
@@ -195,7 +262,7 @@ internal static class Program
                 continue;
             }
 
-            payloads[envelope.Value.MessageName] = new Payload(bytes, envelope.Value.Source);
+            payloads[envelope.Value.MessageName] = new Payload(bytes, decoded.Value, envelope.Value.Source);
         }
 
         return payloads;
@@ -207,5 +274,5 @@ internal static class Program
     private static void Log(string message) =>
         Console.WriteLine($"[cfx-replay] {message}");
 
-    private sealed record Payload(byte[] Bytes, string? Source);
+    private sealed record Payload(byte[] Bytes, string Json, string? Source);
 }

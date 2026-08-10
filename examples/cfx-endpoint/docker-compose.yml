@@ -46,5 +46,9 @@ services:
       CFX_INTERVAL_MS: "700"
       CFX_CYCLE_DELAY_MS: "5000"
       CFX_LOOP: "true"
+      # Restamp each envelope's TimeStamp to publish time. The captures carry the timestamps they
+      # were recorded with, and the SubNode reports publisher time, so without this the telemetry
+      # lands weeks in the past and no recent-window query shows it. Set false for byte-exact replay.
+      CFX_RESTAMP: "true"
     network_mode: host
     restart: "no"
