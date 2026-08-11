@@ -89,11 +89,50 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("net_bytes_sent_eth0", result[0].Name);
-        Assert.Equal("net_bytes_sent_eth1", result[1].Name);
-        Assert.Equal("eth0", result[0].Parameters!["Interface"]);
-        Assert.Equal("eth1", result[1].Parameters!["Interface"]);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("net_bytes_sent", result[0].Name);
+        Assert.Equal("net_bytes_sent_eth0", result[1].Name);
+        Assert.Equal("net_bytes_sent_eth1", result[2].Name);
+        Assert.Equal("eth0", result[1].Parameters!["Interface"]);
+        Assert.Equal("eth1", result[2].Parameters!["Interface"]);
+    }
+
+    [Fact]
+    public void Expand_KeepsOriginalTemplate_DisabledForCapabilityReporting()
+    {
+        var sensor = MakeNetworkSensor();
+        var resources = new DiscoveredResources(["eth0"], [], []);
+
+        var result = SensorResolver.Resolve([sensor], resources, _logger);
+
+        // The original template stays in the list so its name still reaches
+        // deviceCapabilities.sensors[], but disabled so it is never polled.
+        var template = result[0];
+        Assert.Equal("net_bytes_sent", template.Name);
+        Assert.False(template.Report.Enabled);
+        Assert.Equal(5000, template.Report.Interval);
+
+        // The per-resource clone carries the configured reporting state.
+        Assert.Equal("net_bytes_sent_eth0", result[1].Name);
+        Assert.True(result[1].Report.Enabled);
+    }
+
+    [Fact]
+    public void Expand_TemplateAlreadyExpanded_DoesNotDuplicateExistingClones()
+    {
+        // Steady state after re-resolution: template and a live clone coexist in the
+        // input list. Expanding again must not produce a second net_bytes_sent_eth0.
+        var template = MakeNetworkSensor();
+        var existingClone = MakeNetworkSensor("net_bytes_sent_eth0", new() { ["Interface"] = "eth0" });
+        var resources = new DiscoveredResources(["eth0", "eth1"], [], []);
+
+        var result = SensorResolver.Resolve([template, existingClone], resources, _logger);
+
+        Assert.Equal(
+            ["net_bytes_sent", "net_bytes_sent_eth1", "net_bytes_sent_eth0"],
+            result.Select(s => s.Name));
+        // The live clone passes through untouched — no identity churn.
+        Assert.Same(existingClone, result[2]);
     }
 
     [Fact]
@@ -130,10 +169,12 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("gpio_pin_DI_0", result[0].Name);
-        Assert.Equal("gpio_pin_DI_1", result[1].Name);
-        Assert.Equal("DI_0", result[0].Parameters!["PinId"]);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("gpio_pin", result[0].Name);
+        Assert.False(result[0].Report.Enabled);
+        Assert.Equal("gpio_pin_DI_0", result[1].Name);
+        Assert.Equal("gpio_pin_DI_1", result[2].Name);
+        Assert.Equal("DI_0", result[1].Parameters!["PinId"]);
     }
 
     [Fact]
@@ -147,12 +188,12 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("gpio_pin_0", result[0].Name);
-        Assert.Equal("0", result[0].Parameters!["PinId"]);
-        Assert.Equal("1", result[1].Parameters!["PinId"]);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("gpio_pin_0", result[1].Name);
+        Assert.Equal("0", result[1].Parameters!["PinId"]);
+        Assert.Equal("1", result[2].Parameters!["PinId"]);
         // PinIds array should be removed from resolved sensor
-        Assert.False(result[0].Parameters!.ContainsKey("PinIds"));
+        Assert.False(result[1].Parameters!.ContainsKey("PinIds"));
     }
 
     [Fact]
@@ -199,10 +240,12 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("temp_all_cpu_temp", result[0].Name);
-        Assert.Equal("temp_all_board_temp", result[1].Name);
-        Assert.Equal("cpu_temp", result[0].Parameters!["Source"]);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("temp_all", result[0].Name);
+        Assert.False(result[0].Report.Enabled);
+        Assert.Equal("temp_all_cpu_temp", result[1].Name);
+        Assert.Equal("temp_all_board_temp", result[2].Name);
+        Assert.Equal("cpu_temp", result[1].Parameters!["Source"]);
     }
 
     [Fact]
@@ -217,10 +260,12 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Single(result);
-        Assert.Equal("temp_all_cpu_temp", result[0].Name);
-        Assert.Equal("cpu_temp", result[0].Parameters!["Source"]);
-        Assert.False(result[0].Parameters!.ContainsKey("Sources"));
+        Assert.Equal(2, result.Count);
+        Assert.Equal("temp_all_cpu_temp", result[1].Name);
+        Assert.Equal("cpu_temp", result[1].Parameters!["Source"]);
+        Assert.False(result[1].Parameters!.ContainsKey("Sources"));
+        // The template keeps its Sources list — it documents the original intent.
+        Assert.True(result[0].Parameters!.ContainsKey("Sources"));
     }
 
     [Fact]
@@ -235,8 +280,8 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("cpu_temp", result[0].Parameters!["Source"]);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("cpu_temp", result[1].Parameters!["Source"]);
     }
 
     [Fact]
@@ -275,8 +320,8 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("net_bytes_sent_eth0", result[0].Name);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("net_bytes_sent_eth0", result[1].Name);
     }
 
     [Fact]
@@ -288,8 +333,8 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("gpio_pin_DI_0", result[0].Name);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("gpio_pin_DI_0", result[1].Name);
     }
 
     [Fact]
@@ -305,8 +350,8 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("cpu_temp", result[0].Parameters!["Source"]);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("cpu_temp", result[1].Parameters!["Source"]);
     }
 
     [Fact]
@@ -318,9 +363,9 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal("net_bytes_sent_eth0", result[0].Name);
-        Assert.Equal("net_bytes_sent_wlan0", result[1].Name);
+        Assert.Equal(3, result.Count);
+        Assert.Equal("net_bytes_sent_eth0", result[1].Name);
+        Assert.Equal("net_bytes_sent_wlan0", result[2].Name);
     }
 
     [Fact]
@@ -334,7 +379,7 @@ public class SensorResolverTests
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
         // Normalizer removes unrecoverable key → SensorResolver sees "not configured" → auto-detect
-        Assert.Equal(2, result.Count);
+        Assert.Equal(3, result.Count);
     }
 
     // --- Non-expanding types ---
@@ -372,10 +417,17 @@ public class SensorResolverTests
 
         var result = SensorResolver.Resolve([sensor], resources, _logger);
 
-        Assert.Single(result);
-        Assert.True(result[0].Report.Enabled);
+        Assert.Equal(2, result.Count);
+
+        // Capability template: reporting disabled, everything else preserved.
+        Assert.False(result[0].Report.Enabled);
         Assert.Equal(3000, result[0].Report.Interval);
         Assert.Equal("ms", result[0].Report.Unit);
+
+        // Clone: full report settings preserved.
+        Assert.True(result[1].Report.Enabled);
+        Assert.Equal(3000, result[1].Report.Interval);
+        Assert.Equal("ms", result[1].Report.Unit);
     }
 }
 
@@ -526,25 +578,26 @@ public class SensorResolverIConfigurationTests(ITestOutputHelper output)
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
         var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
-        // Network: 1 template → 2 expanded
+        // Network: disabled template kept + 2 expanded
         var networkSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "network").ToList();
-        Assert.Equal(2, networkSensors.Count);
-        Assert.Equal("network_bytes_sent_eth0", networkSensors[0].Name);
-        Assert.Equal("eth0", networkSensors[0].Parameters!["Interface"].ToString());
+        Assert.Equal(3, networkSensors.Count);
+        Assert.Equal("network_bytes_sent", networkSensors[0].Name);
+        Assert.Equal("network_bytes_sent_eth0", networkSensors[1].Name);
+        Assert.Equal("eth0", networkSensors[1].Parameters!["Interface"].ToString());
 
-        // GPIO: 1 template → 2 expanded
+        // GPIO: disabled template kept + 2 expanded
         var gpioSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "gpio").ToList();
-        Assert.Equal(2, gpioSensors.Count);
-        Assert.Equal("gpio_pinState_DI_0", gpioSensors[0].Name);
+        Assert.Equal(3, gpioSensors.Count);
+        Assert.Equal("gpio_pinState_DI_0", gpioSensors[1].Name);
 
-        // Temperature: 1 template → 2 expanded
+        // Temperature: disabled template kept + 2 expanded
         var tempSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "temperature").ToList();
-        Assert.Equal(2, tempSensors.Count);
-        Assert.Equal("temperature_CPU-therm", tempSensors[0].Name);
-        Assert.Equal("CPU-therm", tempSensors[0].Parameters!["Source"].ToString());
+        Assert.Equal(3, tempSensors.Count);
+        Assert.Equal("temperature_CPU-therm", tempSensors[1].Name);
+        Assert.Equal("CPU-therm", tempSensors[1].Parameters!["Source"].ToString());
     }
 
     [Fact]
@@ -592,17 +645,17 @@ public class SensorResolverIConfigurationTests(ITestOutputHelper output)
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
         var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
-        // Network: explicit "eth0" → only 1 expanded
+        // Network: disabled template kept + explicit "eth0" → only 1 expanded
         var networkSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "network").ToList();
-        Assert.Single(networkSensors);
-        Assert.Equal("network_bytes_sent_eth0", networkSensors[0].Name);
+        Assert.Equal(2, networkSensors.Count);
+        Assert.Equal("network_bytes_sent_eth0", networkSensors[1].Name);
 
-        // Temperature: explicit ["CPU-therm"] → only 1 expanded
+        // Temperature: disabled template kept + explicit ["CPU-therm"] → only 1 expanded
         var tempSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "temperature").ToList();
-        Assert.Single(tempSensors);
-        Assert.Equal("temperature_CPU-therm", tempSensors[0].Name);
+        Assert.Equal(2, tempSensors.Count);
+        Assert.Equal("temperature_CPU-therm", tempSensors[1].Name);
     }
 
     [Fact]
@@ -663,26 +716,26 @@ public class SensorResolverIConfigurationTests(ITestOutputHelper output)
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
         var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
-        // Network: explicit ["eth0", "wlan0"] → 2 expanded (not 3, docker0 excluded)
+        // Network: template + explicit ["eth0", "wlan0"] → 2 expanded (docker0 excluded)
         var networkSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "network").ToList();
-        Assert.Equal(2, networkSensors.Count);
-        Assert.Equal("network_bytes_sent_eth0", networkSensors[0].Name);
-        Assert.Equal("network_bytes_sent_wlan0", networkSensors[1].Name);
+        Assert.Equal(3, networkSensors.Count);
+        Assert.Equal("network_bytes_sent_eth0", networkSensors[1].Name);
+        Assert.Equal("network_bytes_sent_wlan0", networkSensors[2].Name);
 
-        // GPIO: explicit ["DI_0", "DI_1", "DO_0"] → 3 expanded (not 4, DO_1 excluded)
+        // GPIO: template + explicit ["DI_0", "DI_1", "DO_0"] → 3 expanded (DO_1 excluded)
         var gpioSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "gpio").ToList();
-        Assert.Equal(3, gpioSensors.Count);
-        Assert.Equal("gpio_pinState_DI_0", gpioSensors[0].Name);
-        Assert.Equal("gpio_pinState_DI_1", gpioSensors[1].Name);
-        Assert.Equal("gpio_pinState_DO_0", gpioSensors[2].Name);
+        Assert.Equal(4, gpioSensors.Count);
+        Assert.Equal("gpio_pinState_DI_0", gpioSensors[1].Name);
+        Assert.Equal("gpio_pinState_DI_1", gpioSensors[2].Name);
+        Assert.Equal("gpio_pinState_DO_0", gpioSensors[3].Name);
 
-        // Temperature: explicit ["CPU-therm"] → 1 expanded (not 2, GPU-therm excluded)
+        // Temperature: template + explicit ["CPU-therm"] → 1 expanded (GPU-therm excluded)
         var tempSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "temperature").ToList();
-        Assert.Single(tempSensors);
-        Assert.Equal("temperature_CPU-therm", tempSensors[0].Name);
+        Assert.Equal(2, tempSensors.Count);
+        Assert.Equal("temperature_CPU-therm", tempSensors[1].Name);
     }
 
     [Fact]
@@ -721,11 +774,11 @@ public class SensorResolverIConfigurationTests(ITestOutputHelper output)
         ParameterNormalizer.Normalize(deviceConfig.Sensors, sensorsSection);
         var result = SensorResolver.Resolve(deviceConfig.Sensors, resources, _logger);
 
-        // Empty array triggers auto-detect → expands to all discovered interfaces
+        // Empty array triggers auto-detect → template kept + all discovered interfaces
         var networkSensors = result
             .Where(s => s.Parameters!["MetricType"].ToString() == "network").ToList();
-        Assert.Equal(2, networkSensors.Count);
-        Assert.Equal("network_bytes_sent_eth0", networkSensors[0].Name);
-        Assert.Equal("network_bytes_sent_wlan0", networkSensors[1].Name);
+        Assert.Equal(3, networkSensors.Count);
+        Assert.Equal("network_bytes_sent_eth0", networkSensors[1].Name);
+        Assert.Equal("network_bytes_sent_wlan0", networkSensors[2].Name);
     }
 }
