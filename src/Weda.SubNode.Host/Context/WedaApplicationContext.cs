@@ -934,11 +934,25 @@ public class WedaApplicationContext : IWedaApplicationContext
     private (IWedaCloudService, NatsClient?) CreateDefaultCloudService(CommandRegistry? commandRegistry = null)
     {
         var settings = _options.NatsConnectionSettings;
+
+        // The cloud wire contract (schemaVersion=2) is camelCase, while local
+        // devicecfg.json and legacy payloads are PascalCase — inbound binding MUST
+        // be case-insensitive. NatsConnectionSettings defaults its registry to the
+        // stock NATS one (case-SENSITIVE, no camelCase policy) because Abstractions
+        // cannot reference the Weda registry; settings bound from SystemCfg keep
+        // that default ([JsonIgnore]), which silently made every cloud config
+        // update deserialize DeviceConfigs to null and get skipped. Swap the stock
+        // default for the Weda registry here; an explicitly configured custom
+        // registry is respected.
+        var serializerRegistry = settings.NatsSerializerRegistry is null or NatsClientDefaultSerializerRegistry
+            ? WedaNatsSerializerRegistry.Default
+            : settings.NatsSerializerRegistry;
+
         var natsOpts = NatsOpts.Default with
         {
             Url = settings.Url,
             Name = settings.Name ?? "default",
-            SerializerRegistry = settings.NatsSerializerRegistry,
+            SerializerRegistry = serializerRegistry,
             AuthOpts = GetAuthOpts(settings)
         };
         var natsClient = new NatsClient(natsOpts);

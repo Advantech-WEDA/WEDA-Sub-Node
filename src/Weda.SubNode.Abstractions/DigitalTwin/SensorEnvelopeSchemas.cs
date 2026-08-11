@@ -45,7 +45,7 @@ internal static class SensorEnvelopeSchemas
         ["fields"] = new JsonArray
         {
             Field("enabled",           "boolean", required: false),
-            Field("interval",          "integer", required: false, minimum: 1, description: "Sampling interval (ms)."),
+            Field("interval",          "integer", required: false, minimum: 1000, maximum: int.MaxValue, description: "Sampling interval (ms)."),
             Field("unit",              "string",  required: false),
             Field("transformPipeline", pipelineListId, required: false),
             Field("dspPipeline",       pipelineListId, required: false),
@@ -60,7 +60,7 @@ internal static class SensorEnvelopeSchemas
         ["fields"] = new JsonArray
         {
             Field("enabled",  "boolean", required: false),
-            Field("interval", "integer", required: false, minimum: 1, description: "Recording interval (ms)."),
+            Field("interval", "integer", required: false, minimum: 1000, maximum: int.MaxValue, description: "Recording interval (ms)."),
         },
     };
 
@@ -80,6 +80,7 @@ internal static class SensorEnvelopeSchemas
     internal static JsonObject Field(
         string name, string schema, bool required,
         int? minimum = null,
+        int? maximum = null,
         string? description = null)
     {
         var f = new JsonObject
@@ -89,6 +90,7 @@ internal static class SensorEnvelopeSchemas
         };
         if (description is not null) f["description"] = description;
         if (minimum.HasValue) f["minimum"] = minimum.Value;
+        if (maximum.HasValue) f["maximum"] = maximum.Value;
         f["schema"]   = schema;
         f["required"] = required;
         f["writable"] = true;
