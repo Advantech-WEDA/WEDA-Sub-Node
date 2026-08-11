@@ -132,24 +132,15 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         // The wrapper is self-contained (sensor Telemetries are flattened into its
         // contents), so no refModels closure is needed to resolve it.
         data.Dtdl.ShouldNotBeEmpty();
-        data.RefModels.ShouldNotBeEmpty();
 
-        var byId = data.RefModels
-            .Where(i => i["@id"]?.GetValue<string>() is not null)
-            .ToDictionary(i => i["@id"]!.GetValue<string>(), i => i);
-        
-        ShouldConstructValidator(data.Dtdl, byId, "wrapper Interface");
+        // The wrapper is self-contained (sensor Telemetries flattened into its
+        // contents), so it resolves with an empty refModels closure.
+        ShouldConstructValidator(data.Dtdl, new Dictionary<string, JsonObject>(), "wrapper Interface");
 
-        foreach (var iface in data.RefModels)
-        {
-            var id = iface["@id"]?.GetValue<string>() ?? "<no-id>";
-            ShouldConstructValidator(iface, byId, $"refModel '{id}'");
-        }
-
-        // refModelsMap is a lossless partition of refModels: commands = command
-        // Interfaces, configs = everything else, configs ∪ commands (by @id) ==
-        // refModels. The flat list is retained for DTDL parsing; the map lets
-        // consumers take a category slice without inferring from @id / extends.
+        // refModels is obsolete and always rides empty (asserted above); the typed
+        // catalog now travels only in refModelsMap, split into commands (command
+        // Interfaces) and configs (everything else). Consumers take a category slice
+        // without inferring from @id / extends.
         var map = data.RefModelsMap;
         map.ShouldNotBeNull();
 
@@ -158,13 +149,11 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         map.Commands.ShouldAllBe(i => i["@id"]!.GetValue<string>().Contains(":command:"));
         map.Configs.ShouldAllBe(i => !i["@id"]!.GetValue<string>().Contains(":command:"));
 
-        var mapIds = map.Configs.Concat(map.Commands)
-            .Select(i => i["@id"]!.GetValue<string>())
-            .ToHashSet();
-        var flatIds = data.RefModels
-            .Select(i => i["@id"]!.GetValue<string>())
-            .ToHashSet();
-        mapIds.SetEquals(flatIds).ShouldBeTrue();
+        // The partition must be internally consistent: a command Interface and a
+        // config Interface never share an @id.
+        var configIds = map.Configs.Select(i => i["@id"]!.GetValue<string>()).ToHashSet();
+        var commandIds = map.Commands.Select(i => i["@id"]!.GetValue<string>()).ToHashSet();
+        configIds.Overlaps(commandIds).ShouldBeFalse();
     }
 
     private static void ShouldConstructValidator(
