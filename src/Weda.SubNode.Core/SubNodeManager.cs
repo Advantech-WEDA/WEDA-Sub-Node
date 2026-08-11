@@ -478,6 +478,18 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// by running it through the normal transaction pipeline, then deletes the
     /// device-config cache so the base config also survives restarts.
     /// </summary>
+    /// <summary>
+    /// devicecfg.json is authored in PascalCase while the DTO contracts carry camelCase
+    /// <c>JsonPropertyName</c>s (schemaVersion=2 wire format). The base-config load must
+    /// therefore bind case-insensitively — a bare <c>Deserialize</c> silently yields
+    /// <c>DeviceConfigs = null</c> and every reset fails with "contains no device
+    /// configurations".
+    /// </summary>
+    private static readonly JsonSerializerOptions BaseCfgJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private async Task HandleDeviceConfigResetAsync(UpdateConfigurationEvent e, SubNodeConfigUpdateMessage message)
     {
         _logger.LogInformation("DeviceConfig reset requested (desired devicecfg is null): SeqId={SeqId}", message.SeqId);
@@ -496,7 +508,8 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         {
             try
             {
-                baseDeviceCfg = JsonSerializer.Deserialize<SubNodeDeviceCfgDto>(baseRaw.Value.GetRawText());
+                baseDeviceCfg = JsonSerializer.Deserialize<SubNodeDeviceCfgDto>(
+                    baseRaw.Value.GetRawText(), BaseCfgJsonOptions);
             }
             catch (JsonException ex)
             {
