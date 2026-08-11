@@ -86,4 +86,22 @@ public class DeviceConfigurationMappingTests
         var channel0 = contents.Single(c => c!["name"]!.GetValue<string>() == "channel_0");
         channel0!["@id"]!.GetValue<string>().ShouldStartWith("dtmi:sub:DeviceA:ai:");
     }
+
+    [Fact]
+    public void ToConfigurationDto_Should_UploadEmptyRefModels()
+    {
+        // refModels is obsolete: the full typed-catalog DTDL is no longer uploaded
+        // (bandwidth) — it is resolved cloud-side via refModelsMap. The SubNode must
+        // always ride the wire with an empty refModels array.
+        var configs = new DeviceConfigurations
+        {
+            ["DeviceA"] = MakeDevice("DeviceA", "channel.0")
+        };
+
+        var dto = configs.ToConfigurationDto();
+
+#pragma warning disable CS0618 // Type or member is obsolete
+        dto.RefModels.ShouldBeEmpty();
+#pragma warning restore CS0618
+    }
 }

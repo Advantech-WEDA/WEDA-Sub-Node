@@ -29,7 +29,7 @@ public class V12DtdlParserFeasibilityTests
 {
     private const string SubNodeDeviceId = "54777925790076928";
     private const string WrapperDtmi = "dtmi:advantech:edgesync:subnode_a1b2c3d4;1";
-    private const string TempTelemetryDtmi = "dtmi:autogen:temp:be10e40b;1";
+    private const string TempTelemetryDtmi = "dtmi:sub:TestDevice:temp:sbe10e40b;1";
     private const string SensorBaseDtmi = "dtmi:weda:sensor:base;1";
     private const string TcpModbusTempDtmi = "dtmi:weda:tcpmodbus:temperature;1";
     private const string ReportDataCmdDtmi = "dtmi:weda:cmd:reportdata;1";
@@ -95,7 +95,7 @@ public class V12DtdlParserFeasibilityTests
                 Schema = "double"
             }
         };
-        Abstractions.DigitalTwin.DtdlGenerator.PopulateSensorDtmis([sensor]);
+        Abstractions.DigitalTwin.DtdlGenerator.PopulateSensorDtmis([sensor], deviceKey: "TestDevice");
         var autogenInterface = Abstractions.DigitalTwin.DtdlGenerator.GenerateInterface(
             "TestDevice", [sensor]);
 

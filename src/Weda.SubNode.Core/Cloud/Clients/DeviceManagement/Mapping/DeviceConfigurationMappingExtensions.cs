@@ -78,7 +78,7 @@ public static class DeviceConfigurationMappingExtensions
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
             Dtdl: BuildWrapperInterface(enabledConfigs, projectInfo ?? ProjectInfo.Empty, config.DeviceId!, subNodeInfo),
-            RefModels: BuildRefModels(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
+            RefModels: [], // remove to reduce capa
             RefModelsMap: BuildRefModelsMap(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
             DeviceCapabilities: ToDeviceCapabilitiesDto(
                 enabledConfigs, transformDescriptors, dspDescriptors, commandDescriptors,

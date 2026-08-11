@@ -114,44 +114,33 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         captured.ShouldNotBeNull();
         var data = captured!.Data!;
 
-        // Catalog references are thin (name + dtmi); definitions live in dtdl[].
+        // Catalog references are thin (name + dtmi); they are the "map" cloud uses
+        // to resolve model definitions (refModelsMap), so they must be present.
         data.DeviceCapabilities.Transforms.ShouldNotBeEmpty();
         data.DeviceCapabilities.DspFilters.ShouldNotBeEmpty();
         data.DeviceCapabilities.Commands.ShouldNotBeEmpty();
 
-        // Every catalog dtmi must resolve to an entry in dtdl[].
-        var refIds = data.RefModels
-            .Select(i => i["@id"]?.GetValue<string>())
-            .Where(id => id is not null)
-            .ToHashSet();
-        foreach (var r in data.DeviceCapabilities.Transforms) refIds.ShouldContain(r.Dtmi);
-        foreach (var r in data.DeviceCapabilities.DspFilters) refIds.ShouldContain(r.Dtmi);
-        foreach (var r in data.DeviceCapabilities.Commands)   refIds.ShouldContain(r.Dtmi);
+        // refModels is obsolete and must always ride the wire empty — the full
+        // typed-catalog DTDL is no longer uploaded (bandwidth), it is resolved
+        // cloud-side from the thin refs above via refModelsMap.
+#pragma warning disable CS0618 // Type or member is obsolete
+        data.RefModels.ShouldBeEmpty();
+#pragma warning restore CS0618
 
-        // The wrapper Interface (data.Dtdl) plus every refModels[] entry must each
-        // construct a WedaDtValidator without throwing — that's the binary
-        // "shadow accepted the DTDL" check. We feed each Interface plus the
-        // transitive closure of its `extends` bases so the validator can resolve
-        // inherited Contents.
+        // The wrapper Interface (data.Dtdl) must still construct a WedaDtValidator
+        // without throwing — that's the binary "shadow accepted the DTDL" check.
+        // The wrapper is self-contained (sensor Telemetries are flattened into its
+        // contents), so no refModels closure is needed to resolve it.
         data.Dtdl.ShouldNotBeEmpty();
-        data.RefModels.ShouldNotBeEmpty();
 
-        var byId = data.RefModels
-            .Where(i => i["@id"]?.GetValue<string>() is not null)
-            .ToDictionary(i => i["@id"]!.GetValue<string>(), i => i);
-        
-        ShouldConstructValidator(data.Dtdl, byId, "wrapper Interface");
+        // The wrapper is self-contained (sensor Telemetries flattened into its
+        // contents), so it resolves with an empty refModels closure.
+        ShouldConstructValidator(data.Dtdl, new Dictionary<string, JsonObject>(), "wrapper Interface");
 
-        foreach (var iface in data.RefModels)
-        {
-            var id = iface["@id"]?.GetValue<string>() ?? "<no-id>";
-            ShouldConstructValidator(iface, byId, $"refModel '{id}'");
-        }
-
-        // refModelsMap is a lossless partition of refModels: commands = command
-        // Interfaces, configs = everything else, configs ∪ commands (by @id) ==
-        // refModels. The flat list is retained for DTDL parsing; the map lets
-        // consumers take a category slice without inferring from @id / extends.
+        // refModels is obsolete and always rides empty (asserted above); the typed
+        // catalog now travels only in refModelsMap, split into commands (command
+        // Interfaces) and configs (everything else). Consumers take a category slice
+        // without inferring from @id / extends.
         var map = data.RefModelsMap;
         map.ShouldNotBeNull();
 
@@ -160,13 +149,11 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         map.Commands.ShouldAllBe(i => i["@id"]!.GetValue<string>().Contains(":command:"));
         map.Configs.ShouldAllBe(i => !i["@id"]!.GetValue<string>().Contains(":command:"));
 
-        var mapIds = map.Configs.Concat(map.Commands)
-            .Select(i => i["@id"]!.GetValue<string>())
-            .ToHashSet();
-        var flatIds = data.RefModels
-            .Select(i => i["@id"]!.GetValue<string>())
-            .ToHashSet();
-        mapIds.SetEquals(flatIds).ShouldBeTrue();
+        // The partition must be internally consistent: a command Interface and a
+        // config Interface never share an @id.
+        var configIds = map.Configs.Select(i => i["@id"]!.GetValue<string>()).ToHashSet();
+        var commandIds = map.Commands.Select(i => i["@id"]!.GetValue<string>()).ToHashSet();
+        configIds.Overlaps(commandIds).ShouldBeFalse();
     }
 
     private static void ShouldConstructValidator(

@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
 
+using Weda.SubNode.Abstractions.DigitalTwin;
+
 namespace Weda.SubNode.Abstractions.Telemetry;
 
 /// <summary>
@@ -43,69 +45,15 @@ public static class SensorBase
         ["displayName"] = "Sensor (base)",
         ["description"] = "Universal sensor envelope inherited by every typed sensor Interface.",
 
+        // Envelope schemas are built by SensorEnvelopeSchemas so sensor:base and
+        // device:base (SensorRef) stay shape-identical under their own @id namespaces.
         ["schemas"] = new JsonArray
         {
-            // PipelineStep: a chosen transform/dsp catalog reference (no inline params;
-            // the referenced capability Interface in dtdl[] describes the param shape).
-            new JsonObject
-            {
-                ["@id"] = PipelineStepDtmi,
-                ["@type"] = "Object",
-                ["fields"] = new JsonArray
-                {
-                    Field("type",    "string",  required: true,  description: "Catalog name of the chosen transform/dsp (e.g. unitconversion)."),
-                    Field("dtmi",    "string",  required: true,  description: "DTMI of the chosen capability Interface; resolve in dtdl[] for parameter shape."),
-                    Field("enabled", "boolean", required: false),
-                },
-            },
-
-            // PipelineList: Array<PipelineStep>.
-            new JsonObject
-            {
-                ["@id"] = PipelineListDtmi,
-                ["@type"] = "Array",
-                ["elementSchema"] = PipelineStepDtmi,
-            },
-
-            // Report: sampling cadence + transform/dsp pipelines.
-            new JsonObject
-            {
-                ["@id"] = ReportDtmi,
-                ["@type"] = "Object",
-                ["fields"] = new JsonArray
-                {
-                    Field("enabled",           "boolean", required: false),
-                    Field("interval",          "integer", required: false, minimum: 1, description: "Sampling interval (ms)."),
-                    Field("unit",              "string",  required: false),
-                    Field("transformPipeline", PipelineListDtmi, required: false),
-                    Field("dspPipeline",       PipelineListDtmi, required: false),
-                },
-            },
-
-            // Record: local recording cadence.
-            new JsonObject
-            {
-                ["@id"] = RecordDtmi,
-                ["@type"] = "Object",
-                ["fields"] = new JsonArray
-                {
-                    Field("enabled",  "boolean", required: false),
-                    Field("interval", "integer", required: false, minimum: 1, description: "Recording interval (ms)."),
-                },
-            },
-
-            // SensorInfo: wire schema + UI metadata.
-            new JsonObject
-            {
-                ["@id"] = SensorInfoDtmi,
-                ["@type"] = "Object",
-                ["fields"] = new JsonArray
-                {
-                    Field("schema",      "string", required: true,  description: "Wire schema: double / long / integer / boolean / string / MIME type."),
-                    Field("displayName", "string", required: false),
-                    Field("description", "string", required: false),
-                },
-            },
+            SensorEnvelopeSchemas.PipelineStep(PipelineStepDtmi),
+            SensorEnvelopeSchemas.PipelineList(PipelineListDtmi, PipelineStepDtmi),
+            SensorEnvelopeSchemas.Report(ReportDtmi, PipelineListDtmi),
+            SensorEnvelopeSchemas.Record(RecordDtmi),
+            SensorEnvelopeSchemas.SensorInfo(SensorInfoDtmi),
         },
 
         ["contents"] = new JsonArray
@@ -117,24 +65,6 @@ public static class SensorBase
             Property("SensorInfo",  SensorInfoDtmi, required: false, writable: true),
         },
     };
-
-    private static JsonObject Field(
-        string name, string schema, bool required,
-        int? minimum = null,
-        string? description = null)
-    {
-        var f = new JsonObject
-        {
-            ["@type"] = new JsonArray("Field", "ConfigConstraint"),
-            ["name"] = name,
-        };
-        if (description is not null) f["description"] = description;
-        if (minimum.HasValue) f["minimum"] = minimum.Value;
-        f["schema"]   = schema;
-        f["required"] = required;
-        f["writable"] = true;
-        return f;
-    }
 
     private static JsonObject Property(
         string name, string schema, bool required, bool writable,

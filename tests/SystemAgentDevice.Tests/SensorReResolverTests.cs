@@ -104,15 +104,17 @@ public class SensorReResolverTests
         var changed = SensorReResolver.ReResolve(config, resources, _logger);
 
         Assert.True(changed);
-        Assert.Equal(2, config.Sensors.Count);
+        Assert.Equal(3, config.Sensors.Count);
         Assert.Equal(
-            ["network_bytes_sent_lo", "network_bytes_sent_enp8p1s0"],
+            ["network_bytes_sent", "network_bytes_sent_lo", "network_bytes_sent_enp8p1s0"],
             config.Sensors.Select(s => s.Name));
-        Assert.Equal("lo", config.Sensors[0].Parameters!["Interface"]);
-        Assert.Equal("enp8p1s0", config.Sensors[1].Parameters!["Interface"]);
+        Assert.Equal("lo", config.Sensors[1].Parameters!["Interface"]);
+        Assert.Equal("enp8p1s0", config.Sensors[2].Parameters!["Interface"]);
 
-        // The unresolved template must be gone — it is what the parser was skipping.
-        Assert.DoesNotContain(config.Sensors, s => s.Name == "network_bytes_sent");
+        // The template stays so its original name reaches deviceCapabilities.sensors[],
+        // but disabled — the parser only ever skipped it because it was being polled.
+        Assert.False(config.Sensors[0].Report.Enabled);
+        Assert.All(config.Sensors.Skip(1), s => Assert.True(s.Report.Enabled));
     }
 
     [Fact]
@@ -128,8 +130,8 @@ public class SensorReResolverTests
         Assert.All(config.Sensors, s => Assert.False(string.IsNullOrWhiteSpace(s.ResourceId)));
         Assert.Equal(DeviceId, config.Sensors[0].DeviceResourceId);
 
-        // Distinct sensors must not collide on ResourceId.
-        Assert.Equal(2, config.Sensors.Select(s => s.ResourceId).Distinct().Count());
+        // Distinct sensors (template + 2 clones) must not collide on ResourceId.
+        Assert.Equal(3, config.Sensors.Select(s => s.ResourceId).Distinct().Count());
     }
 
     [Fact]
@@ -157,7 +159,8 @@ public class SensorReResolverTests
 
         Assert.True(changed);
         Assert.Equal(
-            ["gpio_pinState_UIO_GPIO2", "gpio_pinState_UIO_GPIO4", "temperature_CPU-therm"],
+            ["gpio_pinState", "gpio_pinState_UIO_GPIO2", "gpio_pinState_UIO_GPIO4",
+             "temperature", "temperature_CPU-therm"],
             config.Sensors.Select(s => s.Name));
     }
 
@@ -251,7 +254,8 @@ public class SensorReResolverTests
 
         Assert.True(changed);
         Assert.Equal(
-            ["cpu_usage", "network_bytes_sent_eth0", "network_packets_sent_eth0", "network_packets_sent_eth1"],
+            ["cpu_usage", "network_bytes_sent_eth0",
+             "network_packets_sent", "network_packets_sent_eth0", "network_packets_sent_eth1"],
             config.Sensors.Select(s => s.Name));
 
         // Existing sensors keep their identity — no ResourceId churn for untouched sensors.
@@ -270,8 +274,10 @@ public class SensorReResolverTests
         var changed = SensorReResolver.ReResolve(config, resources, _logger);
 
         Assert.True(changed);
-        Assert.Single(config.Sensors);
-        Assert.Equal("network_bytes_sent_eth0", config.Sensors[0].Name);
+        Assert.Equal(2, config.Sensors.Count);
+        Assert.Equal("network_bytes_sent", config.Sensors[0].Name);
+        Assert.False(config.Sensors[0].Report.Enabled);
+        Assert.Equal("network_bytes_sent_eth0", config.Sensors[1].Name);
     }
 
     [Fact]
@@ -302,8 +308,9 @@ public class SensorReResolverTests
         var changed = SensorReResolver.ReResolve(config, resources, _logger);
 
         Assert.True(changed);
-        Assert.Single(config.Sensors);
-        Assert.Equal("network_bytes_sent_eth0", config.Sensors[0].Name);
+        Assert.Equal(2, config.Sensors.Count);
+        Assert.Equal("network_bytes_sent", config.Sensors[0].Name);
+        Assert.Equal("network_bytes_sent_eth0", config.Sensors[1].Name);
     }
 
     [Fact]
