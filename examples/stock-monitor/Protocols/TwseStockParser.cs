@@ -17,7 +17,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
     private readonly DeviceConfiguration _configuration;
     private readonly HttpCommunication _communication;
     private readonly ILogger<TwseStockParser> _logger;
-    private readonly Dictionary<string, List<SensorMetricsConfig>> _sensorConfigByStockCode;
+    private readonly Dictionary<string, List<StockSensorBinding>> _bindingsByStockCode;
 
     public ICommunication Communication => _communication;
 
@@ -30,80 +30,85 @@ public class TwseStockParser : IRequestResponseProtocolParser
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        // Pre-process sensor configuration at construction time
-        _sensorConfigByStockCode = PreprocessSensorReporturation(configuration.Sensors);
+        // Bind each sensor to its stock code and metric once, at construction time
+        _bindingsByStockCode = BindSensorsByStockCode(configuration.Sensors);
         _logger.LogDebug("TwseStockParser initialized with {StockCount} stocks, {SensorCount} sensors",
-            _sensorConfigByStockCode.Count, configuration.Sensors.Count);
+            _bindingsByStockCode.Count, configuration.Sensors.Count);
     }
 
     /// <summary>
-    /// Pre-process sensor configuration at construction time.
-    /// Deserializes parameters once and groups by StockCode for efficient lookup.
+    /// Resolves each sensor's parameters once and groups the bindings by stock code, so a poll can
+    /// fetch one quote per code and fan it back out to the sensors that asked for it.
     /// </summary>
-    private Dictionary<string, List<SensorMetricsConfig>> PreprocessSensorReporturation(IReadOnlyList<Sensor> sensors)
+    /// <param name="sensors">The configured sensors.</param>
+    /// <returns>Bindings grouped by stock code; sensors with unusable parameters are skipped.</returns>
+    private Dictionary<string, List<StockSensorBinding>> BindSensorsByStockCode(IReadOnlyList<Sensor> sensors)
     {
-        var result = new Dictionary<string, List<SensorMetricsConfig>>();
+        var result = new Dictionary<string, List<StockSensorBinding>>();
 
         foreach (var sensor in sensors)
         {
-            // Deserialize parameters to strongly-typed object
             var parameters = DeserializeParameters(sensor);
+
             if (string.IsNullOrEmpty(parameters.StockCode))
             {
                 _logger.LogWarning("Sensor {Name} missing StockCode parameter, skipping", sensor.Name);
                 continue;
             }
 
-            if (!result.TryGetValue(parameters.StockCode, out var configList))
+            if (!StockMetricCatalog.IsKnown(parameters.Metric))
             {
-                configList = [];
-                result[parameters.StockCode] = configList;
+                _logger.LogWarning(
+                    "Sensor {Name} requests unknown metric '{Metric}', skipping. Known metrics: {Known}",
+                    sensor.Name, parameters.Metric, string.Join(", ", StockMetricCatalog.Names));
+                continue;
             }
 
-            configList.Add(new SensorMetricsConfig(sensor, parameters));
+            if (!result.TryGetValue(parameters.StockCode, out var bindings))
+            {
+                bindings = [];
+                result[parameters.StockCode] = bindings;
+            }
 
-            _logger.LogDebug("Sensor {Name}: StockCode={StockCode}, Metrics=[{Metrics}]",
-                sensor.Name, parameters.StockCode, string.Join(", ", parameters.Metrics));
+            bindings.Add(new StockSensorBinding(sensor, parameters));
+
+            _logger.LogDebug("Sensor {Name}: StockCode={StockCode}, Metric={Metric}",
+                sensor.Name, parameters.StockCode, parameters.Metric);
         }
 
         return result;
     }
 
     /// <summary>
-    /// Extract StockSensorParameters from sensor.Parameters dictionary.
-    /// Handles both JsonElement (from direct JSON) and Dictionary (from Configuration binding).
+    /// Extracts <see cref="StockSensorParameters"/> from a sensor's parameter dictionary.
+    /// Handles both <see cref="JsonElement"/> (from direct JSON) and string (from configuration binding).
     /// </summary>
+    /// <param name="sensor">The sensor whose parameters to read.</param>
+    /// <returns>The stock code and metric declared for the sensor; either may be empty when absent.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the sensor declares no parameters.</exception>
     private static StockSensorParameters DeserializeParameters(Sensor sensor)
     {
         if (sensor.Parameters == null)
-            throw new InvalidOperationException("No parameters defined for stocks");
+            throw new InvalidOperationException(
+                $"Sensor '{sensor.Name}' defines no parameters; StockCode and Metric are required.");
 
-        string stockCode = string.Empty;
-        List<string> metrics = new();
+        return new StockSensorParameters(
+            ReadString(sensor.Parameters, "StockCode"),
+            ReadString(sensor.Parameters, "Metric"));
+    }
 
-        // --- StockCode ---
-        if (sensor.Parameters.TryGetValue("StockCode", out var stockCodeObj))
+    /// <summary>Reads a string parameter, tolerating both bound strings and raw JSON elements.</summary>
+    private static string ReadString(IReadOnlyDictionary<string, object> parameters, string key)
+    {
+        if (!parameters.TryGetValue(key, out var value))
+            return string.Empty;
+
+        return value switch
         {
-            if (stockCodeObj is string s)
-                stockCode = s;
-            else if (stockCodeObj is JsonElement json && json.ValueKind == JsonValueKind.String)
-                stockCode = json.GetString() ?? throw new JsonException("Unable to parse StockCode");
-        }
-
-        // --- Metrics ---
-
-        if (sensor.Parameters.TryGetValue("Metrics", out var metricsObj))
-        {
-            if (metricsObj is string s)
-                metrics = [.. s.Split(",").Select(x => x.Trim())];
-            else if (metricsObj is JsonElement json && json.ValueKind == JsonValueKind.String)
-            {
-                var t = json.GetString() ?? throw new JsonException("Unable to parse StockCode");
-                metrics = [.. t.Split(",").Select(x => x.Trim())];
-            }
-        }
-
-        return new StockSensorParameters(stockCode, metrics);
+            string s => s,
+            JsonElement { ValueKind: JsonValueKind.String } json => json.GetString() ?? string.Empty,
+            _ => string.Empty,
+        };
     }
 
 
@@ -146,9 +151,9 @@ public class TwseStockParser : IRequestResponseProtocolParser
         }
 
         // Filter to only requested sensors and get unique stock codes
-        var stockCodesToFetch = _sensorConfigByStockCode
-            .Where(kvp => kvp.Value.Any(config =>
-                config.Sensor.Report.Enabled && requestedResourceIds.Contains(config.Sensor.ResourceId)))
+        var stockCodesToFetch = _bindingsByStockCode
+            .Where(kvp => kvp.Value.Any(binding =>
+                binding.Sensor.Report.Enabled && requestedResourceIds.Contains(binding.Sensor.ResourceId)))
             .Select(kvp => kvp.Key)
             .ToList();
 
@@ -183,7 +188,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
     /// <summary>
     /// Parses TWSE API response to TelemetryMeasure list using pre-processed configuration.
     /// </summary>
-    private List<TelemetryMeasure> ParseResponse(TwseStockResponse? response, HashSet<string> requestedResourceIds)
+    internal List<TelemetryMeasure> ParseResponse(TwseStockResponse? response, HashSet<string> requestedResourceIds)
     {
         var measures = new List<TelemetryMeasure>();
 
@@ -199,8 +204,7 @@ public class TwseStockParser : IRequestResponseProtocolParser
             .Where(q => q.Code != null)
             .ToDictionary(q => q.Code!, q => q);
 
-        // Use pre-processed configuration
-        foreach (var (stockCode, configList) in _sensorConfigByStockCode)
+        foreach (var (stockCode, bindings) in _bindingsByStockCode)
         {
             if (!quotesByCode.TryGetValue(stockCode, out var quote))
             {
@@ -210,32 +214,26 @@ public class TwseStockParser : IRequestResponseProtocolParser
 
             var timestamp = (quote.Timestamp ?? DateTimeOffset.UtcNow).ToUnixTimeMilliseconds();
 
-            foreach (var config in configList)
+            foreach (var binding in bindings)
             {
-                // Skip if sensor is not enabled or not requested
-                if (!config.Sensor.Report.Enabled || !requestedResourceIds.Contains(config.Sensor.ResourceId))
+                if (!binding.Sensor.Report.Enabled || !requestedResourceIds.Contains(binding.Sensor.ResourceId))
                     continue;
 
-                // Use pre-parsed metrics list
-                foreach (var metricName in config.Parameters.Metrics!)
+                var value = GetMetricValue(quote, binding.Parameters.Metric);
+                if (value == null)
+                    continue;
+
+                // Metadata is deliberately left unset. It is the framework's chunked-transfer
+                // descriptor, and a numeric value is never chunked, so it never receives the
+                // transferId the WedaNode telemetry proxy requires — a measure carrying metadata
+                // without one is rejected outright. The stock code and metric are already carried
+                // by the sensor's own identity.
+                measures.Add(new TelemetryMeasure
                 {
-                    var value = GetMetricValue(quote, metricName);
-                    if (value != null)
-                    {
-                        measures.Add(new TelemetryMeasure
-                        {
-                            ResourceId = config.Sensor.ResourceId,
-                            Value = value,
-                            Timestamp = timestamp,
-                            Metadata = new Dictionary<string, object>
-                            {
-                                ["StockCode"] = stockCode,
-                                ["StockName"] = quote.Name ?? "",
-                                ["MetricName"] = metricName
-                            }
-                        });
-                    }
-                }
+                    ResourceId = binding.Sensor.ResourceId,
+                    Value = value,
+                    Timestamp = timestamp,
+                });
             }
         }
 
