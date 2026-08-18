@@ -77,12 +77,12 @@ Choose your learning path based on your background:
    - [examples/](examples/) - Production-ready examples with real hardware
 
 2. Choose an example that matches your use case:
-   - **WISE-4012 Industrial I/O**: [examples/wise-4012-builder/](examples/wise-4012-builder/)
+   - **WISE-4012 Industrial I/O**: [examples/modbus-wise4012-builder/](examples/modbus-wise4012-builder/)
 
 3. Copy and customize:
    ```bash
    # Copy the example
-   cp -r examples/wise-4012-builder my-project
+   cp -r examples/modbus-wise4012-builder my-project
    cd my-project
 
    # Edit configuration

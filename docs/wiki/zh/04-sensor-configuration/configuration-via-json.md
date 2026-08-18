@@ -408,7 +408,7 @@ Transform 按陣列順序執行：
 
 ## 完整範例
 
-請參閱 [examples/wise-4012/devicecfg.json](https://github.com/your-repo/edge_subnode/blob/main/examples/wise-4012/devicecfg.json) 取得完整可運作範例。
+請參閱 [examples/modbus-wise4012/devicecfg.json](https://github.com/your-repo/edge_subnode/blob/main/examples/modbus-wise4012/devicecfg.json) 取得完整可運作範例。
 
 ```json
 {

@@ -22,7 +22,7 @@ open http://localhost:5000
 
 ## How it works
 
-1. Enter the path to your SubNode project (e.g., `/path/to/examples/wise-4012`)
+1. Enter the path to your SubNode project (e.g., `/path/to/examples/modbus-wise4012`)
 2. Click "Load Configuration" to read:
    - `appsettings.json` - Device configuration
    - `.weda/subnode.registration.json` - Device registration and NATS topics

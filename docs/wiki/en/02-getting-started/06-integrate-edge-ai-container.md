@@ -17,8 +17,8 @@ Your Edge AI container is, from SubNode's point of view, just another **data sou
 
 | Your Edge AI interface | SubNode pattern | Base class | Reference example |
 |------------------------|-----------------|-----------|-------------------|
-| MQTT topic (container **publishes** status) | Pub/Sub (push) | `PubSubDeviceBase` | [`examples/image-sensor`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/image-sensor), `MqttISensingDevice` |
-| RESTful API (SubNode **queries** status) | Request/Response (poll) | `RequestResponseDeviceBase` | [`examples/air-quality-monitor`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/air-quality-monitor) |
+| MQTT topic (container **publishes** status) | Pub/Sub (push) | `PubSubDeviceBase` | [`examples/mqtt-image-chunked`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/mqtt-image-chunked), `MqttISensingDevice` |
+| RESTful API (SubNode **queries** status) | Request/Response (poll) | `RequestResponseDeviceBase` | [`examples/http-air-quality`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/http-air-quality) |
 
 You can integrate via **either** interface, or both at once (e.g. MQTT for instant change events plus REST for a periodic health snapshot).
 
@@ -106,7 +106,7 @@ See [Configuration via JSON](../04-configuration/02-configuration-via-json.md) a
 
 ## Option A — MQTT (Container Publishes Status)
 
-This uses the **Pub/Sub** pattern: SubNode subscribes to your container's status topic and the framework caches each pushed value, then reports it on the sensor's interval. This is the same machinery behind the `image-sensor` and `MqttISensingDevice` examples.
+This uses the **Pub/Sub** pattern: SubNode subscribes to your container's status topic and the framework caches each pushed value, then reports it on the sensor's interval. This is the same machinery behind the `mqtt-image-chunked` and `MqttISensingDevice` examples.
 
 ### A.1 Configure `devicecfg.json`
 
@@ -163,7 +163,7 @@ This uses the **Pub/Sub** pattern: SubNode subscribes to your container's status
 
 ### A.2 Create the Device
 
-The fastest path is to **start from `examples/image-sensor`** and replace its parser with a JSON-status parser. The device class is thin -- it inherits the Pub/Sub machinery and just logs/handles received data:
+The fastest path is to **start from `examples/mqtt-image-chunked`** and replace its parser with a JSON-status parser. The device class is thin -- it inherits the Pub/Sub machinery and just logs/handles received data:
 
 ```csharp
 using Weda.SubNode.Abstractions.Context;
@@ -273,7 +273,7 @@ await app.RunAsync();
 
 ## Capturing the Snapshot Frame or Audio Clip
 
-Detection events are often more useful with **evidence** -- the image frame the vision model fired on, or the audio snippet the sound model flagged. SubNode already handles binary telemetry; the `examples/image-sensor` project does exactly this for images over MQTT.
+Detection events are often more useful with **evidence** -- the image frame the vision model fired on, or the audio snippet the sound model flagged. SubNode already handles binary telemetry; the `examples/mqtt-image-chunked` project does exactly this for images over MQTT.
 
 Model the evidence as its own sensor with a binary `Schema`, and add a `chunking` transform so large payloads are split for low-bandwidth links:
 
@@ -295,7 +295,7 @@ Model the evidence as its own sensor with a binary `Schema`, and add a `chunking
 
 | Evidence type | `Schema` | Notes |
 |---------------|----------|-------|
-| Image frame (PNG/JPEG, base64) | `image/png` / `image/jpeg` | Same path as `examples/image-sensor` |
+| Image frame (PNG/JPEG, base64) | `image/png` / `image/jpeg` | Same path as `examples/mqtt-image-chunked` |
 | Audio clip (WAV/PCM, base64) | `application/octet-stream` | Decode base64 in your parser before emitting |
 
 > Sending a frame or clip on **every** detection can be heavy. Consider reporting evidence only on high-confidence detections, or at a slower interval than the scalar fields. Keep the lightweight fields (`detected`, `confidence`, `object_class`) on a fast interval for responsive alerting.
@@ -304,7 +304,7 @@ Model the evidence as its own sensor with a binary `Schema`, and add a `chunking
 
 ## Option B — REST (SubNode Polls the Status API)
 
-This uses the **Request/Response** pattern: SubNode calls your container's HTTP endpoint on each sensor `Interval` and maps the JSON response to telemetry. This is the `air-quality-monitor` pattern -- copy that example and change the URL + field mapping.
+This uses the **Request/Response** pattern: SubNode calls your container's HTTP endpoint on each sensor `Interval` and maps the JSON response to telemetry. This is the `http-air-quality` pattern -- copy that example and change the URL + field mapping.
 
 ### B.1 Configure `devicecfg.json`
 
@@ -343,9 +343,9 @@ This uses the **Request/Response** pattern: SubNode calls your container's HTTP 
 
 ### B.2 Reuse the air-quality-monitor structure
 
-The `air-quality-monitor` example already implements the three pieces you need; copy its folder and adapt:
+The `http-air-quality` example already implements the three pieces you need; copy its folder and adapt:
 
-| File in `air-quality-monitor` | What to change for your Edge AI API |
+| File in `http-air-quality` | What to change for your Edge AI API |
 |-------------------------------|-------------------------------------|
 | `Communication/AirQualityClient.cs` | Point `BaseUrl` at your container; build the URL from `Host`/`Port` + `Endpoint`; drop the API key if not needed |
 | `Communication/HttpCommunication.cs` | Usually unchanged -- it wraps the client behind `RequestResponseCommunicationBase` |
@@ -414,7 +414,7 @@ Follow the same loop as the [SI Integration Guide](./05-si-integration-guide.md)
 - Your Edge AI container is a data source; SubNode integrates it by **transport**: MQTT → `PubSubDeviceBase`, REST → `RequestResponseDeviceBase`.
 - Vision/sound detections are **events** -- prefer **MQTT** (instant push); optionally add a slow **REST** poll as a heartbeat (rolling count, last-inference time).
 - Model the detection: **class label** → `string`, **confidence** → threshold-able `double`, **`detected`** → `boolean` alarm, plus an optional **frame/clip** as a binary sensor with `chunking`.
-- Don't write integrations from scratch -- copy `examples/image-sensor` (MQTT + binary) or `examples/air-quality-monitor` (REST) and change the topic/URL and field mapping.
+- Don't write integrations from scratch -- copy `examples/mqtt-image-chunked` (MQTT + binary) or `examples/http-air-quality` (REST) and change the topic/URL and field mapping.
 - Threshold the **confidence** (with optional DSP smoothing) so only confident, non-flickering detections raise WedaCore alerts.
 
 ## See Also
@@ -423,7 +423,7 @@ Follow the same loop as the [SI Integration Guide](./05-si-integration-guide.md)
 - [Configuration via JSON](../04-configuration/02-configuration-via-json.md) -- sensor fields and `Parameters`
 - [Data Pipeline](../05-data-pipeline/01-overview.md) -- transforms, DSP filters, thresholds
 - [Connect to WedaCore](./04-connect-to-wedacore.md) -- send telemetry to the cloud
-- Reference examples: [`air-quality-monitor`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/air-quality-monitor) (REST), [`image-sensor`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/image-sensor) (MQTT)
+- Reference examples: [`http-air-quality`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/http-air-quality) (REST), [`mqtt-image-chunked`](https://github.com/Advantech-Containers/WEDA-Sub-Node/tree/main/examples/mqtt-image-chunked) (MQTT)
 
 ---
 

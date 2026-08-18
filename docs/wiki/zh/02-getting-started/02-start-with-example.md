@@ -47,7 +47,7 @@ SubNode SDK 提供多個可直接執行的範例專案，涵蓋不同協定和�
 
 ## 執行 WISE-4012 範例
 
-`wise-4012` 範例適合初學者。它示範了：
+`modbus-wise4012` 範例適合初學者。它示範了：
 
 - 基本裝置設定
 - Modbus TCP 通訊
@@ -64,7 +64,7 @@ cd WEDA-Sub-Node
 ### 步驟 2：導覽至範例
 
 ```bash
-cd examples/wise-4012
+cd examples/modbus-wise4012
 ```
 
 ### 步驟 3：檢視專案結構
@@ -81,7 +81,7 @@ wise-4012/
 ├── appsettings.json          # Logging (Serilog) configuration
 ├── Dockerfile                # Container image build
 ├── docker-compose.yml        # One-command container deployment
-└── Wise4012Example.csproj    # Project file and NuGet references
+└── ModbusWise4012.csproj    # Project file and NuGet references
 ```
 
 > **Quick-start 重點**：標示 `(*)` 的三個檔案是核心。`Program.cs` 負責啟動、`MyFirstDevice.cs` 定義裝置行為、`devicecfg.json` 定義連線與感測器。其餘檔案在進階場景才需要調整。
@@ -234,7 +234,7 @@ public class MyFirstDevice : TcpModbusDevice
 範例目錄已提供 `docker-compose-sim.yml`，同時啟動 Simulator 和 wise-4012：
 
 ```bash
-# 在 examples/wise-4012/ 目錄下
+# 在 examples/modbus-wise4012/ 目錄下
 docker compose -f docker-compose-sim.yml up -d
 ```
 
@@ -266,7 +266,7 @@ dotnet run
 **終端機 2 - 執行範例：**
 
 ```bash
-cd examples/wise-4012
+cd examples/modbus-wise4012
 dotnet run
 ```
 

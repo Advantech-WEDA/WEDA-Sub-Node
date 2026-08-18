@@ -25,7 +25,7 @@ description: '透過執行和探索預建範例來學習 SubNode'
 
 ## 執行 WISE-4012 範例
 
-`wise-4012` 範例適合初學者。它示範了：
+`modbus-wise4012` 範例適合初學者。它示範了：
 - 基本裝置設定
 - Modbus TCP 通訊
 - 感測器遙測資料收集
@@ -41,7 +41,7 @@ cd edge_subnode
 ### 步驟 2：導覽至範例
 
 ```bash
-cd examples/wise-4012
+cd examples/modbus-wise4012
 ```
 
 ### 步驟 3：檢視專案結構

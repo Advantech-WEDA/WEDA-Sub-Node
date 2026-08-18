@@ -408,7 +408,7 @@ Transforms execute in array order:
 
 ## Complete Example
 
-See [examples/wise-4012/devicecfg.json](https://github.com/your-repo/edge_subnode/blob/main/examples/wise-4012/devicecfg.json) for a complete working example.
+See [examples/modbus-wise4012/devicecfg.json](https://github.com/your-repo/edge_subnode/blob/main/examples/modbus-wise4012/devicecfg.json) for a complete working example.
 
 ```json
 {

@@ -56,10 +56,10 @@ The entire job is a loop: **edit `devicecfg.json` → `docker compose up` → re
 
 ```bash
 git clone https://github.com/Advantech-Containers/WEDA-Sub-Node
-cd WEDA-Sub-Node/examples/wise-4012
+cd WEDA-Sub-Node/examples/modbus-wise4012
 ```
 
-The `wise-4012` example is the recommended starting point. It includes a `docker-compose-sim.yml` file that runs a **built-in Modbus simulator together with the SubNode application**, so you can see real telemetry flowing without any hardware.
+The `modbus-wise4012` example is the recommended starting point. It includes a `docker-compose-sim.yml` file that runs a **built-in Modbus simulator together with the SubNode application**, so you can see real telemetry flowing without any hardware.
 
 ---
 

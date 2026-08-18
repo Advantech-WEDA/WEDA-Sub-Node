@@ -56,7 +56,7 @@ When implementing, the closest existing patterns are:
 | `Ros2Communication.cs` | `src/Weda.SubNode.Core/Communication/Mqtt/MqttCommunication.cs` |
 | `Ros2PubSubParser.cs` | `src/Weda.SubNode.Core/Protocols/ISensing/ISensingPubSubParser.cs` |
 | `Ros2BrokerDevice.cs` | `src/Weda.SubNode.Devices/Generic/MqttISensingDevice.cs` and `TcpOpcUaPubSubDevice.cs` |
-| `examples/ros2-device/` | `examples/wise-4012-isensing/` |
+| `examples/ros2-device/` | `examples/mqtt-isensing-wise4012/` |
 
 ---
 

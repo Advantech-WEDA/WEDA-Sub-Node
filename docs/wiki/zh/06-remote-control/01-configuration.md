@@ -93,7 +93,7 @@ public class MyFirstDevice : TcpModbusDevice
 }
 ```
 
-> 參考範例：`examples/wise-4012/MyFirstDevice.cs`
+> 參考範例：`examples/modbus-wise4012/MyFirstDevice.cs`
 
 ### 自訂驗證
 

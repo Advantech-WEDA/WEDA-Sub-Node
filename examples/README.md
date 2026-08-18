@@ -1,135 +1,81 @@
-# Examples
+# SubNode SDK examples
 
-This directory contains **production-ready examples** demonstrating real-world integration scenarios with the Weda SubNode SDK. All examples use **real connections** or **real hardware**.
+> Every example is a runnable SubNode application. Pick the one whose **transport** matches the
+> equipment you are integrating, or whose **feature** matches the thing you are trying to learn.
 
-## Available Examples
+Names lead with the axis you search on, so the directory listing is the index: everything
+`modbus-*` speaks Modbus, everything `mqtt-*` speaks MQTT, and everything `feature-*` teaches an
+SDK capability rather than a protocol.
 
-### WISE-4012 Builder Example
+## By transport
 
-#### [`wise-4012-builder/`](wise-4012-builder/)
-Advantech WISE-4012 industrial I/O module integration using Builder pattern.
-- **Pattern**: Builder pattern (`WedaApplication.CreateBuilder()`)
-- **Hardware**: WISE-4012 (4AI + 2AO)
-- **Protocol**: Modbus TCP
-- **Features**: Multi-channel analog I/O, DTDL metadata, production-ready
-- **Use Case**: Industrial monitoring and control
-- **Template Equivalent**: `wedabuilder`
+Start here when you have equipment to connect and you know how it speaks.
 
-### Real Hardware Examples
+| Example | Transport | Data type | Start here if |
+|---|---|---|---|
+| [`modbus-wise4012`](./modbus-wise4012/) | Modbus TCP | `integer`, `boolean` | You are new to the SDK. The simplest complete device, wired up by hand so nothing is hidden. |
+| [`modbus-wise4012-builder`](./modbus-wise4012-builder/) | Modbus TCP | `integer`, `boolean` | Same device as above, hosted through the builder with dependency injection and automatic lifecycle. The shape to copy for production. |
+| [`mqtt-isensing-wise4012`](./mqtt-isensing-wise4012/) | MQTT (iSensing) | `double`, `boolean` | Your device publishes Advantech's iSensing JSON over MQTT. |
+| [`mqtt-image-chunked`](./mqtt-image-chunked/) | MQTT | `image/png` | You need to move binary payloads, and to understand how large values are chunked for transfer. |
+| [`opcua-basic`](./opcua-basic/) | OPC UA | `double` | Your equipment exposes an OPC UA server. Includes a simulator, so it runs with no hardware. |
+| [`http-stock-quotes`](./http-stock-quotes/) | HTTP (poll) | `double`, `long` | You are polling a REST API on an interval and mapping fields to sensors. |
+| [`http-air-quality`](./http-air-quality/) | HTTP (poll) | `application/json` | You are polling a REST API and reporting the whole document rather than scalar fields. |
+| [`daq-collector`](./daq-collector/) | DAQ streaming | `double` | You have a high-rate streaming source and need windowed feature extraction. |
+| [`daq-proxy`](./daq-proxy/) | SubNode to SubNode | `double`, `string` | You need one SubNode to consume another's telemetry. Pairs with `daq-collector`. |
 
-#### [`wise-4012/`](wise-4012/)
-Advantech WISE-4012 industrial I/O module integration using default Context singleton.
-- **Pattern**: Default singleton (`new WedaApplicationContext(args)`)
-- **Hardware**: WISE-4012 (4AI + 2AO)
-- **Protocol**: Modbus TCP
-- **Features**: Multi-channel analog I/O, DTDL metadata
-- **Use Case**: Industrial monitoring and control
-- **Template Equivalent**: `subnode`
+## By SDK feature
 
-#### [`wise-4012-isensing/`](wise-4012-isensing/)
-WISE-4012 with iSensing intelligent diagnostic features.
-- **Hardware**: WISE-4012 with iSensing
-- **Protocol**: Modbus TCP
-- **Features**: Advanced diagnostics, anomaly detection
-- **Use Case**: Predictive maintenance
+Start here when the transport is already solved and you want to learn a capability. These happen to
+be built on Modbus, but the transport is incidental.
 
-## About These Examples
+| Example | Teaches |
+|---|---|
+| [`feature-transform-pipeline`](./feature-transform-pipeline/) | Transforms and DSP filters — unit conversion, calibration, smoothing — applied between reading and reporting. |
+| [`feature-custom-commands`](./feature-custom-commands/) | Custom cloud-invocable commands: handler, validator, result, and how commands are exposed in the capability catalogue. |
+| [`feature-aggregation`](./feature-aggregation/) | Deriving one sensor from several sources — power computed from voltage and current. |
 
-- **Purpose**: Real-world integration scenarios
-- **Environment**: Real connections or real hardware
-- **Target Audience**: Developers implementing production solutions
-- **Code Style**: Production-ready, practical focus
+## Not examples
 
-## Choosing the Right Example
+| Directory | What it actually is |
+|---|---|
+| [`system-agent`](./system-agent/) | A shipped product component — the host-metrics SubNode that runs on every WEDA Node. Kept here for now, but it is not a sample to copy. |
 
-### For Learning
-1. Review **[wise-4012-builder](wise-4012-builder/)** for production patterns
-2. Study real hardware examples for integration details
+---
 
-### For Production
-1. Use **[wise-4012-builder](wise-4012-builder/)** as a template
-2. Reference DTDL and multi-sensor patterns
-3. Adapt configuration for your specific hardware
+## Running any example
 
-## Running Examples
+Every example follows the same four-file configuration shape:
 
-### Prerequisites
-
-1. **.NET 10.0 SDK** installed
-2. **Real hardware** or **Modbus TCP server** running
-3. **Cloud configuration** (or use Mock Cloud for testing)
-
-### Basic Steps
+| File | Holds |
+|---|---|
+| `devicecfg.json` | The device, its sensors, and their reporting settings |
+| `systemcfg.json` | Where to send telemetry (the WedaNode address and credentials) |
+| `customcfg.json` | Example-specific switches, including whether to use the mock cloud |
+| `appsettings.json` | Logging |
 
 ```bash
-# Navigate to example directory
-cd examples/wise-4012-builder
-
-# Edit appsettings.json to configure connection
-nano appsettings.json
-
-# Run the example
+cd examples/<example-name>
 dotnet run
 ```
 
-### Common Configuration
+Most examples also ship a `Dockerfile` and `docker-compose.yml` if you would rather not install the
+.NET SDK locally.
 
-All examples use `appsettings.json` for configuration:
+> **Credentials.** `systemcfg.json` ships with placeholder credentials. Supply real ones through
+> environment variables rather than editing the file, so secrets never reach git — see
+> [Connect to WedaCore](../docs/wiki/en/02-getting-started/04-connect-to-wedacore.md).
 
-```json
-{
-  "WedaNode": {
-    "Url": "nats://your-cloud-server:4224"
-  },
-  "DeviceConfigs": {
-    "YourDevice": {
-      "Communication": {
-        "Host": "192.168.1.100",  // Your device IP
-        "Port": 502
-      }
-    }
-  }
-}
-```
+## Naming convention
 
-## Example Structure
+New examples follow the same rule, so the listing stays an index:
 
-Each example typically contains:
+- **Folder** is kebab-case, prefixed by transport (`modbus-`, `mqtt-`, `http-`, `opcua-`, `daq-`) or
+  by `feature-` when the lesson is transport-agnostic.
+- **Project file** is the PascalCase of the folder — `modbus-wise4012/ModbusWise4012.csproj`. No
+  `Example` suffix; the directory already says that.
 
-- **README.md** / **README_zh.md** - Example overview and instructions
-- **Program.cs** - Main application entry point
-- **MyDevice.cs** (or similar) - Custom device implementation
-- **appsettings.json** - Configuration file
-- **[DeviceName].csproj** - Project file
+## Where to go next
 
-## Pattern Comparison
-
-| Feature | wise-4012 | wise-4012-builder |
-|---------|-----------|-------------------|
-| **Pattern** | Manual Context | Builder Pattern |
-| **DI Container** | No | Yes (Microsoft.Extensions.DI) |
-| **Hosted Services** | Manual lifecycle | Automatic lifecycle |
-| **Configuration** | Manual loading | Automatic loading |
-| **Multi-Device** | Manual management | Automatic management |
-| **Best For** | Learning, debugging | Production, scaling |
-| **Code Lines** | More explicit | More concise |
-
-## Getting Help
-
-- **Documentation**: [Wiki Documentation](../docs/wiki/)
-- **Templates**: Use `dotnet new subnode` or `dotnet new wedabuilder`
-- **Issues**: [GitHub Issues](https://github.com/advantech/edge_subnode/issues)
-
-## Contributing
-
-When adding new examples:
-
-1. **Examples** should use real connections or real hardware
-2. Include comprehensive README (both English and Chinese)
-3. Follow existing project structure
-4. Test with real hardware before submitting
-
-## Related Resources
-
-- [Templates](../templates/) - Project templates (subnode, wedabuilder)
-- [Documentation Wiki](../docs/wiki/) - Complete SDK documentation
+- [Prerequisites](../docs/wiki/en/02-getting-started/01-prerequisites.md) — development environment setup
+- [Start with Example](../docs/wiki/en/02-getting-started/02-start-with-example.md) — a guided walkthrough
+- [Configuration via JSON](../docs/wiki/en/04-configuration/02-configuration-via-json.md) — the full sensor reference

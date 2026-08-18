@@ -232,7 +232,7 @@ The builder serialises into the same shape `Ros2BrokerDevice(IWedaApplicationCon
 
 ## Runtime / Docker
 
-The bridge image must layer on a ROS 2 base. Mirror `examples/opcua-device/Dockerfile` but inherit from a ROS distro:
+The bridge image must layer on a ROS 2 base. Mirror `examples/opcua-basic/Dockerfile` but inherit from a ROS distro:
 
 ```dockerfile
 FROM ros:humble-ros-base AS runtime
