@@ -388,8 +388,10 @@ public class HardwarePlatformCollector : IDisposable
                     }
                     catch (Exception exPin)
                     {
+                        // Record nothing rather than a sentinel: an unreadable pin has no state, and
+                        // a sentinel stored here is published as if it were one. This matches the
+                        // null-level branch above.
                         _logger.LogWarning(exPin, "Exception while reading GPIO pin '{PinName}' state", pinName);
-                        metrics.PinStateDetails[pinName] = int.MinValue;
                     }
                 }
             }
