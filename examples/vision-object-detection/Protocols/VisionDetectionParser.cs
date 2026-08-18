@@ -199,7 +199,6 @@ public sealed class VisionDetectionParser : IPubSubProtocolParser
         }
 
         var timestamp = ParseTimestamp(message.Timestamp);
-        var deviceId = message.DeviceId ?? "unknown";
 
         var measures = new List<TelemetryMeasure>(_fieldMap.Count);
         foreach (var (sensor, field) in _fieldMap)
@@ -215,16 +214,16 @@ public sealed class VisionDetectionParser : IPubSubProtocolParser
                 continue;
             }
 
+            // Metadata is deliberately left unset. It is the framework's chunked-transfer
+            // descriptor, and these values are numeric so they are never chunked -- they never
+            // receive the transferId the WedaNode telemetry proxy requires, and a measure carrying
+            // metadata without one is rejected outright. The sensor's own identity already names
+            // the field, and the publishing device is identified by the SubNode itself.
             measures.Add(new TelemetryMeasure
             {
                 ResourceId = sensor.ResourceId,
                 Value = value,
                 Timestamp = timestamp,
-                Metadata = new Dictionary<string, object>
-                {
-                    ["deviceId"] = deviceId,
-                    ["field"] = field
-                }
             });
         }
 

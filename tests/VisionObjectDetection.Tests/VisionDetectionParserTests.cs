@@ -75,8 +75,10 @@ public class VisionDetectionParserTests
             comm,
             new MessageReceivedEvent(topic, Encoding.UTF8.GetBytes(payload), DateTimeOffset.UtcNow));
 
-    private static double ValueOf(List<TelemetryMeasure> measures, string field) =>
-        Convert.ToDouble(measures.Single(m => (string)m.Metadata![ "field"] == field).Value);
+    // Measures carry no metadata (see Leaves_measure_metadata_unset), so they are identified by
+    // the resource id of the sensor that produced them -- MakeSensor names it "rid-{sensorName}".
+    private static double ValueOf(List<TelemetryMeasure> measures, string sensorName) =>
+        Convert.ToDouble(measures.Single(m => m.ResourceId == $"rid-{sensorName}").Value);
 
     [Fact]
     public async Task Parses_all_configured_fields_from_the_reference_payload()
@@ -94,11 +96,11 @@ public class VisionDetectionParserTests
         RaiseMessage(comm, DetectionsTopic, SampleDetections);
 
         captured.Count.ShouldBe(5);
-        ValueOf(captured, "objectCount").ShouldBe(7);
-        ValueOf(captured, "fps").ShouldBe(12.17);
-        ValueOf(captured, "confidence.max").ShouldBe(0.8932, 1e-9);
-        ValueOf(captured, "confidence.avg").ShouldBe(0.8932, 1e-9);
-        ValueOf(captured, "classCount.bottle").ShouldBe(7);
+        ValueOf(captured, "object_count").ShouldBe(7);
+        ValueOf(captured, "inference_fps").ShouldBe(12.17);
+        ValueOf(captured, "confidence_max").ShouldBe(0.8932, 1e-9);
+        ValueOf(captured, "confidence_avg").ShouldBe(0.8932, 1e-9);
+        ValueOf(captured, "bottle_count").ShouldBe(7);
     }
 
     [Fact]
@@ -115,15 +117,20 @@ public class VisionDetectionParserTests
     }
 
     [Fact]
-    public async Task Tags_each_measure_with_the_source_device_id()
+    public async Task Leaves_measure_metadata_unset()
     {
+        // A measure's metadata is the framework's chunked-transfer descriptor. These values are
+        // numeric, so they are never chunked and never receive a transferId -- and the WedaNode
+        // telemetry proxy rejects any measure that carries metadata without one, which silently
+        // drops every reading. Regression guard for that failure.
         var config = MakeConfig(MakeSensor("object_count", "objectCount"));
         var (parser, captured, comm) = BuildParser(config);
         await parser.StartAsync();
 
         RaiseMessage(comm, DetectionsTopic, SampleDetections);
 
-        ((string)captured.Single().Metadata!["deviceId"]).ShouldBe("74fe488d5d54");
+        captured.ShouldNotBeEmpty();
+        captured.ShouldAllBe(m => m.Metadata == null);
     }
 
     [Fact]
@@ -142,9 +149,9 @@ public class VisionDetectionParserTests
 
         RaiseMessage(comm, "advantech/dev01/vision/detections", payload);
 
-        ValueOf(captured, "confidence.max").ShouldBe(0);
-        ValueOf(captured, "confidence.avg").ShouldBe(0);
-        ValueOf(captured, "objectCount").ShouldBe(0);
+        ValueOf(captured, "confidence_max").ShouldBe(0);
+        ValueOf(captured, "confidence_avg").ShouldBe(0);
+        ValueOf(captured, "object_count").ShouldBe(0);
     }
 
     [Fact]
@@ -156,7 +163,7 @@ public class VisionDetectionParserTests
 
         RaiseMessage(comm, DetectionsTopic, SampleDetections); // only "bottle" present
 
-        ValueOf(captured, "classCount.person").ShouldBe(0);
+        ValueOf(captured, "person_count").ShouldBe(0);
     }
 
     [Fact]
@@ -178,8 +185,8 @@ public class VisionDetectionParserTests
 
         RaiseMessage(comm, "advantech/dev01/vision/detections", payload);
 
-        ValueOf(captured, "confidence.max").ShouldBe(0.9, 1e-9);
-        ValueOf(captured, "confidence.avg").ShouldBe(0.7, 1e-9);
+        ValueOf(captured, "confidence_max").ShouldBe(0.9, 1e-9);
+        ValueOf(captured, "confidence_avg").ShouldBe(0.7, 1e-9);
     }
 
     [Fact]
@@ -194,7 +201,7 @@ public class VisionDetectionParserTests
         RaiseMessage(comm, DetectionsTopic, SampleDetections);
 
         captured.ShouldHaveSingleItem();
-        ((string)captured[0].Metadata!["field"]).ShouldBe("objectCount");
+        captured[0].ResourceId.ShouldBe("rid-object_count");
     }
 
     [Fact]

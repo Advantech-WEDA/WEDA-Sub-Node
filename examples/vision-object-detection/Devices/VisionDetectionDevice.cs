@@ -68,13 +68,17 @@ public sealed class VisionDetectionDevice : PubSubDeviceBase
 
     private void OnDataReceived(object? sender, DataReceivedEvent e)
     {
+        // Each measure belongs to exactly one sensor, and the sensor already names the field it
+        // reports -- so the reading is described by looking the sensor up rather than by reading a
+        // metadata bag the measure must not carry.
         foreach (var measure in e.Data)
         {
+            var sensor = Configuration.GetSensorById(measure.ResourceId);
+
             _logger.LogInformation(
-                "Vision telemetry: {Field} = {Value} (device {DeviceId})",
-                measure.Metadata?.GetValueOrDefault("field") ?? measure.ResourceId,
-                measure.Value,
-                measure.Metadata?.GetValueOrDefault("deviceId") ?? "unknown");
+                "Vision telemetry: {Sensor} = {Value}",
+                sensor?.Name ?? measure.ResourceId,
+                measure.Value);
         }
     }
 }
