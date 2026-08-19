@@ -77,14 +77,21 @@ internal sealed class HeartbeatHostedService : BackgroundService
                     sensor.Report.Interval, Heartbeat.MinIntervalMilliseconds, interval);
             }
 
-            _logger.LogInformation(
-                "SubNode heartbeat enabled from sensor '{Sensor}' (interval {IntervalMs} ms)",
+            // Deliberately Warning, not Information. Logging healthy startup at Warning is
+            // normally wrong; it is right here because the shipped appsettings.json pins
+            // Serilog to Warning, and this is the only statement of whether liveness is
+            // running at all. Silence from a heartbeat is indistinguishable from a dead
+            // node, so an operator must not have to raise the log level to find out which
+            // one they have. One line per process start is not noise.
+            _logger.LogWarning(
+                "SubNode heartbeat ARMED from sensor '{Sensor}' (interval {IntervalMs} ms)",
                 sensor.Name, interval);
 
             var publisher = new HeartbeatPublisher(
                 _context.CloudService, _context.SubNodeInfo, sensor, _publisherLogger);
 
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(interval));
+            var beatConfirmed = false;
 
             // Beat immediately so a restarted SubNode is seen as Connected without waiting
             // a full interval, then settle into the cadence.
@@ -101,7 +108,20 @@ internal sealed class HeartbeatHostedService : BackgroundService
                     break;
                 }
 
-                await publisher.PublishAsync(stoppingToken);
+                var sent = await publisher.PublishAsync(stoppingToken);
+
+                if (sent && !beatConfirmed)
+                {
+                    // Also Warning, and also once: "armed" only says the loop started, while
+                    // this says a beat was actually accepted by the uplink. That is the fact
+                    // an operator needs to distinguish a working heartbeat from one that is
+                    // running but silently failing to publish. Subsequent beats stay at Debug.
+                    beatConfirmed = true;
+                    _logger.LogWarning(
+                        "SubNode heartbeat CONFIRMED: first beat accepted by the cloud uplink "
+                        + "(sensor '{Sensor}', every {IntervalMs} ms from here)",
+                        sensor.Name, interval);
+                }
             }
             while (await timer.WaitForNextTickAsync(stoppingToken));
         }
@@ -131,9 +151,15 @@ internal sealed class HeartbeatHostedService : BackgroundService
         var sensor = FindHeartbeatSensor();
         if (sensor is null)
         {
-            _logger.LogDebug(
-                "SubNode heartbeat is disabled: no device declares a sensor with DTMI {Dtmi}",
-                Heartbeat.Dtmi);
+            // Warning rather than Debug: this is the failure mode that looks exactly like a
+            // dead node from the cloud. Previously it was invisible at the shipped Warning
+            // log level, so a SubNode reported Disconnected gave an operator nothing to go
+            // on. Naming the sensor the SDK looked for makes the fix obvious.
+            _logger.LogWarning(
+                "SubNode heartbeat is DISABLED: no enabled sensor named '{Sensor}' was found. "
+                + "This SubNode publishes no liveness signal and the platform will read it as "
+                + "Disconnected. Declare a sensor named '{Sensor}' in devicecfg.json to enable it.",
+                Heartbeat.SensorName, Heartbeat.SensorName);
             return null;
         }
 

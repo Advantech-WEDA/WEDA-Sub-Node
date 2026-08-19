@@ -103,19 +103,17 @@ public class HeartbeatPublisherTests
     }
 
     [Fact]
-    public async Task PublishAsync_TagsMeasureWithReservedMarker()
+    public async Task PublishAsync_LeavesMeasureMetadataUnset()
     {
-        // The Transceiver detects liveness on the raw, pre-enrichment message. The wire
-        // sensorId is a per-SubNode hash and cannot be a well-known literal, so the marker
-        // in metadata is what identifies the measure.
+        // A measure's metadata is the framework's chunked-transfer descriptor. The WedaNode
+        // telemetry proxy validates it whenever it is present and rejects the WHOLE message
+        // when transferId is absent, so a beat carrying metadata is a beat that never
+        // arrives -- and a live SubNode that the platform reports as Disconnected.
         CloudAccepts();
 
         await MakePublisher().PublishAsync(CancellationToken.None);
 
-        var metadata = CapturedTelemetry()!.Measures[0].Metadata;
-        Assert.NotNull(metadata);
-        Assert.True(metadata!.TryGetValue(Heartbeat.MarkerKey, out var marker));
-        Assert.Equal(true, marker);
+        Assert.Null(CapturedTelemetry()!.Measures[0].Metadata);
     }
 
     [Fact]
@@ -175,35 +173,91 @@ public class HeartbeatPublisherTests
 /// </summary>
 public class HeartbeatSensorResolutionTests
 {
-    private static Sensor MakeSensor(string? dtmi, bool enabled = true, int interval = 60_000) => new()
-    {
-        Name = Heartbeat.SensorName,
-        ResourceId = "21af0dc4-9254-5389-a7dd-df64d7cf782c",
-        Dtmi = dtmi,
-        Report = new SensorReport { Enabled = enabled, Interval = interval }
-    };
+    private static Sensor MakeSensor(
+        string name = Heartbeat.SensorName,
+        string? dtmi = null,
+        string schema = "double",
+        bool enabled = true,
+        int interval = 60_000) => new()
+        {
+            Name = name,
+            ResourceId = "21af0dc4-9254-5389-a7dd-df64d7cf782c",
+            Dtmi = dtmi,
+            SensorInfo = new SensorInfo { Schema = schema },
+            Report = new SensorReport { Enabled = enabled, Interval = interval }
+        };
 
     [Fact]
-    public void IsHeartbeat_MatchesTheReservedDtmi()
+    public void IsHeartbeat_MatchesTheReservedName()
     {
-        Assert.True(Heartbeat.IsHeartbeat(MakeSensor(Heartbeat.Dtmi)));
+        // The name is the identity: it is the one field configuration necessarily writes,
+        // and the dtmi is supplied by the SDK rather than by the author.
+        Assert.True(Heartbeat.IsHeartbeat(MakeSensor()));
+        Assert.True(Heartbeat.IsHeartbeat(MakeSensor(name: "HB")));
     }
 
     [Fact]
-    public void IsHeartbeat_IgnoresSensorsThatMerelyShareTheName()
+    public void IsHeartbeat_StillMatchesTheReservedDtmi_ForConfigsWrittenAgainstTheOldContract()
     {
-        // Identity is the DTMI, not the name — a customer sensor called "hb" must not be
-        // mistaken for the platform heartbeat, nor inherit its handling.
-        Assert.False(Heartbeat.IsHeartbeat(MakeSensor("dtmi:example:Custom;1")));
-        Assert.False(Heartbeat.IsHeartbeat(MakeSensor(dtmi: null)));
+        Assert.True(Heartbeat.IsHeartbeat(MakeSensor(name: "heartbeat", dtmi: Heartbeat.Dtmi)));
+    }
+
+    [Fact]
+    public void IsHeartbeat_IgnoresOrdinarySensors()
+    {
+        Assert.False(Heartbeat.IsHeartbeat(MakeSensor(name: "cpu_usage")));
+        Assert.False(Heartbeat.IsHeartbeat(MakeSensor(name: "cpu_usage", dtmi: "dtmi:example:Custom;1")));
         Assert.False(Heartbeat.IsHeartbeat(null));
+    }
+
+    [Fact]
+    public void ApplyReservedContract_StampsTheDtmiAndBooleanSchema()
+    {
+        // devicecfg declares a name and an interval; the model is generated from what the
+        // SDK stamps here, so neither value has to be hand-written.
+        var heartbeat = MakeSensor();
+
+        Heartbeat.ApplyReservedContract([heartbeat]);
+
+        Assert.Equal(Heartbeat.Dtmi, heartbeat.Dtmi);
+        Assert.Equal("boolean", heartbeat.SensorInfo.Schema);
+    }
+
+    [Fact]
+    public void ApplyReservedContract_OverwritesAConfiguredSchema()
+    {
+        // The value the SDK sends is a constant true. A configured schema of "double" would
+        // put the generated model at odds with the telemetry, so the contract wins.
+        var heartbeat = MakeSensor(schema: "double");
+
+        Heartbeat.ApplyReservedContract([heartbeat]);
+
+        Assert.Equal("boolean", heartbeat.SensorInfo.Schema);
+    }
+
+    [Fact]
+    public void ApplyReservedContract_LeavesOrdinarySensorsAlone()
+    {
+        var ordinary = MakeSensor(name: "cpu_usage", dtmi: "dtmi:example:Custom;1", schema: "double");
+
+        Heartbeat.ApplyReservedContract([ordinary]);
+
+        Assert.Equal("dtmi:example:Custom;1", ordinary.Dtmi);
+        Assert.Equal("double", ordinary.SensorInfo.Schema);
+    }
+
+    [Fact]
+    public void ApplyReservedContract_ToleratesNoSensors()
+    {
+        Heartbeat.ApplyReservedContract(null);
+        Heartbeat.ApplyReservedContract([]);
     }
 
     [Fact]
     public void FindEnabled_ReturnsNull_WhenNoSensorIsDeclared()
     {
         // The disabled default: a devicecfg with no heartbeat sensor beats never.
-        Assert.Null(Heartbeat.FindEnabled([MakeSensor("dtmi:example:Custom;1")]));
+        Assert.Null(Heartbeat.FindEnabled([MakeSensor(name: "cpu_usage")]));
         Assert.Null(Heartbeat.FindEnabled([]));
         Assert.Null(Heartbeat.FindEnabled(null));
     }
@@ -211,13 +265,13 @@ public class HeartbeatSensorResolutionTests
     [Fact]
     public void FindEnabled_ReturnsNull_WhenTheSensorIsDisabled()
     {
-        Assert.Null(Heartbeat.FindEnabled([MakeSensor(Heartbeat.Dtmi, enabled: false)]));
+        Assert.Null(Heartbeat.FindEnabled([MakeSensor(enabled: false)]));
     }
 
     [Fact]
     public void FindEnabled_ReturnsNull_WhenTheOwningDeviceIsDisabled()
     {
-        var sensor = MakeSensor(Heartbeat.Dtmi);
+        var sensor = MakeSensor();
         sensor.DeviceEnabled = false;
 
         Assert.Null(Heartbeat.FindEnabled([sensor]));
@@ -226,9 +280,9 @@ public class HeartbeatSensorResolutionTests
     [Fact]
     public void FindEnabled_FindsTheSensorAmongOthers()
     {
-        var heartbeat = MakeSensor(Heartbeat.Dtmi);
+        var heartbeat = MakeSensor();
 
-        var found = Heartbeat.FindEnabled([MakeSensor("dtmi:example:Custom;1"), heartbeat]);
+        var found = Heartbeat.FindEnabled([MakeSensor(name: "cpu_usage"), heartbeat]);
 
         Assert.Same(heartbeat, found);
     }
@@ -239,7 +293,7 @@ public class HeartbeatSensorResolutionTests
     [InlineData(Heartbeat.MinIntervalMilliseconds, Heartbeat.MinIntervalMilliseconds)]
     public void ResolveInterval_HonoursAConfiguredInterval(int configured, int expected)
     {
-        Assert.Equal(expected, Heartbeat.ResolveInterval(MakeSensor(Heartbeat.Dtmi, interval: configured)));
+        Assert.Equal(expected, Heartbeat.ResolveInterval(MakeSensor(interval: configured)));
     }
 
     [Theory]
@@ -252,15 +306,15 @@ public class HeartbeatSensorResolutionTests
         // liveness down entirely — the opposite of what the signal is for.
         Assert.Equal(
             Heartbeat.MinIntervalMilliseconds,
-            Heartbeat.ResolveInterval(MakeSensor(Heartbeat.Dtmi, interval: configured)));
+            Heartbeat.ResolveInterval(MakeSensor(interval: configured)));
     }
 
     [Fact]
     public void ReservedContract_MatchesSolutionDesign()
     {
         Assert.Equal("hb", Heartbeat.SensorName);
-        Assert.Equal("hb", Heartbeat.MarkerKey);
         Assert.Equal("dtmi:com:advantech:weda:Heartbeat;1", Heartbeat.Dtmi);
+        Assert.Equal("boolean", Heartbeat.Schema);
         // T = 60 s per User Stories v2.11 (SD still states 30 s — known divergence).
         Assert.Equal(60_000, Heartbeat.DefaultIntervalMilliseconds);
     }

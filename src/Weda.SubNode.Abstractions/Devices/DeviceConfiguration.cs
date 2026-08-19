@@ -141,6 +141,13 @@ public class DeviceConfiguration
 
         _dtdlInitialized = true;
 
+        // The reserved heartbeat carries a platform-owned dtmi and schema that
+        // configuration does not supply. Stamp them before any of the three modes
+        // below run: autogen then treats the heartbeat as an ordinary sensor that
+        // already has a dtmi, and manual mode's "every sensor needs a Dtmi" check
+        // is satisfied without the author hand-writing a platform identifier.
+        Heartbeat.ApplyReservedContract(Sensors, logger);
+
         // Typed dispatch takes precedence over both autogen and manual file
         // modes: when a device is strongly-typed (DeviceTypeName resolved from
         // [DeviceType] / IConfigurableDevice via the host loader), the sensor

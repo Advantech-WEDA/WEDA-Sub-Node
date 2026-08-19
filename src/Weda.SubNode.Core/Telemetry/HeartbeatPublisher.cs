@@ -11,8 +11,8 @@ namespace Weda.SubNode.Core.Telemetry;
 /// </summary>
 /// <remarks>
 /// <para>
-/// One beat is one <see cref="TelemetryMeasure"/> carrying a constant <c>true</c> plus the
-/// reserved <see cref="Heartbeat.MarkerKey"/> marker. It is sent on the SubNode's own
+/// One beat is one <see cref="TelemetryMeasure"/> carrying a constant <c>true</c> against
+/// the heartbeat sensor's ResourceId. It is sent on the SubNode's own
 /// DeviceId, so it is independent of how many devices the application has configured and
 /// of whether any of them are healthy — see <see cref="Heartbeat"/> for why liveness is
 /// deliberately decoupled from sensor configuration.
@@ -125,13 +125,21 @@ public sealed class HeartbeatPublisher
     }
 
     /// <summary>
-    /// Builds the beat measure. The marker is emitted from the reserved constant rather
-    /// than read from configuration, so no configuration change can break detection.
+    /// Builds the beat measure: a constant <c>true</c> against the heartbeat sensor's
+    /// ResourceId.
     /// </summary>
+    /// <remarks>
+    /// Metadata is deliberately left unset. <see cref="TelemetryMeasure.Metadata"/> is the
+    /// framework's chunked-transfer descriptor, not a free-form bag — the WedaNode telemetry
+    /// proxy validates it whenever it is present and rejects the <em>entire</em> message
+    /// with <c>measures[0].metadata.transferId: transfer ID is required</c>. A liveness beat
+    /// has nothing to chunk, so populating it would guarantee the beat never arrives and the
+    /// platform read this SubNode as Disconnected. The beat is identified by the sensor's
+    /// reserved DTMI, which the enrichment stage resolves; see <see cref="Heartbeat"/>.
+    /// </remarks>
     private TelemetryMeasure CreateMeasure() => new()
     {
         ResourceId = _sensor.ResourceId,
-        Value = true,
-        Metadata = new Dictionary<string, object> { [Heartbeat.MarkerKey] = true }
+        Value = true
     };
 }

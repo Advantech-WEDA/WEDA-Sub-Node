@@ -80,7 +80,9 @@ public static class DeviceConfigurationMappingExtensions
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
             Dtdl: BuildWrapperInterface(enabledConfigs, projectInfo ?? ProjectInfo.Empty, config.DeviceId!, subNodeInfo),
-            RefModels: BuildRefModels(transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes),
+            RefModels: BuildRefModels(
+                transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes,
+                declaresHeartbeat: enabledConfigs.Any(c => Heartbeat.IsDeclaredBy(c.Sensors))),
             DeviceCapabilities: ToDeviceCapabilitiesDto(
                 enabledConfigs, transformDescriptors, dspDescriptors, commandDescriptors,
                 deviceTypes, sensorTypes));
@@ -140,16 +142,27 @@ public static class DeviceConfigurationMappingExtensions
         IReadOnlyList<DspFilterDescriptorDto> dspFilters,
         IReadOnlyList<CommandDescriptorDto> commands,
         IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
-        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes)
+        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes,
+        bool declaresHeartbeat = false)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var refModels = new List<JsonObject>();
-        
+
         void AddIfNew(JsonObject iface)
         {
             var id = iface["@id"]?.GetValue<string>();
             if (id is null) return;
             if (seen.Add(id)) refModels.Add(iface);
+        }
+
+        // The heartbeat never enters SensorTypeRegistry -- it is skipped by typed dispatch --
+        // so unlike every other sensor it has to contribute its own Interface. Without it the
+        // sensor's dtmi resolves to nothing in refModels. Its base envelope comes along even
+        // when no typed sensors are registered, since the heartbeat Interface extends it.
+        if (declaresHeartbeat)
+        {
+            AddIfNew(SensorBase.GetInterface());
+            AddIfNew(Heartbeat.GetInterface());
         }
 
         if (sensorTypes.Count > 0) AddIfNew(SensorBase.GetInterface());
