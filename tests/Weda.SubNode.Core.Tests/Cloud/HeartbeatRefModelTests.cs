@@ -14,13 +14,20 @@ namespace Weda.SubNode.Core.Tests.Cloud;
 
 /// <summary>
 /// Pins that the reserved heartbeat's dtmi is <em>defined</em> in the capability upload's
-/// <c>refModels</c>, not merely referenced.
+/// <c>refModelsMap.configs</c>, not merely referenced.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Appearing as a Telemetry <c>@id</c> inside the SubNode wrapper Interface is not enough:
-/// a sensor's dtmi is resolved against <c>refModels</c>, and every ordinary sensor gets
+/// a sensor's dtmi is resolved against the uploaded catalog, and every ordinary sensor gets
 /// there via <c>SensorTypeRegistry</c>. The heartbeat is deliberately skipped by typed
 /// dispatch, so it never entered that registry and its dtmi resolved to nothing.
+/// </para>
+/// <para>
+/// These assert against <c>refModelsMap</c> rather than <c>refModels</c>: the latter is
+/// obsolete and always uploaded empty, so a test written against it would pass while the
+/// live payload stayed broken.
+/// </para>
 /// </remarks>
 public class HeartbeatRefModelTests
 {
@@ -69,9 +76,19 @@ public class HeartbeatRefModelTests
     };
 
     private static List<string> RefModelIds(DeviceConfigurations configs) =>
-        configs.ToConfigurationDto().RefModels
+        configs.ToConfigurationDto().RefModelsMap.Configs
             .Select(m => m["@id"]?.GetValue<string>() ?? "")
             .ToList();
+
+    [Fact]
+    public void TheObsoleteRefModelsFieldStaysEmpty()
+    {
+        // Guards the reason these tests target refModelsMap: refModels carries no content,
+        // so putting the heartbeat there would look right and ship broken.
+#pragma warning disable CS0618 // deliberately asserting on the obsolete field
+        Configs(Heartbeat_(), Cpu()).ToConfigurationDto().RefModels.ShouldBeEmpty();
+#pragma warning restore CS0618
+    }
 
     [Fact]
     public void RefModelsDefineTheHeartbeatDtmi()
@@ -97,7 +114,7 @@ public class HeartbeatRefModelTests
     public void TheHeartbeatInterfaceExtendsTheSensorEnvelope_WhichIsAlsoDefined()
     {
         var configs = Configs(Heartbeat_());
-        var models = configs.ToConfigurationDto().RefModels;
+        var models = configs.ToConfigurationDto().RefModelsMap.Configs;
 
         var heartbeat = models.Single(m => m["@id"]?.GetValue<string>() == Heartbeat.Dtmi);
         heartbeat["extends"]!.GetValue<string>().ShouldBe(SensorBase.Dtmi);

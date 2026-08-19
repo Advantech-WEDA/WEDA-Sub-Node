@@ -13,7 +13,7 @@ public class DtdlGeneratorTests
     #region GenerateShortId Tests
 
     [Fact]
-    public void GenerateShortId_Should_Return8CharHex()
+    public void GenerateShortId_Should_ReturnLetterPrefixedHex()
     {
         // Arrange
         var name = "temperature_sensor";
@@ -22,9 +22,11 @@ public class DtdlGeneratorTests
         var shortId = DtdlGenerator.GenerateShortId(name);
 
         // Assert
+        // Leading letter + 8 hex chars. The letter is mandatory so the id is a
+        // valid DTMI path segment (segments must start with a letter in DTDL v3).
         shortId.ShouldNotBeNullOrEmpty();
-        shortId.Length.ShouldBe(8);
-        shortId.ShouldMatch("^[a-f0-9]{8}$");
+        shortId.Length.ShouldBe(9);
+        shortId.ShouldMatch("^[a-z][a-f0-9]{8}$");
     }
 
     [Fact]
@@ -76,10 +78,10 @@ public class DtdlGeneratorTests
         var name = "temperature_sensor";
 
         // Act
-        var dtmi = DtdlGenerator.GenerateDtmi(name);
+        var dtmi = DtdlGenerator.GenerateDtmi(name, deviceKey: "TestDevice");
 
         // Assert
-        dtmi.ShouldStartWith("dtmi:autogen:");
+        dtmi.ShouldStartWith("dtmi:sub:TestDevice:");
         dtmi.ShouldEndWith(";1");
     }
 
@@ -91,10 +93,10 @@ public class DtdlGeneratorTests
         var namespaceSegment = "AI";
 
         // Act
-        var dtmi = DtdlGenerator.GenerateDtmi(name, namespaceSegment);
+        var dtmi = DtdlGenerator.GenerateDtmi(name, namespaceSegment, deviceKey: "TestDevice");
 
         // Assert
-        dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
         dtmi.ShouldEndWith(";1");
     }
 
@@ -106,7 +108,7 @@ public class DtdlGeneratorTests
         var version = 2;
 
         // Act
-        var dtmi = DtdlGenerator.GenerateDtmi(name, version: version);
+        var dtmi = DtdlGenerator.GenerateDtmi(name, version: version, deviceKey: "TestDevice");
 
         // Assert
         dtmi.ShouldEndWith(";2");
@@ -120,7 +122,7 @@ public class DtdlGeneratorTests
         var namespaceSegment = "AI_Channel-1";
 
         // Act
-        var dtmi = DtdlGenerator.GenerateDtmi(name, namespaceSegment);
+        var dtmi = DtdlGenerator.GenerateDtmi(name, namespaceSegment, deviceKey: "TestDevice");
 
         // Assert
         dtmi.ShouldContain(":aichannel1:");
@@ -151,15 +153,12 @@ public class DtdlGeneratorTests
     }
 
     [Fact]
-    public void GenerateDtmi_Should_FallBackToAutogenWhenDeviceKeyMissing()
+    public void GenerateDtmi_Should_ThrowWhenDeviceKeyMissing()
     {
-        // Arrange & Act
-        var withNull = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: null);
-        var withEmpty = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "");
-
-        // Assert
-        withNull.ShouldStartWith("dtmi:autogen:ai:");
-        withEmpty.ShouldStartWith("dtmi:autogen:ai:");
+        // Every auto-generated DTMI is device-scoped (dtmi:sub:{deviceKey}:...).
+        // A missing device key is a programming error, not a fallback.
+        Should.Throw<ArgumentException>(() => DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: null));
+        Should.Throw<ArgumentException>(() => DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: ""));
     }
 
     [Fact]
@@ -188,7 +187,7 @@ public class DtdlGeneratorTests
         var dtmiA = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "溫度計");
         var dtmiB = DtdlGenerator.GenerateDtmi("sensor", "AI", deviceKey: "濕度計");
 
-        dtmiA.ShouldMatch(@"^dtmi:sub:d[a-f0-9]{8}:ai:");
+        dtmiA.ShouldMatch(@"^dtmi:sub:ds[a-f0-9]{8}:ai:");
         dtmiA.ShouldNotBe(dtmiB);
     }
 
@@ -219,7 +218,7 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        var content = DtdlGenerator.GenerateTelemetryContent(sensor);
+        var content = DtdlGenerator.GenerateTelemetryContent(sensor, deviceKey: "TestDevice");
 
         // Assert
         content.ShouldNotBeNull();
@@ -261,10 +260,10 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        var content = DtdlGenerator.GenerateTelemetryContent(sensor);
+        var content = DtdlGenerator.GenerateTelemetryContent(sensor, deviceKey: "TestDevice");
 
         // Assert
-        content.Id.ShouldStartWith("dtmi:autogen:ai:");
+        content.Id.ShouldStartWith("dtmi:sub:TestDevice:ai:");
         content.Id.ShouldEndWith(";1");
     }
 
@@ -286,9 +285,9 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        var aiContent = DtdlGenerator.GenerateTelemetryContent(aiSensor);
-        var diContent = DtdlGenerator.GenerateTelemetryContent(diSensor);
-        var customContent = DtdlGenerator.GenerateTelemetryContent(customSensor);
+        var aiContent = DtdlGenerator.GenerateTelemetryContent(aiSensor, deviceKey: "TestDevice");
+        var diContent = DtdlGenerator.GenerateTelemetryContent(diSensor, deviceKey: "TestDevice");
+        var customContent = DtdlGenerator.GenerateTelemetryContent(customSensor, deviceKey: "TestDevice");
 
         // Assert
         aiContent.Schema.ShouldBe("double");
@@ -316,8 +315,8 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        var content1 = DtdlGenerator.GenerateTelemetryContent(sensorWithoutDisplayName);
-        var content2 = DtdlGenerator.GenerateTelemetryContent(sensorWithDisplayName);
+        var content1 = DtdlGenerator.GenerateTelemetryContent(sensorWithoutDisplayName, deviceKey: "TestDevice");
+        var content2 = DtdlGenerator.GenerateTelemetryContent(sensorWithDisplayName, deviceKey: "TestDevice");
 
         // Assert
         content1.DisplayName.ShouldBe("Temperature Sensor");
@@ -336,7 +335,7 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        var content = DtdlGenerator.GenerateTelemetryContent(sensor);
+        var content = DtdlGenerator.GenerateTelemetryContent(sensor, deviceKey: "TestDevice");
 
         // Assert
         // DTDL names cannot contain dots, should be replaced with underscores
@@ -357,7 +356,7 @@ public class DtdlGeneratorTests
             SensorInfo = new SensorInfo { Schema = "double" }
         };
 
-        var content = DtdlGenerator.GenerateTelemetryContent(sensor);
+        var content = DtdlGenerator.GenerateTelemetryContent(sensor, deviceKey: "TestDevice");
 
         // The DtdlContent.Unit property has been removed entirely; nothing to
         // assert on directly. The contract is: the serialized JSON must not
@@ -458,12 +457,12 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        DtdlGenerator.PopulateSensorDtmis(sensors);
+        DtdlGenerator.PopulateSensorDtmis(sensors, deviceKey: "TestDevice");
 
         // Assert
-        sensors[0].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
-        sensors[1].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
-        sensors[2].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        sensors[0].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
+        sensors[1].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
+        sensors[2].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
     }
 
     [Fact]
@@ -478,11 +477,11 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        DtdlGenerator.PopulateSensorDtmis(sensors);
+        DtdlGenerator.PopulateSensorDtmis(sensors, deviceKey: "TestDevice");
 
         // Assert
         sensors[0].Dtmi.ShouldBe(existingDtmi);
-        sensors[1].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        sensors[1].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
     }
 
     [Fact]
@@ -496,7 +495,7 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        DtdlGenerator.PopulateSensorDtmis(sensors);
+        DtdlGenerator.PopulateSensorDtmis(sensors, deviceKey: "TestDevice");
 
         // Assert
         sensors[0].Dtmi.ShouldNotBe(sensors[1].Dtmi);
@@ -775,10 +774,10 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        DtdlGenerator.PopulateSensorDtmis(sensors);
+        DtdlGenerator.PopulateSensorDtmis(sensors, deviceKey: "TestDevice");
 
         // Assert
-        sensors[0].Dtmi.ShouldStartWith("dtmi:autogen:temp:");
+        sensors[0].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:temp:");
         sensors[1].Dtmi.ShouldBe("dtmi:advantech:image:jpeg");
     }
 
@@ -812,12 +811,12 @@ public class DtdlGeneratorTests
         };
 
         // Act
-        DtdlGenerator.PopulateSensorDtmis(sensors);
+        DtdlGenerator.PopulateSensorDtmis(sensors, deviceKey: "TestDevice");
 
         // Assert
-        sensors[0].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        sensors[0].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
         sensors[1].Dtmi.ShouldBe("dtmi:advantech:image:jpeg");
-        sensors[2].Dtmi.ShouldStartWith("dtmi:autogen:ai:");
+        sensors[2].Dtmi.ShouldStartWith("dtmi:sub:TestDevice:ai:");
         sensors[3].Dtmi.ShouldBe("dtmi:advantech:app:json");
     }
 
@@ -863,7 +862,7 @@ public class DtdlGeneratorTests
         };
 
         // Act - Populate DTMIs first (as would happen in InitializeDtdl)
-        DtdlGenerator.PopulateSensorDtmis(sensors);
+        DtdlGenerator.PopulateSensorDtmis(sensors, deviceKey: deviceName);
 
         // Then generate the interface
         var dtdlInterface = DtdlGenerator.GenerateInterface(

@@ -16,6 +16,31 @@ public class WedaNatsSerializerRegistry : INatsSerializerRegistry
     private readonly JsonSerializerOptions _jsonOptions;
 
     /// <summary>
+    /// The JSON serializer options used by the default registry instance.
+    /// Exposed so outbound choke points (e.g. configuration upload/report) can
+    /// serialize a payload with the exact same options the NATS JSON serializer
+    /// would use, before running <see cref="CamelCaseJsonNormalizer"/> over the
+    /// resulting bytes to force every key (including raw-echoed devicecfg keys and
+    /// dictionary keys) to camelCase.
+    /// </summary>
+    /// <remarks>
+    /// MUST be declared BEFORE <see cref="Default"/>: static fields initialize in
+    /// textual order, and <c>Default = new()</c> reads this field. With the order
+    /// reversed, <c>Default</c> silently captured <c>null</c> options, so every
+    /// subscription deserialized with STJ defaults (case-SENSITIVE, no camelCase)
+    /// and cloud config updates bound <c>DeviceConfigs = null</c> → device skipped
+    /// every update while reporting success.
+    /// </remarks>
+    public static readonly JsonSerializerOptions DefaultOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+
+    /// <summary>
     /// Default instance of <see cref="WedaNatsSerializerRegistry"/> with default JSON options.
     /// </summary>
     public static readonly WedaNatsSerializerRegistry Default = new();
@@ -24,14 +49,7 @@ public class WedaNatsSerializerRegistry : INatsSerializerRegistry
     /// Creates a new instance of <see cref="WedaNatsSerializerRegistry"/> with default JSON options.
     /// </summary>
     public WedaNatsSerializerRegistry()
-        : this(new JsonSerializerOptions
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
-        })
+        : this(DefaultOptions)
     {
     }
     
@@ -41,6 +59,10 @@ public class WedaNatsSerializerRegistry : INatsSerializerRegistry
     /// <param name="options">JSON serialization options for object serialization</param>
     public WedaNatsSerializerRegistry(JsonSerializerOptions options)
     {
+        // Fail fast: a null here silently degrades every NATS (de)serialization to
+        // STJ defaults (case-sensitive, PascalCase) — see the static-init-order
+        // remark on DefaultOptions.
+        ArgumentNullException.ThrowIfNull(options);
         _jsonOptions = options;
     }
 

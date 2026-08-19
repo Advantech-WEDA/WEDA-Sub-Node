@@ -375,17 +375,44 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
     /// Sets raw device config JSON with Message embedded.
     /// Creates a new JsonElement that includes the original devicecfg content plus Message.
     /// </summary>
-    public void SetRawDeviceCfgWithMessage(JsonElement rawDeviceCfg, ConfigUpdateMessageDto message)
+    public void SetRawDeviceCfgWithMessage(
+        JsonElement rawDeviceCfg, ConfigUpdateMessageDto message, string sdkVersion, int schemaVersion)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
 
-            // Copy all properties from rawDeviceCfg
+            // Copy all properties from rawDeviceCfg verbatim, except the subNode
+            // section: that one is re-emitted with the SDK-stamped sdkVersion /
+            // schemaVersion appended, so the cloud-side validator can read the
+            // wire-contract version from the reported payload. (schemaVersion in
+            // particular drives the validator's casing mode.) Any stale version
+            // keys already in the authored file are dropped to avoid duplicates.
             foreach (var prop in rawDeviceCfg.EnumerateObject())
             {
-                prop.WriteTo(writer);
+                if (string.Equals(prop.Name, "subNode", StringComparison.OrdinalIgnoreCase)
+                    && prop.Value.ValueKind == JsonValueKind.Object)
+                {
+                    writer.WritePropertyName(prop.Name);
+                    writer.WriteStartObject();
+                    foreach (var field in prop.Value.EnumerateObject())
+                    {
+                        if (string.Equals(field.Name, "sdkVersion", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(field.Name, "schemaVersion", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        field.WriteTo(writer);
+                    }
+                    writer.WriteString("sdkVersion", sdkVersion);
+                    writer.WriteNumber("schemaVersion", schemaVersion);
+                    writer.WriteEndObject();
+                }
+                else
+                {
+                    prop.WriteTo(writer);
+                }
             }
 
             // Add Message
@@ -413,13 +440,15 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
         RawDeviceCfg = doc.RootElement.Clone();
 
         // Also set DeviceCfg for in-memory access compatibility
-        // Parse DeviceConfigs from raw JSON if present
-        if (rawDeviceCfg.TryGetProperty("DeviceConfigs", out var deviceConfigsElement))
+        // Parse DeviceConfigs from raw JSON if present. The raw JSON may be authored
+        // PascalCase (devicecfg.json) or camelCase (schemaVersion=2 wire echo), so both
+        // the property lookup and the DTO binding must be case-insensitive.
+        if (TryGetPropertyIgnoreCase(rawDeviceCfg, "DeviceConfigs", out var deviceConfigsElement))
         {
             try
             {
                 var deviceConfigs = JsonSerializer.Deserialize<Dictionary<string, SubNodeDeviceConfigDto>>(
-                    deviceConfigsElement.GetRawText());
+                    deviceConfigsElement.GetRawText(), RawCfgJsonOptions);
                 DeviceCfg = new SubNodeDeviceCfgDto
                 {
                     Message = message,
@@ -436,6 +465,31 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
             DeviceCfg ??= new SubNodeDeviceCfgDto();
             DeviceCfg.Message = message;
         }
+    }
+
+    /// <summary>
+    /// Case-insensitive binding for raw devicecfg JSON, which may be PascalCase
+    /// (authored devicecfg.json) or camelCase (schemaVersion=2 wire format).
+    /// </summary>
+    private static readonly JsonSerializerOptions RawCfgJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private static bool TryGetPropertyIgnoreCase(
+        JsonElement element, string name, out JsonElement value)
+    {
+        foreach (var prop in element.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = prop.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 }
 
@@ -661,14 +715,14 @@ public class SubNodeDeviceCfgDto
     /// <summary>
     /// SubNode information and settings
     /// </summary>
-    [JsonPropertyName("SubNode")]
+    [JsonPropertyName("subNode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeInfoDto? SubNode { get; set; }
 
     /// <summary>
     /// Dictionary of device configurations keyed by device name (case-insensitive).
     /// </summary>
-    [JsonPropertyName("DeviceConfigs")]
+    [JsonPropertyName("deviceConfigs")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, SubNodeDeviceConfigDto>? DeviceConfigs
     {
@@ -690,7 +744,7 @@ public class SubNodeDeviceCfgDto
     /// Configuration update message containing status and error information.
     /// This field is populated during report generation to provide update feedback.
     /// </summary>
-    [JsonPropertyName("Message")]
+    [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ConfigUpdateMessageDto? Message { get; set; }
 }
@@ -703,13 +757,13 @@ public class SubNodeInfoDto
     /// <summary>
     /// SubNode name
     /// </summary>
-    [JsonPropertyName("Name")]
+    [JsonPropertyName("name")]
     public string? Name { get; set; }
 
     /// <summary>
     /// Whether to auto-generate DTDL
     /// </summary>
-    [JsonPropertyName("AutoGenEnabled")]
+    [JsonPropertyName("autoGenEnabled")]
     public bool AutoGenEnabled { get; set; }
 }
 
@@ -721,13 +775,13 @@ public class SubNodeDeviceConfigDto
     /// <summary>
     /// Whether this device is enabled
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Device type (e.g., "TcpModbus", "WebSocket")
     /// </summary>
-    [JsonPropertyName("DeviceType")]
+    [JsonPropertyName("deviceType")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DeviceType { get; set; }
 
@@ -744,7 +798,7 @@ public class SubNodeDeviceConfigDto
     /// <summary>
     /// DTDL configuration
     /// </summary>
-    [JsonPropertyName("Dtdl")]
+    [JsonPropertyName("dtdl")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeDtdlConfigDto? Dtdl { get; set; }
 
@@ -765,7 +819,7 @@ public class SubNodeDeviceConfigDto
     /// <summary>
     /// Device capabilities
     /// </summary>
-    [JsonPropertyName("DeviceCapabilities")]
+    [JsonPropertyName("deviceCapabilities")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeDeviceCapabilitiesDto? DeviceCapabilities { get; set; }
 
@@ -773,21 +827,21 @@ public class SubNodeDeviceConfigDto
     /// Communication settings (protocol-specific).
     /// Uses object to allow runtime manipulation.
     /// </summary>
-    [JsonPropertyName("Communication")]
+    [JsonPropertyName("communication")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object>? Communication { get; set; }
 
     /// <summary>
     /// Sensor configurations
     /// </summary>
-    [JsonPropertyName("Sensors")]
+    [JsonPropertyName("sensors")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<SubNodeSensorReportDto>? Sensors { get; set; }
 
     /// <summary>
     /// Background task periods (milliseconds)
     /// </summary>
-    [JsonPropertyName("Periods")]
+    [JsonPropertyName("periods")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodePeriodsDto? Periods { get; set; }
 }
@@ -800,13 +854,13 @@ public class SubNodeDtdlConfigDto
     /// <summary>
     /// Whether to auto-generate DTDL from sensors
     /// </summary>
-    [JsonPropertyName("AutoGenEnabled")]
+    [JsonPropertyName("autoGenEnabled")]
     public bool AutoGenEnabled { get; set; }
 
     /// <summary>
     /// Path to DTDL file (when AutoGenEnabled is false)
     /// </summary>
-    [JsonPropertyName("DtdlPath")]
+    [JsonPropertyName("dtdlPath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DtdlPath { get; set; }
 
@@ -814,7 +868,7 @@ public class SubNodeDtdlConfigDto
     /// DTDL interface object (auto-generated or loaded from file).
     /// Contains @context, @id, @type, and contents for the device.
     /// </summary>
-    [JsonPropertyName("DtdlInterface")]
+    [JsonPropertyName("dtdlInterface")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public object? DtdlInterface { get; set; }
 }
@@ -827,26 +881,26 @@ public class SubNodePeriodsDto
     /// <summary>
     /// Telemetry reading period (ms)
     /// </summary>
-    [JsonPropertyName("ReadTelemetry")]
+    [JsonPropertyName("readTelemetry")]
     public int ReadTelemetry { get; set; }
 
     /// <summary>
     /// Telemetry sending period (ms)
     /// </summary>
-    [JsonPropertyName("SendTelemetry")]
+    [JsonPropertyName("sendTelemetry")]
     public int SendTelemetry { get; set; }
 
     /// <summary>
     /// Health reporting period (ms)
     /// </summary>
-    [JsonPropertyName("ReportHealth")]
+    [JsonPropertyName("reportHealth")]
     public int ReportHealth { get; set; }
 
     /// <summary>
     /// Configuration sync/report period (ms).
     /// When enabled (> 0), periodically reports device configuration to cloud.
     /// </summary>
-    [JsonPropertyName("ReportConfiguration")]
+    [JsonPropertyName("reportConfiguration")]
     public int ReportConfiguration { get; set; }
 }
 
@@ -858,28 +912,28 @@ public class SubNodeDeviceCapabilitiesDto
     /// <summary>
     /// Manufacturer name
     /// </summary>
-    [JsonPropertyName("Manufacturer")]
+    [JsonPropertyName("manufacturer")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Manufacturer { get; set; }
 
     /// <summary>
     /// Device model
     /// </summary>
-    [JsonPropertyName("Model")]
+    [JsonPropertyName("model")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Model { get; set; }
 
     /// <summary>
     /// SubNode software version
     /// </summary>
-    [JsonPropertyName("SubNodeSwVersion")]
+    [JsonPropertyName("subNodeSwVersion")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SubNodeSwVersion { get; set; }
 
     /// <summary>
     /// Additional device info
     /// </summary>
-    [JsonPropertyName("DeviceInfo")]
+    [JsonPropertyName("deviceInfo")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object>? DeviceInfo { get; set; }
 }
@@ -892,20 +946,20 @@ public class SubNodeSensorReportDto
     /// <summary>
     /// Sensor name/identifier
     /// </summary>
-    [JsonPropertyName("Name")]
+    [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Digital Twin Model Identifier
     /// </summary>
-    [JsonPropertyName("Dtmi")]
+    [JsonPropertyName("dtmi")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Dtmi { get; set; }
 
     /// <summary>
     /// Sensor group (AI, DI, DO, AO, TEMP, etc.)
     /// </summary>
-    [JsonPropertyName("SensorGroup")]
+    [JsonPropertyName("sensorGroup")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SensorGroup { get; set; }
 
@@ -913,45 +967,35 @@ public class SubNodeSensorReportDto
     /// Protocol-specific parameters.
     /// Uses object to allow runtime manipulation of parameter values.
     /// </summary>
-    [JsonPropertyName("Parameters")]
+    [JsonPropertyName("parameters")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object>? Parameters { get; set; }
 
     /// <summary>
     /// Sensor report configuration (sampling interval, transforms, DSP, thresholds)
     /// </summary>
-    [JsonPropertyName("Report")]
+    [JsonPropertyName("report")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeSensorRuntimeConfigDto? Report { get; set; }
 
     /// <summary>
-    /// Backward compatibility: Config is an alias for Report
-    /// </summary>
-    [JsonIgnore]
-    public SubNodeSensorRuntimeConfigDto? Config
-    {
-        get => Report;
-        set => Report = value;
-    }
-
-    /// <summary>
     /// Additional metadata
     /// </summary>
-    [JsonPropertyName("Metadata")]
+    [JsonPropertyName("metadata")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object>? Metadata { get; set; }
 
     /// <summary>
     /// DTDL-related information for the sensor (DisplayName, Description, Schema)
     /// </summary>
-    [JsonPropertyName("SensorInfo")]
+    [JsonPropertyName("sensorInfo")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeSensorInfoDto? SensorInfo { get; set; }
 
     /// <summary>
     /// Recording configuration for local storage
     /// </summary>
-    [JsonPropertyName("Record")]
+    [JsonPropertyName("record")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeSensorRecordDto? Record { get; set; }
 }
@@ -964,13 +1008,13 @@ public class SubNodeSensorRecordDto
     /// <summary>
     /// Whether recording is enabled
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Recording interval in milliseconds. 0 means use report interval.
     /// </summary>
-    [JsonPropertyName("Interval")]
+    [JsonPropertyName("interval")]
     public int Interval { get; set; } = 0;
 }
 
@@ -983,21 +1027,21 @@ public class SubNodeSensorInfoDto
     /// DTDL schema type for this sensor's telemetry value.
     /// Examples: "double", "integer", "boolean", "string", "float"
     /// </summary>
-    [JsonPropertyName("Schema")]
+    [JsonPropertyName("schema")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Schema { get; set; }
 
     /// <summary>
     /// Human-readable display name for DTDL generation.
     /// </summary>
-    [JsonPropertyName("DisplayName")]
+    [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; set; }
 
     /// <summary>
     /// Description for DTDL generation.
     /// </summary>
-    [JsonPropertyName("Description")]
+    [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; set; }
 }
@@ -1010,40 +1054,40 @@ public class SubNodeSensorRuntimeConfigDto
     /// <summary>
     /// Whether the sensor is enabled
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Polling interval in milliseconds
     /// </summary>
-    [JsonPropertyName("Interval")]
+    [JsonPropertyName("interval")]
     public int Interval { get; set; } = 1000;
 
     /// <summary>
     /// Measurement unit
     /// </summary>
-    [JsonPropertyName("Unit")]
+    [JsonPropertyName("unit")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Unit { get; set; }
 
     /// <summary>
     /// Transform pipeline configuration
     /// </summary>
-    [JsonPropertyName("TransformPipeline")]
+    [JsonPropertyName("transformPipeline")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<SubNodeTransformConfigDto>? TransformPipeline { get; set; }
 
     /// <summary>
     /// DSP filter pipeline configuration
     /// </summary>
-    [JsonPropertyName("DspPipeline")]
+    [JsonPropertyName("dspPipeline")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<SubNodeDspFilterConfigDto>? DspPipeline { get; set; }
 
     /// <summary>
     /// Threshold configuration
     /// </summary>
-    [JsonPropertyName("Thresholds")]
+    [JsonPropertyName("thresholds")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeThresholdsDto? Thresholds { get; set; }
 }
@@ -1056,20 +1100,20 @@ public class SubNodeTransformConfigDto
     /// <summary>
     /// Transform type (e.g., "Calibration", "UnitConversion")
     /// </summary>
-    [JsonPropertyName("Type")]
+    [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this transform is enabled
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Transform-specific parameters.
     /// Uses object to allow runtime manipulation of parameter values.
     /// </summary>
-    [JsonPropertyName("Parameters")]
+    [JsonPropertyName("parameters")]
     public Dictionary<string, object>? Parameters { get; set; }
 }
 
@@ -1081,20 +1125,20 @@ public class SubNodeDspFilterConfigDto
     /// <summary>
     /// Filter type (e.g., "MovingAverage", "Kalman")
     /// </summary>
-    [JsonPropertyName("Type")]
+    [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this filter is enabled
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Filter-specific parameters.
     /// Uses object to allow runtime manipulation of parameter values.
     /// </summary>
-    [JsonPropertyName("Parameters")]
+    [JsonPropertyName("parameters")]
     public Dictionary<string, object>? Parameters { get; set; }
 }
 
@@ -1106,25 +1150,25 @@ public class SubNodeThresholdsDto
     /// <summary>
     /// Upper critical threshold
     /// </summary>
-    [JsonPropertyName("UpperCritical")]
+    [JsonPropertyName("upperCritical")]
     public double? UpperCritical { get; set; }
 
     /// <summary>
     /// Upper warning threshold
     /// </summary>
-    [JsonPropertyName("UpperWarning")]
+    [JsonPropertyName("upperWarning")]
     public double? UpperWarning { get; set; }
 
     /// <summary>
     /// Lower warning threshold
     /// </summary>
-    [JsonPropertyName("LowerWarning")]
+    [JsonPropertyName("lowerWarning")]
     public double? LowerWarning { get; set; }
 
     /// <summary>
     /// Lower critical threshold
     /// </summary>
-    [JsonPropertyName("LowerCritical")]
+    [JsonPropertyName("lowerCritical")]
     public double? LowerCritical { get; set; }
 }
 

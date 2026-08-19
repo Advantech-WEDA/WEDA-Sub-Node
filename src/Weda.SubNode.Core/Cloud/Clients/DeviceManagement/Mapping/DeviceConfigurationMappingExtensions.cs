@@ -4,8 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
-using BitFaster.Caching;
-
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
@@ -80,7 +78,8 @@ public static class DeviceConfigurationMappingExtensions
         return new DeviceConfigurationDto(
             DeviceId: config.DeviceId!,
             Dtdl: BuildWrapperInterface(enabledConfigs, projectInfo ?? ProjectInfo.Empty, config.DeviceId!, subNodeInfo),
-            RefModels: BuildRefModels(
+            RefModels: [], // remove to reduce capa
+            RefModelsMap: BuildRefModelsMap(
                 transformDescriptors, dspDescriptors, commandDescriptors, deviceTypes, sensorTypes,
                 declaresHeartbeat: enabledConfigs.Any(c => Heartbeat.IsDeclaredBy(c.Sensors))),
             DeviceCapabilities: ToDeviceCapabilitiesDto(
@@ -142,8 +141,7 @@ public static class DeviceConfigurationMappingExtensions
         IReadOnlyList<DspFilterDescriptorDto> dspFilters,
         IReadOnlyList<CommandDescriptorDto> commands,
         IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
-        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes,
-        bool declaresHeartbeat = false)
+        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var refModels = new List<JsonObject>();
@@ -153,16 +151,6 @@ public static class DeviceConfigurationMappingExtensions
             var id = iface["@id"]?.GetValue<string>();
             if (id is null) return;
             if (seen.Add(id)) refModels.Add(iface);
-        }
-
-        // The heartbeat never enters SensorTypeRegistry -- it is skipped by typed dispatch --
-        // so unlike every other sensor it has to contribute its own Interface. Without it the
-        // sensor's dtmi resolves to nothing in refModels. Its base envelope comes along even
-        // when no typed sensors are registered, since the heartbeat Interface extends it.
-        if (declaresHeartbeat)
-        {
-            AddIfNew(SensorBase.GetInterface());
-            AddIfNew(Heartbeat.GetInterface());
         }
 
         if (sensorTypes.Count > 0) AddIfNew(SensorBase.GetInterface());
@@ -176,7 +164,50 @@ public static class DeviceConfigurationMappingExtensions
         return refModels;
     }
 
+    private static RefModelsMapDto BuildRefModelsMap(
+        IReadOnlyList<TransformDescriptorDto> transforms,
+        IReadOnlyList<DspFilterDescriptorDto> dspFilters,
+        IReadOnlyList<CommandDescriptorDto> commands,
+        IReadOnlyList<DeviceTypeRegistry.DeviceTypeRegistration> deviceTypes,
+        IReadOnlyList<SensorTypeRegistry.SensorTypeRegistration> sensorTypes,
+        bool declaresHeartbeat = false)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var configBucket = new List<JsonObject>();
+        var commandBucket = new List<JsonObject>();
 
+        void Add(List<JsonObject> bucket, JsonObject iface)
+        {
+            var id = iface["@id"]?.GetValue<string>();
+            if (id is null || !seen.Add(id)) return;
+            bucket.Add(iface.DeepClone().AsObject());
+        }
+
+        // The heartbeat never enters SensorTypeRegistry -- it is skipped by typed dispatch --
+        // so unlike every other sensor it has to contribute its own Interface. Without it the
+        // dtmi on its SensorDto resolves to nothing. It goes in the config bucket beside the
+        // other sensor models, and drags in Sensor:base even when no typed sensors are
+        // registered, because the heartbeat Interface extends it.
+        if (declaresHeartbeat)
+        {
+            Add(configBucket, SensorBase.GetInterface());
+            Add(configBucket, Heartbeat.GetInterface());
+        }
+
+        if (sensorTypes.Count > 0) Add(configBucket, SensorBase.GetInterface());
+        if (deviceTypes.Count > 0) Add(configBucket, DeviceBaseDtdl.GetInterface());
+
+        foreach (var el in deviceTypes) Add(configBucket, el.Schema);
+        foreach (var el in sensorTypes) Add(configBucket, el.Schema);
+        foreach (var el in transforms) Add(configBucket, el.ParameterSchema);
+        foreach (var el in dspFilters) Add(configBucket, el.ParameterSchema);
+
+        foreach (var cmd in commands) Add(commandBucket, cmd.Schema);
+        
+        return new RefModelsMapDto(
+            Configs: configBucket,
+            Commands: commandBucket);
+    }
 
     private static DeviceCapDto ToDeviceCapabilitiesDto(
         List<DeviceConfiguration> configs,
@@ -237,7 +268,9 @@ public static class DeviceConfigurationMappingExtensions
             DspFilters: dspFilters,
             Commands: commands)
         {
-            DeviceConfigs = deviceConfigs
+            DeviceConfigs = deviceConfigs,
+            SdkVersion = subNodeInfo.SdkVersion,
+            SchemaVersion = subNodeInfo.SchemaVersion
         };
     }
 

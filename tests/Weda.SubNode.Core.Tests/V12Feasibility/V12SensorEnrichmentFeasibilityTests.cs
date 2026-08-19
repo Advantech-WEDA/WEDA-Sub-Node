@@ -42,7 +42,7 @@ public class V12SensorEnrichmentFeasibilityTests
 
         enriched.Measures.Count.ShouldBe(1);
         var measure = enriched.Measures[0];
-        measure.Dtmi.ShouldBe("dtmi:autogen:temp:be10e40b;1");
+        measure.Dtmi.ShouldBe("dtmi:sub:TestDevice:temp:sbe10e40b;1");
         measure.SensorResourceId.ShouldBe("a3f49f07-4a38-52df-8d42-9aaac9964c11");
         measure.Name.ShouldBe("temperature_sensor");
         measure.DeviceResourceId.ShouldBe(SubNodeDeviceId);
@@ -105,7 +105,7 @@ public class V12SensorEnrichmentFeasibilityTests
         enriched.Measures.Count.ShouldBe(2);
 
         var real = enriched.Measures.Single(m => m.Name == "temperature_sensor");
-        real.Dtmi.ShouldBe("dtmi:autogen:temp:be10e40b;1");
+        real.Dtmi.ShouldBe("dtmi:sub:TestDevice:temp:sbe10e40b;1");
 
         var dummy = enriched.Measures.Single(m => m.Name == "ghost-sensor");
         dummy.Dtmi.ShouldBe(TelemetryEnrichmentReplica.UNKNOWN);
@@ -200,7 +200,7 @@ public class V12SensorEnrichmentFeasibilityTests
                 {
                     new JsonObject
                     {
-                        ["@id"] = "dtmi:autogen:temp:be10e40b;1",
+                        ["@id"] = "dtmi:sub:TestDevice:temp:sbe10e40b;1",
                         ["@type"] = "Telemetry",
                         ["name"] = "temperature_sensor",
                         ["displayName"] = "Temperature Sensor",
@@ -234,7 +234,7 @@ public class V12SensorEnrichmentFeasibilityTests
                     new JsonObject
                     {
                         ["resourceId"] = "a3f49f07-4a38-52df-8d42-9aaac9964c11",
-                        ["dtmi"] = "dtmi:autogen:temp:be10e40b;1",
+                        ["dtmi"] = "dtmi:sub:TestDevice:temp:sbe10e40b;1",
                         ["name"] = "temperature_sensor",
                         ["sensorGroup"] = "TEMP",
                         ["deviceResourceId"] = SubNodeDeviceId

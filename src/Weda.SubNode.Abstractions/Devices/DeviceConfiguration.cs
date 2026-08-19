@@ -177,6 +177,54 @@ public class DeviceConfiguration
     }
 
     /// <summary>
+    /// Rebuilds the autogen Interface and re-resolves every sensor's <see cref="Sensor.Dtmi"/>
+    /// after the <see cref="Sensors"/> collection has changed at runtime.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="InitializeDtdl"/> is deliberately idempotent, so it cannot be used to repair
+    /// dtmis after a cloud configuration update. Sensors rebuilt from a cloud desired state carry
+    /// whatever dtmi the cloud sent — and the cloud sends <c>null</c>, which the mapping layer
+    /// replaces with an autogen <c>dtmi:sub:{device}:{group}:{hash}</c> fallback. Without this
+    /// method a strongly-typed device silently reports autogen dtmis instead of its catalog sensor
+    /// type dtmis for every sensor the update touched, and the autogen Interface keeps describing
+    /// the previous sensor set.
+    /// </para>
+    /// <para>
+    /// No-op in manual DTDL mode: there the dtmis are author-specified and the Interface comes from
+    /// <see cref="Dtdl"/>.<c>DtdlPath</c>, so there is nothing to regenerate. Also a no-op before
+    /// the first <see cref="InitializeDtdl"/> call, which remains responsible for initial setup.
+    /// </para>
+    /// </remarks>
+    /// <param name="logger">Optional logger for resolution diagnostics.</param>
+    /// <returns>
+    /// <c>true</c> when the DTDL was regenerated; <c>false</c> when the device is in manual mode
+    /// or DTDL has not been initialized yet.
+    /// </returns>
+    public bool RefreshSensorDtmis(ILogger? logger = null)
+    {
+        if (!_dtdlInitialized)
+        {
+            logger?.LogDebug(
+                "DTDL not initialized yet for device '{DeviceName}', skipping dtmi refresh", DeviceName);
+            return false;
+        }
+
+        var typed = !string.IsNullOrEmpty(DeviceTypeName) && TypedSensorDispatch.Resolve is not null;
+        var autoGen = Dtdl.AutoGenEnabled || (SubNodeInfo?.AutoGenEnabled ?? false);
+
+        if (!typed && !autoGen)
+        {
+            logger?.LogDebug(
+                "Device '{DeviceName}' uses manual DTDL, skipping dtmi refresh", DeviceName);
+            return false;
+        }
+
+        GenerateDtdlFromSensors(logger);
+        return true;
+    }
+
+    /// <summary>
     /// Builds the per-device autogen Interface and resolves each sensor's dtmi.
     /// <list type="bullet">
     ///   <item>Always: the legacy <c>DtdlGenerator</c> emits one per-device

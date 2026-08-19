@@ -16,11 +16,6 @@ public static class DtdlGenerator
     public const string DtdlContext = "dtmi:dtdl:context;3";
 
     /// <summary>
-    /// Fallback namespace prefix for auto-generated DTMIs when no device key is available.
-    /// </summary>
-    public const string DefaultNamespacePrefix = "dtmi:autogen";
-
-    /// <summary>
     /// Namespace prefix for auto-generated DTMIs scoped to a device:
     /// dtmi:sub:{device-cfg-key}:... — the device key is the DeviceConfigs
     /// section key from devicecfg.json, so sensors with the same name on
@@ -104,39 +99,49 @@ public static class DtdlGenerator
 
     /// <summary>
     /// Generates a DTMI (Digital Twin Model Identifier) using a short hash.
-    /// Format: dtmi:sub:{deviceKey}:{namespace}:{shortId};1 when a device key is
-    /// provided, otherwise dtmi:autogen:{namespace}:{shortId};1.
+    /// Format: dtmi:sub:{deviceKey}:{namespace}:{shortId};1. Every auto-generated
+    /// DTMI is scoped to a device — <paramref name="deviceKey"/> is required.
     /// </summary>
     /// <param name="name">The name to generate the DTMI from.</param>
     /// <param name="namespaceSegment">Optional namespace segment (e.g., "AI", "Interface").</param>
     /// <param name="version">DTMI version number (default: 1).</param>
-    /// <param name="deviceKey">Optional device config key (DeviceConfigs section key) used to namespace the DTMI per device.</param>
+    /// <param name="deviceKey">The device config key (DeviceConfigs section key) used to namespace the DTMI per device. Required.</param>
     /// <returns>A valid DTMI string.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="deviceKey"/> is null or empty.</exception>
     public static string GenerateDtmi(string name, string? namespaceSegment = null, int version = 1, string? deviceKey = null)
     {
+        if (string.IsNullOrEmpty(deviceKey))
+            throw new ArgumentException(
+                "A device key is required to generate a DTMI. Auto-generated DTMIs are always " +
+                "scoped to a device (dtmi:sub:{deviceKey}:...) so sensors with the same name on " +
+                "different devices get distinct DTMIs.",
+                nameof(deviceKey));
+
         var shortId = GenerateShortId(name);
         var ns = string.IsNullOrEmpty(namespaceSegment)
             ? string.Empty
             : $":{SanitizeNamespace(namespaceSegment)}";
 
-        var prefix = string.IsNullOrEmpty(deviceKey)
-            ? DefaultNamespacePrefix
-            : $"{SubNodeNamespacePrefix}:{SanitizeDeviceKey(deviceKey)}";
+        var prefix = $"{SubNodeNamespacePrefix}:{SanitizeDeviceKey(deviceKey)}";
 
         return $"{prefix}{ns}:{shortId};{version}";
     }
 
     /// <summary>
-    /// Generates a short, URL-safe ID from a name using SHA256 hash.
-    /// The ID is 8 characters long and uses base32-like encoding.
+    /// Generates a short, deterministic ID from a name using a SHA256 hash.
+    /// The ID is a leading letter followed by 8 lowercase hex chars (9 total).
+    /// The leading letter is required: a DTMI path segment MUST start with a
+    /// letter under DTDL v3, but a bare hex string starts with a digit ~62% of
+    /// the time, which DTDLParser rejects as an invalid identifier.
     /// </summary>
     /// <param name="name">The name to hash.</param>
-    /// <returns>An 8-character short ID.</returns>
+    /// <returns>A 9-character short ID that always starts with a letter.</returns>
     public static string GenerateShortId(string name)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(name.ToLowerInvariant()));
-        // Take first 5 bytes (40 bits) and encode as base32-like string (8 chars)
-        return Convert.ToHexString(bytes, 0, 4).ToLowerInvariant();
+        // First 4 bytes (32 bits) as 8 hex chars, prefixed with 's' so the token
+        // is a valid DTMI path segment (letter-first) regardless of the hash.
+        return "s" + Convert.ToHexString(bytes, 0, 4).ToLowerInvariant();
     }
 
     /// <summary>
