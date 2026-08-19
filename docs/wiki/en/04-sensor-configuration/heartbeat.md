@@ -109,25 +109,35 @@ leave a perfectly healthy SubNode reading as `Disconnected`.
 
 ### Confirming it is running
 
-Two lines are logged once per process, at **Warning** level so they survive the default
-`appsettings.json`, which pins Serilog to `Warning`:
+Two lines are logged once per process at **Debug**:
 
 ```
-[WRN] SubNode heartbeat ARMED from sensor 'hb' (interval 60000 ms)
-[WRN] SubNode heartbeat CONFIRMED: first beat accepted by the cloud uplink (sensor 'hb', every 60000 ms from here)
+[DBG] SubNode heartbeat ARMED from sensor 'hb' (interval 60000 ms)
+[DBG] SubNode heartbeat CONFIRMED: first beat accepted by the cloud uplink (sensor 'hb', every 60000 ms from here)
 ```
 
 `ARMED` means the loop started; `CONFIRMED` means a beat was actually accepted, which `ARMED`
-alone cannot tell you. If no heartbeat is declared you get the opposite, also at Warning:
+alone cannot tell you. Together they separate a working heartbeat from one that is running but
+silently failing to publish. Beats after the first are not logged individually.
+
+The stock `appsettings.json` pins Serilog to `Warning`, so **neither line appears by default**.
+To see them, raise the level — for a containerised SubNode, without editing the mounted config:
+
+```yaml
+environment:
+  - Serilog__MinimumLevel__Default=Debug
+```
+
+The **failure** directions stay visible at the default level. If no heartbeat is declared:
 
 ```
 [WRN] SubNode heartbeat is DISABLED: no enabled sensor named 'hb' was found. This SubNode
       publishes no liveness signal and the platform will read it as Disconnected.
 ```
 
-Logging healthy startup at Warning is unusual and deliberate: heartbeat silence is
-indistinguishable from a dead node, so you must not have to raise the log level to tell the two
-apart. Individual beats after the first stay at `Debug`.
+That one is a warning on purpose: a SubNode publishing no liveness signal reads as
+`Disconnected` with nothing else on the device indicating why, and heartbeat silence is
+otherwise indistinguishable from a dead node.
 
 ### Where it appears
 
@@ -246,7 +256,7 @@ Leave `Interval` at `60000` unless you have agreed a different `T` with the plat
 | Symptom | Likely cause |
 |---------|--------------|
 | No beats at all | No device declares a sensor named `hb`. Look for the `heartbeat is DISABLED` warning in device logs |
-| `ARMED` logged but never `CONFIRMED` | The uplink is rejecting the beat. Check the WedaNode agent log for telemetry validation errors, and confirm nothing added metadata to the measure |
+| `ARMED` logged but never `CONFIRMED` (at `Debug`) | The uplink is rejecting the beat. Check the WedaNode agent log for telemetry validation errors, and confirm nothing added metadata to the measure |
 | Beats stopped, no device fault | The sensor was disabled — check device logs for the warning above, and whether a cloud config update changed `Report.Enabled` |
 | `Disconnected` right after start | Normal until the SubNode completes cloud registration; the first beat follows immediately after |
 | Beating faster than configured | `Interval` was below the 1000 ms floor and was clamped; a warning names the effective value |

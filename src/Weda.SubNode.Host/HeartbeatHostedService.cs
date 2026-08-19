@@ -77,13 +77,13 @@ internal sealed class HeartbeatHostedService : BackgroundService
                     sensor.Report.Interval, Heartbeat.MinIntervalMilliseconds, interval);
             }
 
-            // Deliberately Warning, not Information. Logging healthy startup at Warning is
-            // normally wrong; it is right here because the shipped appsettings.json pins
-            // Serilog to Warning, and this is the only statement of whether liveness is
-            // running at all. Silence from a heartbeat is indistinguishable from a dead
-            // node, so an operator must not have to raise the log level to find out which
-            // one they have. One line per process start is not noise.
-            _logger.LogWarning(
+            // Debug: this is the healthy path, and a working heartbeat is not something an
+            // operator needs told at a level reserved for problems. The failure directions
+            // are what stay visible -- see the DISABLED warning in
+            // WaitForHeartbeatSensorAsync, and the disabled-by-configuration warning below.
+            // To confirm a heartbeat is running on a device, raise the level:
+            //   Serilog__MinimumLevel__Default=Debug
+            _logger.LogDebug(
                 "SubNode heartbeat ARMED from sensor '{Sensor}' (interval {IntervalMs} ms)",
                 sensor.Name, interval);
 
@@ -112,12 +112,13 @@ internal sealed class HeartbeatHostedService : BackgroundService
 
                 if (sent && !beatConfirmed)
                 {
-                    // Also Warning, and also once: "armed" only says the loop started, while
-                    // this says a beat was actually accepted by the uplink. That is the fact
-                    // an operator needs to distinguish a working heartbeat from one that is
-                    // running but silently failing to publish. Subsequent beats stay at Debug.
+                    // Emitted once rather than per beat, and kept distinct from ARMED: that
+                    // one only says the loop started, while this says a beat was actually
+                    // accepted by the uplink. The pair separates a working heartbeat from one
+                    // running but silently failing to publish -- worth the flag even at Debug,
+                    // because it is the difference an operator is usually trying to establish.
                     beatConfirmed = true;
-                    _logger.LogWarning(
+                    _logger.LogDebug(
                         "SubNode heartbeat CONFIRMED: first beat accepted by the cloud uplink "
                         + "(sensor '{Sensor}', every {IntervalMs} ms from here)",
                         sensor.Name, interval);

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The DTMI (`dtmi:com:advantech:weda:Heartbeat;1`) and the `boolean` schema are stamped by the SDK, not configured. `devicecfg.json` declares a name and an interval; the DTDL is auto-generated like any other sensor's.
   - Because typed dispatch skips the heartbeat, it never enters the sensor-type registry — so it contributes its own Interface to `refModelsMap.configs`, extending `Sensor:base` and carrying no `Parameters`. Without it the sensor's DTMI would resolve to nothing in the uploaded catalog.
   - Identified by that DTMI, which the enrichment stage already resolves for every measure. Note this is a post-enrichment match; a marker cannot travel on the raw message (see Fixed, below).
-  - `ARMED`, `CONFIRMED` and `DISABLED` are logged once per process at **Warning**, so they survive the default `appsettings.json` minimum. Heartbeat silence is indistinguishable from a dead node, so the state must be visible without raising the log level.
+  - `ARMED` and `CONFIRMED` are logged once per process at `Debug` — the pair separates a working heartbeat from one running but silently failing to publish. `DISABLED` is a **warning**: a SubNode publishing no liveness signal reads as `Disconnected` with nothing else indicating why, so that direction stays visible under the default `Warning` minimum.
   - Default cadence `T` = 60 s, clamped to a 1 s floor. Transport faults are logged and retried on the next beat rather than tearing down the loop.
 
 ### Changed
