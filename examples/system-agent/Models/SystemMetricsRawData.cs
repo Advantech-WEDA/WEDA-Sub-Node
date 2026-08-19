@@ -142,9 +142,14 @@ public class CpuMetrics
 public class GpuMetrics
 {
     /// <summary>
-    /// GPU utilization percentage (0-100).
+    /// GPU utilization percentage (0-100), or <c>null</c> when no GPU reading is available.
     /// </summary>
-    public int Utilization { get; set; }
+    /// <remarks>
+    /// Nullable so that "no GPU present" and "NVML failed" stay distinguishable from a real
+    /// reading. A sentinel published as a value is indistinguishable from telemetry, and the
+    /// parser skips a null metric rather than reporting it.
+    /// </remarks>
+    public int? Utilization { get; set; }
 }
 
 /// <summary>
