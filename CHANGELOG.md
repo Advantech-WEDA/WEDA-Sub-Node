@@ -8,17 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- SubNode liveness heartbeat — a SubNode can report that it is alive so the platform can derive `Connected` / `Abnormal` / `Disconnected` from when the last beat arrived. Enabled by declaring one reserved sensor in `devicecfg.json` with `Dtmi: dtmi:com:advantech:weda:Heartbeat;1`; no `Program.cs` or `systemcfg.json` change. **Disabled by default** — a SubNode that declares no such sensor emits nothing, so upgrading the SDK never starts a heartbeat on its own. See [Liveness Heartbeat](./docs/wiki/en/04-sensor-configuration/heartbeat.md).
+- SubNode liveness heartbeat — a SubNode can report that it is alive so the platform can derive `Connected` / `Abnormal` / `Disconnected` from when the last beat arrived. Enabled by declaring one reserved sensor named `hb` in `devicecfg.json`; no `Program.cs` or `systemcfg.json` change. **Disabled by default** — a SubNode that declares no such sensor emits nothing, so upgrading the SDK never starts a heartbeat on its own. See [Liveness Heartbeat](./docs/wiki/en/04-sensor-configuration/heartbeat.md).
   - The beat is synthesised by the SDK and never polled, so it works identically on Modbus / OPC UA / MQTT / custom devices; it needs no `Parameters`, and `GroupSensorsByInterval` excludes it from every device's read path.
   - Sent on the SubNode DeviceId, so one SubNode emits one liveness signal regardless of device count.
   - Declared as a real sensor, so it receives a `ResourceId` and appears in the generated DTDL, the capability upload and the device-management sensor registry — enriched telemetry resolves it instead of falling back to `"unknown"`.
-  - Identified on the wire by an `hb` key in the measure `metadata`, which is present on the raw message so platform-side detection stays pre-enrichment.
+  - The DTMI (`dtmi:com:advantech:weda:Heartbeat;1`) and the `boolean` schema are stamped by the SDK, not configured. `devicecfg.json` declares a name and an interval; the DTDL is auto-generated like any other sensor's.
+  - Because typed dispatch skips the heartbeat, it never enters the sensor-type registry — so it contributes its own Interface to `refModelsMap.configs`, extending `Sensor:base` and carrying no `Parameters`. Without it the sensor's DTMI would resolve to nothing in the uploaded catalog.
+  - Identified by that DTMI, which the enrichment stage already resolves for every measure. Note this is a post-enrichment match; a marker cannot travel on the raw message (see Fixed, below).
+  - `ARMED`, `CONFIRMED` and `DISABLED` are logged once per process at **Warning**, so they survive the default `appsettings.json` minimum. Heartbeat silence is indistinguishable from a dead node, so the state must be visible without raising the log level.
   - Default cadence `T` = 60 s, clamped to a 1 s floor. Transport faults are logged and retried on the next beat rather than tearing down the loop.
 
 ### Changed
-- **Auto-gen-only DTMI policy — one sanctioned exception.** The reserved liveness heartbeat is the sole sensor entry permitted to carry a `Dtmi` in `devicecfg.json`. Its DTMI is its identity and is platform-owned rather than derived from a sensor type, so typed sensor dispatch skips it and preserves the value.
+- **Auto-gen-only DTMI policy is now absolute.** No `devicecfg.json` sensor entry carries a `Dtmi`, the heartbeat included — an earlier iteration made it an exception, which meant deleting one line silently disabled liveness. Identity is the reserved sensor name `hb`, and the SDK stamps the DTMI itself. A sensor named `hb` is reserved platform-wide and must not be used for application data.
 
 ### Fixed
+- Heartbeat measures no longer set `TelemetryMeasure.Metadata`. That field is the framework's chunked-transfer descriptor, and the WedaNode telemetry proxy rejects the **entire message** when metadata is present without a `transferId` — so every beat was discarded before it reached the cloud, leaving a healthy SubNode reading as `Disconnected`. The same defect previously affected the CFX and vision paths.
 - Sensor configuration reference documented `Record.Enabled` as defaulting to `false` and listed a non-existent `Path` property; the default is `true` and the second property is `Interval`.
 
 ## [1.2.0] - 2026-06-02

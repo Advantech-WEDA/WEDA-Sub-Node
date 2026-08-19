@@ -20,7 +20,7 @@ description: 'Complete reference for all SubNode sensor configuration options'
 | `Name` | string | Yes | - | Unique sensor identifier within device |
 | `ResourceId` | string | No | Auto-generated | UUID following Device Capability Guideline |
 | `SensorGroup` | enum | Yes | - | Sensor category |
-| `Dtmi` | string | No | Auto-generated | Digital Twin Model Identifier. Assigned by the SDK — do not set it, except for the [liveness heartbeat](./heartbeat.md) |
+| `Dtmi` | string | No | Auto-generated | Digital Twin Model Identifier. Assigned by the SDK — do not set it. The [liveness heartbeat](./heartbeat.md) is stamped with a reserved DTMI, also by the SDK |
 
 ### SensorGroup Values
 
