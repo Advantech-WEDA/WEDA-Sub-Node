@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\examples\stock-monitor\stock-monitor.csproj" />
+    <ProjectReference Include="..\..\examples\http-stock-quotes\HttpStockQuotes.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -140,10 +140,10 @@ Explore production-ready examples in the `examples/` directory:
 
 | Example | Description | Protocol |
 |---------|-------------|----------|
-| [wise-4012](https://github.com/example/edge_subnode/tree/main/examples/wise-4012) | Industrial I/O module | Modbus TCP |
-| [power-aggregation](https://github.com/example/edge_subnode/tree/main/examples/power-aggregation) | Multi-device aggregation | Multi-source |
-| [stock-monitor](https://github.com/example/edge_subnode/tree/main/examples/stock-monitor) | HTTP API integration | HTTP |
-| [image-sensor](https://github.com/example/edge_subnode/tree/main/examples/image-sensor) | Image streaming | MQTT |
+| [wise-4012](https://github.com/example/edge_subnode/tree/main/examples/modbus-wise4012) | Industrial I/O module | Modbus TCP |
+| [power-aggregation](https://github.com/example/edge_subnode/tree/main/examples/feature-aggregation) | Multi-device aggregation | Multi-source |
+| [stock-monitor](https://github.com/example/edge_subnode/tree/main/examples/http-stock-quotes) | HTTP API integration | HTTP |
+| [image-sensor](https://github.com/example/edge_subnode/tree/main/examples/mqtt-image-chunked) | Image streaming | MQTT |
 
 ## Version
 

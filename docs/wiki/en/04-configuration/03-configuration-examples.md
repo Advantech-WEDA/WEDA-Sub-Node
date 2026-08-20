@@ -100,7 +100,7 @@ Industrial I/O module for reading Analog Input and Digital Output.
 }
 ```
 
-> Full file: `examples/wise-4012/devicecfg.json`
+> Full file: `examples/modbus-wise4012/devicecfg.json`
 
 ---
 
@@ -124,7 +124,7 @@ Advantech ISensing protocol, receiving device data via MQTT.
       "Enabled": true,
       "Dtdl": {
         "AutoGenEnabled": false,
-        "DtdlPath": "examples/wise-4012-isensing/dtdl/wise-4012.json"
+        "DtdlPath": "examples/mqtt-isensing-wise4012/dtdl/wise-4012.json"
       },
       "DeviceCommunication": {
         "BrokerUrl": "mqtt://172.16.8.122:1883",
@@ -171,7 +171,7 @@ Advantech ISensing protocol, receiving device data via MQTT.
 }
 ```
 
-> Full file: `examples/wise-4012-isensing/devicecfg.json`
+> Full file: `examples/mqtt-isensing-wise4012/devicecfg.json`
 
 ---
 
@@ -224,7 +224,7 @@ Periodically fetches real-time data via HTTP API (using the Taiwan stock market 
 }
 ```
 
-> Full file: `examples/stock-monitor/devicecfg.json`
+> Full file: `examples/http-stock-quotes/devicecfg.json`
 
 ---
 
@@ -285,7 +285,7 @@ Receives image data via MQTT, using Chunking Transform for chunked transmission.
 }
 ```
 
-> Full file: `examples/image-sensor/devicecfg.json`
+> Full file: `examples/mqtt-image-chunked/devicecfg.json`
 
 ---
 
@@ -334,7 +334,7 @@ Fetches environmental monitoring data in JSON format via HTTP API.
 }
 ```
 
-> Full file: `examples/air-quality-monitor/devicecfg.json`
+> Full file: `examples/http-air-quality/devicecfg.json`
 
 ---
 
@@ -425,7 +425,7 @@ Combines current and voltage sensors to calculate power. Three devices are defin
 }
 ```
 
-> Full file: `examples/power-aggregation/devicecfg.json`
+> Full file: `examples/feature-aggregation/devicecfg.json`
 
 ---
 

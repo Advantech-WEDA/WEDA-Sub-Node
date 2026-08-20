@@ -100,7 +100,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
 }
 ```
 
-> 完整檔案：`examples/wise-4012/devicecfg.json`
+> 完整檔案：`examples/modbus-wise4012/devicecfg.json`
 
 ---
 
@@ -124,7 +124,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
       "Enabled": true,
       "Dtdl": {
         "AutoGenEnabled": false,
-        "DtdlPath": "examples/wise-4012-isensing/dtdl/wise-4012.json"
+        "DtdlPath": "examples/mqtt-isensing-wise4012/dtdl/wise-4012.json"
       },
       "DeviceCommunication": {
         "BrokerUrl": "mqtt://172.16.8.122:1883",
@@ -171,7 +171,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
 }
 ```
 
-> 完整檔案：`examples/wise-4012-isensing/devicecfg.json`
+> 完整檔案：`examples/mqtt-isensing-wise4012/devicecfg.json`
 
 ---
 
@@ -224,7 +224,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
 }
 ```
 
-> 完整檔案：`examples/stock-monitor/devicecfg.json`
+> 完整檔案：`examples/http-stock-quotes/devicecfg.json`
 
 ---
 
@@ -285,7 +285,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
 }
 ```
 
-> 完整檔案：`examples/image-sensor/devicecfg.json`
+> 完整檔案：`examples/mqtt-image-chunked/devicecfg.json`
 
 ---
 
@@ -334,7 +334,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
 }
 ```
 
-> 完整檔案：`examples/air-quality-monitor/devicecfg.json`
+> 完整檔案：`examples/http-air-quality/devicecfg.json`
 
 ---
 
@@ -425,7 +425,7 @@ description: '各協定和場景的完整 devicecfg.json 設定範例。'
 }
 ```
 
-> 完整檔案：`examples/power-aggregation/devicecfg.json`
+> 完整檔案：`examples/feature-aggregation/devicecfg.json`
 
 ---
 

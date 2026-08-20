@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\examples\command-handler\CommandHandlerExample.csproj" />
+    <ProjectReference Include="..\..\examples\feature-custom-commands\FeatureCustomCommands.csproj" />
     <ProjectReference Include="..\Weda.SubNode.TestBase\Weda.SubNode.TestBase.csproj" />
   </ItemGroup>
 

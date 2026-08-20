@@ -77,12 +77,12 @@
    - [examples/](examples/) - 生產就緒範例（真實硬體）
 
 2. 選擇符合您使用案例的範例:
-   - **WISE-4012 工業 I/O**: [examples/wise-4012-builder/](examples/wise-4012-builder/)
+   - **WISE-4012 工業 I/O**: [examples/modbus-wise4012-builder/](examples/modbus-wise4012-builder/)
 
 3. 複製並自訂:
    ```bash
    # 複製範例
-   cp -r examples/wise-4012-builder my-project
+   cp -r examples/modbus-wise4012-builder my-project
    cd my-project
 
    # 編輯配置

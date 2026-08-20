@@ -140,10 +140,10 @@ await app.RunAsync();
 
 | 範例 | 說明 | 協定 |
 |------|------|------|
-| [wise-4012](https://github.com/example/edge_subnode/tree/main/examples/wise-4012) | 工業 I/O 模組 | Modbus TCP |
-| [power-aggregation](https://github.com/example/edge_subnode/tree/main/examples/power-aggregation) | 多裝置聚合 | 多來源 |
-| [stock-monitor](https://github.com/example/edge_subnode/tree/main/examples/stock-monitor) | HTTP API 整合 | HTTP |
-| [image-sensor](https://github.com/example/edge_subnode/tree/main/examples/image-sensor) | 影像串流 | MQTT |
+| [wise-4012](https://github.com/example/edge_subnode/tree/main/examples/modbus-wise4012) | 工業 I/O 模組 | Modbus TCP |
+| [power-aggregation](https://github.com/example/edge_subnode/tree/main/examples/feature-aggregation) | 多裝置聚合 | 多來源 |
+| [stock-monitor](https://github.com/example/edge_subnode/tree/main/examples/http-stock-quotes) | HTTP API 整合 | HTTP |
+| [image-sensor](https://github.com/example/edge_subnode/tree/main/examples/mqtt-image-chunked) | 影像串流 | MQTT |
 
 ## 版本
 

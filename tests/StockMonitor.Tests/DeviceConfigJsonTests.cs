@@ -21,7 +21,7 @@ public class DeviceConfigJsonTests
     private static JsonDocument LoadConfig()
     {
         var path = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "../../../../../examples/stock-monitor/devicecfg.json"));
+            AppContext.BaseDirectory, "../../../../../examples/http-stock-quotes/devicecfg.json"));
 
         return JsonDocument.Parse(File.ReadAllText(path));
     }

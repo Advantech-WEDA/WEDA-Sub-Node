@@ -23,7 +23,7 @@ public class GeneratedDtdlTests
     private static List<Sensor> SensorsFromConfig()
     {
         var path = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "../../../../../examples/stock-monitor/devicecfg.json"));
+            AppContext.BaseDirectory, "../../../../../examples/http-stock-quotes/devicecfg.json"));
 
         using var document = JsonDocument.Parse(File.ReadAllText(path));
 

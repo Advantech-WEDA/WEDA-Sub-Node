@@ -5,9 +5,9 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{16671E85-B961-4076-AC39-3004C9A0BE38}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012ISensingExample", "examples\wise-4012-isensing\Wise4012ISensingExample.csproj", "{D2014F41-403F-4963-A205-C606BEDB366B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MqttISensingWise4012", "examples\mqtt-isensing-wise4012\MqttISensingWise4012.csproj", "{D2014F41-403F-4963-A205-C606BEDB366B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012Example", "examples\wise-4012\Wise4012Example.csproj", "{72693B70-3482-409D-92E4-77708F75871C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModbusWise4012", "examples\modbus-wise4012\ModbusWise4012.csproj", "{72693B70-3482-409D-92E4-77708F75871C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{99AFC1DE-7468-41CD-B1F9-6D1169C137E3}"
 EndProject
@@ -39,13 +39,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Weda.SubNode.TestBase", "te
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wise-4012-builder", "wise-4012-builder", "{D80B5DC4-ADD0-B355-1CED-0956DF3E0F52}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wise4012Builder", "examples\wise-4012-builder\Wise4012Builder.csproj", "{443202A0-477E-47D7-9944-E28DCA4E0F7A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModbusWise4012Builder", "examples\modbus-wise4012-builder\ModbusWise4012Builder.csproj", "{443202A0-477E-47D7-9944-E28DCA4E0F7A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testdevice", "examples\testdevice\testdevice.csproj", "{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testdevice", "examples\feature-transform-pipeline\FeatureTransformPipeline.csproj", "{46353D37-32FF-44D5-AE50-1E1F9EF8C2B1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "stock-monitor", "examples\stock-monitor\stock-monitor.csproj", "{5D17CBB9-3080-4621-9A20-0D99527C6F6A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "stock-monitor", "examples\http-stock-quotes\HttpStockQuotes.csproj", "{5D17CBB9-3080-4621-9A20-0D99527C6F6A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowerAggregation", "examples\power-aggregation\PowerAggregation.csproj", "{49459EB9-0E73-41C5-A85E-4D4192653D95}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowerAggregation", "examples\feature-aggregation\FeatureAggregation.csproj", "{49459EB9-0E73-41C5-A85E-4D4192653D95}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemAgentDevice", "examples\system-agent\SystemAgentDevice.csproj", "{623A6013-FE4B-720B-2B45-F608A26FB25E}"
 EndProject
@@ -53,7 +53,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Weda.SubNode.WebApi", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemAgentDevice.Tests", "tests\SystemAgentDevice.Tests\SystemAgentDevice.Tests.csproj", "{A1FF9A39-56FE-4AEA-BA66-4CBA0BECEB9C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "opcua-device", "examples\opcua-device\opcua-device.csproj", "{C21861EB-8580-4D31-BFE6-467C723EA721}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "opcua-device", "examples\opcua-basic\OpcUaBasic.csproj", "{C21861EB-8580-4D31-BFE6-467C723EA721}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "cfx-endpoint", "cfx-endpoint", "{7ADE4D64-B808-6E16-FAAE-4FF7323BF3D0}"
 EndProject

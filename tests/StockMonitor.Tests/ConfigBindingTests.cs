@@ -23,7 +23,7 @@ public class ConfigBindingTests
     private static DeviceConfiguration BindShippedConfig()
     {
         var path = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "../../../../../examples/stock-monitor/devicecfg.json"));
+            AppContext.BaseDirectory, "../../../../../examples/http-stock-quotes/devicecfg.json"));
 
         var configuration = new ConfigurationBuilder()
             .AddJsonFile(path, optional: false)

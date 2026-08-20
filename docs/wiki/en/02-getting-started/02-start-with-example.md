@@ -47,7 +47,7 @@ The `examples/` directory contains ready-to-run examples:
 
 ## Running the WISE-4012 Example
 
-The `wise-4012` example is recommended for beginners. It demonstrates:
+The `modbus-wise4012` example is recommended for beginners. It demonstrates:
 
 - Basic device configuration
 - Modbus TCP communication
@@ -64,7 +64,7 @@ cd WEDA-Sub-Node
 ### Step 2: Navigate to the Example
 
 ```bash
-cd examples/wise-4012
+cd examples/modbus-wise4012
 ```
 
 ### Step 3: Review the Project Structure
@@ -81,7 +81,7 @@ wise-4012/
 ├── appsettings.json          # Logging (Serilog) configuration
 ├── Dockerfile                # Container image build
 ├── docker-compose.yml        # One-command container deployment
-└── Wise4012Example.csproj    # Project file and NuGet references
+└── ModbusWise4012.csproj    # Project file and NuGet references
 ```
 
 > **Quick-start focus**: The three files marked `(*)` are the core. `Program.cs` handles startup, `MyFirstDevice.cs` defines device behavior, and `devicecfg.json` defines connections and sensors. The remaining files only need adjustment in advanced scenarios.
@@ -234,7 +234,7 @@ If you do not have a physical device, you can use the SDK's built-in Modbus TCP 
 The example directory provides `docker-compose-sim.yml` which starts both the Simulator and wise-4012 together:
 
 ```bash
-# In examples/wise-4012/ directory
+# In examples/modbus-wise4012/ directory
 docker compose -f docker-compose-sim.yml up -d
 ```
 
@@ -266,7 +266,7 @@ dotnet run
 **Terminal 2 - Run the example:**
 
 ```bash
-cd examples/wise-4012
+cd examples/modbus-wise4012
 dotnet run
 ```
 
