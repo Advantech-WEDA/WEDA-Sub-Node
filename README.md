@@ -158,8 +158,5 @@ edge_subnode/
 
 ## License
 
-Copyright © 2025 Advantech Corporation
+Copyright © 2026 Advantech Corporation
 
----
-
-**Version**: 0.0.1 | **Maintainer**: Rain Hu
