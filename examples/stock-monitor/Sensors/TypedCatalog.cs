@@ -27,17 +27,20 @@ public class StockQuoteParameters
     public string StockCode { get; init; } = string.Empty;
 
     /// <summary>
-    /// Comma-separated metric list to request, e.g.
-    /// <c>"Current,Volume,Open,High,Low,Change,ChangePercent"</c>.
-    /// Free-form string today; could become a flags enum later.
+    /// The single metric this sensor reports, e.g. <c>"Current"</c> or <c>"Volume"</c>.
+    /// See <c>StockMetricCatalog</c> for the supported names and the schema each one reports.
     /// </summary>
-    [Required, JsonPropertyName("metrics")]
-    public string Metrics { get; init; } = string.Empty;
+    /// <remarks>
+    /// One metric per sensor: a sensor is a single telemetry stream, so a price and a share count
+    /// cannot share one. Add a sensor per metric instead.
+    /// </remarks>
+    [Required, JsonPropertyName("metric")]
+    public string Metric { get; init; } = string.Empty;
 }
 
 public class StockQuoteSensor : IConfigurableSensor<StockQuoteParameters>
 {
     public static string DeviceTypeName => TwseStockDevice.DeviceTypeName;
     public static string SensorTypeName => "stock-quote";
-    public static string? Description   => "One TWSE stock code's real-time quote bundle.";
+    public static string? Description   => "One metric of one TWSE stock code's real-time quote.";
 }

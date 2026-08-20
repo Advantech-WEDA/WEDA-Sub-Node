@@ -34,9 +34,12 @@
     <None Update="customcfg.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="dtdl\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The response-to-measure mapping is the part worth testing; keep it internal
+         rather than widening the example's public surface for the test project. -->
+    <InternalsVisibleTo Include="StockMonitor.Tests" />
   </ItemGroup>
 
 </Project>

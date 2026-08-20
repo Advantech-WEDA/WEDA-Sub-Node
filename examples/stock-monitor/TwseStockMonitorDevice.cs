@@ -73,15 +73,23 @@ public class TwseStockMonitorDevice : StockMonitorDevice
     {
         _logger.LogDebug("TwseStockMonitorDevice: Data received, Count={Count}", e.Data.Count);
 
+        // Each measure belongs to exactly one sensor, and the sensor already names the stock and
+        // the metric — so the reading is described by looking the sensor up rather than by reading
+        // a metadata bag the measure must not carry.
         foreach (var measure in e.Data)
         {
-            var stockCode = measure.Metadata?.TryGetValue("StockCode", out var code) == true ? code?.ToString() : "N/A";
-            var stockName = measure.Metadata?.TryGetValue("StockName", out var name) == true ? name?.ToString() : "";
-            var metricName = measure.Metadata?.TryGetValue("MetricName", out var m) == true ? m?.ToString() : "Value";
+            var sensor = Configuration.GetSensorById(measure.ResourceId);
+            if (sensor is null)
+            {
+                continue;
+            }
 
             _logger.LogInformation(
-                "  [{Code}] {Name} | {MetricName}: {Value}",
-                stockCode, stockName, metricName, measure.Value);
+                "  {DisplayName} ({SensorName}): {Value} {Unit}",
+                sensor.GetEffectiveDisplayName(),
+                sensor.Name,
+                measure.Value,
+                sensor.Report.Unit);
         }
     }
 }
