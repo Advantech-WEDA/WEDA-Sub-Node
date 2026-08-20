@@ -35,8 +35,8 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
-RUN chmod +x testdevice
+RUN chmod +x FeatureTransformPipeline
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["/app/testdevice"]
+ENTRYPOINT ["/app/FeatureTransformPipeline"]

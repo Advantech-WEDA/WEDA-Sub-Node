@@ -9,4 +9,4 @@ if [ -d "/opt/advantech/libs" ]; then
 fi
 
 # Execute the main application
-exec /app/daq-data-collector "$@"
+exec /app/DaqCollector "$@"

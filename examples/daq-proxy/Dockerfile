@@ -36,8 +36,8 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
 WORKDIR /app
 COPY --from=build /app/publish/ ./
 
-RUN chmod +x daq-feature-proxy
+RUN chmod +x DaqProxy
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["/app/daq-feature-proxy"]
+ENTRYPOINT ["/app/DaqProxy"]

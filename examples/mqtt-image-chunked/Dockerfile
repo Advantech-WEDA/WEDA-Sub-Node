@@ -35,4 +35,4 @@ COPY --from=build /app/publish/ ./
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["/app/ImageSensor"]
+ENTRYPOINT ["/app/MqttImageChunked"]

@@ -35,8 +35,8 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
-RUN chmod +x opcua-device
+RUN chmod +x OpcUaBasic
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
-ENTRYPOINT ["/app/opcua-device"]
+ENTRYPOINT ["/app/OpcUaBasic"]

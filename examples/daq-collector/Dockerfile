@@ -14,7 +14,7 @@ WORKDIR /src
 # Copy source (note: build context should be repository root)
 COPY . .
 
-# Restore dependencies for the daq-data-collector project
+# Restore dependencies for the daq-collector project
 WORKDIR /src/examples/daq-collector
 RUN dotnet restore
 
@@ -65,7 +65,7 @@ COPY examples/daq-collector/customcfg.json /app/customcfg.json
 COPY examples/daq-collector/appsettings.json /app/appsettings.json
 
 # Ensure executables have execute permission
-RUN chmod +x daq-data-collector /app/entrypoint.sh
+RUN chmod +x DaqCollector /app/entrypoint.sh
 
 # Single layer for all runtime setup including CVE fix
 RUN apt-get update && \
