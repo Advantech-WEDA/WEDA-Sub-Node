@@ -144,6 +144,83 @@ public class MqttCommunicationTests
         Assert.False(mqtt.IsConnected);
     }
 
+    /// <summary>
+    /// A failed connection must leave <c>State</c> at <c>Error</c>, not at the transient
+    /// <c>Connecting</c> it passes through: device health treats <c>Connecting</c> as merely
+    /// degraded.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_WhenBrokerUnreachable_ShouldReportErrorState()
+    {
+        // Arrange - port 1 is reserved and never accepts a broker connection.
+        var mqtt = new MqttCommunication(
+            brokerUrl: "127.0.0.1",
+            port: 1,
+            clientId: "test-unreachable",
+            settings: null,
+            logger: NullLogger<CommunicationBase>.Instance);
+
+        // Act
+        var connected = await mqtt.ConnectAsync();
+
+        // Assert
+        Assert.False(connected);
+        Assert.Equal(CommunicationState.Error, mqtt.State);
+        Assert.False(mqtt.IsConnected);
+    }
+
+    /// <summary>
+    /// Every state transition must be observable: subscribers such as the example device's
+    /// connection-state handler only ever see the transport through this event.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_WhenBrokerUnreachable_ShouldRaiseStateChanged()
+    {
+        // Arrange
+        var mqtt = new MqttCommunication(
+            brokerUrl: "127.0.0.1",
+            port: 1,
+            clientId: "test-unreachable-events",
+            settings: null,
+            logger: NullLogger<CommunicationBase>.Instance);
+
+        var transitions = new List<CommunicationState>();
+        mqtt.StateChanged += (_, e) => transitions.Add(e.CurrentState);
+
+        // Act
+        await mqtt.ConnectAsync();
+
+        // Assert
+        Assert.Equal(
+            new[] { CommunicationState.Connecting, CommunicationState.Error },
+            transitions);
+    }
+
+    /// <summary>
+    /// A deliberate disconnect must clear a prior <c>Error</c> state, so a later reconnect attempt
+    /// is not reported against a stale state.
+    /// </summary>
+    [Fact]
+    public async Task DisconnectAsync_AfterFailedConnect_ShouldReportDisconnectedState()
+    {
+        // Arrange
+        var mqtt = new MqttCommunication(
+            brokerUrl: "127.0.0.1",
+            port: 1,
+            clientId: "test-disconnect-after-error",
+            settings: null,
+            logger: NullLogger<CommunicationBase>.Instance);
+
+        await mqtt.ConnectAsync();
+        Assert.Equal(CommunicationState.Error, mqtt.State);
+
+        // Act
+        await mqtt.DisconnectAsync();
+
+        // Assert
+        Assert.Equal(CommunicationState.Disconnected, mqtt.State);
+    }
+
     #endregion
 
     #region Factory Tests

@@ -1,0 +1,245 @@
+<title>My Journey · Building a WEDA SubNode with Claude</title>
+<style>
+  :root{
+    --bg:#090C12; --bg2:#0E141D; --panel:#131B27; --panel2:#18222F;
+    --line:#24303F; --line2:#2E3C4F;
+    --ink:#D5DEEC; --dim:#8592A6; --mut:#55637A;
+    --cyan:#35D0E6; --amber:#F6A544; --good:#46E08A; --violet:#9C8CF0;
+    --cyan-soft:rgba(53,208,230,.14);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink); font-family:var(--sans);
+    background:radial-gradient(120% 90% at 50% -10%,#10202b 0%,var(--bg) 55%),var(--bg);
+    display:grid; place-items:center; overflow:hidden;
+  }
+  .stage{
+    position:relative; width:min(97vw,calc(96vh*16/9)); aspect-ratio:16/9;
+    background:linear-gradient(180deg,var(--bg2),#0a0f16 120%);
+    border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 30px 90px -40px #000, inset 0 0 0 1px rgba(255,255,255,.02);
+    overflow:hidden; container-type:size; --u:1cqmin;
+    display:flex; flex-direction:column;
+  }
+  .stage::after{ content:""; position:absolute; inset:0; pointer-events:none; z-index:60;
+    background:linear-gradient(180deg,transparent,rgba(53,208,230,.045),transparent);
+    background-size:100% calc(var(--u)*42); animation:scan 8s linear infinite; opacity:.55}
+  @keyframes scan{from{background-position:0 -42cqmin}to{background-position:0 142cqmin}}
+
+  /* window chrome */
+  .top{display:flex;align-items:center;gap:calc(var(--u)*1.6);
+    padding:calc(var(--u)*2) calc(var(--u)*3); border-bottom:1px solid var(--line);
+    font-family:var(--mono); font-size:calc(var(--u)*1.55); letter-spacing:.05em; color:var(--dim);
+    background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+  .lights{display:flex;gap:calc(var(--u)*1)}
+  .lights i{width:calc(var(--u)*1.3);height:calc(var(--u)*1.3);border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+  .top .who{color:var(--ink);font-weight:600;letter-spacing:.02em}
+  .top .path{color:var(--mut)} .top .branch{color:var(--cyan)}
+  .top .sep{flex:1}
+  .top .live{display:flex;align-items:center;gap:calc(var(--u)*.8);color:var(--good)}
+  .top .live b{width:calc(var(--u)*1);height:calc(var(--u)*1);border-radius:50%;background:var(--good);box-shadow:0 0 calc(var(--u)*1.2) var(--good);animation:blink 2.2s infinite}
+  @keyframes blink{50%{opacity:.35}}
+
+  /* title strip */
+  .strip{padding:calc(var(--u)*2) calc(var(--u)*3.5) calc(var(--u)*.6)}
+  .strip .eyebrow{font-family:var(--mono);font-size:calc(var(--u)*1.5);letter-spacing:.34em;text-transform:uppercase;color:var(--amber)}
+  .strip h1{margin:calc(var(--u)*.6) 0 0;font-size:calc(var(--u)*3.1);font-weight:700;letter-spacing:-.01em}
+  .strip h1 .od{color:var(--amber)} .strip h1 .wc{color:var(--cyan)}
+
+  /* conversation */
+  .conv{flex:1; overflow:hidden; position:relative;
+    padding:calc(var(--u)*1.5) calc(var(--u)*3.5); scroll-behavior:smooth;
+    mask:linear-gradient(180deg,transparent 0,#000 calc(var(--u)*3),#000 calc(100% - var(--u)*3),transparent 100%)}
+  .conv-inner{display:flex;flex-direction:column;gap:calc(var(--u)*2)}
+  .msg{display:none;flex-direction:column;gap:calc(var(--u)*.9);
+    transform:translateY(calc(var(--u)*1.6));opacity:0;transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+  .msg.show{display:flex} .msg.in{transform:none;opacity:1}
+  .role{display:flex;align-items:center;gap:calc(var(--u)*1);font-family:var(--mono);
+    font-size:calc(var(--u)*1.45);letter-spacing:.14em;text-transform:uppercase}
+  .role .av{width:calc(var(--u)*2.4);height:calc(var(--u)*2.4);border-radius:calc(var(--u)*.6);display:grid;place-items:center;font-size:calc(var(--u)*1.4);font-weight:700}
+  .msg.user .role{color:var(--cyan)} .msg.user .av{background:var(--cyan-soft);color:var(--cyan);border:1px solid rgba(53,208,230,.4)}
+  .msg.claude .role{color:var(--violet)} .msg.claude .av{background:rgba(156,140,240,.13);color:var(--violet);border:1px solid rgba(156,140,240,.4)}
+  .bubble{font-size:calc(var(--u)*2.15);line-height:1.35;color:var(--ink);
+    border:1px solid var(--line2);border-radius:calc(var(--u)*1.2);
+    padding:calc(var(--u)*1.5) calc(var(--u)*2);background:linear-gradient(180deg,var(--panel),var(--panel2));
+    max-width:calc(var(--u)*118)}
+  .msg.user .bubble{border-color:rgba(53,208,230,.28);background:linear-gradient(180deg,#0f1c25,#0d1720)}
+  .bubble code,.mono{font-family:var(--mono);font-size:.86em;color:var(--cyan)}
+  .cmd{font-family:var(--mono);color:var(--amber)}
+
+  .tools{display:flex;flex-wrap:wrap;gap:calc(var(--u)*.9);margin-top:calc(var(--u)*.4)}
+  .chip{font-family:var(--mono);font-size:calc(var(--u)*1.32);color:var(--dim);
+    border:1px solid var(--line2);border-radius:99px;padding:calc(var(--u)*.5) calc(var(--u)*1.3);
+    display:flex;align-items:center;gap:calc(var(--u)*.8);background:#0d1420}
+  .chip .sp{width:calc(var(--u)*1);height:calc(var(--u)*1);border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 calc(var(--u)*1.2) var(--cyan)}
+  .msg.in .chip .sp{animation:pulse 1s ease-in-out 2}
+  @keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
+  .result{display:flex;align-items:center;gap:calc(var(--u)*1.1);
+    font-size:calc(var(--u)*1.9);color:var(--ink);margin-top:calc(var(--u)*.4)}
+  .result .ok{color:var(--good);font-weight:700;font-family:var(--mono)}
+  .result b{color:var(--cyan);font-weight:600} .result .am{color:var(--amber)}
+
+  /* final card */
+  .msg.final .bubble{border-color:rgba(70,224,138,.35);background:linear-gradient(180deg,#0e1a18,#0c1512);max-width:calc(var(--u)*130)}
+  .final h2{margin:0 0 calc(var(--u)*1.4);font-size:calc(var(--u)*2.7);font-weight:700}
+  .final h2 .od{color:var(--amber)} .final h2 .wc{color:var(--cyan)}
+  .final .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:calc(var(--u)*1.1)}
+  .final .st{border:1px solid var(--line);border-radius:calc(var(--u)*.9);padding:calc(var(--u)*1.1) calc(var(--u)*1.2);
+    display:flex;flex-direction:column;gap:calc(var(--u)*.3)}
+  .final .st .n{font-family:var(--mono);font-size:calc(var(--u)*2);font-weight:700;color:var(--good)}
+  .final .st .l{font-family:var(--mono);font-size:calc(var(--u)*1.15);color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
+
+  /* timeline */
+  .timeline{display:flex;align-items:center;gap:calc(var(--u)*2);
+    padding:calc(var(--u)*1.4) calc(var(--u)*3.5) calc(var(--u)*1.8);
+    font-family:var(--mono);font-size:calc(var(--u)*1.4);color:var(--dim);border-top:1px solid var(--line)}
+  .phase{min-width:calc(var(--u)*26);color:var(--violet)}
+  .track{position:relative;flex:1;height:calc(var(--u)*.5);border-radius:99px;background:var(--line)}
+  .fill{position:absolute;inset:0 auto 0 0;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--cyan));box-shadow:0 0 calc(var(--u)*1.3) var(--cyan-soft)}
+  .ticks i{position:absolute;top:50%;width:calc(var(--u)*.85);height:calc(var(--u)*.85);transform:translate(-50%,-50%);border-radius:50%;background:var(--bg2);border:1px solid var(--line2)}
+  .clock{color:var(--ink);min-width:calc(var(--u)*9);text-align:right}
+
+  .ctrl{position:fixed;right:14px;bottom:14px;z-index:100;display:flex;gap:8px}
+  .ctrl button{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel);
+    border:1px solid var(--line2);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .ctrl button:hover{border-color:var(--cyan);color:var(--cyan)}
+  .ctrl button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .hint{position:fixed;left:14px;bottom:16px;z-index:100;font-family:var(--mono);font-size:11px;color:var(--mut)}
+  @media (prefers-reduced-motion:reduce){.stage::after,.msg .chip .sp,.top .live b{animation:none!important}.conv{scroll-behavior:auto}.msg{transition-duration:.2s}}
+</style>
+
+<div class="stage" id="stage">
+  <div class="top">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span class="who">Claude Code</span>
+    <span class="path">~/edge_subnode</span>
+    <span class="branch">feature/advantech_identify</span>
+    <span class="sep"></span>
+    <span class="live"><b></b>session replay</span>
+  </div>
+
+  <div class="strip">
+    <div class="eyebrow">My Journey</div>
+    <h1>Building a SubNode that bridges an <span class="od">OD container</span> into <span class="wc">WEDA&nbsp;Core</span></h1>
+  </div>
+
+  <div class="conv" id="conv"><div class="conv-inner" id="conv-inner"></div></div>
+
+  <div class="timeline">
+    <span class="phase" id="phase">Setup</span>
+    <div class="track"><div class="ticks" id="ticks"></div><div class="fill" id="fill"></div></div>
+    <span class="clock" id="clock">00 / 78s</span>
+  </div>
+</div>
+
+<div class="ctrl">
+  <button id="btn-play">❚❚ Pause</button>
+  <button id="btn-replay">↻ Replay</button>
+</div>
+<div class="hint">Screen-record this window (16:9) · space = pause</div>
+
+<script>
+(function(){
+  var TOTAL=78;
+  // the real journey — one exchange per beat
+  var beats=[
+    {t:0.4, phase:'Setup', user:'load the skills in the project',
+      tools:['Skill'], result:'Loaded project skill <b>subnode</b> — WEDA edge SubNode scaffolding.'},
+    {t:7, phase:'Discover', user:'check the api · <span class="mono">Advantech-YOLO-Vision-Applications</span>',
+      tools:['WebFetch'], result:'Parsed the MQTT contract: <b>advantech/&lt;id&gt;/vision/detections</b> @ 1&nbsp;Hz.'},
+    {t:15, phase:'Build', user:'create a container sub node to integrate the object-detection container',
+      tools:['Write ×6','Bash · dotnet test'], result:'Built <b>vision-object-detection</b> · VisionDetectionParser · <span class="ok">10/10 tests ✓</span>'},
+    {t:24, phase:'Package', user:'build a container image',
+      tools:['Bash · docker build'], result:'Image built — 306&nbsp;MB, self-contained (<span class="am">amd64</span>).'},
+    {t:31, phase:'Ship', user:'build for <span class="mono">arm64</span> and push to the registry',
+      tools:['Bash · docker buildx --push'], result:'Pushed multi-arch <span class="am">amd64 + arm64</span> → <b>harbor…/vision-object-detection:latest</b>'},
+    {t:40, phase:'Authenticate', user:'<span class="cmd">/weda-login</span>',
+      tools:['Skill · weda-login'], result:'WISE-SSO OIDC → <b>WEDA JWT</b> minted (admin · tenant central).'},
+    {t:48, phase:'Deploy', user:'<span class="cmd">/weda-container-mgmt</span> deploy the od container to <span class="mono">adlk.edgedevice.2</span>',
+      tools:['Bash · stack-configs','Bash · revisions:deploy'], result:'Deployed → Jetson <b>74fe488d5d54</b> · <span class="ok">status: running ✓</span>'},
+    {t:57, phase:'Verify', user:'show me the telemetry data of the detection',
+      tools:['Skill · edge-ssh','Bash · mosquitto_sub'], result:'Live: <span class="am">6–7 bottles</span> @ 13.77&nbsp;fps → object_count · confidence · bottle_count'},
+    {t:65, phase:'Showcase', user:'create a video … 60-second showcase',
+      tools:['Artifact'], result:'Published the animated <b>60-second showcase</b>.'},
+    {t:71, phase:'Shipped', final:true}
+  ];
+
+  var inner=document.getElementById('conv-inner'), conv=document.getElementById('conv');
+  var fill=document.getElementById('fill'), clock=document.getElementById('clock'),
+      phase=document.getElementById('phase');
+
+  beats.forEach(function(b,i){
+    if(b.final){
+      var m=document.createElement('div'); m.className='msg claude final'; m.dataset.i=i;
+      m.innerHTML=''+
+        '<div class="role"><span class="av">C</span>Claude</div>'+
+        '<div class="bubble">'+
+          '<h2>One session — <span class="od">prompt</span> → SubNode → Jetson → <span class="wc">WEDA&nbsp;Core</span></h2>'+
+          '<div class="stats">'+
+            '<div class="st"><span class="n">10/10</span><span class="l">tests</span></div>'+
+            '<div class="st"><span class="n">2</span><span class="l">arch · amd+arm</span></div>'+
+            '<div class="st"><span class="n">1</span><span class="l">deploy</span></div>'+
+            '<div class="st"><span class="n">13.8</span><span class="l">fps live</span></div>'+
+            '<div class="st"><span class="n">running</span><span class="l">on Jetson</span></div>'+
+          '</div>'+
+        '</div>';
+      inner.appendChild(m); return;
+    }
+    var m=document.createElement('div'); m.className='msg user'; m.dataset.i=i;
+    m.innerHTML='<div class="role"><span class="av">Y</span>You</div><div class="bubble">'+b.user+'</div>';
+    inner.appendChild(m);
+    var c=document.createElement('div'); c.className='msg claude'; c.dataset.i=i;
+    var chips=(b.tools||[]).map(function(t){return '<span class="chip"><span class="sp"></span>'+t+'</span>';}).join('');
+    c.innerHTML='<div class="role"><span class="av">C</span>Claude</div>'+
+      '<div class="tools">'+chips+'</div>'+
+      '<div class="result"><span class="ok">✓</span><span>'+b.result+'</span></div>';
+    inner.appendChild(c);
+  });
+
+  var ticks=document.getElementById('ticks');
+  beats.forEach(function(b){var i=document.createElement('i');i.style.left=(b.t/TOTAL*100)+'%';ticks.appendChild(i);});
+
+  var msgs=Array.prototype.slice.call(inner.children);
+  var revealed=-1;
+  function revealUpTo(t){
+    var target=-1;
+    for(var i=0;i<beats.length;i++){ if(t>=beats[i].t) target=i; }
+    if(target===revealed) return;
+    // show all msgs whose beat index <= target
+    msgs.forEach(function(m){
+      var bi=+m.dataset.i;
+      if(bi<=target){ if(!m.classList.contains('show')){ m.classList.add('show'); requestAnimationFrame(function(){m.classList.add('in');}); } }
+    });
+    revealed=target;
+    requestAnimationFrame(function(){ conv.scrollTop=conv.scrollHeight; });
+  }
+  function phaseAt(t){var p=beats[0].phase;for(var i=0;i<beats.length;i++){if(t>=beats[i].t)p=beats[i].phase;}return p;}
+
+  var start=performance.now(), playing=true, pausedAt=0;
+  function frame(now){
+    var t=playing?((now-start)/1000):pausedAt;
+    if(t>=TOTAL){ // hold on final for a beat, then loop
+      if(t>=TOTAL+2.5){ start=performance.now(); resetReveal(); t=0; } else { t=TOTAL; }
+    }
+    fill.style.width=Math.min(100,t/TOTAL*100)+'%';
+    clock.textContent=(t<10?'0':'')+Math.min(TOTAL,Math.floor(t))+' / '+TOTAL+'s';
+    phase.textContent=phaseAt(t);
+    revealUpTo(t);
+    requestAnimationFrame(frame);
+  }
+  function resetReveal(){revealed=-1;msgs.forEach(function(m){m.classList.remove('show','in');});conv.scrollTop=0;}
+  requestAnimationFrame(frame);
+
+  var btnP=document.getElementById('btn-play'), btnR=document.getElementById('btn-replay');
+  function setPlay(p){playing=p;btnP.textContent=p?'❚❚ Pause':'▶ Play';
+    if(p)start=performance.now()-pausedAt*1000; else pausedAt=Math.min(TOTAL,(performance.now()-start)/1000);}
+  btnP.addEventListener('click',function(){setPlay(!playing);});
+  btnR.addEventListener('click',function(){resetReveal();start=performance.now();pausedAt=0;setPlay(true);});
+  window.addEventListener('keydown',function(e){if(e.code==='Space'){e.preventDefault();setPlay(!playing);}});
+})();
+</script>

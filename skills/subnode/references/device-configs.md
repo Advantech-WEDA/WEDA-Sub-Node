@@ -2,6 +2,11 @@
 
 Complete configuration examples for each device type.
 
+> **`ResourceId` is not a configurable field.** The SDK derives every sensor's `ResourceId` at device
+> initialization as `UUIDv5(ns("weda"), "{SubNodeDeviceId}.{DeviceName}.{SensorName}")`, overwriting
+> anything supplied in configuration. Do not set it in these files. See
+> `docs/wiki/en/04-sensor-configuration/configuration-reference.md#resourceid-generation`.
+
 ## Modbus TCP Device Configuration
 
 ```json
@@ -30,7 +35,6 @@ Complete configuration examples for each device type.
   },
   "Sensors": [
     {
-      "ResourceId": "550e8400-e29b-41d4-a716-446655440001",
       "Name": "Temperature",
       "Dtmi": "dtmi:com:advantech:Temperature;1",
       "SensorGroup": "TEMP",
@@ -64,7 +68,6 @@ Complete configuration examples for each device type.
       }
     },
     {
-      "ResourceId": "550e8400-e29b-41d4-a716-446655440002",
       "Name": "Humidity",
       "Dtmi": "dtmi:com:advantech:Humidity;1",
       "SensorGroup": "AI",
@@ -89,7 +92,6 @@ Complete configuration examples for each device type.
       }
     },
     {
-      "ResourceId": "550e8400-e29b-41d4-a716-446655440003",
       "Name": "DigitalInput1",
       "Dtmi": "dtmi:com:advantech:DigitalInput;1",
       "SensorGroup": "DI",
@@ -138,7 +140,6 @@ Complete configuration examples for each device type.
   },
   "Sensors": [
     {
-      "ResourceId": "660e8400-e29b-41d4-a716-446655440001",
       "Name": "RoomTemperature",
       "Dtmi": "dtmi:com:isensing:Temperature;1",
       "SensorGroup": "TEMP",
@@ -162,7 +163,6 @@ Complete configuration examples for each device type.
       }
     },
     {
-      "ResourceId": "660e8400-e29b-41d4-a716-446655440002",
       "Name": "CO2Level",
       "Dtmi": "dtmi:com:isensing:CO2;1",
       "SensorGroup": "AI",
@@ -215,7 +215,6 @@ Complete configuration examples for each device type.
   },
   "Sensors": [
     {
-      "ResourceId": "770e8400-e29b-41d4-a716-446655440001",
       "Name": "RealtimePower",
       "Dtmi": "dtmi:com:example:RealtimePower;1",
       "SensorGroup": "PWR",
@@ -277,7 +276,6 @@ Complete configuration examples for each device type.
   },
   "Sensors": [
     {
-      "ResourceId": "880e8400-e29b-41d4-a716-446655440001",
       "Name": "CustomSensor1",
       "Dtmi": "dtmi:com:custom:Sensor;1",
       "SensorGroup": "AI",

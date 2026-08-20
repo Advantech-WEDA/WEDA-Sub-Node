@@ -26,15 +26,30 @@ public abstract class CommunicationBase : ICommunication
     public CommunicationState State
     {
         get => _state;
-        protected set
+        protected set => SetState(value);
+    }
+
+    /// <summary>
+    /// Transitions to <paramref name="newState"/> and raises <see cref="StateChanged"/> when the
+    /// state actually changes.
+    /// </summary>
+    /// <remarks>
+    /// Implementations must use this (or the <see cref="State"/> setter) rather than calling
+    /// <see cref="OnStateChanged"/> directly: raising the event without updating the backing state
+    /// leaves <see cref="State"/> stale, and health monitoring reads <see cref="State"/>.
+    /// </remarks>
+    /// <param name="newState">The state to transition to.</param>
+    /// <param name="reason">Optional human-readable reason carried on the event.</param>
+    protected void SetState(CommunicationState newState, string? reason = null)
+    {
+        if (_state == newState)
         {
-            if (_state != value)
-            {
-                var previous = _state;
-                _state = value;
-                OnStateChanged(previous, value);
-            }
+            return;
         }
+
+        var previous = _state;
+        _state = newState;
+        OnStateChanged(previous, newState, reason);
     }
 
     public bool IsConnected => State == CommunicationState.Connected;

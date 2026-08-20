@@ -6,6 +6,12 @@
   <ItemGroup Label="Weda SubNode SDK">
     <!-- Weda SubNode SDK Packages -->
     <PackageVersion Include="Advantech.Edge" Version="1.1.3" />
+    <!-- Official IPC-CFX SDK, packed from source and bundled under ./nuget/ (see nuget.config).
+         AMQPNetLite and Newtonsoft.Json are its dependencies, pinned here because central
+         transitive pinning is enabled. -->
+    <PackageVersion Include="CFX.CFXSDK" Version="2.1.1" />
+    <PackageVersion Include="AMQPNetLite" Version="2.5.1" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="DTDLParser" Version="1.1.3" />
     <PackageVersion Include="ManagedCuda-Nvml.NETStandard" Version="9.1.300" />
     <PackageVersion Include="Weda.Dtdl" Version="1.2.1" />

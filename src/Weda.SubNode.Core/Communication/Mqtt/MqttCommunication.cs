@@ -141,6 +141,8 @@ public class MqttCommunication : PubSubCommunicationBase<byte[]>, IPubSub
     {
         try
         {
+            State = CommunicationState.Connecting;
+
             _mqttClient = _mqttFactory.CreateMqttClient();
 
             // Setup message received handler
@@ -153,8 +155,9 @@ public class MqttCommunication : PubSubCommunicationBase<byte[]>, IPubSub
                 {
                     _logger?.LogWarning("MQTT client disconnected. Reason: {Reason}", e.Reason);
 
-                    // Notify state change
-                    OnStateChanged(CommunicationState.Connected, CommunicationState.Disconnected, "Connection lost");
+                    // SetState rather than OnStateChanged: the event alone would leave State
+                    // reporting Connected while the client is down.
+                    SetState(CommunicationState.Disconnected, "Connection lost");
                 }
                 return Task.CompletedTask;
             };
@@ -179,12 +182,16 @@ public class MqttCommunication : PubSubCommunicationBase<byte[]>, IPubSub
 
             if (result.ResultCode == MqttClientConnectResultCode.Success)
             {
+                State = CommunicationState.Connected;
+
                 _logger?.LogInformation("Connected to MQTT broker {Broker}:{Port} with client ID {ClientId}",
                     _brokerUrl, _port, _clientId);
                 return true;
             }
             else
             {
+                SetState(CommunicationState.Error, $"Broker refused connection: {result.ResultCode}");
+
                 _logger?.LogError("Failed to connect to MQTT broker. Result code: {ResultCode}",
                     result.ResultCode);
                 return false;
@@ -192,6 +199,8 @@ public class MqttCommunication : PubSubCommunicationBase<byte[]>, IPubSub
         }
         catch (Exception ex)
         {
+            SetState(CommunicationState.Error, ex.Message);
+
             _logger?.LogError(ex, "Exception while connecting to MQTT broker {Broker}:{Port}",
                 _brokerUrl, _port);
             return false;
@@ -215,6 +224,10 @@ public class MqttCommunication : PubSubCommunicationBase<byte[]>, IPubSub
                 _logger?.LogError(ex, "Error disconnecting from MQTT broker");
             }
         }
+
+        // Set unconditionally: a deliberate disconnect leaves the transport down whether or not the
+        // client was still connected, and whether or not the broker acknowledged the DISCONNECT.
+        SetState(CommunicationState.Disconnected, "Disconnect requested");
     }
 
     /// <summary>

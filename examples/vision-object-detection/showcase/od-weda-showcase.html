@@ -1,0 +1,444 @@
+<title>Edge-AI OD → WEDA Core · 60s Showcase</title>
+<style>
+  :root{
+    --bg:#090C12; --bg2:#0E141D; --panel:#131B27; --panel2:#18222F;
+    --line:#24303F; --line2:#2E3C4F;
+    --ink:#D5DEEC; --dim:#8592A6; --mut:#55637A;
+    --cyan:#35D0E6; --amber:#F6A544; --good:#46E08A;
+    --cyan-soft:rgba(53,208,230,.14); --amber-soft:rgba(246,165,68,.14);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:
+      radial-gradient(120% 90% at 50% -10%, #10202b 0%, var(--bg) 55%),
+      var(--bg);
+    color:var(--ink); font-family:var(--sans);
+    display:grid; place-items:center; overflow:hidden;
+  }
+
+  /* ---- stage ---------------------------------------------------------- */
+  .stage{
+    position:relative;
+    width:min(97vw, calc(96vh * 16 / 9));
+    aspect-ratio:16/9;
+    background:linear-gradient(180deg,var(--bg2),#0a0f16 120%);
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:0 30px 90px -40px #000, inset 0 0 0 1px rgba(255,255,255,.02);
+    overflow:hidden;
+    container-type:size;
+    --u:1cqmin;
+  }
+  .stage::before{ /* faint grid */
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:linear-gradient(var(--grid,rgba(53,208,230,.05)) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(53,208,230,.05) 1px,transparent 1px);
+    background-size:calc(var(--u)*4) calc(var(--u)*4);
+    mask:radial-gradient(120% 80% at 50% 40%,#000 40%,transparent 92%);
+  }
+  .stage::after{ /* scanline sheen */
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:60;
+    background:linear-gradient(180deg,transparent,rgba(53,208,230,.05),transparent);
+    background-size:100% calc(var(--u)*40);
+    animation:scan 7s linear infinite; opacity:.6;
+  }
+  @keyframes scan{from{background-position:0 -40cqmin}to{background-position:0 140cqmin}}
+
+  /* ---- chrome: top bar + timeline ------------------------------------- */
+  .bar{
+    position:absolute; inset:0 0 auto 0; z-index:40;
+    display:flex; align-items:center; gap:calc(var(--u)*1.6);
+    padding:calc(var(--u)*2.2) calc(var(--u)*3);
+    font-family:var(--mono); font-size:calc(var(--u)*1.55);
+    letter-spacing:.08em; color:var(--dim);
+  }
+  .brand{display:flex;align-items:center;gap:calc(var(--u)*1.1);color:var(--ink);font-weight:600}
+  .dot{width:calc(var(--u)*1.1);height:calc(var(--u)*1.1);border-radius:50%;
+    background:var(--good); box-shadow:0 0 calc(var(--u)*1.4) var(--good); animation:blink 2.4s ease-in-out infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .bar .sep{flex:1}
+  .tag{color:var(--mut)}
+  .tag b{color:var(--cyan);font-weight:600}
+
+  .timeline{
+    position:absolute; left:0; right:0; bottom:0; z-index:40;
+    padding:calc(var(--u)*1.6) calc(var(--u)*3) calc(var(--u)*2);
+    display:flex; align-items:center; gap:calc(var(--u)*2);
+    font-family:var(--mono); font-size:calc(var(--u)*1.4); color:var(--dim);
+    background:linear-gradient(0deg,rgba(9,12,18,.9),transparent);
+  }
+  .track{position:relative; flex:1; height:calc(var(--u)*.5); border-radius:99px; background:var(--line)}
+  .fill{position:absolute; inset:0 auto 0 0; width:0%; border-radius:99px;
+    background:linear-gradient(90deg,var(--cyan),#7ff0ff); box-shadow:0 0 calc(var(--u)*1.4) var(--cyan-soft)}
+  .ticks{position:absolute; inset:0; display:flex; pointer-events:none}
+  .ticks i{position:absolute; top:50%; transform:translate(-50%,-50%);
+    width:calc(var(--u)*.9); height:calc(var(--u)*.9); border-radius:50%;
+    background:var(--bg2); border:1px solid var(--line2)}
+  .clock{color:var(--ink); min-width:calc(var(--u)*9); text-align:right}
+  .actlabel{min-width:calc(var(--u)*20); color:var(--cyan)}
+
+  /* ---- scenes --------------------------------------------------------- */
+  .scene{
+    position:absolute; inset:0; z-index:20;
+    display:grid; place-items:center;
+    padding:calc(var(--u)*9) calc(var(--u)*7);
+    opacity:0; visibility:hidden; transition:opacity .6s ease;
+  }
+  .scene.on{opacity:1; visibility:visible}
+  .rise{transform:translateY(calc(var(--u)*2.2)); opacity:0; transition:all .7s cubic-bezier(.2,.7,.2,1)}
+  .scene.on .rise{transform:none; opacity:1}
+  .scene.on .d1{transition-delay:.06s}.scene.on .d2{transition-delay:.16s}
+  .scene.on .d3{transition-delay:.28s}.scene.on .d4{transition-delay:.4s}
+  .scene.on .d5{transition-delay:.52s}.scene.on .d6{transition-delay:.64s}
+
+  .eyebrow{font-family:var(--mono);font-size:calc(var(--u)*1.7);letter-spacing:.42em;
+    text-transform:uppercase;color:var(--cyan)}
+  .kicker{font-family:var(--mono);font-size:calc(var(--u)*1.55);letter-spacing:.3em;
+    text-transform:uppercase;color:var(--amber)}
+
+  /* Scene 1 · title */
+  #s-title{text-align:center; gap:0}
+  #s-title .wrap{display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*2.4)}
+  #s-title h1{margin:0;font-size:calc(var(--u)*8.4);line-height:1.02;font-weight:700;letter-spacing:-.02em;text-wrap:balance;
+    max-width:calc(var(--u)*95)}
+  #s-title h1 .flow{white-space:nowrap}
+  #s-title h1 .arw{color:var(--cyan);margin:0 .18em}
+  #s-title .od{color:var(--amber)} #s-title .wc{color:var(--cyan)}
+  #s-title p{margin:0;font-size:calc(var(--u)*2.5);color:var(--dim);max-width:calc(var(--u)*72);text-wrap:balance;line-height:1.4}
+  #s-title .chips{display:flex;gap:calc(var(--u)*1.2);font-family:var(--mono);font-size:calc(var(--u)*1.5);color:var(--mut);flex-wrap:wrap;justify-content:center}
+  #s-title .chips span{border:1px solid var(--line2);border-radius:99px;padding:calc(var(--u)*.7) calc(var(--u)*1.6)}
+
+  /* Scene 2 · architecture */
+  #s-arch .col{display:flex;flex-direction:column;gap:calc(var(--u)*4);width:100%;max-width:calc(var(--u)*150);align-items:center}
+  #s-arch .head{display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*1.4);text-align:center}
+  #s-arch h2{margin:0;font-size:calc(var(--u)*3.6);font-weight:650;letter-spacing:-.01em}
+  .pipe{position:relative;display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:calc(var(--u)*1);width:100%}
+  .node{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line2);
+    border-radius:calc(var(--u)*1.6);padding:calc(var(--u)*2.6) calc(var(--u)*2);text-align:center;
+    display:flex;flex-direction:column;gap:calc(var(--u)*1);box-shadow:0 20px 40px -30px #000}
+  .node .ic{font-size:calc(var(--u)*4);line-height:1}
+  .node .nm{font-size:calc(var(--u)*2.1);font-weight:650}
+  .node .sub{font-family:var(--mono);font-size:calc(var(--u)*1.35);color:var(--mut);letter-spacing:.02em}
+  .node.od{border-color:rgba(246,165,68,.4)} .node.od .ic{filter:drop-shadow(0 0 calc(var(--u)*2) var(--amber-soft))}
+  .node.wc{border-color:rgba(53,208,230,.4)}
+  .link{position:relative;height:calc(var(--u)*.35);background:var(--line2);border-radius:99px;min-width:calc(var(--u)*7)}
+  .link .lbl{position:absolute;left:50%;top:calc(var(--u)*-2.6);transform:translateX(-50%);
+    font-family:var(--mono);font-size:calc(var(--u)*1.35);letter-spacing:.16em;color:var(--dim);white-space:nowrap}
+  .link .pkt{position:absolute;top:50%;left:0;width:calc(var(--u)*1.3);height:calc(var(--u)*1.3);margin-top:calc(var(--u)*-.65);
+    border-radius:50%;background:var(--cyan);box-shadow:0 0 calc(var(--u)*2) var(--cyan)}
+  .scene.on .link .pkt{animation:travel 1.7s linear infinite}
+  .link.amber .pkt{background:var(--amber);box-shadow:0 0 calc(var(--u)*2) var(--amber)}
+  @keyframes travel{from{left:2%;opacity:0}12%{opacity:1}88%{opacity:1}to{left:98%;opacity:0}}
+  #s-arch .foot{font-family:var(--mono);font-size:calc(var(--u)*1.5);color:var(--dim);text-align:center;text-wrap:balance;max-width:calc(var(--u)*90)}
+  #s-arch .foot b{color:var(--ink)}
+
+  /* Scene 3 · detection */
+  #s-detect{padding:calc(var(--u)*8.5) calc(var(--u)*5) calc(var(--u)*6.5)}
+  .split{display:grid;grid-template-columns:1.32fr 1fr;gap:calc(var(--u)*3.2);width:100%;height:100%;align-items:stretch}
+  .cam{position:relative;border:1px solid var(--line2);border-radius:calc(var(--u)*1.4);overflow:hidden;
+    background:
+      repeating-linear-gradient(90deg,rgba(255,255,255,.015) 0 calc(var(--u)*7),transparent calc(var(--u)*7) calc(var(--u)*14)),
+      linear-gradient(180deg,#0c161d,#0a1218 70%,#0b1a16);}
+  .cam .camtag{position:absolute;top:calc(var(--u)*1.4);left:calc(var(--u)*1.6);z-index:5;
+    font-family:var(--mono);font-size:calc(var(--u)*1.45);letter-spacing:.14em;color:var(--amber);
+    background:rgba(9,12,18,.6);border:1px solid rgba(246,165,68,.3);border-radius:99px;padding:calc(var(--u)*.55) calc(var(--u)*1.3)}
+  .cam .rec{position:absolute;top:calc(var(--u)*1.6);right:calc(var(--u)*1.8);z-index:5;display:flex;align-items:center;gap:calc(var(--u)*.8);
+    font-family:var(--mono);font-size:calc(var(--u)*1.4);color:var(--dim)}
+  .cam .rec b{width:calc(var(--u)*1);height:calc(var(--u)*1);border-radius:50%;background:#ff5a5a;box-shadow:0 0 calc(var(--u)*1.2) #ff5a5a;animation:blink 1.4s infinite}
+  .cam .sweep{position:absolute;top:0;bottom:0;width:calc(var(--u)*10);z-index:3;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(246,165,68,.12),transparent);mix-blend-mode:screen}
+  .scene.on .cam .sweep{animation:sweep 3.2s ease-in-out infinite}
+  @keyframes sweep{0%{left:-12%}100%{left:100%}}
+  .box{position:absolute;border:calc(var(--u)*.28) solid var(--amber);border-radius:calc(var(--u)*.5);
+    box-shadow:0 0 calc(var(--u)*1.4) rgba(246,165,68,.25), inset 0 0 calc(var(--u)*2) rgba(246,165,68,.08);
+    transition:opacity .4s ease}
+  .box .cf{position:absolute;top:calc(var(--u)*-2.3);left:calc(var(--u)*-.3);
+    font-family:var(--mono);font-size:calc(var(--u)*1.3);color:#0a0f16;background:var(--amber);
+    padding:0 calc(var(--u)*.6);border-radius:calc(var(--u)*.4);white-space:nowrap;font-weight:600}
+  .cam .cnt{position:absolute;bottom:calc(var(--u)*1.4);left:calc(var(--u)*1.6);z-index:5;
+    font-family:var(--mono);font-size:calc(var(--u)*1.55);color:var(--ink)}
+  .cam .cnt b{color:var(--amber)}
+
+  .telecol{display:flex;flex-direction:column;gap:calc(var(--u)*1.8);min-width:0}
+  .telehead{display:flex;align-items:center;gap:calc(var(--u)*1.2)}
+  .telehead .k{font-family:var(--mono);font-size:calc(var(--u)*1.5);letter-spacing:.16em;color:var(--dim);text-transform:uppercase}
+  .arrowmap{font-family:var(--mono);font-size:calc(var(--u)*1.35);color:var(--mut)}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--u)*1.4);flex:1}
+  .tile{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:calc(var(--u)*1.2);padding:calc(var(--u)*1.6) calc(var(--u)*1.8);display:flex;flex-direction:column;gap:calc(var(--u)*.5);justify-content:center}
+  .tile .tk{font-family:var(--mono);font-size:calc(var(--u)*1.3);letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+  .tile .tv{font-family:var(--mono);font-size:calc(var(--u)*3.6);font-weight:700;color:var(--ink);
+    font-variant-numeric:tabular-nums;line-height:1}
+  .tile .tu{font-size:calc(var(--u)*1.4);color:var(--mut);font-weight:400}
+  .tile.hero{grid-column:1/-1}
+  .tile.hero .tv{color:var(--amber);font-size:calc(var(--u)*4)}
+  .tile .tv.cyan{color:var(--cyan)}
+  .jsonline{font-family:var(--mono);font-size:calc(var(--u)*1.28);color:var(--mut);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    border:1px solid var(--line);border-radius:calc(var(--u)*.9);padding:calc(var(--u)*.9) calc(var(--u)*1.3);background:#0b111a}
+  .jsonline b{color:var(--cyan)} .jsonline i{color:var(--amber);font-style:normal}
+
+  /* Scene 4 · ship */
+  #s-ship .col{display:flex;flex-direction:column;gap:calc(var(--u)*3);width:100%;max-width:calc(var(--u)*120)}
+  #s-ship .head{display:flex;flex-direction:column;gap:calc(var(--u)*1);align-items:flex-start}
+  #s-ship h2{margin:0;font-size:calc(var(--u)*3.4);font-weight:650}
+  .steps{display:flex;flex-direction:column;gap:calc(var(--u)*1.5)}
+  .step{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:calc(var(--u)*2);
+    background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:calc(var(--u)*1.2);padding:calc(var(--u)*1.8) calc(var(--u)*2.4)}
+  .step .ck{width:calc(var(--u)*3.4);height:calc(var(--u)*3.4);border-radius:50%;display:grid;place-items:center;
+    border:1px solid var(--good);color:var(--good);font-size:calc(var(--u)*1.9);
+    box-shadow:0 0 calc(var(--u)*1.8) rgba(70,224,138,.2)}
+  .step .lab{display:flex;flex-direction:column;gap:calc(var(--u)*.35)}
+  .step .lab .t{font-size:calc(var(--u)*2.1);font-weight:600}
+  .step .lab .d{font-family:var(--mono);font-size:calc(var(--u)*1.4);color:var(--mut)}
+  .step .stat{font-family:var(--mono);font-size:calc(var(--u)*1.45);color:var(--good);letter-spacing:.1em}
+
+  /* Scene 5 · payoff */
+  #s-pay .col{display:flex;flex-direction:column;gap:calc(var(--u)*3.2);width:100%;max-width:calc(var(--u)*140);align-items:center}
+  #s-pay h2{margin:0;font-size:calc(var(--u)*5);font-weight:700;text-align:center;letter-spacing:-.015em;text-wrap:balance;max-width:calc(var(--u)*100)}
+  #s-pay h2 .od{color:var(--amber)} #s-pay h2 .wc{color:var(--cyan)}
+  #s-pay .dash{display:grid;grid-template-columns:repeat(5,1fr);gap:calc(var(--u)*1.6);width:100%}
+  #s-pay .footline{display:flex;align-items:center;gap:calc(var(--u)*1.6);font-family:var(--mono);
+    font-size:calc(var(--u)*1.6);color:var(--dim);flex-wrap:wrap;justify-content:center}
+  #s-pay .footline .pill{border:1px solid var(--line2);border-radius:99px;padding:calc(var(--u)*.6) calc(var(--u)*1.6)}
+  #s-pay .footline .run{color:var(--good);border-color:rgba(70,224,138,.35)}
+  #s-pay .footline b{color:var(--cyan)}
+
+  /* controls */
+  .ctrl{position:fixed;right:calc(var(--u,8px)*0);bottom:0;right:14px;bottom:14px;z-index:100;display:flex;gap:8px}
+  .ctrl button{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .ctrl button:hover{border-color:var(--cyan);color:var(--cyan)}
+  .ctrl button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .hint{position:fixed;left:14px;bottom:16px;z-index:100;font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.04em}
+
+  @media (prefers-reduced-motion:reduce){
+    .stage::after,.cam .sweep,.link .pkt,.dot,.cam .rec b{animation:none!important}
+    .rise{transition-duration:.25s}
+  }
+</style>
+
+<div class="stage" id="stage">
+  <!-- top bar -->
+  <div class="bar">
+    <span class="brand"><span class="dot"></span>WEDA&nbsp;Core</span>
+    <span class="tag">device&nbsp;<b>74fe488d5d54</b></span>
+    <span class="tag">EPC-R7300 · aarch64</span>
+    <span class="sep"></span>
+    <span class="tag">SIT · central</span>
+    <span class="tag" id="hud-frame">frame —</span>
+  </div>
+
+  <!-- SCENE 1 : TITLE -->
+  <section class="scene" id="s-title" data-scene="0">
+    <div class="wrap">
+      <div class="eyebrow rise d1">60-Second Showcase</div>
+      <h1 class="rise d2"><span class="flow"><span class="od">Edge-AI OD</span><span class="arw">→</span><span class="wc">WEDA&nbsp;Core</span></span></h1>
+      <p class="rise d3">One SubNode bridges a YOLO object-detection container into WEDA Core — live bottle detection, streamed as first-class telemetry.</p>
+      <div class="chips rise d4">
+        <span>YOLO11n</span><span>MQTT&nbsp;1&nbsp;Hz</span><span>C#&nbsp;·&nbsp;.NET&nbsp;10</span><span>NATS</span><span>Jetson&nbsp;Orin</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCENE 2 : ARCHITECTURE -->
+  <section class="scene" id="s-arch" data-scene="1">
+    <div class="col">
+      <div class="head rise d1">
+        <div class="kicker">The Bridge</div>
+        <h2>Three containers, one data contract</h2>
+      </div>
+      <div class="pipe rise d2">
+        <div class="node od">
+          <div class="ic">🎥</div><div class="nm">YOLO&nbsp;OD</div>
+          <div class="sub">yolo-od-demo · v1.6.0</div>
+        </div>
+        <div class="link amber"><span class="lbl">MQTT · detections</span><span class="pkt"></span></div>
+        <div class="node">
+          <div class="ic">🧩</div><div class="nm">Vision&nbsp;SubNode</div>
+          <div class="sub">PubSubDeviceBase</div>
+        </div>
+        <div class="link"><span class="lbl">NATS · telemetry</span><span class="pkt"></span></div>
+        <div class="node wc">
+          <div class="ic">☁️</div><div class="nm">WEDA&nbsp;Core</div>
+          <div class="sub">device shadow</div>
+        </div>
+      </div>
+      <div class="foot rise d3">The SubNode subscribes to <b>advantech/74fe488d5d54/vision/detections</b>, maps each frame into sensors, and reports them to the device-local WedaNode.</div>
+    </div>
+  </section>
+
+  <!-- SCENE 3 : LIVE DETECTION -->
+  <section class="scene" id="s-detect" data-scene="2">
+    <div class="split">
+      <div class="cam rise d1" id="cam">
+        <span class="camtag">◉ OD_bottle_2.mp4 · yolo11n</span>
+        <span class="rec"><b></b>LIVE</span>
+        <span class="sweep"></span>
+        <span class="cnt">objects <b id="cam-count">7</b> · <span id="cam-fps">13.7</span> fps</span>
+        <!-- boxes injected by JS -->
+      </div>
+      <div class="telecol">
+        <div class="telehead rise d2"><span class="k">SubNode&nbsp;telemetry</span><span class="arrowmap">detections → sensors</span></div>
+        <div class="jsonline rise d2">{<b>"objectCount"</b>:<i id="j-oc">7</i>,<b>"classCounts"</b>:{<b>"bottle"</b>:<i id="j-b">7</i>},<b>"fps"</b>:<i id="j-fps">13.7</i>}</div>
+        <div class="tiles rise d3">
+          <div class="tile hero"><span class="tk">object_count</span><span class="tv" id="t-oc">7</span></div>
+          <div class="tile"><span class="tk">inference_fps</span><span class="tv cyan"><span id="t-fps">13.77</span> <span class="tu">fps</span></span></div>
+          <div class="tile"><span class="tk">bottle_count</span><span class="tv" id="t-bottle">7</span></div>
+          <div class="tile"><span class="tk">confidence_max</span><span class="tv cyan" id="t-cmax">0.892</span></div>
+          <div class="tile"><span class="tk">confidence_avg</span><span class="tv cyan" id="t-cavg">0.734</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCENE 4 : SHIP -->
+  <section class="scene" id="s-ship" data-scene="3">
+    <div class="col">
+      <div class="head rise d1">
+        <div class="kicker">Built &amp; Shipped</div>
+        <h2>From parser to Jetson in one pass</h2>
+      </div>
+      <div class="steps">
+        <div class="step rise d2"><span class="ck">✓</span><span class="lab"><span class="t">VisionDetectionParser</span><span class="d">field-map · confidence aggregation · per-class counts</span></span><span class="stat">10 / 10 tests</span></div>
+        <div class="step rise d3"><span class="ck">✓</span><span class="lab"><span class="t">Container image</span><span class="d">harbor.arfa.wise-paas.com/edge-coa/vision-object-detection</span></span><span class="stat">amd64 + arm64</span></div>
+        <div class="step rise d4"><span class="ck">✓</span><span class="lab"><span class="t">Deploy via container-management</span><span class="d">stack revision → device 74fe488d5d54</span></span><span class="stat">deployed</span></div>
+        <div class="step rise d5"><span class="ck">✓</span><span class="lab"><span class="t">On-device</span><span class="d">edge_vision-object-detection-vision-subnode-1</span></span><span class="stat">running</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCENE 5 : PAYOFF -->
+  <section class="scene" id="s-pay" data-scene="4">
+    <div class="col">
+      <h2 class="rise d1"><span class="od">Edge-AI object detection</span>, now a first-class <span class="wc">WEDA Core</span> device</h2>
+      <div class="dash rise d2">
+        <div class="tile"><span class="tk">object_count</span><span class="tv" id="p-oc">7</span></div>
+        <div class="tile"><span class="tk">inference_fps</span><span class="tv cyan" id="p-fps">13.77</span></div>
+        <div class="tile"><span class="tk">confidence_max</span><span class="tv cyan" id="p-cmax">0.915</span></div>
+        <div class="tile"><span class="tk">confidence_avg</span><span class="tv cyan" id="p-cavg">0.782</span></div>
+        <div class="tile"><span class="tk">bottle_count</span><span class="tv" id="p-bottle">7</span></div>
+      </div>
+      <div class="footline rise d3">
+        <span class="pill run">● container running</span>
+        <span class="pill">74fe488d5d54 · EPC-R7300</span>
+        <span class="pill">aarch64 · Jetson Orin</span>
+        <span>reporting to <b>WEDA Core</b> @ 1 Hz</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- timeline -->
+  <div class="timeline">
+    <span class="actlabel" id="act">Intro</span>
+    <div class="track"><div class="ticks" id="ticks"></div><div class="fill" id="fill"></div></div>
+    <span class="clock" id="clock">00 / 60s</span>
+  </div>
+</div>
+
+<div class="ctrl">
+  <button id="btn-play">❚❚ Pause</button>
+  <button id="btn-replay">↻ Replay</button>
+</div>
+<div class="hint">Screen-record this window (16:9) for the 60s clip · space = pause</div>
+
+<script>
+(function(){
+  var TOTAL=60;
+  var scenes=[
+    {id:'s-title',name:'Intro',      a:0,  b:6},
+    {id:'s-arch', name:'Architecture',a:6, b:16},
+    {id:'s-detect',name:'Live detection',a:16,b:34},
+    {id:'s-ship', name:'Build & ship',a:34, b:48},
+    {id:'s-pay',  name:'Integrated', a:48, b:60}
+  ];
+  var els={}; scenes.forEach(function(s){els[s.id]=document.getElementById(s.id);});
+  var fill=document.getElementById('fill'), clock=document.getElementById('clock'),
+      act=document.getElementById('act'), hudFrame=document.getElementById('hud-frame');
+
+  // timeline ticks at scene boundaries
+  var ticks=document.getElementById('ticks');
+  scenes.slice(1).forEach(function(s){var i=document.createElement('i');i.style.left=(s.a/TOTAL*100)+'%';ticks.appendChild(i);});
+
+  // real captured telemetry samples (SubNode logs + broker frames)
+  var S=[
+    {oc:7,fps:13.67,cmax:0.8881,cavg:0.697,bottle:7,frame:1182276},
+    {oc:6,fps:13.72,cmax:0.9054,cavg:0.780,bottle:6,frame:1182290},
+    {oc:7,fps:13.73,cmax:0.8916,cavg:0.734,bottle:7,frame:1182304},
+    {oc:6,fps:13.77,cmax:0.8987,cavg:0.768,bottle:6,frame:1182318},
+    {oc:7,fps:13.77,cmax:0.8767,cavg:0.711,bottle:7,frame:1182332},
+    {oc:6,fps:13.77,cmax:0.9154,cavg:0.782,bottle:6,frame:1182346},
+    {oc:6,fps:13.77,cmax:0.8911,cavg:0.786,bottle:6,frame:1182360},
+    {oc:7,fps:13.77,cmax:0.8764,cavg:0.729,bottle:7,frame:1182374}
+  ];
+
+  // real bbox set (source 2560x1440) -> 7 bottles, sorted by confidence desc
+  var W=2560,H=1440;
+  var BOXES=[
+    [774.8,144.5,1193.1,1325.1,0.888],
+    [394.5,131.2,843.5,1410.9,0.848],
+    [0.6,124.8,356.8,1416.8,0.809],
+    [1113.5,156.7,1467.0,1263.8,0.803],
+    [1396.8,152.3,1707.4,1202.0,0.611],
+    [1601.2,169.5,1885.5,1075.6,0.495],
+    [1790.3,197.6,2023.0,1016.5,0.429]
+  ];
+  var cam=document.getElementById('cam'), boxEls=[];
+  BOXES.forEach(function(bb){
+    var d=document.createElement('div'); d.className='box';
+    d.style.left=(bb[0]/W*100)+'%'; d.style.top=(bb[1]/H*100)+'%';
+    d.style.width=((bb[2]-bb[0])/W*100)+'%'; d.style.height=((bb[3]-bb[1])/H*100)+'%';
+    var c=document.createElement('span'); c.className='cf'; c.textContent='bottle '+bb[4].toFixed(2);
+    d.appendChild(c); cam.appendChild(d); boxEls.push({el:d,cf:c,base:bb[4]});
+  });
+
+  function txt(id,v){var e=document.getElementById(id); if(e)e.textContent=v;}
+
+  function applySample(k){
+    var s=S[k%S.length];
+    hudFrame.textContent='frame '+s.frame;
+    // scene 3
+    txt('cam-count',s.oc); txt('cam-fps',s.fps.toFixed(1));
+    txt('j-oc',s.oc); txt('j-b',s.bottle); txt('j-fps',s.fps.toFixed(2));
+    txt('t-oc',s.oc); txt('t-fps',s.fps.toFixed(2)); txt('t-bottle',s.bottle);
+    txt('t-cmax',s.cmax.toFixed(3)); txt('t-cavg',s.cavg.toFixed(3));
+    // scene 5
+    txt('p-oc',s.oc); txt('p-fps',s.fps.toFixed(2)); txt('p-cmax',s.cmax.toFixed(3));
+    txt('p-cavg',s.cavg.toFixed(3)); txt('p-bottle',s.bottle);
+    // boxes: show oc of them, jitter confidences a touch
+    boxEls.forEach(function(b,i){
+      if(i<s.oc){b.el.style.opacity=1;
+        var j=b.base + (Math.sin((k+i)*1.7)*0.02);
+        b.cf.textContent='bottle '+Math.max(.30,Math.min(.99,j)).toFixed(2);
+      } else {b.el.style.opacity=0;}
+    });
+  }
+  applySample(0);
+
+  var start=performance.now(), playing=true, pausedAt=0, lastSec=-1;
+  function frame(now){
+    var t = playing ? ((now-start)/1000)%TOTAL : pausedAt;
+    fill.style.width=(t/TOTAL*100)+'%';
+    clock.textContent=(t<10?'0':'')+Math.floor(t)+' / 60s';
+    var cur=scenes[0];
+    for(var i=0;i<scenes.length;i++){var s=scenes[i];
+      var on=(t>=s.a && t<s.b); els[s.id].classList.toggle('on',on); if(on)cur=s;}
+    act.textContent=cur.name;
+    var sec=Math.floor(t);
+    if(sec!==lastSec){lastSec=sec; applySample(sec);}
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  var btnP=document.getElementById('btn-play'), btnR=document.getElementById('btn-replay');
+  function setPlay(p){playing=p; btnP.textContent=p?'❚❚ Pause':'▶ Play';
+    if(p){start=performance.now()-pausedAt*1000;} else {pausedAt=((performance.now()-start)/1000)%TOTAL;}}
+  btnP.addEventListener('click',function(){setPlay(!playing);});
+  btnR.addEventListener('click',function(){start=performance.now(); pausedAt=0; setPlay(true);});
+  window.addEventListener('keydown',function(e){if(e.code==='Space'){e.preventDefault();setPlay(!playing);}});
+})();
+</script>
