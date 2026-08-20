@@ -1,0 +1,39 @@
+services:
+  # Vision Object-Detection SubNode.
+  #
+  # Uses host networking so it can reach the MQTT broker published by the
+  # Advantech YOLO CV stack (eclipse-mosquitto on localhost:1883) as well as
+  # WedaNode/NATS. The CV container and this SubNode are expected to run on the
+  # same edge host.
+  vision-subnode:
+    image: ${VISION_SUBNODE_IMAGE:-vision-object-detection:latest}
+    build:
+      context: ../..
+      dockerfile: examples/vision-object-detection/Dockerfile
+    container_name: vision-subnode-app
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # === SystemConfig.WedaNode (NATS connection to WedaNode) ===
+      - SystemConfig__WedaNode__Url=${WEDA_NODE_URL:-127.0.0.1:4222}
+      - SystemConfig__WedaNode__AuthStrategy=${WEDA_NODE_AUTH_STRATEGY:-UserPassword}
+      - SystemConfig__WedaNode__Username=${WEDA_NODE_USERNAME:-}
+      - SystemConfig__WedaNode__Password=${WEDA_NODE_PASSWORD:-}
+      - SystemConfig__WedaNode__Token=${WEDA_NODE_TOKEN:-}
+      - SystemConfig__WedaNode__CredFile=${WEDA_NODE_CRED_FILE:-}
+      # === DeviceConfig: MQTT source (the CV container's broker + device id) ===
+      - DeviceConfig__DeviceConfigs__VisionDetectionConfig__DeviceCommunication__BrokerUrl=${CV_BROKER_URL:-mqtt://localhost:1883}
+      # Set to a 12-char hex id to pin to one CV container, or "+" for any.
+      - DeviceConfig__DeviceConfigs__VisionDetectionConfig__DeviceCommunication__DeviceId=${CV_DEVICE_ID:-+}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      # Persist .weda directory for device registration
+      - ./.weda:/app/.weda

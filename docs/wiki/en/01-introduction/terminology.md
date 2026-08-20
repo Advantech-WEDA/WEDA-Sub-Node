@@ -70,7 +70,7 @@ A **Sensor** is a data point within a device. Each sensor has:
 
 | Property | Description |
 |----------|-------------|
-| `ResourceId` | Unique identifier (UUID, auto-generated) |
+| `ResourceId` | Unique identifier — a UUIDv5 derived by the SDK from the SubNode ID, device name and sensor name; not settable ([rule](../04-sensor-configuration/configuration-reference.md#resourceid-generation)) |
 | `Name` | Human-readable name (e.g., `temperature_sensor1`), required to comploy with IoT DB naming rule |
 | `SensorGroup` | Category: AI, DO, DI, SYS, TEMP, PWR |
 | `Parameters` | Protocol-specific settings (register address, etc.) |

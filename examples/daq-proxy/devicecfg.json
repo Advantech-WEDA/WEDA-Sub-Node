@@ -13,7 +13,7 @@
         "AutoGenEnabled": true
       },
       "Properties": {
-        "DaqDataCollectorSubNodeName": "UniaxialVibrationDevice2",
+        "DaqDataCollectorSubNodeName": "UniaxialVibrationDevice",
         "PhmApiEndpoint": "http://localhost:8000/api/v1/models",
         "PhmApiModelId": "e4f32d57-9ced-41e8-ac69-03d9376b676d",
         "PhmApiTimeoutMs": 5000,

@@ -7,8 +7,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="CFX.CFXSDK" />
     <PackageReference Include="ErrorOr" />
     <PackageReference Include="MQTTnet" />
+    <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" />
     <PackageReference Include="Polly.Core" />
     <PackageReference Include="Polly.Extensions" />

@@ -386,6 +386,10 @@ reports/
 # Official examples are in /examples
 apps/
 **/*.lscache
+
+# Local recording store written by an example at runtime (bind-mounted into the
+# container). Regenerated on every run -- never a source artifact.
+examples/*/weda-data/
 # Local NuGet feed -- bundled packages required by edge_subnode until
 # the corresponding source repos publish to NuGet.org. See nuget.config.
 !nuget/*.nupkg

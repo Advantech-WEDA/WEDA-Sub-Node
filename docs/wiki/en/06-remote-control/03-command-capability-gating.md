@@ -39,7 +39,7 @@ Two different things happen to a command inside the SDK, and this feature only t
 | Term | Definition |
 |------|------------|
 | **Registration** | The command's handler is placed in `CommandRegistry`, making the command dispatchable — if a request for it arrives over NATS, the handler runs. Every scanned handler is always registered. |
-| **Exposure** | The command is included in the capability catalog the SubNode uploads to the cloud: an entry in `deviceCapabilities.commands[]` plus its DTDL Interface in `refModels[]`. The WEDA portal builds its command list and parameter forms from this catalog, so *exposed* means *visible and invocable from the portal UI*. |
+| **Exposure** | The command is included in the capability catalog the SubNode uploads to the cloud: an entry in `deviceCapabilities.commands[]` plus its DTDL Interface in `refModelsMap.commands[]` (in v1.1 this Interface travelled in `refModels[]`; that field is deprecated as of v1.2 — it always uploads empty and will be removed in a later version). The WEDA portal builds its command list and parameter forms from this catalog, so *exposed* means *visible and invocable from the portal UI*. |
 
 A command that is registered but not exposed does not appear on the portal. If something dispatches it anyway, the handler still executes and its own runtime device lookup returns an explicit "no device supports this capability" error — never a misleading "unknown command".
 

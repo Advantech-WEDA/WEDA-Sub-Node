@@ -124,7 +124,7 @@ Device type examples:
 
 | Property | Description |
 |----------|-------------|
-| `ResourceId` | Unique identifier (UUID, auto-generated) |
+| `ResourceId` | Unique identifier — a UUIDv5 derived by the SDK from the SubNode ID, device name and sensor name; not settable ([rule](../04-sensor-configuration/configuration-reference.md#resourceid-generation)) |
 | `Name` | Human-readable name (e.g., `temperature_sensor1`), must comply with IoT DB naming rules |
 | `SensorGroup` | Category: AI, DO, DI, SYS, TEMP, PWR |
 | `Parameters` | Protocol-specific settings (register addresses, etc.) |

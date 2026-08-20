@@ -1,0 +1,79 @@
+{
+  "SubNode": {
+    "Name": "VisionObjectDetection",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "Advantech",
+    "Model": "YOLO-OD-Demo",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "VisionDetectionConfig": {
+      "Enabled": true,
+      "DeviceCommunication": {
+        "BrokerUrl": "mqtt://localhost:1883",
+        "ClientId": "vision-subnode",
+        "DeviceId": "+"
+      },
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Sensors": [
+        {
+          "Name": "object_count",
+          "SensorGroup": "AI",
+          "Parameters": { "Field": "objectCount" },
+          "SensorInfo": {
+            "DisplayName": "Detected Object Count",
+            "Description": "Number of objects detected in the current frame",
+            "Schema": "double"
+          },
+          "Report": { "Enabled": true, "Interval": 1000, "Unit": "count" }
+        },
+        {
+          "Name": "inference_fps",
+          "SensorGroup": "AI",
+          "Parameters": { "Field": "fps" },
+          "SensorInfo": {
+            "DisplayName": "Inference FPS",
+            "Description": "Model inference frame rate",
+            "Schema": "double"
+          },
+          "Report": { "Enabled": true, "Interval": 1000, "Unit": "fps" }
+        },
+        {
+          "Name": "confidence_max",
+          "SensorGroup": "AI",
+          "Parameters": { "Field": "confidence.max" },
+          "SensorInfo": {
+            "DisplayName": "Max Confidence",
+            "Description": "Highest detection confidence in the current frame (0-1)",
+            "Schema": "double"
+          },
+          "Report": { "Enabled": true, "Interval": 1000, "Unit": "" }
+        },
+        {
+          "Name": "confidence_avg",
+          "SensorGroup": "AI",
+          "Parameters": { "Field": "confidence.avg" },
+          "SensorInfo": {
+            "DisplayName": "Average Confidence",
+            "Description": "Mean detection confidence in the current frame (0-1)",
+            "Schema": "double"
+          },
+          "Report": { "Enabled": true, "Interval": 1000, "Unit": "" }
+        },
+        {
+          "Name": "bottle_count",
+          "SensorGroup": "AI",
+          "Parameters": { "Field": "classCount.bottle" },
+          "SensorInfo": {
+            "DisplayName": "Bottle Count",
+            "Description": "Per-class count for 'bottle' (demo clip OD_bottle_2.mp4)",
+            "Schema": "double"
+          },
+          "Report": { "Enabled": true, "Interval": 1000, "Unit": "count" }
+        }
+      ]
+    }
+  }
+}

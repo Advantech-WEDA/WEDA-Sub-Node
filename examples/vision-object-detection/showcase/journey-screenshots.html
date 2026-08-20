@@ -1,0 +1,321 @@
+<title>OD → WEDA Core · Screenshot Journey</title>
+<style>
+  :root{--bg:#090C12;--panel:#0E141D;--line:#24303F;--line2:#2E3C4F;--ink:#D5DEEC;--dim:#8592A6;--mut:#55637A;
+    --cyan:#35D0E6;--amber:#F6A544;--good:#46E08A;--violet:#9C8CF0;--cyan-soft:rgba(53,208,230,.14);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  *{box-sizing:border-box}html,body{height:100%}
+  body{margin:0;color:var(--ink);font-family:var(--sans);background:radial-gradient(120% 90% at 50% -10%,#10202b,var(--bg) 55%),var(--bg);display:grid;place-items:center;overflow:hidden}
+  .stage{position:relative;width:min(97vw,calc(96vh*16/9));aspect-ratio:16/9;background:linear-gradient(180deg,#0E141D,#0a0f16);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 30px 90px -40px #000;overflow:hidden;container-type:size;--u:1cqmin;display:flex;flex-direction:column}
+  .stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:60;background:linear-gradient(180deg,transparent,rgba(53,208,230,.045),transparent);background-size:100% calc(var(--u)*42);animation:scan 8s linear infinite;opacity:.5}
+  @keyframes scan{from{background-position:0 -42cqmin}to{background-position:0 142cqmin}}
+  .head{display:flex;align-items:center;gap:calc(var(--u)*1.6);padding:calc(var(--u)*1.8) calc(var(--u)*3);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:calc(var(--u)*1.5);color:var(--dim);letter-spacing:.05em}
+  .head .t{color:var(--ink);font-weight:600}.head .a{color:var(--amber)}.head .sep{flex:1}
+  .head .live{display:flex;align-items:center;gap:calc(var(--u)*.8);color:var(--good)}
+  .head .live b{width:calc(var(--u)*1);height:calc(var(--u)*1);border-radius:50%;background:var(--good);box-shadow:0 0 calc(var(--u)*1.2) var(--good);animation:blink 2.2s infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .frames{position:relative;flex:1;min-height:0}
+  /* screenshot slides */
+  .slide{position:absolute;inset:0;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:calc(var(--u)*3.2) calc(var(--u)*4) calc(var(--u)*3);gap:calc(var(--u)*2);opacity:0;visibility:hidden;transition:opacity .55s ease}
+  .slide.on{opacity:1;visibility:visible}
+  .shot{width:100%;max-width:calc(var(--u)*150);border-radius:calc(var(--u)*1.6);overflow:hidden;
+    box-shadow:0 24px 60px -30px #000, 0 0 0 1px rgba(255,255,255,.03);transform:scale(1.015)}
+  .slide.on .shot{animation:ken 9s ease-out both}
+  @keyframes ken{from{transform:scale(1.05)}to{transform:scale(1.0)}}
+  .shot svg{display:block;width:100%;height:auto}
+  .cap{font-family:var(--mono);font-size:calc(var(--u)*2);color:var(--ink);display:flex;align-items:center;gap:calc(var(--u)*1.4);letter-spacing:.02em}
+  .cap .num{color:#08131a;background:var(--cyan);border-radius:calc(var(--u)*.6);padding:calc(var(--u)*.2) calc(var(--u)*1);font-weight:700;font-size:calc(var(--u)*1.6)}
+  /* payoff */
+  #pay{position:absolute;inset:0;display:grid;place-items:center;padding:calc(var(--u)*5) calc(var(--u)*6);opacity:0;visibility:hidden;transition:opacity .7s ease}
+  #pay.on{opacity:1;visibility:visible}
+  .pcol{display:flex;flex-direction:column;gap:calc(var(--u)*3.2);width:100%;max-width:calc(var(--u)*140);align-items:center}
+  .peye{font-family:var(--mono);font-size:calc(var(--u)*1.6);letter-spacing:.3em;text-transform:uppercase;color:var(--good)}
+  .pcol h2{margin:0;font-size:calc(var(--u)*4);font-weight:700;text-align:center;text-wrap:balance;max-width:calc(var(--u)*110);letter-spacing:-.015em}
+  .pcol h2 .od{color:var(--amber)}.pcol h2 .wc{color:var(--cyan)}
+  .pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:calc(var(--u)*1);width:100%;max-width:calc(var(--u)*118)}
+  .node{background:linear-gradient(180deg,#131B27,#18222F);border:1px solid var(--line2);border-radius:calc(var(--u)*1.4);padding:calc(var(--u)*1.6);text-align:center;display:flex;flex-direction:column;gap:calc(var(--u)*.6)}
+  .node .ic{font-size:calc(var(--u)*3)}.node .nm{font-size:calc(var(--u)*1.75);font-weight:650}
+  .node.od{border-color:rgba(246,165,68,.4)}.node.wc{border-color:rgba(53,208,230,.4)}
+  .link{position:relative;height:calc(var(--u)*.35);background:var(--line2);border-radius:99px;min-width:calc(var(--u)*6)}
+  .link .lbl{position:absolute;left:50%;top:calc(var(--u)*-2.3);transform:translateX(-50%);font-family:var(--mono);font-size:calc(var(--u)*1.2);letter-spacing:.14em;color:var(--dim)}
+  .link .pkt{position:absolute;top:50%;left:0;width:calc(var(--u)*1.2);height:calc(var(--u)*1.2);margin-top:calc(var(--u)*-.6);border-radius:50%;background:var(--cyan);box-shadow:0 0 calc(var(--u)*1.6) var(--cyan)}
+  #pay.on .link .pkt{animation:travel 1.7s linear infinite}.link.amber .pkt{background:var(--amber);box-shadow:0 0 calc(var(--u)*1.6) var(--amber)}
+  @keyframes travel{from{left:2%;opacity:0}12%{opacity:1}88%{opacity:1}to{left:98%;opacity:0}}
+  .dash{display:grid;grid-template-columns:repeat(5,1fr);gap:calc(var(--u)*1.4);width:100%}
+  .tile{background:linear-gradient(180deg,#131B27,#18222F);border:1px solid var(--line);border-radius:calc(var(--u)*1.1);padding:calc(var(--u)*1.4);display:flex;flex-direction:column;gap:calc(var(--u)*.5)}
+  .tile .k{font-family:var(--mono);font-size:calc(var(--u)*1.2);letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .tile .v{font-family:var(--mono);font-size:calc(var(--u)*3.2);font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .tile .v.c{color:var(--cyan)}.tile .v.a{color:var(--amber)}
+  .foot{display:flex;gap:calc(var(--u)*1.4);font-family:var(--mono);font-size:calc(var(--u)*1.45);color:var(--dim);flex-wrap:wrap;justify-content:center}
+  .foot .pill{border:1px solid var(--line2);border-radius:99px;padding:calc(var(--u)*.5) calc(var(--u)*1.4)}
+  .foot .run{color:var(--good);border-color:rgba(70,224,138,.35)}.foot b{color:var(--cyan)}
+  .timeline{display:flex;align-items:center;gap:calc(var(--u)*2);padding:calc(var(--u)*1.4) calc(var(--u)*3) calc(var(--u)*1.8);font-family:var(--mono);font-size:calc(var(--u)*1.4);color:var(--dim);border-top:1px solid var(--line)}
+  .phase{min-width:calc(var(--u)*22);color:var(--amber)}.phase.pay{color:var(--good)}
+  .track{position:relative;flex:1;height:calc(var(--u)*.5);border-radius:99px;background:var(--line)}
+  .fill{position:absolute;inset:0 auto 0 0;width:0;border-radius:99px;background:linear-gradient(90deg,var(--amber),var(--cyan))}
+  .ticks i{position:absolute;top:50%;width:calc(var(--u)*.85);height:calc(var(--u)*.85);transform:translate(-50%,-50%);border-radius:50%;background:#0E141D;border:1px solid var(--line2)}
+  .ticks i.sp{background:var(--good);border-color:var(--good)}
+  .clock{color:var(--ink);min-width:calc(var(--u)*9);text-align:right}
+  .ctrl{position:fixed;right:14px;bottom:14px;z-index:100;display:flex;gap:8px}
+  .ctrl button{font-family:var(--mono);font-size:12px;color:var(--ink);background:#131B27;border:1px solid var(--line2);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .ctrl button:hover{border-color:var(--cyan);color:var(--cyan)}.ctrl button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .hint{position:fixed;left:14px;bottom:16px;z-index:100;font-family:var(--mono);font-size:11px;color:var(--mut)}
+  @media (prefers-reduced-motion:reduce){.stage::after,.head .live b,.slide.on .shot,.link .pkt{animation:none!important}.slide,#pay{transition-duration:.2s}}
+</style>
+<div class="stage" id="stage">
+  <div class="head"><span class="t">Claude Code</span>&nbsp;<span>session screenshots</span><span class="sep"></span>
+    <span class="a">OD → WEDA Core</span><span class="live"><b></b><span id="ll">journey</span></span></div>
+  <div class="frames" id="frames">
+<figure class="slide" data-i="0" data-t="4"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">SETUP</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="74" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">load the skills in the project</text>
+<circle cx="1184" cy="223" r="20" fill="#35D0E6"/><text x="1184" y="230" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="298" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="320" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="320" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="340" width="184" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="357" r="5" fill="#35D0E6"/>
+<text x="92" y="364" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Skill · subnode</text>
+<text x="62" y="424" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="424" font-size="27" fill="#C9D4E4">Loaded project skill subnode — WEDA edge SubNode scaffolding</text>
+</svg></div><figcaption class="cap"><span class="num">01</span>It starts with one prompt</figcaption></figure>
+<figure class="slide" data-i="1" data-t="12"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">DISCOVER</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="154" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">check the api https://github.com/Advantech-Containers/</text>
+<text x="90" y="270" font-size="29" fill="#D5DEEC">Advantech-YOLO-Vision-Applications/blob/cv_ready_to_de</text>
+<text x="90" y="310" font-size="29" fill="#D5DEEC">ploy/docs/cv-container-overview.md</text>
+<circle cx="1184" cy="263" r="20" fill="#35D0E6"/><text x="1184" y="270" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="378" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="400" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="400" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="420" width="110" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="437" r="5" fill="#35D0E6"/>
+<text x="92" y="444" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">WebFetch</text>
+<text x="62" y="504" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="504" font-size="27" fill="#C9D4E4">Parsed the MQTT contract: advantech/&lt;id&gt;/vision/detections @ 1</text>
+<text x="92" y="542" font-size="27" fill="#C9D4E4">Hz</text>
+</svg></div><figcaption class="cap"><span class="num">02</span>Read the OD container&#x27;s telemetry contract</figcaption></figure>
+<figure class="slide" data-i="2" data-t="20"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">BUILD</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="114" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">create a container sub node to integrae object</text>
+<text x="90" y="270" font-size="29" fill="#D5DEEC">detection demo container</text>
+<circle cx="1184" cy="243" r="20" fill="#35D0E6"/><text x="1184" y="250" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="338" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="360" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="360" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="380" width="110" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="397" r="5" fill="#35D0E6"/>
+<text x="92" y="404" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Write ×6</text>
+<rect x="186" y="380" width="215" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="204" cy="397" r="5" fill="#35D0E6"/>
+<text x="218" y="404" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Bash · dotnet test</text>
+<text x="62" y="464" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="464" font-size="27" fill="#C9D4E4">Built vision-object-detection · VisionDetectionParser · 10/10</text>
+<text x="92" y="502" font-size="27" fill="#C9D4E4">tests ✓</text>
+</svg></div><figcaption class="cap"><span class="num">03</span>SubNode built · 10/10 tests green</figcaption></figure>
+<figure class="slide" data-i="3" data-t="29"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">PACKAGE</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="74" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">buid a container image</text>
+<circle cx="1184" cy="223" r="20" fill="#35D0E6"/><text x="1184" y="230" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="298" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="320" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="320" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="340" width="226" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="357" r="5" fill="#35D0E6"/>
+<text x="92" y="364" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Bash · docker build</text>
+<text x="62" y="424" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="424" font-size="27" fill="#C9D4E4">Image built — 306 MB, self-contained (amd64)</text>
+</svg></div><figcaption class="cap"><span class="num">04</span>Container image built</figcaption></figure>
+<figure class="slide" data-i="4" data-t="37"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">SHIP</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="74" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">yes, build for arm64 and push to the registry</text>
+<circle cx="1184" cy="223" r="20" fill="#35D0E6"/><text x="1184" y="230" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="298" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="320" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="320" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="340" width="310" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="357" r="5" fill="#35D0E6"/>
+<text x="92" y="364" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Bash · docker buildx --push</text>
+<text x="62" y="424" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="424" font-size="27" fill="#C9D4E4">Pushed amd64 + arm64 → harbor…/vision-object-detection:latest</text>
+</svg></div><figcaption class="cap"><span class="num">05</span>Multi-arch image pushed to Harbor</figcaption></figure>
+<figure class="slide" data-i="5" data-t="45"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">AUTH</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="114" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">/weda-login username=kevin.chien@advantech.com.tw</text>
+<text x="90" y="270" font-size="29" fill="#D5DEEC">password=••••••••</text>
+<circle cx="1184" cy="243" r="20" fill="#35D0E6"/><text x="1184" y="250" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="338" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="360" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="360" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="380" width="215" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="397" r="5" fill="#35D0E6"/>
+<text x="92" y="404" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Skill · weda-login</text>
+<text x="62" y="464" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="464" font-size="27" fill="#C9D4E4">WISE-SSO OIDC → WEDA JWT (admin · tenant central)</text>
+</svg></div><figcaption class="cap"><span class="num">06</span>Authenticated to WEDA Core</figcaption></figure>
+<figure class="slide" data-i="6" data-t="53"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">DEPLOY</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="114" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">/weda-container-mgmt deploy the od container to</text>
+<text x="90" y="270" font-size="29" fill="#D5DEEC">adlk.edgedevice.2</text>
+<circle cx="1184" cy="243" r="20" fill="#35D0E6"/><text x="1184" y="250" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="338" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="360" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="360" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="380" width="236" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="397" r="5" fill="#35D0E6"/>
+<text x="92" y="404" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Bash · stack-configs</text>
+<rect x="312" y="380" width="268" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="330" cy="397" r="5" fill="#35D0E6"/>
+<text x="344" y="404" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Bash · revisions:deploy</text>
+<text x="62" y="464" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="464" font-size="27" fill="#C9D4E4">Deployed → Jetson 74fe488d5d54 · status: running ✓</text>
+</svg></div><figcaption class="cap"><span class="num">07</span>Deployed to the Jetson · running</figcaption></figure>
+<figure class="slide" data-i="7" data-t="61"><div class="shot"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect x="0" y="0" width="1280" height="720" rx="20" fill="#0E141D"/>
+<rect x="1" y="1" width="1278" height="718" rx="19" fill="none" stroke="#24303F"/>
+<circle cx="42" cy="40" r="7" fill="#ff5f57"/><circle cx="66" cy="40" r="7" fill="#febc2e"/><circle cx="90" cy="40" r="7" fill="#28c840"/>
+<text x="126" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" fill="#8592A6">Claude Code<tspan fill="#55637A">  ~/edge_subnode  </tspan><tspan fill="#35D0E6">feature/advantech_identify</tspan></text>
+<circle cx="1150" cy="40" r="6" fill="#46E08A"/><text x="1166" y="46" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#46E08A">live</text>
+<line x1="24" y1="72" x2="1256" y2="72" stroke="#1c2733"/>
+<text x="60" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" letter-spacing="6" fill="#F6A544">VERIFY</text>
+<rect x="60" y="146" width="30" height="30" rx="7" fill="#0f2530" stroke="#35D0E6"/><text x="75" y="168" text-anchor="middle" font-size="18" font-weight="700" fill="#35D0E6">Y</text>
+<text x="104" y="168" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#35D0E6">YOU</text>
+<rect x="60" y="186" width="1160" height="74" rx="16" fill="#0f1c25" stroke="#2b4a57"/>
+<text x="90" y="230" font-size="29" fill="#D5DEEC">show me the telemetry data of the detection</text>
+<circle cx="1184" cy="223" r="20" fill="#35D0E6"/><text x="1184" y="230" text-anchor="middle" font-size="24" font-weight="800" fill="#08131a">↑</text>
+<rect x="60" y="298" width="30" height="30" rx="7" fill="#171433" stroke="#9C8CF0"/><text x="75" y="320" text-anchor="middle" font-size="18" font-weight="700" fill="#9C8CF0">C</text>
+<text x="104" y="320" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="19" letter-spacing="3" fill="#9C8CF0">CLAUDE</text>
+<rect x="60" y="340" width="194" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="78" cy="357" r="5" fill="#35D0E6"/>
+<text x="92" y="364" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Skill · edge-ssh</text>
+<rect x="270" y="340" width="236" height="34" rx="17" fill="#0d1420" stroke="#2E3C4F"/>
+<circle cx="288" cy="357" r="5" fill="#35D0E6"/>
+<text x="302" y="364" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="18" fill="#8592A6">Bash · mosquitto_sub</text>
+<text x="62" y="424" font-size="27" font-weight="700" fill="#46E08A">✓</text>
+<text x="92" y="424" font-size="27" fill="#C9D4E4">Live: 6–7 bottles @ 13.77 fps → object_count, confidence,</text>
+<text x="92" y="462" font-size="27" fill="#C9D4E4">bottle_count</text>
+</svg></div><figcaption class="cap"><span class="num">08</span>Live detections → WEDA telemetry</figcaption></figure>
+    <div id="pay">
+      <div class="pcol">
+        <div class="peye">● Live on WEDA Core</div>
+        <h2><span class="od">Edge-AI object detection</span>, streaming as <span class="wc">WEDA</span> telemetry</h2>
+        <div class="pipe">
+          <div class="node od"><div class="ic">🎥</div><div class="nm">YOLO OD</div></div>
+          <div class="link amber"><span class="lbl">MQTT</span><span class="pkt"></span></div>
+          <div class="node"><div class="ic">🧩</div><div class="nm">Vision SubNode</div></div>
+          <div class="link"><span class="lbl">NATS</span><span class="pkt"></span></div>
+          <div class="node wc"><div class="ic">☁️</div><div class="nm">WEDA Core</div></div>
+        </div>
+        <div class="dash">
+          <div class="tile"><span class="k">object_count</span><span class="v a" id="p-oc">7</span></div>
+          <div class="tile"><span class="k">inference_fps</span><span class="v c" id="p-fps">13.77</span></div>
+          <div class="tile"><span class="k">confidence_max</span><span class="v c" id="p-cmax">0.915</span></div>
+          <div class="tile"><span class="k">confidence_avg</span><span class="v c" id="p-cavg">0.782</span></div>
+          <div class="tile"><span class="k">bottle_count</span><span class="v a" id="p-bottle">7</span></div>
+        </div>
+        <div class="foot"><span class="pill run">● container running</span><span class="pill">74fe488d5d54 · Jetson Orin</span><span>@ 1 Hz → <b>WEDA Core</b></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="timeline"><span class="phase" id="phase">Journey</span>
+    <div class="track"><div class="ticks" id="ticks"></div><div class="fill" id="fill"></div></div>
+    <span class="clock" id="clock">00 / 89s</span></div>
+</div>
+<div class="ctrl"><button id="btn-play">❚❚ Pause</button><button id="btn-replay">↻ Replay</button></div>
+<div class="hint">Screen-record this window (16:9) · space = pause</div>
+<script>
+(function(){
+  var TIMES=[4, 12, 20, 29, 37, 45, 53, 61], SPLIT=69, TOTAL=89;
+  var slides=Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var pay=document.getElementById('pay'), fill=document.getElementById('fill'),
+      clock=document.getElementById('clock'), phase=document.getElementById('phase'), ll=document.getElementById('ll');
+  var ticks=document.getElementById('ticks');
+  TIMES.forEach(function(t){var i=document.createElement('i');i.style.left=(t/TOTAL*100)+'%';ticks.appendChild(i);});
+  var sp=document.createElement('i');sp.className='sp';sp.style.left=(SPLIT/TOTAL*100)+'%';ticks.appendChild(sp);
+  var S=[{oc:7,fps:13.67,cmax:0.8881,cavg:0.697,bottle:7},{oc:6,fps:13.72,cmax:0.9054,cavg:0.780,bottle:6},
+    {oc:7,fps:13.73,cmax:0.8916,cavg:0.734,bottle:7},{oc:6,fps:13.77,cmax:0.8987,cavg:0.768,bottle:6},
+    {oc:7,fps:13.77,cmax:0.8767,cavg:0.711,bottle:7},{oc:6,fps:13.77,cmax:0.9154,cavg:0.782,bottle:6}];
+  function tx(id,v){var e=document.getElementById(id);if(e)e.textContent=v;}
+  function tick(k){var s=S[k%S.length];tx('p-oc',s.oc);tx('p-fps',s.fps.toFixed(2));tx('p-cmax',s.cmax.toFixed(3));tx('p-cavg',s.cavg.toFixed(3));tx('p-bottle',s.bottle);}
+  function idxAt(t){var k=0;for(var i=0;i<TIMES.length;i++){if(t>=TIMES[i])k=i;}return k;}
+  var start=performance.now(),playing=true,pausedAt=0,lastSec=-1;
+  function loop(now){
+    var t=playing?((now-start)/1000):pausedAt;
+    if(t>=TOTAL+2.5){start=performance.now();lastSec=-1;t=0;}
+    var tc=Math.min(TOTAL,t);
+    fill.style.width=(tc/TOTAL*100)+'%';clock.textContent=(tc<10?'0':'')+Math.floor(tc)+' / '+TOTAL+'s';
+    if(t<SPLIT){
+      pay.classList.remove('on');ll.textContent='journey';phase.textContent='Journey';phase.classList.remove('pay');
+      var k=idxAt(t);slides.forEach(function(s,i){s.classList.toggle('on',i===k);});
+    } else {
+      slides.forEach(function(s){s.classList.remove('on');});
+      pay.classList.add('on');ll.textContent='live telemetry';phase.textContent='Live · WEDA Core';phase.classList.add('pay');
+      var sec=Math.floor(t);if(sec!==lastSec){lastSec=sec;tick(sec);}
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  var bP=document.getElementById('btn-play'),bR=document.getElementById('btn-replay');
+  function setPlay(p){playing=p;bP.textContent=p?'❚❚ Pause':'▶ Play';if(p)start=performance.now()-pausedAt*1000;else pausedAt=Math.min(TOTAL,(performance.now()-start)/1000);}
+  bP.addEventListener('click',function(){setPlay(!playing);});
+  bR.addEventListener('click',function(){start=performance.now();pausedAt=0;lastSec=-1;setPlay(true);});
+  window.addEventListener('keydown',function(e){if(e.code==='Space'){e.preventDefault();setPlay(!playing);}});
+})();
+</script>

@@ -35,22 +35,22 @@ public class GpuCollector
         return metrics;
     }
 
-    private static int TryGetNvidiaGpuUtilization()
+    private static int? TryGetNvidiaGpuUtilization()
     {
         try
         {
-            if (NvmlNativeMethods.nvmlInit() != nvmlReturn.Success) return int.MinValue;
+            if (NvmlNativeMethods.nvmlInit() != nvmlReturn.Success) return null;
 
             try
             {
                 nvmlDevice device = default;
 
                 if (NvmlNativeMethods.nvmlDeviceGetHandleByIndex(0, ref device) != nvmlReturn.Success)
-                    return int.MinValue;
+                    return null;
 
                 nvmlUtilization utilization = default;
                 if (NvmlNativeMethods.nvmlDeviceGetUtilizationRates(device, ref utilization) != nvmlReturn.Success)
-                    return int.MinValue;
+                    return null;
 
                 return (int)utilization.gpu; // 0~100
             }
@@ -61,7 +61,8 @@ public class GpuCollector
         }
         catch
         {
-            return int.MinValue;
+            // No GPU, no driver, or NVML unavailable -- all mean "no reading", never a value.
+            return null;
         }
     }
 

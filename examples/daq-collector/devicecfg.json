@@ -21,7 +21,6 @@
       },
       "Sensors": [
         {
-          "ResourceId": "daqraw:vibration:payload",
           "Name": "daqraw_vibration_payload",
           "SensorGroup": "AI",
           "Report": {
