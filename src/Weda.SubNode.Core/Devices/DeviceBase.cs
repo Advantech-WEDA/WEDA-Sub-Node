@@ -1391,13 +1391,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     /// <summary>
     /// Validates the device configuration at startup.
     /// Throws InvalidOperationException for any invalid configuration.
+    /// Out-of-range ReportConfiguration periods are normalized to the default instead of throwing.
     /// </summary>
     /// <param name="configuration">Device configuration to validate</param>
     /// <exception cref="InvalidOperationException">Thrown when configuration is invalid</exception>
-    private static void ValidateConfiguration(DeviceConfiguration configuration)
+    private void ValidateConfiguration(DeviceConfiguration configuration)
     {
         ValidateSensorIntervals(configuration);
-        ValidateBackgroundTaskPeriods(configuration);
+        NormalizeBackgroundTaskPeriods(configuration);
     }
 
     /// <summary>
@@ -1423,24 +1424,30 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     /// <summary>
-    /// Validates background task period settings.
-    /// Throws InvalidOperationException for any invalid period configuration.
+    /// Normalizes background task period settings.
+    /// ReportConfiguration: 0 disables periodic sync; out-of-range values fall back to the default.
+    /// Throws InvalidOperationException for invalid ReportHealth configuration.
     /// </summary>
-    /// <param name="configuration">Device configuration to validate</param>
-    /// <exception cref="InvalidOperationException">Thrown when period configuration is invalid</exception>
-    private static void ValidateBackgroundTaskPeriods(DeviceConfiguration configuration)
+    /// <param name="configuration">Device configuration to normalize</param>
+    /// <exception cref="InvalidOperationException">Thrown when ReportHealth configuration is invalid</exception>
+    private void NormalizeBackgroundTaskPeriods(DeviceConfiguration configuration)
     {
         var periods = configuration.Periods;
 
-        // ReportConfiguration is a REQUIRED feature and cannot be disabled
-        // Minimum value is 1 minute (60000ms) to prevent excessive network traffic
-        if (periods.ReportConfiguration < BackgroundTaskPeriods.MinReportConfigurationPeriod)
+        // 0 = disabled (periodic sync off; change-triggered publish still applies)
+        if (periods.ReportConfiguration != 0 &&
+            (periods.ReportConfiguration < BackgroundTaskPeriods.MinReportConfigurationPeriod ||
+             periods.ReportConfiguration > BackgroundTaskPeriods.MaxReportConfigurationPeriod))
         {
-            throw new InvalidOperationException(
-                $"Periods.ReportConfiguration must be at least {BackgroundTaskPeriods.MinReportConfigurationPeriod}ms (1 minute). " +
-                $"Current value: {periods.ReportConfiguration}ms. " +
-                $"This is a required feature for Digital Twin synchronization and cannot be disabled. " +
-                $"Please set a value >= {BackgroundTaskPeriods.MinReportConfigurationPeriod}ms in appsettings.json.");
+            _logger.LogError(
+                "Periods.ReportConfiguration ({Value}ms) is out of range ({Min}ms - {Max}ms). " +
+                "Applying default {Default}ms.",
+                periods.ReportConfiguration,
+                BackgroundTaskPeriods.MinReportConfigurationPeriod,
+                BackgroundTaskPeriods.MaxReportConfigurationPeriod,
+                BackgroundTaskPeriods.DefaultReportConfigurationPeriod);
+
+            periods.ReportConfiguration = BackgroundTaskPeriods.DefaultReportConfigurationPeriod;
         }
 
         // ReportHealth should also have a reasonable minimum (optional, but warn if too low)
