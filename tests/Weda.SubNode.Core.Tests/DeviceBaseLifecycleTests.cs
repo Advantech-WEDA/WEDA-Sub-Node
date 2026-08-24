@@ -704,6 +704,44 @@ public class DeviceBaseLifecycleTests : IDisposable
     // These tests should be moved to integration tests that use real SendTelemetryAsync
 
     #endregion
+
+    #region ReportConfiguration Normalization Tests (US-47107 AC-2)
+
+    [Theory]
+    [InlineData(30_000)]       // below 60s minimum
+    [InlineData(700_000_000)]  // above 7d maximum
+    [InlineData(-1)]           // negative
+    public void Constructor_Should_ApplyDefaultPeriod_WhenReportConfigurationOutOfRange(int periodMs)
+    {
+        // Arrange
+        _testConfig.Periods.ReportConfiguration = periodMs;
+
+        // Act - must not throw; out-of-range falls back to the default
+        var device = CreateTestDevice();
+
+        // Assert
+        device.Configuration.Periods.ReportConfiguration
+            .ShouldBe(BackgroundTaskPeriods.DefaultReportConfigurationPeriod);
+    }
+
+    [Theory]
+    [InlineData(0)]            // disabled
+    [InlineData(60_000)]       // min boundary
+    [InlineData(3_600_000)]    // in range
+    [InlineData(604_800_000)]  // max boundary
+    public void Constructor_Should_PreserveValidReportConfigurationPeriod(int periodMs)
+    {
+        // Arrange
+        _testConfig.Periods.ReportConfiguration = periodMs;
+
+        // Act
+        var device = CreateTestDevice();
+
+        // Assert
+        device.Configuration.Periods.ReportConfiguration.ShouldBe(periodMs);
+    }
+
+    #endregion
 }
 
 /// <summary>

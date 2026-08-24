@@ -66,4 +66,12 @@ public interface ISubNodeManager
     /// </summary>
     /// <param name="deviceName">The device name to unregister</param>
     void UnregisterDeviceHandler(string deviceName);
+
+    /// <summary>
+    /// Requests an immediate publish of the reported device configuration.
+    /// Call after changing a device configuration locally (outside a cloud-desired
+    /// update) so the cloud reflects the change without waiting for the next
+    /// periodic sync. Concurrent calls coalesce into a single publish.
+    /// </summary>
+    void TriggerConfigSync();
 }
