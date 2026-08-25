@@ -1,0 +1,78 @@
+{
+  "SubNode": {
+    "Name": "PhmFeatureProxy",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "Advantech",
+    "Model": "PHM-Feature-Proxy",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "FeatureProxyConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Properties": {
+        "DaqDataCollectorSubNodeName": "UniaxialVibrationDevice",
+        "PhmApiEndpoint": "http://localhost:8000/api/v1/models",
+        "PhmApiModelId": "e4f32d57-9ced-41e8-ac69-03d9376b676d",
+        "PhmApiTimeoutMs": 5000,
+        "PhmAnomalyThreshold": 0.3
+      },
+      "Sensors": [
+        {
+          "Name": "health_score",
+          "SensorGroup": "AI",
+          "SensorInfo": {
+            "DisplayName": "Health Score",
+            "Description": "Overall machine health score (0.0=critical, 1.0=healthy)",
+            "Schema": "double"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "anomaly_result",
+          "SensorGroup": "AI",
+          "SensorInfo": {
+            "DisplayName": "Anomaly Result",
+            "Description": "Anomaly classification result: normal or anomaly_detected",
+            "Schema": "string"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "processing_time_ms",
+          "SensorGroup": "AI",
+          "SensorInfo": {
+            "DisplayName": "Processing Time (ms)",
+            "Description": "End-to-end PHM API inference latency in milliseconds",
+            "Schema": "long"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        },
+        {
+          "Name": "proxy_version",
+          "SensorGroup": "AI",
+          "SensorInfo": {
+            "DisplayName": "Proxy Version",
+            "Description": "Feature proxy software version",
+            "Schema": "string"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000
+          }
+        }
+      ]
+    }
+  }
+}

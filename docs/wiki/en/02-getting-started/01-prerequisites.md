@@ -97,7 +97,7 @@ docker compose version
 
 ```bash
 git clone https://github.com/Advantech-Containers/WEDA-Sub-Node
-cd WEDA-Sub-Node/examples/testdevice
+cd WEDA-Sub-Node/examples/feature-transform-pipeline
 
 # Start the example with Docker Compose
 docker compose up

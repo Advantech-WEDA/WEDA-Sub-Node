@@ -13,7 +13,7 @@ description: 'Configure devices and sensors using devicecfg.json.'
 
 ## Overview
 
-JSON is the most common configuration approach for SubNode and the default for the WedaBuilder template. Through `devicecfg.json`, SAs and developers can define device connections, sensors, data transforms, and reporting behavior without modifying code. This article walks through the structure of `devicecfg.json` layer by layer, using the `wise-4012` example as a practical reference.
+JSON is the most common configuration approach for SubNode and the default for the WedaBuilder template. Through `devicecfg.json`, SAs and developers can define device connections, sensors, data transforms, and reporting behavior without modifying code. This article walks through the structure of `devicecfg.json` layer by layer, using the `modbus-wise4012` example as a practical reference.
 
 ## What You'll Learn
 
@@ -22,7 +22,7 @@ After reading this article, you will be able to:
 - Understand the complete structure of `devicecfg.json`
 - Configure device connections, sensors, and reporting intervals
 - Configure SensorInfo, TransformPipeline, and DspPipeline
-- Map each field to its purpose using the `wise-4012` example
+- Map each field to its purpose using the `modbus-wise4012` example
 
 ## Prerequisites
 
@@ -100,7 +100,7 @@ builder.AddDevice<MyFirstDevice>("MyFirstDevice");
     "MyFirstDevice": {
       "Enabled": true,
       "Dtdl": {
-        "DtdlPath": "examples/wise-4012/dtdl/wise-4012.json",
+        "DtdlPath": "examples/modbus-wise4012/dtdl/wise-4012.json",
         "AutoGenEnabled": true
       },
       "DeviceCommunication": {
@@ -379,9 +379,9 @@ DSP Filters execute after Transforms:
 
 Refer to the following example `devicecfg.json` files:
 
-- `examples/wise-4012/devicecfg.json` - Modbus TCP (AI + DO)
-- `examples/wise-4012-isensing/devicecfg.json` - ISensing MQTT
-- `examples/power-aggregation/devicecfg.json` - Multi-device aggregation
+- `examples/modbus-wise4012/devicecfg.json` - Modbus TCP (AI + DO)
+- `examples/mqtt-isensing-wise4012/devicecfg.json` - ISensing MQTT
+- `examples/feature-aggregation/devicecfg.json` - Multi-device aggregation
 
 ---
 

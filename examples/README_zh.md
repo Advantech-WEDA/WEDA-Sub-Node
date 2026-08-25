@@ -63,7 +63,7 @@
 
 ```bash
 # 導航到範例目錄
-cd examples/wise-4012-builder
+cd examples/modbus-wise4012-builder
 
 # 編輯 appsettings.json 配置連線
 nano appsettings.json

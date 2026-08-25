@@ -17,4 +17,9 @@
     <PackageReference Include="DTDLParser" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Captured CFX payloads, copied verbatim so tests exercise real wire bytes -->
+    <None Include="Protocols\Cfx\Fixtures\*.gz" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -29,6 +29,10 @@
 | 2 | 02-start-with-example.md | ✅ Complete | ✅ Complete |
 | 3 | 03-start-with-template.md | ✅ Complete | ✅ Complete |
 | 4 | 04-connect-to-wedacore.md | ✅ Complete | ✅ Complete |
+| 5 | 05-si-integration-guide.md | ⬜ Pending | ✅ Complete |
+| 6 | 06-integrate-edge-ai-container.md | ⬜ Pending | ✅ Complete |
+| 7 | 07-tot-30min-subnode-for-si.md | ⬜ Pending | ✅ Complete |
+| 8 | 08-tot-30min-subnode-for-sales-pm-se.md | ⬜ Pending | ✅ Complete |
 
 ### 03-hierarchy
 
@@ -118,7 +122,7 @@
 | Section | Total | zh Done | en Done |
 |---------|-------|---------|---------|
 | 01-introduction | 3 | 3 | 3 |
-| 02-getting-started | 4 | 4 | 4 |
+| 02-getting-started | 8 | 4 | 8 |
 | 03-hierarchy | 2 | 2 | 2 |
 | 04-configuration | 3 | 3 | 3 |
 | 05-data-pipeline | 3 | 3 | 3 |
@@ -127,7 +131,7 @@
 | 08-examples | 6 | 0 | 0 |
 | 09-customization | 14 | 0 | 0 |
 | 10-faq | 3 | 0 | 0 |
-| **Total** | **46** | **15** | **15** |
+| **Total** | **50** | **15** | **19** |
 
 ---
 

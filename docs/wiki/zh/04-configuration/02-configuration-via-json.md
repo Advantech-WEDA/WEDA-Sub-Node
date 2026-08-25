@@ -13,7 +13,7 @@ description: '使用 devicecfg.json 設定裝置和感測器。'
 
 ## Overview
 
-JSON 是 SubNode 最常見的設定方式，也是 WedaBuilder 範本的預設方式。透過 `devicecfg.json`，SA 和開發人員可以在不修改程式碼的情況下定義裝置連線、感測器、資料轉換和報告行為。本文逐層解析 `devicecfg.json` 的結構，並以 `wise-4012` 範例作為實際參考。
+JSON 是 SubNode 最常見的設定方式，也是 WedaBuilder 範本的預設方式。透過 `devicecfg.json`，SA 和開發人員可以在不修改程式碼的情況下定義裝置連線、感測器、資料轉換和報告行為。本文逐層解析 `devicecfg.json` 的結構，並以 `modbus-wise4012` 範例作為實際參考。
 
 ## What You'll Learn
 
@@ -22,7 +22,7 @@ JSON 是 SubNode 最常見的設定方式，也是 WedaBuilder 範本的預設�
 - 理解 `devicecfg.json` 的完整結構
 - 設定裝置連線、感測器和報告間隔
 - 設定 SensorInfo、TransformPipeline 和 DspPipeline
-- 對照 `wise-4012` 範例理解各欄位的用途
+- 對照 `modbus-wise4012` 範例理解各欄位的用途
 
 ## Prerequisites
 
@@ -100,7 +100,7 @@ builder.AddDevice<MyFirstDevice>("MyFirstDevice");
     "MyFirstDevice": {
       "Enabled": true,
       "Dtdl": {
-        "DtdlPath": "examples/wise-4012/dtdl/wise-4012.json",
+        "DtdlPath": "examples/modbus-wise4012/dtdl/wise-4012.json",
         "AutoGenEnabled": true
       },
       "DeviceCommunication": {
@@ -379,9 +379,9 @@ DSP Filter 在 Transform 之後執行：
 
 請參閱以下範例的 `devicecfg.json`：
 
-- `examples/wise-4012/devicecfg.json` - Modbus TCP（AI + DO）
-- `examples/wise-4012-isensing/devicecfg.json` - ISensing MQTT
-- `examples/power-aggregation/devicecfg.json` - 多裝置聚合
+- `examples/modbus-wise4012/devicecfg.json` - Modbus TCP（AI + DO）
+- `examples/mqtt-isensing-wise4012/devicecfg.json` - ISensing MQTT
+- `examples/feature-aggregation/devicecfg.json` - 多裝置聚合
 
 ---
 

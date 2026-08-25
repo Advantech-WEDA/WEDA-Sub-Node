@@ -188,7 +188,6 @@ Each device is defined by a configuration key that maps to `AddDevice<T>("key")`
   "Sensors": [
     {
       "Name": "temperature.zone1",
-      "ResourceId": "21af0dc4-5389-a7dd-df64d7cf782c",
       "SensorGroup": "TEMP",
       "Dtmi": "dtmi:advantech:EdgeSync:Temperature;1",
       "Parameters": {
@@ -246,7 +245,7 @@ Each device is defined by a configuration key that maps to `AddDevice<T>("key")`
 | Field | Required | Description |
 |-------|----------|-------------|
 | `Name` | Yes | Sensor identifier |
-| `ResourceId` | No | UUID (auto-generated if omitted) |
+| `ResourceId` | Do not set | Derived by the SDK from the SubNode ID, device name and sensor name. A value supplied here is **ignored** — see [ResourceId Generation](./configuration-reference.md#resourceid-generation) |
 | `SensorGroup` | Yes | Category: AI, AO, DI, DO, TEMP, PWR, SYS |
 | `Dtmi` | No | Digital Twin Model ID |
 | `Parameters` | Yes | Protocol-specific settings |
@@ -408,7 +407,7 @@ Transforms execute in array order:
 
 ## Complete Example
 
-See [examples/wise-4012/devicecfg.json](https://github.com/your-repo/edge_subnode/blob/main/examples/wise-4012/devicecfg.json) for a complete working example.
+See [examples/modbus-wise4012/devicecfg.json](https://github.com/your-repo/edge_subnode/blob/main/examples/modbus-wise4012/devicecfg.json) for a complete working example.
 
 ```json
 {

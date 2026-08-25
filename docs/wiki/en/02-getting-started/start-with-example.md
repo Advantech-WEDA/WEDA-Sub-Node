@@ -25,7 +25,7 @@ The `examples/` directory contains production-ready examples:
 
 ## Running the WISE-4012 Example
 
-The `wise-4012` example is recommended for beginners. It demonstrates:
+The `modbus-wise4012` example is recommended for beginners. It demonstrates:
 - Basic device configuration
 - Modbus TCP communication
 - Sensor telemetry collection
@@ -41,7 +41,7 @@ cd edge_subnode
 ### Step 2: Navigate to the Example
 
 ```bash
-cd examples/wise-4012
+cd examples/modbus-wise4012
 ```
 
 ### Step 3: Review the Project Structure

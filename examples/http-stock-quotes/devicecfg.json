@@ -1,0 +1,275 @@
+{
+  "SubNode": {
+    "Name": "MyStockMonitor",
+    "SubNodeType": "CustomDevice",
+    "Manufacturer": "TWSE",
+    "Model": "RealTimeQuote",
+    "SwVersion": "1.0.0"
+  },
+  "DeviceConfigs": {
+    "StockMonitorConfig": {
+      "Enabled": true,
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "DeviceCommunication": {
+        "Host": "mis.twse.com.tw",
+        "Port": 443
+      },
+      "Sensors": [
+        {
+          "Name": "stock_2395_current",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "Current"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech Current Price",
+            "Description": "Latest traded price for Advantech (2395)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2395_open",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "Open"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech Open Price",
+            "Description": "Opening price of the trading day for Advantech (2395)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2395_high",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "High"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech High Price",
+            "Description": "Highest price of the trading day for Advantech (2395)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2395_low",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "Low"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech Low Price",
+            "Description": "Lowest price of the trading day for Advantech (2395)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2395_change",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "Change"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech Price Change",
+            "Description": "Change from the previous close for Advantech (2395)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2395_changepercent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "ChangePercent"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "%"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech Change Percent",
+            "Description": "Change from the previous close, as a percentage for Advantech (2395)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2395_volume",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2395",
+            "Metric": "Volume"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "shares"
+          },
+          "SensorInfo": {
+            "DisplayName": "Advantech Volume",
+            "Description": "Accumulated trading volume for Advantech (2395)",
+            "Schema": "long"
+          }
+        },
+        {
+          "Name": "stock_2330_current",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "Current"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC Current Price",
+            "Description": "Latest traded price for TSMC (2330)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2330_open",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "Open"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC Open Price",
+            "Description": "Opening price of the trading day for TSMC (2330)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2330_high",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "High"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC High Price",
+            "Description": "Highest price of the trading day for TSMC (2330)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2330_low",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "Low"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC Low Price",
+            "Description": "Lowest price of the trading day for TSMC (2330)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2330_change",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "Change"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "TWD"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC Price Change",
+            "Description": "Change from the previous close for TSMC (2330)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2330_changepercent",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "ChangePercent"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "%"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC Change Percent",
+            "Description": "Change from the previous close, as a percentage for TSMC (2330)",
+            "Schema": "double"
+          }
+        },
+        {
+          "Name": "stock_2330_volume",
+          "SensorGroup": "SYS",
+          "Parameters": {
+            "StockCode": "2330",
+            "Metric": "Volume"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 10000,
+            "Unit": "shares"
+          },
+          "SensorInfo": {
+            "DisplayName": "TSMC Volume",
+            "Description": "Accumulated trading volume for TSMC (2330)",
+            "Schema": "long"
+          }
+        }
+      ]
+    }
+  }
+}

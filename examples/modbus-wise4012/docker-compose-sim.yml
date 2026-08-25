@@ -1,0 +1,23 @@
+services:
+  simulator:
+    build:
+      context: ../..
+      dockerfile: tools/simulator-host/Dockerfile
+    ports:
+      - "5020:5020"
+    restart: unless-stopped
+
+  wise-4012:
+    build:
+      context: ../..
+      dockerfile: examples/modbus-wise4012/Dockerfile
+    volumes:
+      - ./devicecfg.json:/app/devicecfg.json:ro
+      - ./systemcfg.json:/app/systemcfg.json:ro
+      - ./customcfg.json:/app/customcfg.json:ro
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./weda-data:/app/.weda
+    network_mode: host
+    depends_on:
+      - simulator
+    restart: unless-stopped
