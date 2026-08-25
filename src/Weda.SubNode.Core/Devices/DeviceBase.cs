@@ -90,7 +90,7 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         Configuration.SubNodeInfo ??= context.SubNodeInfo;
 
         // Validate configuration and calculate send period
-        ValidateConfiguration(configuration);
+        ValidateAndNormalizeConfiguration(configuration);
         CalculatedSendTelemetryPeriod = CalculateSendTelemetryPeriod(configuration);
 
         // Initialize DTDL (auto-generates when AutoGenEnabled=true, or loads from file)
@@ -1389,13 +1389,15 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     // ===== Configuration Validation =====
 
     /// <summary>
-    /// Validates the device configuration at startup.
-    /// Throws InvalidOperationException for any invalid configuration.
-    /// Out-of-range ReportConfiguration periods are normalized to the default instead of throwing.
+    /// Validates the device configuration at startup and normalizes in place any
+    /// values that can be safely corrected. The name carries the side effect:
+    /// out-of-range <c>Periods.ReportConfiguration</c> is clamped on the passed-in
+    /// instance rather than throwing, so a bad period never aborts device startup.
+    /// Genuinely invalid input (e.g. a sub-second ReportHealth) still throws.
     /// </summary>
-    /// <param name="configuration">Device configuration to validate</param>
+    /// <param name="configuration">Device configuration to validate and normalize in place</param>
     /// <exception cref="InvalidOperationException">Thrown when configuration is invalid</exception>
-    private void ValidateConfiguration(DeviceConfiguration configuration)
+    private void ValidateAndNormalizeConfiguration(DeviceConfiguration configuration)
     {
         ValidateSensorIntervals(configuration);
         NormalizeBackgroundTaskPeriods(configuration);
@@ -1425,8 +1427,8 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
 
     /// <summary>
     /// Normalizes background task period settings.
-    /// ReportConfiguration: 0 disables periodic sync; out-of-range values fall back to the default.
-    /// Throws InvalidOperationException for invalid ReportHealth configuration.
+    /// ReportConfiguration: 0 disables periodic sync (logged); out-of-range values are
+    /// clamped to the nearest bound. Throws InvalidOperationException for invalid ReportHealth.
     /// </summary>
     /// <param name="configuration">Device configuration to normalize</param>
     /// <exception cref="InvalidOperationException">Thrown when ReportHealth configuration is invalid</exception>
@@ -1434,20 +1436,38 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     {
         var periods = configuration.Periods;
 
-        // 0 = disabled (periodic sync off; change-triggered publish still applies)
-        if (periods.ReportConfiguration != 0 &&
-            (periods.ReportConfiguration < BackgroundTaskPeriods.MinReportConfigurationPeriod ||
-             periods.ReportConfiguration > BackgroundTaskPeriods.MaxReportConfigurationPeriod))
+        // 0 is an explicit opt-out (periodic sync off; change-triggered publish via
+        // TriggerConfigSync / reconnect still applies). Surface it so an accidental
+        // 0 in appsettings is visible rather than silently disabling the feature.
+        if (periods.ReportConfiguration == 0)
         {
-            _logger.LogError(
+            _logger.LogWarning(
+                "Periods.ReportConfiguration is 0: periodic configuration sync is disabled. " +
+                "The reported configuration will only publish at startup, on reconnect, " +
+                "and on explicit TriggerConfigSync.");
+        }
+        else if (periods.ReportConfiguration < BackgroundTaskPeriods.MinReportConfigurationPeriod ||
+                 periods.ReportConfiguration > BackgroundTaskPeriods.MaxReportConfigurationPeriod)
+        {
+            // Clamp to the nearest bound rather than substituting the default: a 30s
+            // request is far closer to the operator's intent at the 60s floor than at
+            // the 24h default. Same range as the cloud path (PeriodsValidator); the two
+            // differ only in fail-soft (clamp, local startup must not abort) vs
+            // fail-hard (reject, cloud can echo an error back).
+            var clamped = Math.Clamp(
+                periods.ReportConfiguration,
+                BackgroundTaskPeriods.MinReportConfigurationPeriod,
+                BackgroundTaskPeriods.MaxReportConfigurationPeriod);
+
+            _logger.LogWarning(
                 "Periods.ReportConfiguration ({Value}ms) is out of range ({Min}ms - {Max}ms). " +
-                "Applying default {Default}ms.",
+                "Clamping to {Clamped}ms.",
                 periods.ReportConfiguration,
                 BackgroundTaskPeriods.MinReportConfigurationPeriod,
                 BackgroundTaskPeriods.MaxReportConfigurationPeriod,
-                BackgroundTaskPeriods.DefaultReportConfigurationPeriod);
+                clamped);
 
-            periods.ReportConfiguration = BackgroundTaskPeriods.DefaultReportConfigurationPeriod;
+            periods.ReportConfiguration = clamped;
         }
 
         // ReportHealth should also have a reasonable minimum (optional, but warn if too low)

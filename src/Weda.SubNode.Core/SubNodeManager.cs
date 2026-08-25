@@ -45,6 +45,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private Task? _configSyncTask;
     private readonly SemaphoreSlim _configSyncSignal = new(0, 1);
     private int _configSyncPublishRequested;
+
+    // Back-off delay before the config sync loop retries after an unexpected
+    // publish failure. Deliberately independent of the report period: a device
+    // with periodic sync disabled (period 0) must still recover from transient
+    // publish errors, and the retry cadence must not track the report cadence.
+    private const int ConfigSyncErrorRetryDelayMs = 60_000;
     private bool _isInitialized;
     private string? _subNodeId;
 
@@ -1029,7 +1035,18 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in configuration sync task");
-                    await Task.Delay(BackgroundTaskPeriods.MinReportConfigurationPeriod, ct);
+
+                    // Back off before retrying, but never let a shutdown-cancelled
+                    // delay escape the loop as a fault — a cancelled back-off is an
+                    // orderly stop, not an error.
+                    try
+                    {
+                        await Task.Delay(ConfigSyncErrorRetryDelayMs, ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
         }, ct);
@@ -1115,10 +1132,23 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     {
         _logger.LogDebug("Disposing SubNodeManager");
 
-        // Cancel and wait for config sync task
         if (_configSyncCts != null)
         {
             await _configSyncCts.CancelAsync();
+
+            if (_configSyncTask != null)
+            {
+                try
+                {
+                    await _configSyncTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected: cancellation is the orderly stop path.
+                }
+                _configSyncTask = null;
+            }
+
             _configSyncCts.Dispose();
             _configSyncCts = null;
         }

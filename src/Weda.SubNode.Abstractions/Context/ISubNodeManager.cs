@@ -73,5 +73,5 @@ public interface ISubNodeManager
     /// update) so the cloud reflects the change without waiting for the next
     /// periodic sync. Concurrent calls coalesce into a single publish.
     /// </summary>
-    void TriggerConfigSync();
+    void TriggerConfigSync() { }
 }

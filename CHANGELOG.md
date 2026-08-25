@@ -5,6 +5,20 @@ All notable changes to the Weda SubNode SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Change-triggered configuration reporting — `ISubNodeManager.TriggerConfigSync()` requests an immediate publish of the reported device configuration. Call it after changing a device configuration locally (outside a cloud-desired update) so the cloud reflects the change without waiting for the next periodic sync. Concurrent calls coalesce into a single publish. Added as a default no-op interface member so it does not source-break external `ISubNodeManager` implementers.
+- Reconnect republish — `IWedaCloudService.ConnectionRestored` fires when the underlying connection is re-established after a drop (never on the initial connect). `SubNodeManager` subscribes and republishes the reported configuration so state changed while offline reaches the cloud immediately. `MockCloudService.SimulateConnectionRestoredAsync()` raises the event for offline/standalone testing.
+
+### Changed
+- Configuration sync default period raised from **60s to 24h** (`BackgroundTaskPeriods.DefaultReportConfigurationPeriod`); allowed range narrowed from 10s–7d to **60s–7d** (`MinReportConfigurationPeriod` 10000 → 60000). Steady-state devicecfg is now driven primarily by change/reconnect triggers rather than a fast periodic tick.
+- Out-of-range `Periods.ReportConfiguration` is now **clamped to the nearest bound** (previously replaced with the default), preserving operator intent; `0` remains an explicit opt-out (periodic sync off) and now logs a warning instead of being applied silently.
+
+### Installation and Upgrade Instructions
+- If your device mutates its own configuration at runtime (sensor re-resolution, calibration writes, `RawDeviceCfgJson` refresh) and relied on the old 60s periodic tick to propagate it, call `ISubNodeManager.TriggerConfigSync()` at those change points — with the 24h default, an untriggered local change can otherwise lag up to a day.
+- Any `Periods.ReportConfiguration` below 60000ms is now clamped to 60000ms (the old 10000ms floor no longer applies). Set the value explicitly if you depend on a specific cadence.
+
 ## [1.2.0] - 2026-06-02
 
 ### Added

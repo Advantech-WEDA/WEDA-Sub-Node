@@ -708,20 +708,20 @@ public class DeviceBaseLifecycleTests : IDisposable
     #region ReportConfiguration Normalization Tests (US-47107 AC-2)
 
     [Theory]
-    [InlineData(30_000)]       // below 60s minimum
-    [InlineData(700_000_000)]  // above 7d maximum
-    [InlineData(-1)]           // negative
-    public void Constructor_Should_ApplyDefaultPeriod_WhenReportConfigurationOutOfRange(int periodMs)
+    [InlineData(30_000, BackgroundTaskPeriods.MinReportConfigurationPeriod)]       // below 60s min -> clamp up to floor
+    [InlineData(-1, BackgroundTaskPeriods.MinReportConfigurationPeriod)]           // negative -> clamp up to floor
+    [InlineData(700_000_000, BackgroundTaskPeriods.MaxReportConfigurationPeriod)]  // above 7d max -> clamp down to ceiling
+    public void Constructor_Should_ClampToNearestBound_WhenReportConfigurationOutOfRange(int periodMs, int expected)
     {
         // Arrange
         _testConfig.Periods.ReportConfiguration = periodMs;
 
-        // Act - must not throw; out-of-range falls back to the default
+        // Act - must not throw; out-of-range is clamped to the nearest bound
+        // (preserving operator intent) rather than replaced with the 24h default.
         var device = CreateTestDevice();
 
         // Assert
-        device.Configuration.Periods.ReportConfiguration
-            .ShouldBe(BackgroundTaskPeriods.DefaultReportConfigurationPeriod);
+        device.Configuration.Periods.ReportConfiguration.ShouldBe(expected);
     }
 
     [Theory]

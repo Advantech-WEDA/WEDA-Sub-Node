@@ -5,6 +5,20 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本專案遵循 [語意化版本](https://semver.org/lang/zh-TW/)。
 
+## [Unreleased]
+
+### 新增
+- 變更觸發的設定回報 — `ISubNodeManager.TriggerConfigSync()` 可要求立即發佈已回報的裝置設定。當你在本地(非雲端 desired 更新)變更裝置設定後呼叫它,雲端即可反映變更,不必等到下一次週期同步。並行呼叫會合併為單次發佈。此成員以 default no-op 介面方法加入,不會 source-break 既有的外部 `ISubNodeManager` 實作者。
+- 重連後重新發佈 — `IWedaCloudService.ConnectionRestored` 會在底層連線中斷後重新建立時觸發(初次連線不觸發)。`SubNodeManager` 訂閱此事件並重新發佈已回報設定,使離線期間發生的變更能立即送達雲端。`MockCloudService.SimulateConnectionRestoredAsync()` 提供離線/獨立測試時觸發該事件的入口。
+
+### 變更
+- 設定同步預設週期由 **60 秒調整為 24 小時**(`BackgroundTaskPeriods.DefaultReportConfigurationPeriod`);允許範圍由 10 秒–7 天收斂為 **60 秒–7 天**(`MinReportConfigurationPeriod` 10000 → 60000)。穩態下的 devicecfg 改以變更/重連觸發為主,而非高頻週期 tick。
+- 超出範圍的 `Periods.ReportConfiguration` 現在會**夾到最近的邊界**(先前是替換為預設值),以保留操作者意圖;`0` 仍為明確停用(關閉週期同步),且現在會記錄一則警告而非靜默套用。
+
+### 安裝與升級說明
+- 若你的裝置會在執行期變更自身設定(sensor 重新解析、calibration 寫入、`RawDeviceCfgJson` 更新),且原本仰賴舊的 60 秒週期 tick 來傳播,請在這些變更點呼叫 `ISubNodeManager.TriggerConfigSync()` — 在 24 小時預設下,未觸發的本地變更最多可能延遲一天才上雲。
+- 任何低於 60000ms 的 `Periods.ReportConfiguration` 現在會被夾到 60000ms(舊的 10000ms 下限不再適用)。若你依賴特定週期,請明確設定其值。
+
 ## [1.2.0] - 2026-06-02
 
 ### 新增
