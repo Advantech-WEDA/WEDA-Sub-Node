@@ -18,8 +18,8 @@ namespace SystemAgentExample.Devices;
 /// that collects CPU, memory, disk, and network metrics.
 /// </summary>
     
-public class SystemAgentDeviceBase : RequestResponseDeviceBase, 
-    IDigitalOutputControllable, IDigitalInputReadable, IDigitalOutputReadable
+public class SystemAgentDeviceBase : RequestResponseDeviceBase,
+    IDigitalOutputControllable, IDigitalInputReadable, IDigitalOutputReadable, IGpioPinListable
 {
     private readonly LocalSystemCommunication _localCommunication;
 

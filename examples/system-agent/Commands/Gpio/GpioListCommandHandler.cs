@@ -9,7 +9,6 @@ using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Attributes;
 using Weda.SubNode.Abstractions.Commands.Contracts;
 using Weda.SubNode.Abstractions.Context;
-using Weda.SubNode.Abstractions.Devices;
 
 namespace SystemAgentExample.Commands.Gpio;
 
@@ -32,8 +31,7 @@ public class GpioListCommandHandler : ICommandHandler<GpioListCommand, GpioListR
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var devices = context.GetAllDevices<IDevice>()
-            .OfType<SystemAgentDeviceBase>()
+        var devices = context.GetAllDevices<IGpioPinListable>()
             .Where(d => string.IsNullOrWhiteSpace(deviceName)
                 || d.DeviceName.Equals(deviceName, StringComparison.OrdinalIgnoreCase))
             .ToList();
