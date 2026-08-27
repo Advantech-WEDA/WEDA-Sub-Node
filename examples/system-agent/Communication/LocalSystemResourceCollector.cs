@@ -288,6 +288,12 @@ public class LocalSystemResourceCollector
         return rawData;
     }
 
+    public bool? GetGpioPinLevel(string pinName) => _hardwarePlatformCollector?.GetGpioPinLevel(pinName);
+
+    public bool SetGpioPinLevel(string pinName, bool state) => _hardwarePlatformCollector?.SetGpioPinLevel(pinName, state) ?? false;
+
+    public string? GetGpioPinDirection(string pinName) => _hardwarePlatformCollector?.GetGpioPinDirection(pinName);
+
     /// <summary>
     /// Discovers available resource names for sensor resolution (Auto-detect mode).
     /// Returns network interface names, GPIO pin names, and temperature source names.

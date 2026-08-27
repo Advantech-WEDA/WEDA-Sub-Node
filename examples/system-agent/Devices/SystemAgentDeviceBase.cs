@@ -1,10 +1,10 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
 using SystemAgentExample.Models;
 using SystemAgentExample.Protocols;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Core.Devices;
@@ -17,7 +17,9 @@ namespace SystemAgentExample.Devices;
 /// SystemMetricsParser into a functional Request-Response device structure
 /// that collects CPU, memory, disk, and network metrics.
 /// </summary>
-public class SystemAgentDeviceBase : RequestResponseDeviceBase
+    
+public class SystemAgentDeviceBase : RequestResponseDeviceBase, 
+    IDigitalOutputControllable, IDigitalInputReadable, IDigitalOutputReadable
 {
     private readonly LocalSystemCommunication _localCommunication;
 
@@ -152,4 +154,21 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
 
         return configuration;
     }
+
+    private GpioDigitalIo? _gpio;
+
+    private GpioDigitalIo Gpio => _gpio ??= new GpioDigitalIo(
+        _localCommunication.GetGpioPinLevel,
+        _localCommunication.SetGpioPinLevel,
+        _localCommunication.GetGpioPinDirection,
+        _logger);
+
+    public Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
+        => Gpio.SetOutputAsync(outputName, state, cancellationToken);
+
+    public Task<bool?> GetDigitalInputAsync(string inputName, CancellationToken cancellationToken = default)
+        => Task.FromResult(Gpio.GetLevel(inputName));
+
+    public Task<bool?> GetDigitalOutputAsync(string outputName, CancellationToken cancellationToken = default)
+        => Task.FromResult(Gpio.GetLevel(outputName));
 }

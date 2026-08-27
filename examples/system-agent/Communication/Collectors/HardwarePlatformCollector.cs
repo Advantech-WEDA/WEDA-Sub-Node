@@ -549,6 +549,68 @@ public class HardwarePlatformCollector : IDisposable
         });
     }
 
+    public bool? GetGpioPinLevel(string pinName)
+    {
+        return RunOnNativeThread<bool?>(() =>
+        {
+            try
+            {
+                if (_advantechEdgeDevice.Gpio?.IsSupported != true)
+                    return null;
+
+                var level = _advantechEdgeDevice.Gpio.GetLevel(pinName);
+                return level.HasValue ? level.Value != 0 : null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read GPIO pin '{PinName}' level", pinName);
+                return null;
+            }
+        });
+    }
+
+    public bool SetGpioPinLevel(string pinName, bool state)
+    {
+        return RunOnNativeThread(() =>
+        {
+            try
+            {
+                if (_advantechEdgeDevice.Gpio?.IsSupported != true)
+                    return false;
+                
+                _advantechEdgeDevice.Gpio.SetLevel(pinName, state ? (GpioLevelTypes)1 : (GpioLevelTypes)0);
+                _logger.LogInformation("GPIO pin '{PinName}' set to {State}", pinName, state ? "HIGH" : "LOW");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to set GPIO pin '{PinName}'", pinName);
+                return false;
+            }
+        }); 
+    }
+
+    public string? GetGpioPinDirection(string pinName)
+    {
+        return RunOnNativeThread<string?>(() =>
+        {
+            try
+            {
+                if (_advantechEdgeDevice.Gpio?.IsSupported != true)
+                    return null;
+                
+                var direction = _advantechEdgeDevice.Gpio.GetDirection(pinName);
+                if (!direction.HasValue) return null;
+                return direction.Value == GpioDirectionTypes.Input ? "input" : "output";
+            } 
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to query GPIO pin '{PinName}' direction", pinName);
+                return null;
+            }
+        });
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
