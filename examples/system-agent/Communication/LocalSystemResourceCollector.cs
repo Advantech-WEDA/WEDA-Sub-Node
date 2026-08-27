@@ -288,6 +288,8 @@ public class LocalSystemResourceCollector
         return rawData;
     }
 
+    public List<GpioPinDescriptor> ListGpioPins() => _hardwarePlatformCollector?.ListGpioPins() ?? [];
+
     public bool? GetGpioPinLevel(string pinName) => _hardwarePlatformCollector?.GetGpioPinLevel(pinName);
 
     public bool SetGpioPinLevel(string pinName, bool state) => _hardwarePlatformCollector?.SetGpioPinLevel(pinName, state) ?? false;

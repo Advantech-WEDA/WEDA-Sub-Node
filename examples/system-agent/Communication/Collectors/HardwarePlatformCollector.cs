@@ -549,6 +549,50 @@ public class HardwarePlatformCollector : IDisposable
         });
     }
 
+    /// <summary>
+    /// Lists all GPIO pins with direction and current level in a single
+    /// native-thread hop.
+    /// </summary>
+    public List<GpioPinDescriptor> ListGpioPins()
+    {
+        return RunOnNativeThread(() =>
+        {
+            var pins = new List<GpioPinDescriptor>();
+            try
+            {
+                if (_advantechEdgeDevice.Gpio?.IsSupported != true)
+                    return pins;
+
+                foreach (var pinName in _advantechEdgeDevice.Gpio.PinNames)
+                {
+                    string? direction = null;
+                    bool? state = null;
+                    try
+                    {
+                        var dir = _advantechEdgeDevice.Gpio.GetDirection(pinName);
+                        if (dir.HasValue)
+                            direction = dir.Value == GpioDirectionTypes.Input ? "input" : "output";
+
+                        var level = _advantechEdgeDevice.Gpio.GetLevel(pinName);
+                        if (level.HasValue)
+                            state = level.Value != 0;
+                    }
+                    catch (Exception exPin)
+                    {
+                        _logger.LogWarning(exPin, "Failed to describe GPIO pin '{PinName}'", pinName);
+                    }
+
+                    pins.Add(new GpioPinDescriptor { Name = pinName, Direction = direction, State = state });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to list GPIO pins");
+            }
+            return pins;
+        });
+    }
+
     public bool? GetGpioPinLevel(string pinName)
     {
         return RunOnNativeThread<bool?>(() =>

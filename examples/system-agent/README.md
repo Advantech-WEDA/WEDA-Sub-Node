@@ -128,8 +128,17 @@ capability interfaces `IDigitalOutputControllable`, `IDigitalOutputReadable`, an
 `IDigitalInputReadable`, so the built-in cloud commands `do.set`, `do.get`, and `di.get`
 work without any custom command code.
 
-Pin names are the raw driver pin names, exactly as they appear in the `gpio_pinState`
-telemetry keys (query `gpio_pinState` first if unsure what the platform calls its pins).
+Pin names are the raw driver pin names. Discover them with the `gpio.list` custom command
+(defined in this example under `Commands/Gpio/`), which also serves as the custom-command
+reference implementation:
+
+```json
+{ "deviceCmd": "gpio.list", "parameters": { "deviceName": "system-agent" } }
+```
+
+Result: `devices: { "<deviceName>": [ { "name": "UIO_GPIO2", "direction": "output", "state": false }, ... ] }`
+— the `name` values are exactly what `do.set` / `do.get` / `di.get` accept, and
+`direction` tells you which commands apply to each pin.
 
 ### Set digital output — `do.set`
 

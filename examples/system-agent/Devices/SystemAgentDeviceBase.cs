@@ -163,6 +163,8 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase,
         _localCommunication.GetGpioPinDirection,
         _logger);
 
+    public List<GpioPinDescriptor> ListGpioPins() => _localCommunication.ListGpioPins();
+
     public Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
         => Gpio.SetOutputAsync(outputName, state, cancellationToken);
 
