@@ -48,7 +48,13 @@ public class GpioListCommandHandler : ICommandHandler<GpioListCommand, GpioListR
         var inventory = devices.ToDictionary(
             d => d.DeviceName,
             d => d.ListGpioPins()
-                .Select(p => new GpioPinEntry { Name = p.Name, Direction = p.Direction, State = p.State })
+                .Select(p => new GpioPinEntry
+                {
+                    Name = p.Name,
+                    Direction = p.Direction,
+                    State = p.State,
+                    SensorName = p.SensorName
+                })
                 .ToArray(),
             StringComparer.OrdinalIgnoreCase);
 

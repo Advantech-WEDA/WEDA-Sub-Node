@@ -72,4 +72,11 @@ public record GpioPinEntry
     /// </summary>
     [JsonPropertyName("state")]
     public bool? State { get; init; }
+
+    /// <summary>
+    /// Configured sensor name bound to this pin — the name to pass to
+    /// do.set / do.get / di.get. Null when the pin has no bound sensor.
+    /// </summary>
+    [JsonPropertyName("sensorName")]
+    public string? SensorName { get; init; }
 }
