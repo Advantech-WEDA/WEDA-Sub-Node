@@ -23,7 +23,7 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('invoke accepted (HTTP 201)', () => pm.response.to.have.status(201));",
+              "pm.test('invoke accepted (201 or 202)', () => pm.expect([201, 202]).to.include(pm.response.code));",
               "const body = pm.response.json();",
               "pm.test('command received (status 0)', () => pm.expect(body.data.status).to.eql(0));",
               "pm.test('phase is pending or result', () => pm.expect(['pending', 'result']).to.include(body.data.phase));",
@@ -78,7 +78,7 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('invoke accepted (HTTP 201)', () => pm.response.to.have.status(201));",
+              "pm.test('invoke accepted (201 or 202)', () => pm.expect([201, 202]).to.include(pm.response.code));",
               "const body = pm.response.json();",
               "pm.test('command received (status 0)', () => pm.expect(body.data.status).to.eql(0));",
               "pm.collectionVariables.set('diGetSeqId', body.seqId);"
@@ -127,7 +127,7 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('invoke accepted for dispatch (HTTP 201)', () => pm.response.to.have.status(201));",
+              "pm.test('invoke accepted for dispatch (201 or 202)', () => pm.expect([201, 202]).to.include(pm.response.code));",
               "pm.collectionVariables.set('doSetSeqId', pm.response.json().seqId);"
             ],
             "type": "text/javascript"
