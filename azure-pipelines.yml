@@ -7,6 +7,12 @@ trigger:
       - main
       - develop
       - release/*
+      # Validate work branches on every push so feature / bugfix work is built
+      # and unit-tested before it reaches a PR.
+      - feature/*
+      - bugfix/*
+      - fix/*
+      - hotfix/*
   paths:
     exclude:
       - README.md
@@ -46,15 +52,26 @@ stages:
               version: $(dotnetVersion)
               includePreviewVersions: true
 
-          # Restore — use the repo nuget.config so the bundled Weda.Dtdl
-          # .nupkg under ./nuget/ is resolvable (not yet on NuGet.org)
-          - task: DotNetCoreCLI@2
+          # Restore — invoke dotnet directly instead of going through
+          # DotNetCoreCLI's feed management.
+          #
+          # With `feedsToUse: config` the task COPIES nuget.config to
+          # $(Agent.WorkFolder)/Nuget/tempNuGet_<BuildId>.config. NuGet resolves
+          # a local source's relative path against the config file's own
+          # directory, so `<add key="local" value="./nuget" />` became
+          # /azp/_work/<n>/Nuget/nuget — which does not exist — and restore died
+          # with NU1301. It only appeared to work while every bundled package
+          # (Weda.Dtdl, CFX.CFXSDK) was already warm in the agent's global
+          # packages folder, so the `local` source was never queried.
+          #
+          # Running dotnet from the repo root lets NuGet discover ./nuget.config
+          # in place, so ./nuget resolves to $(Build.SourcesDirectory)/nuget.
+          - bash: |
+              set -euo pipefail
+              find . -name '*.csproj' -not -path '*/bin/*' -not -path '*/obj/*' -print0 \
+                | xargs -0 -r -n1 dotnet restore
             displayName: 'Restore'
-            inputs:
-              command: 'restore'
-              projects: '**/*.csproj'
-              feedsToUse: 'config'
-              nugetConfigPath: 'nuget.config'
+            workingDirectory: '$(Build.SourcesDirectory)'
 
           # Derive the SDK version stamped into the assemblies from the release
           # branch (release/vX.Y.Z) plus a -ci.<BuildId> suffix. This is what
