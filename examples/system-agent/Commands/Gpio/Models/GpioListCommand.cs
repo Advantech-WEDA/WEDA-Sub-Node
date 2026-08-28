@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Commands;
 using Weda.SubNode.Abstractions.Commands.Contracts;
@@ -8,15 +7,15 @@ using Weda.SubNode.Abstractions.Commands.Contracts;
 namespace SystemAgentExample.Commands.Gpio.Models;
 
 /// <summary>
-/// Command to list all GPIO pins with their direction and current level.
-/// Maps to payload: data.deviceCmd = "gpio.list"
+/// Command to list every GPIO pin of all pin-listable devices, with direction
+/// and current level. Maps to payload: data.deviceCmd = "gpio.list"
 /// </summary>
 /// <remarks>
-/// Cloud → SubNode command structure:
+/// Cloud → SubNode command structure (no parameters):
 /// <code>
 /// {
 ///   "deviceCmd": "gpio.list",
-///   "parameters": { "deviceName": "system-agent" }
+///   "parameters": {}
 /// }
 /// </code>
 /// Use this to discover the pin names accepted by the built-in
@@ -30,15 +29,8 @@ public class GpioListCommand : CommandData<GpioListParameters>
 }
 
 /// <summary>
-/// Parameters for the gpio.list command.
+/// gpio.list takes no parameters: it always reports every IGpioPinListable device.
 /// </summary>
 public class GpioListParameters
 {
-    /// <summary>
-    /// Target device name (optional).
-    /// If null or empty, all devices exposing GPIO pins are queried.
-    /// </summary>
-    [JsonPropertyName("deviceName")]
-    [Display(Name = "Target Device")]
-    public string? DeviceName { get; init; }
 }

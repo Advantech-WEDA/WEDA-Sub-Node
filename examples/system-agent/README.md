@@ -135,7 +135,7 @@ under `Commands/Gpio/`), which also serves as the custom-command reference
 implementation:
 
 ```json
-{ "deviceCmd": "gpio.list", "parameters": { "deviceName": "system-agent" } }
+{ "deviceCmd": "gpio.list", "parameters": {} }
 ```
 
 Result per pin: `{ "name": "UIO_GPIO2", "direction": "input", "state": false,

@@ -27,22 +27,15 @@ public class GpioListCommandHandler : ICommandHandler<GpioListCommand, GpioListR
     {
         var logger = context.GetLogger<GpioListCommandHandler>();
         var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var deviceName = command.Parameters?.DeviceName;
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var devices = context.GetAllDevices<IGpioPinListable>()
-            .Where(d => string.IsNullOrWhiteSpace(deviceName)
-                || d.DeviceName.Equals(deviceName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var devices = context.GetAllDevices<IGpioPinListable>();
 
         if (devices.Count == 0)
         {
-            var message = string.IsNullOrWhiteSpace(deviceName)
-                ? "No devices expose GPIO pins"
-                : $"Device '{deviceName}' not found or does not expose GPIO pins";
             return Task.FromResult<ErrorOr<GpioListResult>>(
-                GpioListResult.Error(CommandStatusCode.NotFound, message, executedAt));
+                GpioListResult.Error(CommandStatusCode.NotFound, "No devices expose GPIO pins", executedAt));
         }
 
         var inventory = devices.ToDictionary(
