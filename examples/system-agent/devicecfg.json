@@ -14,6 +14,21 @@
       },
       "Sensors": [
         {
+          "Name": "hb",
+          "SensorGroup": "SYS",
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "Record": {
+            "Enabled": false
+          },
+          "SensorInfo": {
+            "Description": "Reserved platform liveness ping. Declaring a sensor named 'hb' enables the SubNode heartbeat; it is never polled, its value is synthesized by the SDK, and its dtmi and boolean schema are supplied by the SDK rather than configured here.",
+            "DisplayName": "Heartbeat"
+          }
+        },
+        {
           "Name": "cpu_usage",
           "SensorGroup": "SYS",
           "Parameters": {
