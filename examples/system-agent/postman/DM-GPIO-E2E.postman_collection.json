@@ -1,0 +1,193 @@
+{
+  "info": {
+    "name": "DM GPIO E2E (system-agent)",
+    "description": "End-to-end verification of the system-agent GPIO commands through Device Management on a real device (EPC-R7300).\n\nPath under test: DM REST commands:invoke -> command pipeline (catalog gate, connection gate) -> transceiver dispatch -> cloud NATS -> dmagent -> SubNode -> hardware -> result sealed back in DM.\n\nSetup:\n1. Set collection variables: baseUrl, deviceId, accessToken (Bearer token from WiseSso login; e.g. ~/.weda-coding-agent/token.json when using weda-login.sh).\n2. The target device must be online (SubNode heartbeat active) with the GPIO-enabled system-agent build.\n3. Run the collection in order (Collection Runner or newman). Each invoke is followed by a result poll.\n\nCommands covered:\n- gpio.list  (custom command) - expected success, discovers pin names\n- di.get     (built-in)       - expected success, reads input pins by sensor name\n- do.set     (built-in)       - negative path: writing an input pin must fail with executionFailed\n- no.such.cmd                 - negative path: DM catalog gate must fail closed (404)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://weda-sit-k3s.weda.dev/central/weda/api/v1" },
+    { "key": "deviceId", "value": "48b02dea8160" },
+    { "key": "accessToken", "value": "" },
+    { "key": "inputSensor1", "value": "gpio_pinState_UIO_GPIO2" },
+    { "key": "inputSensor2", "value": "gpio_pinState_CN13_GPIO1" }
+  ],
+  "item": [
+    {
+      "name": "1. gpio.list - invoke (custom command)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('invoke accepted (HTTP 201)', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('command received (status 0)', () => pm.expect(body.data.status).to.eql(0));",
+              "pm.test('phase is pending or result', () => pm.expect(['pending', 'result']).to.include(body.data.phase));",
+              "pm.collectionVariables.set('gpioListSeqId', body.seqId);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands:invoke"] },
+        "body": { "mode": "raw", "raw": "{\"deviceCommand\":\"gpio.list\",\"parameters\":{}}" }
+      }
+    },
+    {
+      "name": "2. gpio.list - result sealed",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": { "exec": ["setTimeout(() => {}, 2000);"], "type": "text/javascript" }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('results readable (HTTP 200)', () => pm.response.to.have.status(200));",
+              "const seqId = pm.collectionVariables.get('gpioListSeqId');",
+              "const row = pm.response.json().items.find(i => i.seqId === Number(seqId));",
+              "pm.test('command row exists', () => pm.expect(row).to.not.be.undefined);",
+              "pm.test('phase sealed as result', () => pm.expect(row.data.phase).to.eql('result'));",
+              "pm.test('device executed successfully (status 0)', () => pm.expect(row.data.status).to.eql(0));",
+              "pm.test('executedAt / completedAt sealed', () => {",
+              "  pm.expect(row.data.executedAt).to.not.be.null;",
+              "  pm.expect(row.data.completedAt).to.not.be.null;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands/results", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands", "results"] }
+      }
+    },
+    {
+      "name": "3. di.get - invoke (built-in, sensor-name addressing)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('invoke accepted (HTTP 201)', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('command received (status 0)', () => pm.expect(body.data.status).to.eql(0));",
+              "pm.collectionVariables.set('diGetSeqId', body.seqId);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands:invoke"] },
+        "body": { "mode": "raw", "raw": "{\"deviceCommand\":\"di.get\",\"parameters\":{\"inputs\":[\"{{inputSensor1}}\",\"{{inputSensor2}}\"]}}" }
+      }
+    },
+    {
+      "name": "4. di.get - result sealed",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": { "exec": ["setTimeout(() => {}, 2000);"], "type": "text/javascript" }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const seqId = pm.collectionVariables.get('diGetSeqId');",
+              "const row = pm.response.json().items.find(i => i.seqId === Number(seqId));",
+              "pm.test('command row exists', () => pm.expect(row).to.not.be.undefined);",
+              "pm.test('phase sealed as result', () => pm.expect(row.data.phase).to.eql('result'));",
+              "pm.test('inputs read successfully (status 0)', () => pm.expect(row.data.status).to.eql(0));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands/results", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands", "results"] }
+      }
+    },
+    {
+      "name": "5. do.set on input pin - refused by direction guard (negative)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('invoke accepted for dispatch (HTTP 201)', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('doSetSeqId', pm.response.json().seqId);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands:invoke"] },
+        "body": { "mode": "raw", "raw": "{\"deviceCommand\":\"do.set\",\"parameters\":{\"outputs\":[{\"name\":\"{{inputSensor1}}\",\"state\":true}]}}" }
+      }
+    },
+    {
+      "name": "6. do.set - executionFailed sealed (negative)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": { "exec": ["setTimeout(() => {}, 2000);"], "type": "text/javascript" }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const seqId = pm.collectionVariables.get('doSetSeqId');",
+              "const row = pm.response.json().items.find(i => i.seqId === Number(seqId));",
+              "pm.test('command row exists', () => pm.expect(row).to.not.be.undefined);",
+              "pm.test('phase sealed as result', () => pm.expect(row.data.phase).to.eql('result'));",
+              "pm.test('device refused the write (status 1)', () => pm.expect(row.data.status).to.eql(1));",
+              "pm.test('error is executionFailed', () => pm.expect(row.data.error.code).to.eql('executionFailed'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands/results", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands", "results"] }
+      }
+    },
+    {
+      "name": "7. unknown command - catalog gate fails closed (negative)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('unknown command rejected (404)', () => pm.response.to.have.status(404));",
+              "pm.test('commandNotFound error', () => pm.expect(pm.response.json().title).to.eql('commandNotFound'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke", "host": ["{{baseUrl}}"], "path": ["devices", "{{deviceId}}", "commands:invoke"] },
+        "body": { "mode": "raw", "raw": "{\"deviceCommand\":\"no.such.cmd\",\"parameters\":{}}" }
+      }
+    }
+  ]
+}
