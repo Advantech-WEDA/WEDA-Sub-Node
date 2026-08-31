@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Change-triggered configuration reporting — `ISubNodeManager.TriggerConfigSync()` requests an immediate publish of the reported device configuration. Call it after changing a device configuration locally (outside a cloud-desired update) so the cloud reflects the change without waiting for the next periodic sync. Concurrent calls coalesce into a single publish. Added as a default no-op interface member so it does not source-break external `ISubNodeManager` implementers.
+- Reconnect republish — `IWedaCloudService.ConnectionRestored` fires when the underlying connection is re-established after a drop (never on the initial connect). `SubNodeManager` subscribes and republishes the reported configuration so state changed while offline reaches the cloud immediately. `MockCloudService.SimulateConnectionRestoredAsync()` raises the event for offline/standalone testing.
 - SubNode liveness heartbeat — a SubNode can report that it is alive so the platform can derive `Connected` / `Abnormal` / `Disconnected` from when the last beat arrived. Enabled by declaring one reserved sensor named `hb` in `devicecfg.json`; no `Program.cs` or `systemcfg.json` change. **Disabled by default** — a SubNode that declares no such sensor emits nothing, so upgrading the SDK never starts a heartbeat on its own. See [Liveness Heartbeat](./docs/wiki/en/04-sensor-configuration/heartbeat.md).
   - The beat is synthesised by the SDK and never polled, so it works identically on Modbus / OPC UA / MQTT / custom devices; it needs no `Parameters`, and `GroupSensorsByInterval` excludes it from every device's read path.
   - Sent on the SubNode DeviceId, so one SubNode emits one liveness signal regardless of device count.
@@ -19,11 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Default cadence `T` = 60 s, clamped to a 1 s floor. Transport faults are logged and retried on the next beat rather than tearing down the loop.
 
 ### Changed
+- Configuration sync default period raised from **60s to 24h** (`BackgroundTaskPeriods.DefaultReportConfigurationPeriod`); allowed range narrowed from 10s–7d to **60s–7d** (`MinReportConfigurationPeriod` 10000 → 60000). Steady-state devicecfg is now driven primarily by change/reconnect triggers rather than a fast periodic tick.
+- Out-of-range `Periods.ReportConfiguration` is now **clamped to the nearest bound** (previously replaced with the default), preserving operator intent; `0` remains an explicit opt-out (periodic sync off) and now logs a warning instead of being applied silently.
 - **Auto-gen-only DTMI policy is now absolute.** No `devicecfg.json` sensor entry carries a `Dtmi`, the heartbeat included — an earlier iteration made it an exception, which meant deleting one line silently disabled liveness. Identity is the reserved sensor name `hb`, and the SDK stamps the DTMI itself. A sensor named `hb` is reserved platform-wide and must not be used for application data.
 
 ### Fixed
 - Heartbeat measures no longer set `TelemetryMeasure.Metadata`. That field is the framework's chunked-transfer descriptor, and the WedaNode telemetry proxy rejects the **entire message** when metadata is present without a `transferId` — so every beat was discarded before it reached the cloud, leaving a healthy SubNode reading as `Disconnected`. The same defect previously affected the CFX and vision paths.
 - Sensor configuration reference documented `Record.Enabled` as defaulting to `false` and listed a non-existent `Path` property; the default is `true` and the second property is `Interval`.
+
+### Installation and Upgrade Instructions
+- If your device mutates its own configuration at runtime (sensor re-resolution, calibration writes, `RawDeviceCfgJson` refresh) and relied on the old 60s periodic tick to propagate it, call `ISubNodeManager.TriggerConfigSync()` at those change points — with the 24h default, an untriggered local change can otherwise lag up to a day.
+- Any `Periods.ReportConfiguration` below 60000ms is now clamped to 60000ms (the old 10000ms floor no longer applies). Set the value explicitly if you depend on a specific cadence.
 
 ## [1.2.0] - 2026-06-02
 

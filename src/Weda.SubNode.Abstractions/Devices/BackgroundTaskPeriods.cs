@@ -5,8 +5,9 @@ namespace Weda.SubNode.Abstractions.Devices;
 /// </summary>
 public class BackgroundTaskPeriods
 {
-    public const int MinReportConfigurationPeriod = 10_000;
-    public const int DefaultReportConfigurationPeriod = 60_000;
+    public const int MinReportConfigurationPeriod = 60_000;
+    public const int MaxReportConfigurationPeriod = 604_800_000;
+    public const int DefaultReportConfigurationPeriod = 86_400_000;
 
     /// <summary>
     /// Health reporting period (default: 60000ms = 1 minute)
@@ -19,8 +20,8 @@ public class BackgroundTaskPeriods
     public int PollCommands { get; set; } = 1000;
 
     /// <summary>
-    /// Configuration sync period (default: 1800000ms = 30 minutes).
-    /// Minimum: 60000ms (1 minute).
+    /// Configuration sync period (default: 86400000ms = 24 hours).
+    /// Range: 60000ms (1 minute) to 604800000ms (7 days).
     /// </summary>
     public int ReportConfiguration { get; set; } = DefaultReportConfigurationPeriod;
 

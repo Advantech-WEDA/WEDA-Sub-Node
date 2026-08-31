@@ -1,3 +1,5 @@
+using Weda.SubNode.Abstractions.Devices;
+
 namespace Weda.SubNode.Abstractions.Configuration;
 
 /// <summary>
@@ -70,15 +72,17 @@ public record ConfigUpdateOptions
 
     /// <summary>
     /// Minimum allowed value for ReportConfiguration period in milliseconds.
-    /// Default: 300000 (5 minutes)
+    /// Default: 60000 (1 minute)
     /// </summary>
-    public int ReportConfigurationMinMs { get; init; } = 300_000;
+    public int ReportConfigurationMinMs { get; init; } =
+        BackgroundTaskPeriods.MinReportConfigurationPeriod;
 
     /// <summary>
     /// Maximum allowed value for ReportConfiguration period in milliseconds.
-    /// Default: 86400000 (24 hours)
+    /// Default: 604800000 (7 days)
     /// </summary>
-    public int ReportConfigurationMaxMs { get; init; } = 86_400_000;
+    public int ReportConfigurationMaxMs { get; init; } =
+        BackgroundTaskPeriods.MaxReportConfigurationPeriod;
 
     /// <summary>
     /// Validates sensor configurations (name not empty, interval non-negative).

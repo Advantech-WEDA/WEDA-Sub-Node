@@ -43,6 +43,14 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     private IDisposable? _commandSubscription;
     private CancellationTokenSource? _configSyncCts;
     private Task? _configSyncTask;
+    private readonly SemaphoreSlim _configSyncSignal = new(0, 1);
+    private int _configSyncPublishRequested;
+
+    // Back-off delay before the config sync loop retries after an unexpected
+    // publish failure. Deliberately independent of the report period: a device
+    // with periodic sync disabled (period 0) must still recover from transient
+    // publish errors, and the retry cadence must not track the report cadence.
+    private const int ConfigSyncErrorRetryDelayMs = 60_000;
     private bool _isInitialized;
     private string? _subNodeId;
 
@@ -132,6 +140,27 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 
             // Step 4: Start configuration sync background task
             StartConfigSyncTask();
+
+            // Republish the reported configuration after a reconnection so
+            // changes made while offline reach the cloud immediately.
+            _cloudService.ConnectionRestored += OnConnectionRestoredAsync;
+
+            // Step 5: Baseline report so the cloud reflects current state right
+            // after (re)start instead of waiting up to a full period. Skipped
+            // when no devices are registered yet — an empty report would wipe
+            // the cloud-side reported document.
+            if (_deviceRegistry.GetAllDevices().Any())
+            {
+                try
+                {
+                    await PublishPeriodicReportAsync(ct, "baseline");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Baseline configuration report failed; periodic sync will retry");
+                }
+            }
 
             _isInitialized = true;
             _logger.LogInformation("SubNodeManager initialization completed successfully");
@@ -793,6 +822,11 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         }
         await PublishAggregatedReportAsync(e, reportMessage, validationResults, applyResults, ConfigUpdateStatus.Success);
 
+        // Re-arm the sync wait so an updated ReportConfiguration period takes
+        // effect immediately; the aggregated report above already covered the
+        // change itself, so no extra publish.
+        RearmConfigSyncTimer();
+
         _logger.LogInformation("DeviceConfig update transaction completed successfully for {Count} device(s)",
             devicesToUpdate.Count);
 
@@ -952,48 +986,46 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// </summary>
     private void StartConfigSyncTask()
     {
-        // Get minimum ReportConfiguration period from all devices
-        var devices = _deviceRegistry.GetAllDevices();
-        var minPeriod = devices
-            .Select(d => d.Configuration.Periods.ReportConfiguration)
-            .Where(p => p > 0)
-            .DefaultIfEmpty(0)
-            .Min();
-
-        if (minPeriod <= 0)
-        {
-            _logger.LogDebug("Configuration sync disabled (all devices have ReportConfiguration period = 0)");
-            return;
-        }
-
         _configSyncCts = new CancellationTokenSource();
         var ct = _configSyncCts.Token;
 
         _configSyncTask = Task.Run(async () =>
         {
-            _logger.LogDebug("Starting configuration sync task with period {Period}ms", minPeriod);
+            _logger.LogDebug("Starting configuration sync task");
 
+            // First publish happens after the first period elapses (or on an
+            // explicit trigger); startup state is covered by the baseline report.
+            var publishNext = false;
+            var publishReason = "tick";
             while (!ct.IsCancellationRequested)
             {
                 try
                 {
-                    if (string.IsNullOrEmpty(_subNodeId))
-                        continue;
+                    if (publishNext && !string.IsNullOrEmpty(_subNodeId))
+                    {
+                        await PublishPeriodicReportAsync(ct, publishReason);
+                    }
 
-                    var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
-                        _subNodeId,
-                        _deviceRegistry,
-                        _lastConfigUpdateStatus,
-                        _lastConfigUpdateError);
+                    // Recomputed every iteration so period changes take effect
+                    // on the next wait. 0 = periodic sync disabled: wait on the
+                    // change signal only.
+                    var periodMs = GetMinReportConfigurationPeriodMs();
+                    var signaled = await _configSyncSignal.WaitAsync(
+                        periodMs > 0 ? periodMs : Timeout.Infinite, ct);
 
-                    await _cloudService.PublishConfigurationReportAsync(
-                        SubscriptionTypes.DeviceConfig,
-                        report,
-                        ct);
+                    // Timeout = periodic tick, always publishes. A signal only
+                    // publishes when explicitly requested (TriggerConfigSync);
+                    // a bare signal just re-arms the wait with the new period.
+                    var publishRequested =
+                        Interlocked.Exchange(ref _configSyncPublishRequested, 0) == 1;
+                    publishNext = !signaled || publishRequested;
+                    publishReason = signaled ? "trigger" : "tick";
 
-                    _logger.LogDebug("Configuration sync completed for SubNode {SubNodeId}", _subNodeId);
-
-                    await Task.Delay(minPeriod, ct);
+                    if (signaled)
+                    {
+                        _logger.LogDebug(
+                            "Config sync woke by signal (publish={Publish})", publishNext);
+                    }
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -1003,22 +1035,120 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in configuration sync task");
-                    await Task.Delay(minPeriod, ct);
+
+                    // Back off before retrying, but never let a shutdown-cancelled
+                    // delay escape the loop as a fault — a cancelled back-off is an
+                    // orderly stop, not an error.
+                    try
+                    {
+                        await Task.Delay(ConfigSyncErrorRetryDelayMs, ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
         }, ct);
 
-        _logger.LogInformation("Configuration sync task started with period {Period}ms", minPeriod);
+        _logger.LogInformation("Configuration sync task started");
+    }
+
+    /// <summary>
+    /// Minimum enabled ReportConfiguration period across all devices, or 0 when
+    /// every device has periodic sync disabled.
+    /// </summary>
+    private int GetMinReportConfigurationPeriodMs()
+    {
+        return _deviceRegistry.GetAllDevices()
+            .Select(d => d.Configuration.Periods.ReportConfiguration)
+            .Where(p => p > 0)
+            .DefaultIfEmpty(0)
+            .Min();
+    }
+
+    private Task OnConnectionRestoredAsync()
+    {
+        _logger.LogInformation("Connection restored — triggering config sync");
+        TriggerConfigSync();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Wakes the config sync loop to publish the reported configuration immediately.
+    /// Safe to call from any thread; concurrent triggers coalesce into one publish.
+    /// </summary>
+    public void TriggerConfigSync()
+    {
+        Interlocked.Exchange(ref _configSyncPublishRequested, 1);
+        ReleaseConfigSyncSignal();
+    }
+
+    /// <summary>
+    /// Wakes the config sync loop without publishing, so a changed
+    /// ReportConfiguration period takes effect on the next wait.
+    /// </summary>
+    private void RearmConfigSyncTimer() => ReleaseConfigSyncSignal();
+
+    private void ReleaseConfigSyncSignal()
+    {
+        if (_configSyncSignal.CurrentCount == 0)
+        {
+            try
+            {
+                _configSyncSignal.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // Already signaled — coalesce into the pending wake-up
+            }
+        }
+    }
+
+    /// <summary>
+    /// Publishes the aggregated reported configuration of all devices.
+    /// Shared by the periodic tick, change-triggered wake-ups, and the
+    /// post-initialization baseline.
+    /// </summary>
+    private async Task PublishPeriodicReportAsync(CancellationToken ct, string reason)
+    {
+        var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
+            _subNodeId!,
+            _deviceRegistry,
+            _lastConfigUpdateStatus,
+            _lastConfigUpdateError);
+
+        await _cloudService.PublishConfigurationReportAsync(
+            SubscriptionTypes.DeviceConfig,
+            report,
+            ct);
+
+        _logger.LogInformation(
+            "Configuration report published ({Reason}) for SubNode {SubNodeId}",
+            reason, _subNodeId);
     }
 
     public async ValueTask DisposeAsync()
     {
         _logger.LogDebug("Disposing SubNodeManager");
 
-        // Cancel and wait for config sync task
         if (_configSyncCts != null)
         {
             await _configSyncCts.CancelAsync();
+
+            if (_configSyncTask != null)
+            {
+                try
+                {
+                    await _configSyncTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected: cancellation is the orderly stop path.
+                }
+                _configSyncTask = null;
+            }
+
             _configSyncCts.Dispose();
             _configSyncCts = null;
         }
@@ -1026,8 +1156,10 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         _configSubscription?.Dispose();
         _commandSubscription?.Dispose();
 
+        _cloudService.ConnectionRestored -= OnConnectionRestoredAsync;
         await _cloudService.DisconnectAsync();
 
+        _configSyncSignal.Dispose();
         _initLock.Dispose();
         _deviceHandlers.Clear();
 

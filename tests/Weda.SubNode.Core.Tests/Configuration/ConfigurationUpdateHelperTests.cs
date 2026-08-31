@@ -180,8 +180,8 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        // Default minimum is 300000ms (5 minutes)
-        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportConfiguration = 100000;
+        // Default minimum is 60000ms (1 minute)
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportConfiguration = 30_000;
         var currentConfig = CreateDeviceConfiguration("TestDevice");
 
         // Act
@@ -198,8 +198,8 @@ public class ConfigurationUpdateHelperTests
     {
         // Arrange
         var message = CreateValidMessage();
-        // Default maximum is 86400000ms (24 hours)
-        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportConfiguration = 100_000_000;
+        // Default maximum is 604800000ms (7 days)
+        message.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Periods!.ReportConfiguration = 700_000_000;
         var currentConfig = CreateDeviceConfiguration("TestDevice");
 
         // Act

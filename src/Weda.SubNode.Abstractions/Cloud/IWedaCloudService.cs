@@ -33,6 +33,13 @@ public interface IWedaCloudService : IDisposable
     Task<bool> ConnectAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Fired when the underlying connection is re-established after a drop.
+    /// Not fired for the initial connection. Subscribers can use this to
+    /// republish state that may have changed while offline.
+    /// </summary>
+    event Func<Task>? ConnectionRestored;
+
+    /// <summary>
     /// Disconnect from cloud service
     /// </summary>
     Task DisconnectAsync(CancellationToken cancellationToken = default);
