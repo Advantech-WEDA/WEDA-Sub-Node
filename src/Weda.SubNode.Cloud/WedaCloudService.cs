@@ -46,6 +46,10 @@ public sealed class WedaCloudService : IWedaCloudService
 
     private bool _isConnected;
     private bool _disposed;
+    private bool _reconnectHooked;
+
+    /// <inheritdoc />
+    public event Func<Task>? ConnectionRestored;
 
     /// <summary>
     /// Shared JSON serializer options for command deserialization.
@@ -129,6 +133,17 @@ public sealed class WedaCloudService : IWedaCloudService
                 pingResponse?.Metadata?.Endpoints);
 
             _isConnected = true;
+
+            // Subscribe after the initial connection is up, so every subsequent
+            // ConnectionOpened event is a reconnection.
+            if (!_reconnectHooked)
+            {
+                _client.Connection.ConnectionOpened += OnConnectionOpenedAsync;
+                _client.Connection.ConnectionDisconnected += OnConnectionDisconnectedAsync;
+                _client.Connection.ReconnectFailed += OnReconnectFailedAsync;
+                _reconnectHooked = true;
+            }
+
             _logger.LogInformation("Connected to WedaNode");
             return true;
         }
@@ -146,6 +161,40 @@ public sealed class WedaCloudService : IWedaCloudService
         }
     }
 
+    private ValueTask OnConnectionDisconnectedAsync(object? sender, NatsEventArgs args)
+    {
+        _logger.LogWarning("NATS connection lost: {Reason}",
+            string.IsNullOrEmpty(args.Message) ? "(no detail)" : args.Message);
+        return ValueTask.CompletedTask;
+    }
+
+    private ValueTask OnReconnectFailedAsync(object? sender, NatsEventArgs args)
+    {
+        _logger.LogWarning("NATS reconnect attempt failed: {Reason}",
+            string.IsNullOrEmpty(args.Message) ? "(no detail)" : args.Message);
+        return ValueTask.CompletedTask;
+    }
+
+    private async ValueTask OnConnectionOpenedAsync(object? sender, NatsEventArgs args)
+    {
+        _logger.LogInformation("NATS connection restored");
+
+        var handlers = ConnectionRestored;
+        if (handlers == null) return;
+
+        foreach (var handler in handlers.GetInvocationList().Cast<Func<Task>>())
+        {
+            try
+            {
+                await handler();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ConnectionRestored handler failed");
+            }
+        }
+    }
+
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         if (!_isConnected)
@@ -158,6 +207,14 @@ public sealed class WedaCloudService : IWedaCloudService
 
         try
         {
+            if (_reconnectHooked)
+            {
+                _client.Connection.ConnectionOpened -= OnConnectionOpenedAsync;
+                _client.Connection.ConnectionDisconnected -= OnConnectionDisconnectedAsync;
+                _client.Connection.ReconnectFailed -= OnReconnectFailedAsync;
+                _reconnectHooked = false;
+            }
+
             // Dispose NATS client connection
             await _client.DisposeAsync();
             _isConnected = false;

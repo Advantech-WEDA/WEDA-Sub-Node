@@ -31,7 +31,14 @@ public class PeriodsValidator : IConfigurationPropertyValidator
                 "ReportHealth period cannot be negative");
         }
 
-        // Validate ReportConfiguration period range (default: 5 minutes ~ 24 hours)
+        if (desiredConfig.Periods.ReportConfiguration < 0)
+        {
+            return ConfigurationValidationResult.Failure(
+                $"ReportConfiguration period ({desiredConfig.Periods.ReportConfiguration}ms) " +
+                "cannot be negative");
+        }
+
+        // Validate ReportConfiguration period range (default: 1 minute ~ 7 days)
         // Value of 0 means disabled, which is allowed
         if (desiredConfig.Periods.ReportConfiguration > 0)
         {

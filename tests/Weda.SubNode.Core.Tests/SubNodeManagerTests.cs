@@ -706,6 +706,211 @@ public class SubNodeManagerTests : IAsyncDisposable
             Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
     }
 
+    #region Config Sync Trigger Tests (US-47107)
+
+    [Fact]
+    public async Task TriggerConfigSync_ShouldPublishReportImmediately()
+    {
+        // Arrange - default 24h period, so any publish must come from the trigger
+        var manager = CreateManager();
+        var device = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device);
+        await manager.InitializeAsync();
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act
+        manager.TriggerConfigSync();
+
+        // Assert
+        await WaitUntilAsync(() => publishCount >= 1);
+        publishCount.ShouldBe(1, "a local change trigger should publish exactly one report");
+    }
+
+    [Fact]
+    public async Task ConnectionRestored_ShouldRepublishReport()
+    {
+        // Arrange
+        var manager = CreateManager();
+        var device = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device);
+        await manager.InitializeAsync();
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act - simulate NATS reconnection
+        _mockCloudService.ConnectionRestored += Raise.Event<Func<Task>>();
+
+        // Assert
+        await WaitUntilAsync(() => publishCount >= 1);
+        publishCount.ShouldBe(1, "reconnection should republish the reported configuration");
+    }
+
+    [Fact]
+    public async Task TriggerConfigSync_RapidCalls_ShouldCoalesce()
+    {
+        // Arrange
+        var manager = CreateManager();
+        var device = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device);
+        await manager.InitializeAsync();
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act
+        for (var i = 0; i < 5; i++)
+        {
+            manager.TriggerConfigSync();
+        }
+
+        // Assert - triggers landing before the wake share one publish; a trigger
+        // racing the wake may add a second, but 5 calls must not mean 5 publishes
+        await WaitUntilAsync(() => publishCount >= 1);
+        await Task.Delay(300);
+        publishCount.ShouldBeInRange(1, 2);
+    }
+
+    [Fact]
+    public async Task PeriodicTick_ShouldPublishWithoutChanges()
+    {
+        // Arrange - short period set directly on the POCO to keep the test fast
+        var manager = CreateManager();
+        var device = CreateFakeDevice("device-1");
+        device.Configuration.Periods.ReportConfiguration = 100;
+        _deviceRegistry.Register(device);
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act
+        await manager.InitializeAsync();
+
+        // Assert - safety-net heartbeat fires repeatedly with no changes at all
+        await WaitUntilAsync(() => publishCount >= 2);
+        publishCount.ShouldBeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WithRegisteredDevices_ShouldPublishBaselineReport()
+    {
+        // Arrange - counter installed BEFORE init; baseline publish is part of init
+        var manager = CreateManager();
+        _deviceRegistry.Register(CreateFakeDevice("device-1"));
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act
+        await manager.InitializeAsync();
+
+        // Assert - deterministic: baseline is awaited inside InitializeAsync
+        publishCount.ShouldBe(1, "init must publish a baseline reported configuration");
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WithoutDevices_ShouldNotPublishBaselineReport()
+    {
+        // Arrange - empty registry: a baseline would wipe the cloud reported doc
+        var manager = CreateManager();
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act
+        await manager.InitializeAsync();
+
+        // Assert
+        publishCount.ShouldBe(0, "no baseline report may be published for an empty registry");
+    }
+
+    [Fact]
+    public async Task TriggerConfigSync_SequentialTriggers_ShouldEachPublish_AtLeastOnce()
+    {
+        // Arrange
+        var manager = CreateManager();
+        _deviceRegistry.Register(CreateFakeDevice("device-1"));
+        await manager.InitializeAsync();
+
+        var publishCount = 0;
+        CountPublishes(() => publishCount++);
+
+        // Act & Assert - every quiesced trigger must yield its own publish;
+        // none may be swallowed
+        for (var i = 1; i <= 3; i++)
+        {
+            manager.TriggerConfigSync();
+            var expected = i;
+            await WaitUntilAsync(() => publishCount >= expected);
+            publishCount.ShouldBe(expected);
+        }
+    }
+
+    [Fact]
+    public async Task TriggerConfigSync_DuringInFlightPublish_ShouldPublishAgain()
+    {
+        // Arrange
+        var manager = CreateManager();
+        _deviceRegistry.Register(CreateFakeDevice("device-1"));
+        await manager.InitializeAsync();
+
+        var firstPublishStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstPublish = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var publishCount = 0;
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                if (Interlocked.Increment(ref publishCount) == 1)
+                {
+                    firstPublishStarted.TrySetResult();
+                    await releaseFirstPublish.Task;
+                }
+                return true;
+            });
+
+        // Act - a change arrives while its predecessor's publish is in flight;
+        // that publish may not contain the new change, so at-least-once demands
+        // a follow-up publish after it completes
+        manager.TriggerConfigSync();
+        await firstPublishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        manager.TriggerConfigSync();
+        releaseFirstPublish.TrySetResult();
+
+        // Assert
+        await WaitUntilAsync(() => publishCount >= 2);
+        publishCount.ShouldBe(2, "a trigger during an in-flight publish must not be lost");
+    }
+
+    private void CountPublishes(Action onPublish)
+    {
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(_ => onPublish());
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 3000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        condition().ShouldBeTrue($"condition not met within {timeoutMs}ms");
+    }
+
+    #endregion
+
     private UpdateConfigurationEvent CreateDeviceConfigResetEvent() =>
         CreateDeviceConfigUpdateEventFromDesiredJson("""{"devicecfg":null}""");
 

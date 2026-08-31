@@ -20,7 +20,7 @@ description: 'Complete reference for all SubNode sensor configuration options'
 | `Name` | string | Yes | - | Unique sensor identifier within device |
 | `ResourceId` | string | Ignored | Derived | Always derived by the SDK — see [ResourceId Generation](#resourceid-generation) |
 | `SensorGroup` | enum | Yes | - | Sensor category |
-| `Dtmi` | string | No | Auto-generated | Digital Twin Model Identifier |
+| `Dtmi` | string | No | Auto-generated | Digital Twin Model Identifier. Assigned by the SDK — do not set it. The [liveness heartbeat](./heartbeat.md) is stamped with a reserved DTMI, also by the SDK |
 
 ## ResourceId Generation
 
@@ -318,8 +318,11 @@ Local recording settings:
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `Enabled` | bool | No | false | Enable local recording |
-| `Path` | string | No | - | Recording file path |
+| `Enabled` | bool | No | **true** | Enable local recording for this sensor. Set `false` to make a sensor transmit-only |
+| `Interval` | int | No | 0 | Recording interval in milliseconds. `0` means use the sensor's reporting interval |
+
+Recording is on by default per sensor, so a sensor is recorded unless you opt it out. The
+storage location is a device-wide setting, not a per-sensor one.
 
 ## DeviceCommunication
 
@@ -392,6 +395,7 @@ The SDK validates configurations at startup:
 
 - [Configuration via Code](./configuration-via-code.md) - Programmatic configuration
 - [Configuration via JSON](./configuration-via-json.md) - JSON configuration
+- [Liveness Heartbeat](./heartbeat.md) - Reporting SubNode connectivity
 - [Data Pipeline](../05-data-pipeline/01-overview.md) - Pipeline details
 
 import Revision from '@site/src/components/Revision';

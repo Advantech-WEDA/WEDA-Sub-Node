@@ -38,6 +38,25 @@ public class MockCloudService : IWedaCloudService
 
     public bool IsConnected => _isConnected;
 
+    /// <inheritdoc />
+    public event Func<Task>? ConnectionRestored;
+
+    /// <summary>
+    /// Simulates a connection restore, invoking all ConnectionRestored handlers.
+    /// </summary>
+    public async Task SimulateConnectionRestoredAsync()
+    {
+        _logger.LogInformation("Simulating connection restore");
+
+        var handlers = ConnectionRestored;
+        if (handlers == null) return;
+
+        foreach (var handler in handlers.GetInvocationList().Cast<Func<Task>>())
+        {
+            await handler();
+        }
+    }
+
     public void ConfigureTopics(string deviceName, NatsTopicAssignments topicAssignments)
     {
         _logger.LogInformation(

@@ -141,6 +141,13 @@ public class DeviceConfiguration
 
         _dtdlInitialized = true;
 
+        // The reserved heartbeat carries a platform-owned dtmi and schema that
+        // configuration does not supply. Stamp them before any of the three modes
+        // below run: autogen then treats the heartbeat as an ordinary sensor that
+        // already has a dtmi, and manual mode's "every sensor needs a Dtmi" check
+        // is satisfied without the author hand-writing a platform identifier.
+        Heartbeat.ApplyReservedContract(Sensors, logger);
+
         // Typed dispatch takes precedence over both autogen and manual file
         // modes: when a device is strongly-typed (DeviceTypeName resolved from
         // [DeviceType] / IConfigurableDevice via the host loader), the sensor
@@ -267,6 +274,16 @@ public class DeviceConfiguration
             var failed = new List<string>();
             foreach (var sensor in Sensors)
             {
+                // The reserved heartbeat keeps its platform-owned dtmi. It is the one
+                // sanctioned exception to the auto-gen-only DTMI policy: it carries no
+                // Parameters, so typed dispatch has nothing to match on, and the dtmi IS
+                // its identity — the SDK recognises the liveness beat by that value.
+                // Without this it would survive only by resolve() happening to throw.
+                if (Heartbeat.IsHeartbeat(sensor))
+                {
+                    continue;
+                }
+
                 try
                 {
                     sensor.Dtmi = resolve(DeviceTypeName, sensor);

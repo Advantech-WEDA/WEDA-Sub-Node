@@ -16,6 +16,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
@@ -657,6 +658,12 @@ public class WedaApplicationBuilder
 
                 return new DeviceHostedService(logger, subNodeManager, devices);
             });
+
+            // SubNode liveness heartbeat. Always registered, but inert unless a device
+            // declares the reserved heartbeat sensor in devicecfg.json — that declaration
+            // is the opt-in, so an application that wants no heartbeat gets none and an
+            // SDK upgrade never starts one on its own.
+            Services.AddHostedService<HeartbeatHostedService>();
         }
 
         var host = _hostBuilder.Build();
