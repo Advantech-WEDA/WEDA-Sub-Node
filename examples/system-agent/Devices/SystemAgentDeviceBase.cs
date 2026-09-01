@@ -18,7 +18,7 @@ namespace SystemAgentExample.Devices;
 /// SystemMetricsParser into a functional Request-Response device structure
 /// that collects CPU, memory, disk, and network metrics.
 /// </summary>
-    
+
 public class SystemAgentDeviceBase : RequestResponseDeviceBase,
     IDigitalOutputControllable, IDigitalInputReadable, IDigitalOutputReadable, IGpioPinListable
 {
@@ -171,11 +171,8 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase,
     /// A bare pin name resolves through <see cref="FindSensor"/> and yields itself;
     /// names without a bound sensor pass through unchanged.
     /// </summary>
-    private string ResolveHardwarePinName(string name)
-    {
-        var pinId = FindSensor(name)?.Parameters?.GetValueOrDefault("PinId")?.ToString();
-        return string.IsNullOrEmpty(pinId) ? name : pinId;
-    }
+    private string ResolveHardwarePinName(string name) =>
+        GpioPinLookup.ResolveHardwarePin(Configuration.Sensors, name);
 
     /// <summary>
     /// Resolves a sensor by its configured name, then by the hardware pin it is bound to.
