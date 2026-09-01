@@ -106,4 +106,13 @@ public class LocalSystemCommunication : RequestResponseCommunicationBase<SystemM
             throw;
         }
     }
+
+    public List<GpioPinDescriptor> ListGpioPins() => _collector?.ListGpioPins() ?? [];
+
+    public bool? GetGpioPinLevel(string pinName) => _collector?.GetGpioPinLevel(pinName);
+
+    public bool SetGpioPinLevel(string pinName, bool state) => _collector?.SetGpioPinLevel(pinName, state) ?? false;
+
+    public string? GetGpioPinDirection(string pinName) => _collector?.GetGpioPinDirection(pinName);
+
 }
