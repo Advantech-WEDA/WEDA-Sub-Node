@@ -273,6 +273,96 @@ public class BinaryRecordStorageTests : IDisposable
         File.Exists(recentFilePath).ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task CleanupAsync_LastFileExpires_RemovesSensorDirectory()
+    {
+        // Arrange - A sensor whose only recording is past retention
+        var sensorId = TestSensorId("sensor-aged-out");
+        var oldDate = DateTime.UtcNow.AddDays(-10);
+        var oldTimestamp = new DateTimeOffset(oldDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(oldTimestamp, 42.5, SchemaType.Double));
+
+        var sensorDir = Path.Combine(_testDirectory, sensorId);
+        Directory.Exists(sensorDir).ShouldBeTrue();
+
+        // Act
+        await _storage.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+        // Assert - The directory must not survive as an empty shell, otherwise the sensor keeps
+        // being enumerated while it can never return data.
+        Directory.Exists(sensorDir).ShouldBeFalse();
+
+        var sensorIds = await _storage.GetSensorIdsAsync();
+        sensorIds.ShouldNotContain(sensorId);
+    }
+
+    [Fact]
+    public async Task CleanupAsync_SomeFilesRemain_KeepsSensorDirectory()
+    {
+        // Arrange - One expired file and one still within retention
+        var sensorId = TestSensorId("sensor-partly-aged");
+        var oldDate = DateTime.UtcNow.AddDays(-10);
+        var recentDate = DateTime.UtcNow.AddDays(-3);
+
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double,
+            new RecordingDataPoint(new DateTimeOffset(oldDate, TimeSpan.Zero).ToUnixTimeMilliseconds(), 1.0, SchemaType.Double));
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double,
+            new RecordingDataPoint(new DateTimeOffset(recentDate, TimeSpan.Zero).ToUnixTimeMilliseconds(), 2.0, SchemaType.Double));
+
+        // Act
+        await _storage.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+        // Assert
+        var sensorDir = Path.Combine(_testDirectory, sensorId);
+        Directory.Exists(sensorDir).ShouldBeTrue();
+        Directory.GetFiles(sensorDir, "*.bin").Length.ShouldBe(1);
+    }
+
+    #endregion
+
+    #region SensorExistsAsync Tests
+
+    [Fact]
+    public async Task SensorExistsAsync_SensorWithData_ReturnsTrue()
+    {
+        // Arrange
+        var sensorId = TestSensorId("sensor-1");
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(timestamp, 42.5, SchemaType.Double));
+
+        // Act
+        var exists = await _storage.SensorExistsAsync(sensorId);
+
+        // Assert
+        exists.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task SensorExistsAsync_DirectoryWithoutFiles_ReturnsTrue()
+    {
+        // Arrange - A sensor directory left behind with no recordings in it
+        var sensorId = TestSensorId("sensor-empty");
+        Directory.CreateDirectory(Path.Combine(_testDirectory, sensorId));
+
+        // Act
+        var exists = await _storage.SensorExistsAsync(sensorId);
+
+        // Assert - Known sensor, no data. Existence must not depend on having files.
+        exists.ShouldBeTrue();
+        (await _storage.GetIntervalsAsync(sensorId)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SensorExistsAsync_UnknownSensor_ReturnsFalse()
+    {
+        // Act
+        var exists = await _storage.SensorExistsAsync(TestSensorId("never-recorded"));
+
+        // Assert
+        exists.ShouldBeFalse();
+    }
+
     #endregion
 
     #region Edge Cases

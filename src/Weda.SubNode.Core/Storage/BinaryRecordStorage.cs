@@ -151,6 +151,17 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return Task.FromResult(new PagedResult<string>(items, totalCount, pageIndex, pageSize));
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// A sensor exists as soon as its directory does, even when retention has removed every
+    /// recording file inside it.
+    /// </remarks>
+    public Task<bool> SensorExistsAsync(string sensorId, CancellationToken cancellationToken = default)
+    {
+        var sensorDir = Path.Combine(_resolvedStorageDirectory, sensorId);
+        return Task.FromResult(Directory.Exists(sensorDir));
+    }
+
     public Task<IReadOnlyList<int>> GetIntervalsAsync(string sensorId, CancellationToken cancellationToken = default)
     {
         var sensorDir = Path.Combine(_resolvedStorageDirectory, sensorId);
@@ -212,9 +223,38 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
                     File.Delete(file);
                 }
             }
+
+            // A sensor that has aged out entirely must not be left behind as an empty
+            // directory: GetSensorIdsAsync enumerates directories, so a stale entry would
+            // keep being reported as a sensor that exists but can never return data.
+            RemoveSensorDirectoryIfEmpty(sensorDir);
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Removes a sensor directory once its last recording file is gone.
+    /// </summary>
+    /// <remarks>
+    /// Failures are logged and swallowed: the directory may legitimately gain a new file
+    /// from a concurrent write between the emptiness check and the delete, and losing that
+    /// race must never fail the cleanup or the write that triggered it.
+    /// </remarks>
+    /// <param name="sensorDir">Absolute path of the sensor directory to remove when empty.</param>
+    private void RemoveSensorDirectoryIfEmpty(string sensorDir)
+    {
+        try
+        {
+            if (Directory.Exists(sensorDir) && !Directory.EnumerateFileSystemEntries(sensorDir).Any())
+            {
+                Directory.Delete(sensorDir);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to remove empty sensor directory {SensorDir}", sensorDir);
+        }
     }
 
     public Task DeleteSensorAsync(string sensorId, CancellationToken cancellationToken = default)
@@ -400,9 +440,9 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         File.Delete(oldestFile);
 
         var sensorDir = Path.GetDirectoryName(oldestFile);
-        if (sensorDir != null && Directory.Exists(sensorDir) && !Directory.EnumerateFileSystemEntries(sensorDir).Any())
+        if (sensorDir != null)
         {
-            Directory.Delete(sensorDir);
+            RemoveSensorDirectoryIfEmpty(sensorDir);
         }
 
         return deletedFileSize;

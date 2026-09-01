@@ -22,6 +22,11 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 [AutoAck(false)]
 public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, BatchReportResult>
 {
+    /// <summary>
+    /// Interval assumed when a sensor has no usable configured report interval.
+    /// </summary>
+    private const double DefaultSensorIntervalMs = 1000.0;
+
     public async Task<ErrorOr<BatchReportResult>> HandleAsync(
         BatchReportCommand command,
         IWedaApplicationContext context,
@@ -117,10 +122,14 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
         logger.LogDebug("Processing {Count} sensors", sensorIds.Count);
 
+        // Sensor report intervals, used both to estimate the workload up front and to size any
+        // data gap reported at the end.
+        var sensorIntervals = BuildSensorIntervalLookup(context);
+
         // Calculate estimated metrics for initial ack based on sensor intervals and command parameters
         var estimate = CalculateEstimatedMetrics(
             sensorIds, effectiveTimeRange, command.Parameters.MaxBatchesPerMessage, command.Parameters.MaxBatchSize,
-            command.Parameters.TransmissionRateLimit, context, logger);
+            command.Parameters.TransmissionRateLimit, sensorIntervals, logger);
 
         // Send initial ack with estimates (include SeqId and ReqSeqId from command)
         await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic!, command.DeviceCmd,
@@ -191,7 +200,20 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
 
                 if (recordingResult.IsError)
                 {
-                    logger.LogWarning("Failed to get recordings for sensor {SensorId}: {Error}", sensorId, recordingResult.Errors.First().Description);
+                    var error = recordingResult.FirstError;
+
+                    // The sensor was enumerated but holds no recordings - typically because
+                    // retention removed its last file between enumeration and read. It has
+                    // nothing to contribute, but it is not a storage failure and must not be
+                    // reported as a data gap.
+                    if (error.Type == ErrorType.NotFound)
+                    {
+                        logger.LogDebug("Sensor {SensorId} has no stored recordings, skipping", sensorId);
+                        processedSensors.Add(sensorId);
+                        continue;
+                    }
+
+                    logger.LogWarning("Failed to get recordings for sensor {SensorId}: {Error}", sensorId, error.Description);
                     failedSensors.Add(sensorId);
                     continue;
                 }
@@ -309,17 +331,23 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             _ => "Unknown status"
         };
 
+        var reportTimeRange = BatchReportTimeRange.FromUnixTimeMs(effectiveTimeRange.StartTime, effectiveTimeRange.EndTime);
+
         var resultData = new BatchReportResultData
         {
             BatchesSent = messageCount,
             TotalSamples = totalSamples,
-            TimeRange = BatchReportTimeRange.FromUnixTimeMs(effectiveTimeRange.StartTime, effectiveTimeRange.EndTime),
+            TimeRange = reportTimeRange,
             Sensors = processedSensors.ToArray(),
             DataGaps = failedSensors.Count > 0
                 ? failedSensors.Select(s => new BatchReportDataGap
                 {
+                    SensorId = s,
                     Reason = "sensorError",
-                    SensorId = s
+                    // The read failed for the whole query window, so the gap spans it entirely.
+                    StartTime = reportTimeRange.StartTime,
+                    EndTime = reportTimeRange.EndTime,
+                    MissingSamples = EstimateSampleCount(effectiveTimeRange, sensorIntervals, s)
                 }).ToArray()
                 : null
         };
@@ -328,31 +356,18 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
     }
 
     /// <summary>
-    /// Calculates estimated metrics for initial ack based on sensor intervals and command parameters.
+    /// Builds a lookup of configured report intervals for every sensor on every device.
     /// </summary>
-    /// <param name="sensorIds">List of sensor IDs to process.</param>
-    /// <param name="timeRange">The effective time range for the query.</param>
-    /// <param name="maxBatchesPerMessage">Maximum batches per message from command.</param>
-    /// <param name="maxBatchSize">Maximum samples per batch from command.</param>
-    /// <param name="transmissionRateLimit">Transmission rate limit from command.</param>
-    /// <param name="context">Application context for accessing device configurations.</param>
-    /// <param name="logger">Logger for diagnostic output.</param>
-    /// <returns>Estimated metrics for initial ack.</returns>
-    private static EstimatedMetrics CalculateEstimatedMetrics(
-        IReadOnlyList<string> sensorIds,
-        TimeRange timeRange,
-        int maxBatchesPerMessage,
-        int maxBatchSize,
-        int transmissionRateLimit,
-        IWedaApplicationContext context,
-        ILogger logger)
+    /// <remarks>
+    /// Keyed by both ShortId (what the recording storage uses) and ResourceId, so a caller
+    /// holding either identifier resolves the same interval.
+    /// </remarks>
+    /// <param name="context">Application context providing the device configurations.</param>
+    /// <returns>Report interval in milliseconds per sensor identifier.</returns>
+    private static Dictionary<string, double> BuildSensorIntervalLookup(IWedaApplicationContext context)
     {
-        var timeRangeMs = timeRange.EndTime - timeRange.StartTime;
-        var totalEstimatedSamples = 0L;
-        var totalEstimatedBatches = 0;
-
-        // Build a lookup of sensor intervals from DeviceConfigs
         var sensorIntervals = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var deviceConfig in context.DeviceConfigs.Values)
         {
             foreach (var sensor in deviceConfig.Sensors)
@@ -370,20 +385,63 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             }
         }
 
+        return sensorIntervals;
+    }
+
+    /// <summary>
+    /// Estimates how many samples a sensor produces over a time range at its configured interval.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to a 1 second interval when the sensor is unknown or configured with a
+    /// non-positive interval, so the estimate degrades to a usable number instead of dividing
+    /// by zero.
+    /// </remarks>
+    /// <param name="timeRange">The time range being reported, in Unix milliseconds.</param>
+    /// <param name="sensorIntervals">Report interval per sensor, keyed by ShortId and ResourceId.</param>
+    /// <param name="sensorId">The sensor to estimate for.</param>
+    /// <returns>Estimated sample count, always at least 1.</returns>
+    private static int EstimateSampleCount(
+        TimeRange timeRange,
+        IReadOnlyDictionary<string, double> sensorIntervals,
+        string sensorId)
+    {
+        var intervalMs = sensorIntervals.TryGetValue(sensorId, out var interval) && interval > 0
+            ? interval
+            : DefaultSensorIntervalMs;
+
+        var timeRangeMs = timeRange.EndTime - timeRange.StartTime;
+        var samples = Math.Ceiling(timeRangeMs / intervalMs) + 1;
+
+        return (int)Math.Clamp(samples, 1, int.MaxValue);
+    }
+
+    /// <summary>
+    /// Calculates estimated metrics for initial ack based on sensor intervals and command parameters.
+    /// </summary>
+    /// <param name="sensorIds">List of sensor IDs to process.</param>
+    /// <param name="timeRange">The effective time range for the query.</param>
+    /// <param name="maxBatchesPerMessage">Maximum batches per message from command.</param>
+    /// <param name="maxBatchSize">Maximum samples per batch from command.</param>
+    /// <param name="transmissionRateLimit">Transmission rate limit from command.</param>
+    /// <param name="sensorIntervals">Report interval per sensor, keyed by ShortId and ResourceId.</param>
+    /// <param name="logger">Logger for diagnostic output.</param>
+    /// <returns>Estimated metrics for initial ack.</returns>
+    private static EstimatedMetrics CalculateEstimatedMetrics(
+        IReadOnlyList<string> sensorIds,
+        TimeRange timeRange,
+        int maxBatchesPerMessage,
+        int maxBatchSize,
+        int transmissionRateLimit,
+        IReadOnlyDictionary<string, double> sensorIntervals,
+        ILogger logger)
+    {
+        var totalEstimatedSamples = 0L;
+        var totalEstimatedBatches = 0;
+
         // Calculate estimated samples per sensor
         foreach (var sensorId in sensorIds)
         {
-            // Get sensor interval, default to 1000ms if not found
-            var intervalMs = sensorIntervals.TryGetValue(sensorId, out var interval) ? interval : 1000.0;
-
-            // Avoid division by zero
-            if (intervalMs <= 0)
-            {
-                intervalMs = 1000.0;
-            }
-
-            // Estimate number of samples for this sensor
-            var estimatedSamplesForSensor = (long)Math.Ceiling(timeRangeMs / intervalMs) + 1;
+            var estimatedSamplesForSensor = EstimateSampleCount(timeRange, sensorIntervals, sensorId);
             totalEstimatedSamples += estimatedSamplesForSensor;
 
             // Estimate number of batches for this sensor (based on maxBatchSize)
