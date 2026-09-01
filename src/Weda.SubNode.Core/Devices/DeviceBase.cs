@@ -1356,7 +1356,14 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
     }
 
     /// <inheritdoc />
-    public Sensor? FindSensor(string sensorName)
+    /// <remarks>
+    /// Virtual so a device can also accept protocol-native aliases for a sensor
+    /// (for example a hardware pin name). The built-in command handlers gate on
+    /// this lookup before delegating to the device, so an alias not resolvable
+    /// here is rejected before the device sees it. Overrides must call
+    /// <c>base.FindSensor</c> first: the configured name always wins.
+    /// </remarks>
+    public virtual Sensor? FindSensor(string sensorName)
     {
         if (string.IsNullOrWhiteSpace(sensorName))
             return null;
