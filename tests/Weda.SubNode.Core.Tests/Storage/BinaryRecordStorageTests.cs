@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -149,6 +151,35 @@ public class BinaryRecordStorageTests : IDisposable
         Path.GetFileName(files[0]).ShouldBe(expectedFileName);
     }
 
+    [Fact]
+    public async Task WriteAsync_AfterDirectoryRemoved_RebuildsAndWrites()
+    {
+        // A concurrent cleanup can delete a sensor's directory between the ensure and the write.
+        // WriteAsync runs ensure-then-write as one retried unit, so re-running it must rebuild the
+        // removed directory and persist the sample rather than lose it. This exercises that rebuild
+        // path deterministically by deleting the directory out from under a second write.
+        var sensorId = TestSensorId("sensor-rebuild");
+        var today = DateTimeOffset.UtcNow.Date;
+        var firstTs = new DateTimeOffset(today, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        var secondTs = firstTs + 1000;
+
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(firstTs, 1.0, SchemaType.Double));
+
+        var sensorDir = Path.Combine(_testDirectory, sensorId);
+        Directory.Delete(sensorDir, recursive: true);
+        Directory.Exists(sensorDir).ShouldBeFalse();
+
+        // Act - the directory is gone; the write must recreate it and succeed.
+        await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(secondTs, 2.0, SchemaType.Double));
+
+        // Assert - the second sample is persisted and readable.
+        Directory.Exists(sensorDir).ShouldBeTrue();
+        var data = await _storage.ReadAsync(sensorId, 1000,
+            DateTimeOffset.FromUnixTimeMilliseconds(secondTs).AddSeconds(-1),
+            DateTimeOffset.FromUnixTimeMilliseconds(secondTs).AddSeconds(1));
+        data.ShouldContain(p => p.Timestamp == secondTs);
+    }
+
     #endregion
 
     #region CleanupAsync Tests
@@ -274,6 +305,43 @@ public class BinaryRecordStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task CleanupAsync_UnderNonInvariantCulture_WritesGregorianNameAndExpiresOldFiles()
+    {
+        // Filenames must be Gregorian yyyy-MM-dd on both the write and read side, independent of
+        // the host culture. ar-SA defaults to the Umm al-Qura calendar: a culture-sensitive write
+        // would emit a name like "1448-03-09_..." and a culture-sensitive parse would read those
+        // digits back as a different calendar, silently corrupting retention. This test pins both
+        // ends: the written name is Gregorian, and cleanup still expires it.
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("ar-SA");
+
+            var sensorId = TestSensorId("sensor-culture");
+            var oldDate = DateTime.UtcNow.AddDays(-10);
+            var oldTimestamp = new DateTimeOffset(oldDate, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+            await _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(oldTimestamp, 42.5, SchemaType.Double));
+
+            // The written filename must carry the Gregorian year, not the Umm al-Qura year.
+            var sensorDir = Path.Combine(_testDirectory, sensorId);
+            var writtenName = Path.GetFileName(Directory.GetFiles(sensorDir, "*.bin").ShouldHaveSingleItem());
+            var expectedName = FormattableString.Invariant($"{oldDate:yyyy-MM-dd}_1000_double.bin");
+            writtenName.ShouldBe(expectedName);
+
+            // Act
+            await _storage.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+            // Assert - The expired file is removed even though the current culture is non-Gregorian.
+            File.Exists(Path.Combine(sensorDir, expectedName)).ShouldBeFalse();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Fact]
     public async Task CleanupAsync_LastFileExpires_RemovesSensorDirectory()
     {
         // Arrange - A sensor whose only recording is past retention
@@ -318,6 +386,45 @@ public class BinaryRecordStorageTests : IDisposable
         Directory.Exists(sensorDir).ShouldBeTrue();
         Directory.GetFiles(sensorDir, "*.bin").Length.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task CleanupAsync_EmptyDirectoryDeleteFails_SwallowsErrorAndDoesNotThrow()
+    {
+        // The empty-directory removal races concurrent writes: the directory can be judged empty
+        // and then have its deletion fail (a concurrent WriteAsync re-populates it, or the delete
+        // simply loses). That failure must never propagate out of cleanup. We reproduce the
+        // failure deterministically by making the parent unwritable so deleting the (empty) sensor
+        // directory throws, then assert cleanup still completes.
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || IsRunningAsRoot())
+        {
+            // The permission barrier below does not hold on Windows or for root; skip rather than
+            // assert something the platform cannot enforce.
+            return;
+        }
+
+        var sensorId = TestSensorId("sensor-delete-blocked");
+        var sensorDir = Path.Combine(_testDirectory, sensorId);
+        Directory.CreateDirectory(sensorDir);
+        Directory.EnumerateFileSystemEntries(sensorDir).ShouldBeEmpty();
+
+        var originalMode = File.GetUnixFileMode(_testDirectory);
+        try
+        {
+            // Drop write permission on the parent so deleting the empty sensor directory throws.
+            File.SetUnixFileMode(_testDirectory, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+
+            await Should.NotThrowAsync(() => _storage.CleanupAsync(DateTimeOffset.UtcNow));
+        }
+        finally
+        {
+            File.SetUnixFileMode(_testDirectory, originalMode);
+            if (Directory.Exists(sensorDir))
+                Directory.Delete(sensorDir, recursive: true);
+        }
+    }
+
+    private static bool IsRunningAsRoot() =>
+        !RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.UserName == "root";
 
     #endregion
 

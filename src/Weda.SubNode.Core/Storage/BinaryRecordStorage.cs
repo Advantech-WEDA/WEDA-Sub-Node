@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Hashing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,6 +22,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
     private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
     private const int MillisecondsPerDay = 86400000;
     private const ushort CurrentVersion = 2;
+    private const string FileNameDateFormat = "yyyy-MM-dd";
     private readonly ResiliencePipeline _storagePipeline = ConnectionPolicies.CreateGeneralOperationPipeline(logger, ConnectionPolicyOptions.NFSDefault);
 
     public async Task WriteAsync(string sensorId, int interval, SchemaType schemaType, RecordingDataPoint dataPoint, CancellationToken cancellationToken = default)
@@ -32,8 +34,16 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
 
         var filePath = GetFilePath(sensorId, interval, schemaType, dataPoint.Timestamp);
         var startOfDay = GetStartOfDay(dataPoint.Timestamp);
-        EnsureFileExists(filePath, interval, schemaType, startOfDay);
-        await WriteToSlotAsync(filePath, interval, schemaType, startOfDay, dataPoint, cancellationToken);
+
+        // Ensure-then-write is retried as one unit: a concurrent cleanup can delete the directory
+        // and file in the window between them, which would otherwise lose this sample silently.
+        // Re-running EnsureFileExists on retry rebuilds what cleanup removed. Cleanup runs at most
+        // once a day, so a retry never races the same cleanup pass twice.
+        await _storagePipeline.ExecuteAsync(async token =>
+        {
+            EnsureFileExists(filePath, interval, schemaType, startOfDay);
+            await WriteToSlotAsync(filePath, interval, schemaType, startOfDay, dataPoint, token);
+        }, cancellationToken);
     }
 
     public async Task WriteBatchAsync(string sensorId, int interval, SchemaType schemaType, IEnumerable<RecordingDataPoint> dataPoints, CancellationToken cancellationToken = default)
@@ -100,12 +110,12 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         var sensorDir = Path.Combine(_resolvedStorageDirectory, sensorId);
 
         // V1 format: {date}_{interval}.bin
-        yield return Path.Combine(sensorDir, $"{date:yyyy-MM-dd}_{interval}.bin");
+        yield return Path.Combine(sensorDir, FormattableString.Invariant($"{date:yyyy-MM-dd}_{interval}.bin"));
 
         // V2 format: {date}_{interval}_{schemaType}.bin
         foreach (var schemaType in new[] { SchemaType.Double, SchemaType.Long, SchemaType.Integer, SchemaType.Boolean })
         {
-            yield return Path.Combine(sensorDir, $"{date:yyyy-MM-dd}_{interval}_{schemaType.ToString().ToLowerInvariant()}.bin");
+            yield return Path.Combine(sensorDir, FormattableString.Invariant($"{date:yyyy-MM-dd}_{interval}_{schemaType.ToString().ToLowerInvariant()}.bin"));
         }
     }
 
@@ -218,7 +228,8 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
                 var fileName = Path.GetFileNameWithoutExtension(file);
                 var datePart = fileName?.Split('_')[0];
 
-                if (DateTime.TryParse(datePart, out var fileDate) && fileDate < cutoffDate)
+                if (DateTime.TryParseExact(datePart, FileNameDateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fileDate)
+                    && fileDate < cutoffDate)
                 {
                     File.Delete(file);
                 }
@@ -286,7 +297,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
     private string GetFilePath(string sensorId, int interval, SchemaType schemaType, long timestamp)
     {
         var date = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime.Date;
-        var fileName = $"{date:yyyy-MM-dd}_{interval}_{schemaType.ToString().ToLowerInvariant()}";
+        var fileName = FormattableString.Invariant($"{date:yyyy-MM-dd}_{interval}_{schemaType.ToString().ToLowerInvariant()}");
         return Path.Combine(_resolvedStorageDirectory, sensorId, $"{fileName}.bin");
     }
 
@@ -296,21 +307,20 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
     }
 
-    private void EnsureFileExists(string filePath, int interval, SchemaType schemaType, long startOfDay)
+    // Not wrapped in the resilience pipeline itself: its only caller, WriteAsync, already runs
+    // ensure-then-write as a single retried unit, so an inner pipeline would just nest retries.
+    private static void EnsureFileExists(string filePath, int interval, SchemaType schemaType, long startOfDay)
     {
-        _storagePipeline.Execute(() =>
+        var directory = Path.GetDirectoryName(filePath)!;
+        if (!Directory.Exists(directory))
         {
-            var directory = Path.GetDirectoryName(filePath)!;
-            if (!Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            Directory.CreateDirectory(directory);
+        }
 
-            if (!File.Exists(filePath))
-            {
-                CreateFileWithHeaderV2(filePath, interval, schemaType, startOfDay);
-            }
-        });
+        if (!File.Exists(filePath))
+        {
+            CreateFileWithHeaderV2(filePath, interval, schemaType, startOfDay);
+        }
     }
 
     /// <summary>
@@ -502,6 +512,8 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
             return null;
 
         var datePart = fileName.Split('_')[0];
-        return DateTime.TryParse(datePart, out var date) ? date : null;
+        return DateTime.TryParseExact(datePart, FileNameDateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date
+            : null;
     }
 }
