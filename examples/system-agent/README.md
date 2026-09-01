@@ -121,6 +121,71 @@ protected override async Task OnBeforeConfigUpdateAsync(UpdateConfigurationEvent
 }
 ```
 
+## GPIO Digital IO Commands
+
+On Advantech hardware with SUSI support (e.g. EPC-R7300), the device implements the SDK
+capability interfaces `IDigitalOutputControllable`, `IDigitalOutputReadable`, and
+`IDigitalInputReadable`, so the built-in cloud commands `do.set`, `do.get`, and `di.get`
+work without any custom command code.
+
+The built-in commands address pins by **configured sensor name** (auto-detect mode
+expands `gpio_pinState` into one sensor per pin, e.g. `gpio_pinState_UIO_GPIO2`).
+Discover the mapping with the `gpio.list` custom command (defined in this example
+under `Commands/Gpio/`), which also serves as the custom-command reference
+implementation:
+
+```json
+{ "deviceCmd": "gpio.list", "parameters": {} }
+```
+
+Result per pin: `{ "name": "UIO_GPIO2", "direction": "input", "state": false,
+"sensorName": "gpio_pinState_UIO_GPIO2" }` — pass the `sensorName` values to
+`do.set` / `do.get` / `di.get`, and use `direction` to tell which commands apply.
+
+### Set digital output — `do.set`
+
+```json
+{
+  "deviceCmd": "do.set",
+  "parameters": {
+    "deviceName": "system-agent",
+    "outputs": [ { "name": "DO0", "state": true } ]
+  }
+}
+```
+
+Behavior:
+- Pins whose direction is not `output` (inputs, unknown pins, GPIO-unsupported platforms)
+  are refused and reported as errors — inputs are never written.
+- Writes are verified by readback (3 attempts, 50 ms apart). A persistent mismatch
+  reports failure even though the driver accepted the write.
+
+### Read digital IO — `do.get` / `di.get`
+
+```json
+{
+  "deviceCmd": "di.get",
+  "parameters": { "deviceName": "system-agent", "inputs": ["DI0", "DI1"] }
+}
+```
+
+The result carries `values: [ { "name": "DI0", "state": true }, ... ]`; pins that cannot
+be read (unknown name, hardware unavailable) come back in `errors` instead.
+
+All GPIO access is marshalled onto the dedicated SusiIoT native thread by
+`HardwarePlatformCollector` — see the SIGSEGV note in that class before changing this.
+
+### Real-device verification (EPC-R7300)
+
+1. Publish for the target: `dotnet publish -c Release -r linux-arm64 --self-contained`
+2. Deploy to the device (SUSI must be installed) and start with a valid `appsettings.json`
+   pointing at your Weda Node.
+3. Confirm discovered pins from the startup log line `Discovered resources — ... GPIO: [...]`
+   or from `gpio_pinState` telemetry.
+4. From the cloud, send `di.get` for an input pin and `do.set` + `do.get` for an output
+   pin; the `do.set` response only succeeds after the readback matches.
+5. Negative check: `do.set` on a `DI*` pin must return an error and leave the pin untouched.
+
 ## Exit Codes
 
 | Code | Meaning | Stage | Fix |

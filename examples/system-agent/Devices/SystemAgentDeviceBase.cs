@@ -1,10 +1,10 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
 using SystemAgentExample.Models;
 using SystemAgentExample.Protocols;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Protocols;
 using Weda.SubNode.Core.Devices;
@@ -17,7 +17,9 @@ namespace SystemAgentExample.Devices;
 /// SystemMetricsParser into a functional Request-Response device structure
 /// that collects CPU, memory, disk, and network metrics.
 /// </summary>
-public class SystemAgentDeviceBase : RequestResponseDeviceBase
+    
+public class SystemAgentDeviceBase : RequestResponseDeviceBase,
+    IDigitalOutputControllable, IDigitalInputReadable, IDigitalOutputReadable, IGpioPinListable
 {
     private readonly LocalSystemCommunication _localCommunication;
 
@@ -152,4 +154,46 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase
 
         return configuration;
     }
+
+    private GpioDigitalIo? _gpio;
+
+    private GpioDigitalIo Gpio => _gpio ??= new GpioDigitalIo(
+        pin => _localCommunication.GetGpioPinLevel(ResolveHardwarePinName(pin)),
+        (pin, state) => _localCommunication.SetGpioPinLevel(ResolveHardwarePinName(pin), state),
+        pin => _localCommunication.GetGpioPinDirection(ResolveHardwarePinName(pin)),
+        _logger);
+
+    /// <summary>
+    /// Resolves a configured sensor name (e.g. gpio_pinState_UIO_GPIO2) to its
+    /// hardware pin via the sensor's PinId parameter. The built-in DI/DO command
+    /// handlers address pins by sensor name; the driver expects the raw pin name.
+    /// Names without a bound sensor pass through unchanged.
+    /// </summary>
+    private string ResolveHardwarePinName(string name)
+    {
+        var pinId = FindSensor(name)?.Parameters?.GetValueOrDefault("PinId")?.ToString();
+        return string.IsNullOrEmpty(pinId) ? name : pinId;
+    }
+
+    public List<GpioPinDescriptor> ListGpioPins()
+    {
+        var sensorByPin = Configuration.Sensors
+            .Select(s => (s.Name, PinId: s.Parameters?.GetValueOrDefault("PinId")?.ToString()))
+            .Where(x => !string.IsNullOrEmpty(x.PinId))
+            .GroupBy(x => x.PinId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+
+        return _localCommunication.ListGpioPins()
+            .Select(p => p with { SensorName = sensorByPin.GetValueOrDefault(p.Name) })
+            .ToList();
+    }
+
+    public Task<bool> SetDigitalOutputAsync(string outputName, bool state, CancellationToken cancellationToken = default)
+        => Gpio.SetOutputAsync(outputName, state, cancellationToken);
+
+    public Task<bool?> GetDigitalInputAsync(string inputName, CancellationToken cancellationToken = default)
+        => Task.FromResult(Gpio.GetLevel(inputName));
+
+    public Task<bool?> GetDigitalOutputAsync(string outputName, CancellationToken cancellationToken = default)
+        => Task.FromResult(Gpio.GetLevel(outputName));
 }

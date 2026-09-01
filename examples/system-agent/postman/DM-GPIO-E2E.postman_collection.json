@@ -1,0 +1,655 @@
+{
+  "info": {
+    "name": "DM GPIO E2E (system-agent)",
+    "description": "End-to-end verification of the system-agent GPIO commands through Device Management on a real device (EPC-R7300).\n\nPath under test: DM REST commands:invoke -> command pipeline (catalog gate, connection gate) -> transceiver dispatch -> cloud NATS -> dmagent -> SubNode -> hardware -> result sealed back in DM.\n\nSetup:\n1. Set collection variables: baseUrl, deviceId, accessToken (Bearer token from WiseSso login; e.g. ~/.weda-coding-agent/token.json when using weda-login.sh).\n2. The target device must be online (SubNode heartbeat active) with the GPIO-enabled system-agent build.\n3. Run the collection in order (Collection Runner or newman). Each invoke is followed by a result poll.\n\nCommands covered:\n- gpio.list  (custom command) - expected success, discovers pin names\n- di.get     (built-in)       - expected success, reads input pins by sensor name\n- do.set     (built-in)       - negative path: writing an input pin must fail with executionFailed\n- no.such.cmd                 - negative path: DM catalog gate must fail closed (404)\n\nAuth is embedded: folder \"0. Auth (WiseSso)\" runs the full WiseSso chain and stores accessToken into the ACTIVE ENVIRONMENT, so pick one of the role environments (admin / operator / viewer) before running. The 302 request must not follow redirects (set per-request); run the whole collection in order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://weda-sit-k3s.weda.dev/central/weda/api/v1"
+    },
+    {
+      "key": "deviceId",
+      "value": "48b02dea8160"
+    },
+    {
+      "key": "inputSensor1",
+      "value": "gpio_pinState_UIO_GPIO2"
+    },
+    {
+      "key": "inputSensor2",
+      "value": "gpio_pinState_CN13_GPIO1"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Auth (WiseSso)",
+      "item": [
+        {
+          "name": "External Login 302",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.cookies.clear();",
+                  "",
+                  "const oidcIdentity = pm.environment.get('Identity.Permission');",
+                  "console.log('Identity.Permission value:', oidcIdentity);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 302', () => pm.expect(pm.response.code).to.eql(302));",
+                  "// Plain-regex parsing: newman's sandbox has no URL global, so",
+                  "// new URL(...) throws there and the captures silently never happen.",
+                  "const location = pm.response.headers.get('Location') || '';",
+                  "const cid = location.match(/[?&]client_id=([^&]+)/);",
+                  "if (cid) pm.environment.set('client_id', decodeURIComponent(cid[1]));",
+                  "const ru = location.match(/[?&]redirect_uri=([^&]+)/);",
+                  "if (ru) pm.environment.set('redirect_uri', decodeURIComponent(ru[1]));",
+                  "const tenant = decodeURIComponent(location).match(/tenantId:([a-f0-9-]+)/i);",
+                  "pm.test('tenantId discovered', () => pm.expect(tenant).to.not.be.null);",
+                  "if (tenant) pm.environment.set('tenantId', tenant[1]);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{domain}}/{{tenantPath}}/portal/external-login?returnUrl={{domain}}/{{tenantPath}}/{{appPath}}",
+              "host": [
+                "{{domain}}"
+              ],
+              "path": [
+                "{{tenantPath}}",
+                "portal",
+                "external-login"
+              ],
+              "query": [
+                {
+                  "key": "returnUrl",
+                  "value": "{{domain}}/{{tenantPath}}/{{appPath}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Account Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const setCookie = pm.response.headers.get('Set-Cookie');",
+                  "if (setCookie && setCookie.includes('Identity.Permission=')) {",
+                  "  const cookies = setCookie.split(',');",
+                  "  const identityCookie = cookies.find(c => c.includes('Identity.Permission='));",
+                  "  if (identityCookie) {",
+                  "    const value = identityCookie.split(';')[0].split('=')[1];",
+                  "    pm.environment.set('Identity.Permission', value);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "Path=/platform/sso; HttpOnly=true; Secure=true"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"{{login}}\",\n  \"password\": \"{{password}}\",\n  \"tenantId\": \"{{tenantId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{domain}}/{{ssoBaseUrl}}/api/v1.0/account/login",
+              "host": [
+                "{{domain}}"
+              ],
+              "path": [
+                "{{ssoBaseUrl}}",
+                "api",
+                "v1.0",
+                "account",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "External Login 200",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const oidcIdentity = pm.environment.get('Identity.Permission');",
+                  "console.log('Identity.Permission value:', oidcIdentity);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const html = pm.response.text();",
+                  "  const actionMatch = html.match(/<form[^>]*action=[\"']([^\"']*)[\"']/i);",
+                  "  if (actionMatch) pm.environment.set('form_action', actionMatch[1]);",
+                  "  const inputMatches = html.match(/<input[^>]*name=[\"']([^\"']*)[\"'][^>]*value=[\"']([^\"']*)[\"']/gi);",
+                  "  if (inputMatches) {",
+                  "    inputMatches.forEach(match => {",
+                  "      const nameMatch = match.match(/name=[\"']([^\"']*)[\"']/i);",
+                  "      const valueMatch = match.match(/value=[\"']([^\"']*)[\"']/i);",
+                  "      if (nameMatch && valueMatch) {",
+                  "        pm.environment.set(nameMatch[1], valueMatch[1]);",
+                  "      }",
+                  "    });",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "Identity.Permission={{Identity.Permission}}"
+              }
+            ],
+            "url": {
+              "raw": "{{domain}}/{{tenantPath}}/portal/external-login?returnUrl={{domain}}/{{tenantPath}}/{{appPath}}",
+              "host": [
+                "{{domain}}"
+              ],
+              "path": [
+                "{{tenantPath}}",
+                "portal",
+                "external-login"
+              ],
+              "query": [
+                {
+                  "key": "returnUrl",
+                  "value": "{{domain}}/{{tenantPath}}/{{appPath}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Signin Oidc",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const loginCookie = pm.cookies.get('AdvOidc.Login');",
+                  "if (loginCookie) {",
+                  "    pm.environment.set('AdvOidc.Login', loginCookie);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "code",
+                  "value": "{{code}}"
+                },
+                {
+                  "key": "state",
+                  "value": "{{state}}"
+                },
+                {
+                  "key": "iss",
+                  "value": "{{iss}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{form_action}}",
+              "host": [
+                "{{form_action}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WEDA Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('WEDA token issued', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('accessToken', body.accessToken);",
+                  "pm.test('accessToken captured', () => pm.expect(body.accessToken).to.be.a('string').and.not.empty);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const domain = pm.environment.get('domain');",
+                  "const tenantPath = pm.environment.get('tenantPath');",
+                  "const appPath = pm.environment.get('appPath');",
+                  "pm.environment.set('apibaseurl', domain+'/'+tenantPath+'/'+appPath+'/api/v1');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apibaseurl}}/auth/tokens",
+              "host": [
+                "{{apibaseurl}}"
+              ],
+              "path": [
+                "auth",
+                "tokens"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. DM E2E",
+      "item": [
+        {
+          "name": "1. gpio.list - invoke (custom command)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('invoke accepted (HTTP 202)', () => pm.response.to.have.status(202));",
+                  "const body = pm.response.json();",
+                  "pm.test('command received (status 0)', () => pm.expect(body.data.status).to.eql(0));",
+                  "pm.test('phase is pending or result', () => pm.expect(['pending', 'result']).to.include(body.data.phase));",
+                  "pm.collectionVariables.set('gpioListSeqId', body.seqId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands:invoke"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"deviceCommand\":\"gpio.list\",\"parameters\":{}}"
+            }
+          }
+        },
+        {
+          "name": "2. gpio.list - result sealed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "setTimeout(() => {}, 2000);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('results readable (HTTP 200)', () => pm.response.to.have.status(200));",
+                  "const seqId = pm.collectionVariables.get('gpioListSeqId');",
+                  "const row = pm.response.json().items.find(i => i.seqId === Number(seqId));",
+                  "pm.test('command row exists', () => pm.expect(row).to.not.be.undefined);",
+                  "pm.test('phase sealed as result', () => pm.expect(row.data.phase).to.eql('result'));",
+                  "pm.test('device executed successfully (status 0)', () => pm.expect(row.data.status).to.eql(0));",
+                  "pm.test('executedAt / completedAt sealed', () => {",
+                  "  pm.expect(row.data.executedAt).to.not.be.null;",
+                  "  pm.expect(row.data.completedAt).to.not.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands",
+                "results"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3. di.get - invoke (built-in, sensor-name addressing)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('invoke accepted (HTTP 202)', () => pm.response.to.have.status(202));",
+                  "const body = pm.response.json();",
+                  "pm.test('command received (status 0)', () => pm.expect(body.data.status).to.eql(0));",
+                  "pm.collectionVariables.set('diGetSeqId', body.seqId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands:invoke"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"deviceCommand\":\"di.get\",\"parameters\":{\"inputs\":[\"{{inputSensor1}}\",\"{{inputSensor2}}\"]}}"
+            }
+          }
+        },
+        {
+          "name": "4. di.get - result sealed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "setTimeout(() => {}, 2000);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const seqId = pm.collectionVariables.get('diGetSeqId');",
+                  "const row = pm.response.json().items.find(i => i.seqId === Number(seqId));",
+                  "pm.test('command row exists', () => pm.expect(row).to.not.be.undefined);",
+                  "pm.test('phase sealed as result', () => pm.expect(row.data.phase).to.eql('result'));",
+                  "pm.test('inputs read successfully (status 0)', () => pm.expect(row.data.status).to.eql(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands",
+                "results"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5. do.set on input pin - refused by direction guard (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('invoke accepted for dispatch (HTTP 202)', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('doSetSeqId', pm.response.json().seqId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands:invoke"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"deviceCommand\":\"do.set\",\"parameters\":{\"outputs\":[{\"name\":\"{{inputSensor1}}\",\"state\":true}]}}"
+            }
+          }
+        },
+        {
+          "name": "6. do.set - executionFailed sealed (negative)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "setTimeout(() => {}, 2000);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const seqId = pm.collectionVariables.get('doSetSeqId');",
+                  "const row = pm.response.json().items.find(i => i.seqId === Number(seqId));",
+                  "pm.test('command row exists', () => pm.expect(row).to.not.be.undefined);",
+                  "pm.test('phase sealed as result', () => pm.expect(row.data.phase).to.eql('result'));",
+                  "pm.test('device refused the write (status 1)', () => pm.expect(row.data.status).to.eql(1));",
+                  "pm.test('error is executionFailed', () => pm.expect(row.data.error.code).to.eql('executionFailed'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands",
+                "results"
+              ]
+            }
+          }
+        },
+        {
+          "name": "7. unknown command - catalog gate fails closed (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('unknown command rejected (404)', () => pm.response.to.have.status(404));",
+                  "pm.test('commandNotFound error', () => pm.expect(pm.response.json().title).to.eql('commandNotFound'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/devices/{{deviceId}}/commands:invoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "devices",
+                "{{deviceId}}",
+                "commands:invoke"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"deviceCommand\":\"no.such.cmd\",\"parameters\":{}}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
