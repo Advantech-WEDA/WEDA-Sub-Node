@@ -1,11 +1,18 @@
+using System.Text.Json;
+
 using Shouldly;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Communication;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
+using Weda.SubNode.Abstractions.Dsp;
+using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration;
+using Weda.SubNode.Core.Context;
+
 using Xunit;
 
 namespace Weda.SubNode.Core.Tests.Configuration;
@@ -1487,4 +1494,149 @@ public class ConfigurationUpdateHelperTests
     }
 
     #endregion
+
+    #region CreatePeriodicAggregatedReport — restart desired-state Tests
+
+    // Bug (QA): on SubNode restart, the baseline config report carries only `reported`
+    // and drops `desired`, even though the cloud-desired state was persisted on the edge
+    // (devicecfg.cache.json) and reloaded into DeviceConfiguration.RawDeviceCfgJson at startup.
+    // Root cause: CreatePeriodicAggregatedReport hardcodes Cfg.Desired = null.
+
+    [Fact]
+    public void CreatePeriodicAggregatedReport_Should_IncludeDesired_When_CachedDesiredExists()
+    {
+        // Arrange — a device whose RawDeviceCfgJson came from the cached cloud desired
+        // (this is what WedaApplicationContext.ApplyCachedConfigurationIfExists sets on restart).
+        var rawDeviceCfg = JsonDocument.Parse(
+            """
+            {
+              "subNode": { "name": "testSubNode", "model": "Demo", "manufacturer": "Advantech" },
+              "deviceConfigs": {
+                "testDevice": {
+                  "enabled": true,
+                  "sensors": [ { "name": "temperature_sensor" } ]
+                }
+              }
+            }
+            """).RootElement.Clone();
+
+        var config = CreateDeviceConfiguration("TestDevice");
+        config.RawDeviceCfgJson = rawDeviceCfg;
+
+        var registry = new DeviceRegistry();
+        registry.Register(new FakeDevice(config));
+
+        // Act — restart: cached desired exists.
+        var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
+            subNodeId: "353060712559411200",
+            deviceRegistry: registry,
+            lastStatus: "SUCCESS",
+            lastErrorMessage: null,
+            includeDesiredFromCache: true);
+
+        // Assert — restart should report BOTH desired and reported.
+        report.Data.ShouldNotBeNull();
+        report.Data!.Cfg.ShouldNotBeNull();
+        report.Data.Cfg!.Reported.ShouldNotBeNull();       // reported is present today
+        report.Data.Cfg.Desired.ShouldNotBeNull();         // FAILS today: desired is hardcoded null
+    }
+
+    [Fact]
+    public void CreatePeriodicAggregatedReport_Should_NotIncludeDesired_When_NoCachedDesired()
+    {
+        // Arrange — first-ever registration: no RawDeviceCfgJson (no cloud-desired persisted yet).
+        var config = CreateDeviceConfiguration("TestDevice");
+        config.RawDeviceCfgJson = null;
+
+        var registry = new DeviceRegistry();
+        registry.Register(new FakeDevice(config));
+
+        // Act — first-ever registration: no cache signal.
+        var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
+            subNodeId: "353060712559411200",
+            deviceRegistry: registry,
+            lastStatus: "SUCCESS",
+            lastErrorMessage: null,
+            includeDesiredFromCache: false);
+
+        // Assert — with no cached desired, we must NOT invent a desired the cloud never sent.
+        report.Data!.Cfg!.Reported.ShouldNotBeNull();
+        report.Data.Cfg.Desired.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CreatePeriodicAggregatedReport_Should_NotIncludeDesired_When_CacheFlagSetButNoRawJson()
+    {
+        // Arrange — cache flag on, but the device has no RawDeviceCfgJson to echo.
+        var config = CreateDeviceConfiguration("TestDevice");
+        config.RawDeviceCfgJson = null;
+
+        var registry = new DeviceRegistry();
+        registry.Register(new FakeDevice(config));
+
+        // Act
+        var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
+            subNodeId: "353060712559411200",
+            deviceRegistry: registry,
+            lastStatus: "SUCCESS",
+            lastErrorMessage: null,
+            includeDesiredFromCache: true);
+
+        // Assert — nothing to echo -> desired stays absent (no crash, no empty desired).
+        report.Data!.Cfg!.Reported.ShouldNotBeNull();
+        report.Data.Cfg.Desired.ShouldBeNull();
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// Minimal IDevice test double for CreatePeriodicAggregatedReport, which only reads
+/// <see cref="IDevice.Configuration"/>. All other members are unsupported by design.
+/// </summary>
+internal sealed class FakeDevice(DeviceConfiguration configuration) : IDevice
+{
+    public DeviceConfiguration Configuration { get; } = configuration;
+    public string SubNodeId => Configuration.DeviceId ?? "";
+    public string DeviceName => Configuration.DeviceName;
+    public SubNodeType SubNodeType => Configuration.SubNodeType;
+
+    private static NotSupportedException NotUsed([System.Runtime.CompilerServices.CallerMemberName] string member = "")
+        => new($"FakeDevice.{member} is not used by CreatePeriodicAggregatedReport.");
+
+    public IReadOnlyDictionary<string, object> Properties => throw NotUsed();
+    public DeviceStatus Status => throw NotUsed();
+    public CommunicationState ConnectionState => throw NotUsed();
+    public Task<bool> InitializeAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<bool> StartAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<bool> StopAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<List<TelemetryMeasure>> ReadSensorTelemetryAsync(string sensorResourceId, CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<List<TelemetryMeasure>> ReadTelemetryAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<DeviceHealth> GetHealthAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<string?> RegisterAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task SendTelemetryAsync(IAsyncEnumerable<TelemetryMeasure> data, CancellationToken cancellationToken = default, params IDspFilter[] runtimeFilters) => throw NotUsed();
+    public Task ReportHealthAsync(CancellationToken cancellationToken = default) => throw NotUsed();
+    public event EventHandler<DataReceivedEvent>? DataReceived { add { } remove { } }
+    public bool EnableDataReceivedTracking { get; set; }
+    public event EventHandler<DataProcessedEvent>? DataProcessed { add { } remove { } }
+    public bool EnableDataProcessedTracking { get; set; }
+    public event EventHandler<ConnectionStateChangedEvent>? ConnectionStateChanged { add { } remove { } }
+    public bool EnableConnectionStateTracking { get; set; }
+    public event EventHandler<DeviceStatusChangedEvent>? DeviceStatusChanged { add { } remove { } }
+    public bool EnableDeviceStatusTracking { get; set; }
+    public event EventHandler<TelemetrySentEvent>? TelemetrySent { add { } remove { } }
+    public bool EnableTelemetrySentTracking { get; set; }
+    public event EventHandler<UpdateConfigurationEvent>? ConfigurationUpdateReceived { add { } remove { } }
+    public bool EnableConfigurationUpdateTracking { get; set; }
+    public event EventHandler<TelemetryValueChangedEvent>? ValueChanged { add { } remove { } }
+    public bool EnableValueChangeTracking { get; set; }
+    public Sensor GetSensor(string sensorName) => throw NotUsed();
+    public Sensor? FindSensor(string sensorName) => throw NotUsed();
+    public Sensor GetSensorByResourceId(string resourceId) => throw NotUsed();
+    public Sensor? FindSensorByResourceId(string resourceId) => throw NotUsed();
+    public Task<ConfigUpdateValidationResult> ValidateConfigurationUpdateAsync(SubNodeConfigUpdateMessage message, CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task<ConfigUpdateResult> ApplyValidatedConfigurationAsync(SubNodeConfigUpdateMessage message, DeviceConfigurationBackup backup, CancellationToken cancellationToken = default) => throw NotUsed();
+    public Task RollbackConfigurationAsync(DeviceConfigurationBackup backup, CancellationToken cancellationToken = default) => throw NotUsed();
+    public DeviceConfigurationBackup CreateConfigurationBackup() => throw NotUsed();
+    public void Dispose() { }
 }
