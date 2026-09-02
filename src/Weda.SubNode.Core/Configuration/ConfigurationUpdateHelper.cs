@@ -1138,11 +1138,20 @@ public static partial class ConfigurationUpdateHelper
     /// <param name="lastStatus">Last config update status to preserve</param>
     /// <param name="lastErrorMessage">Last error message to preserve (null if success)</param>
     /// <param name="protoVer">Protocol version (default: eco1j)</param>
+    /// <param name="includeDesiredFromCache">
+    /// When true, the report also carries the <c>desired</c> state, rebuilt from the same
+    /// cached devicecfg JSON that feeds <c>reported</c>. Set this only on restart, when a
+    /// cloud-desired configuration was previously persisted on the edge
+    /// (devicecfg.cache.json) and reloaded into <see cref="DeviceConfiguration.RawDeviceCfgJson"/>.
+    /// On first-ever registration there is no cached desired, so <c>desired</c> is omitted —
+    /// the device must not report a desired the cloud never sent.
+    /// </param>
     public static SubNodeConfigUpdateMessage CreatePeriodicAggregatedReport(
         string subNodeId,
         IDeviceRegistry deviceRegistry,
         string lastStatus,
         string? lastErrorMessage,
+        bool includeDesiredFromCache = false,
         string groupId = "weda",
         string protoVer = "eco1j")
     {
@@ -1186,6 +1195,18 @@ public static partial class ConfigurationUpdateHelper
             };
         }
 
+        // On restart, echo the cached cloud-desired state back alongside reported.
+        // Rebuild it from the same raw devicecfg JSON that produced reported so the two
+        // sections stay consistent. Omitted on first-ever registration (no cached desired).
+        SubNodeDesiredConfigSections? desired = null;
+        if (includeDesiredFromCache && baseRawJson.HasValue)
+        {
+            desired = new SubNodeDesiredConfigSections
+            {
+                RawDeviceCfg = baseRawJson.Value
+            };
+        }
+
         return new SubNodeConfigUpdateMessage
         {
             ProtoVer = protoVer,
@@ -1199,7 +1220,7 @@ public static partial class ConfigurationUpdateHelper
             {
                 Cfg = new SubNodeConfigState
                 {
-                    Desired = null,
+                    Desired = desired,
                     Reported = reported
                 }
             }
