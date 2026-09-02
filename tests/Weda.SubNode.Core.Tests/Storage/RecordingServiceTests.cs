@@ -1,3 +1,4 @@
+using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -303,6 +304,91 @@ public class RecordingServiceTests : IDisposable
 
         // Assert - Recent file should still exist
         File.Exists(recentFilePath).ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region GetRecordingsAsync Retention Tests
+
+    [Fact]
+    public async Task GetRecordingsAsync_SensorDirectoryWithoutFiles_ReturnsEmptyResultNotError()
+    {
+        // Arrange - A sensor known to storage whose recordings have all aged out
+        var sensorId = TestSensorId("sensor-aged-out");
+        Directory.CreateDirectory(Path.Combine(_testDirectory, sensorId));
+
+        // Act
+        var result = await _service.GetRecordingsAsync(sensorId, DateTimeOffset.UtcNow.AddHours(-2), DateTimeOffset.UtcNow);
+
+        // Assert - Having no data is an empty result, never a storage failure. Reporting this
+        // as an error is what surfaced phantom "sensorError" data gaps in batch reports.
+        result.IsError.ShouldBeFalse();
+        result.Value.SensorId.ShouldBe(sensorId);
+        result.Value.Measures.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetRecordingsAsync_UnknownSensor_ReturnsNotFound()
+    {
+        // Arrange - No directory was ever created for this sensor
+        var sensorId = TestSensorId("never-recorded");
+
+        // Act
+        var result = await _service.GetRecordingsAsync(sensorId, DateTimeOffset.UtcNow.AddHours(-2), DateTimeOffset.UtcNow);
+
+        // Assert
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Type.ShouldBe(ErrorType.NotFound);
+        result.FirstError.Code.ShouldBe("Recording.SensorNotFound");
+    }
+
+    [Fact]
+    public async Task GetRecordingsAsync_AfterCleanupRemovesLastFile_ReturnsNotFound()
+    {
+        // Arrange - Cleanup removes both the expired file and the now-empty directory
+        var sensorId = TestSensorId("sensor-cleaned");
+        var oldTimestamp = new DateTimeOffset(DateTime.UtcNow.AddDays(-10), TimeSpan.Zero).ToUnixTimeMilliseconds();
+        await _service.RecordAsync(sensorId, 1000, SchemaType.Double, oldTimestamp, 42.5);
+
+        await _service.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+        // Act
+        var result = await _service.GetRecordingsAsync(sensorId, DateTimeOffset.UtcNow.AddHours(-2), DateTimeOffset.UtcNow);
+
+        // Assert - The sensor is gone from storage entirely, so it is genuinely not found
+        // and is no longer enumerated at all.
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Type.ShouldBe(ErrorType.NotFound);
+
+        var sensorIds = await _service.GetSensorIdsAsync();
+        sensorIds.Value.ShouldNotContain(sensorId);
+    }
+
+    [Fact]
+    public async Task DeleteSensorAsync_SensorDirectoryWithoutFiles_DeletesDirectory()
+    {
+        // Arrange - An empty sensor directory must still be removable
+        var sensorId = TestSensorId("sensor-empty");
+        var sensorDir = Path.Combine(_testDirectory, sensorId);
+        Directory.CreateDirectory(sensorDir);
+
+        // Act
+        var result = await _service.DeleteSensorAsync(sensorId);
+
+        // Assert
+        result.IsError.ShouldBeFalse();
+        Directory.Exists(sensorDir).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteSensorAsync_UnknownSensor_ReturnsNotFound()
+    {
+        // Act
+        var result = await _service.DeleteSensorAsync(TestSensorId("never-recorded"));
+
+        // Assert
+        result.IsError.ShouldBeTrue();
+        result.FirstError.Type.ShouldBe(ErrorType.NotFound);
     }
 
     #endregion

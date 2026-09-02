@@ -64,6 +64,26 @@ public interface IRecordStorage
     Task<PagedResult<string>> GetSensorsAsync(int pageIndex, int pageSize, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Determines whether the storage knows about a sensor, regardless of whether any
+    /// recording data currently remains for it.
+    /// </summary>
+    /// <remarks>
+    /// Distinguishes an unknown sensor from a known sensor whose files have all aged out of
+    /// retention. Without that distinction an empty-but-known sensor is indistinguishable from
+    /// a storage failure, and callers report a phantom error for a sensor that simply has no
+    /// data. The default implementation derives the answer from <see cref="GetSensorIdsAsync"/>;
+    /// implementations that can answer more cheaply should override it.
+    /// </remarks>
+    /// <param name="sensorId">The sensor ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> when the sensor is known to the storage; otherwise <c>false</c>.</returns>
+    async Task<bool> SensorExistsAsync(string sensorId, CancellationToken cancellationToken = default)
+    {
+        var sensorIds = await GetSensorIdsAsync(cancellationToken);
+        return sensorIds.Contains(sensorId, StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// Gets all recording intervals for a sensor.
     /// </summary>
     /// <param name="sensorId">The sensor ID.</param>
