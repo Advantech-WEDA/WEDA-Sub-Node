@@ -1,6 +1,6 @@
 {
   "SubNode": {
-    "Name": "TestDevice",
+    "Name": "TestDeviceCmd",
     "SubNodeType": "AdamEthernet",
     "Manufacturer": "Advantech",
     "Model": "Demo",
@@ -45,6 +45,14 @@
                 "Parameters": {
                   "FromUnit": "celsius",
                   "ToUnit": "fahrenheit"
+                }
+              },
+              {
+                "Type": "expression",
+                "Enabled": true,
+                "Parameters": {
+                  "expression": "(value - 32) * 5 / 9",
+                  "variableName": "value"
                 }
               }
             ],

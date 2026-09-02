@@ -328,6 +328,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         {
             Weda.SubNode.Core.Telemetry.SensorTypeRegistry.RegisterAssemblies(capabilityEntryAssembly);
             Weda.SubNode.Core.Devices.DeviceTypeRegistry.RegisterAssemblies(capabilityEntryAssembly);
+            Weda.SubNode.Core.Transforms.TransformFactory.RegisterAssemblies(capabilityEntryAssembly);
+            Weda.SubNode.Core.Dsp.DspFilterFactory.RegisterAssemblies(capabilityEntryAssembly);
         }
 
         // Load all device configurations from DeviceCfg
