@@ -234,7 +234,15 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
             var intervals = await _storage.GetIntervalsAsync(sensorId, cancellationToken);
             if (intervals.Count == 0)
             {
-                return Errors.Recording.SensorNotFound(sensorId);
+                // A known sensor whose files have all aged out of retention has no data to
+                // return, which is an empty result rather than a failure. Only a sensor the
+                // storage has never heard of is an error.
+                if (!await _storage.SensorExistsAsync(sensorId, cancellationToken))
+                {
+                    return Errors.Recording.SensorNotFound(sensorId);
+                }
+
+                return new RecordingResult(sensorId, []);
             }
 
             var measures = new List<RecordingMeasureResult>();
@@ -264,8 +272,9 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
     {
         try
         {
-            var intervals = await _storage.GetIntervalsAsync(sensorId, cancellationToken);
-            if (intervals.Count == 0)
+            // Check existence rather than interval count: a sensor whose files have aged out
+            // still has a directory to remove, and must not report as not found.
+            if (!await _storage.SensorExistsAsync(sensorId, cancellationToken))
             {
                 return Errors.Recording.SensorNotFound(sensorId);
             }
