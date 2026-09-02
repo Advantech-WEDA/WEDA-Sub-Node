@@ -1112,11 +1112,19 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
     /// </summary>
     private async Task PublishPeriodicReportAsync(CancellationToken ct, string reason)
     {
+        // On restart the cloud-desired config is persisted on the edge (devicecfg.cache.json)
+        // and reloaded into RawDeviceCfgJson at startup; when that cache exists, echo desired
+        // back alongside reported. On first-ever registration there is no cache, so desired is
+        // omitted rather than reporting the local base config as a desired the cloud never sent.
+        var includeDesiredFromCache = _configurationCache != null
+            && await _configurationCache.ExistsAsync(SubscriptionTypes.DeviceConfig, ct);
+
         var report = ConfigurationUpdateHelper.CreatePeriodicAggregatedReport(
             _subNodeId!,
             _deviceRegistry,
             _lastConfigUpdateStatus,
-            _lastConfigUpdateError);
+            _lastConfigUpdateError,
+            includeDesiredFromCache);
 
         await _cloudService.PublishConfigurationReportAsync(
             SubscriptionTypes.DeviceConfig,
