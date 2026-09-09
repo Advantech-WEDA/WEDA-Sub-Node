@@ -39,6 +39,7 @@ be built on Modbus, but the transport is incidental.
 | Directory | What it actually is |
 |---|---|
 | [`system-agent`](./system-agent/) | A shipped product component — the host-metrics SubNode that runs on every WEDA Node. Kept here for now, but it is not a sample to copy. |
+| [`robot`](./robot/) | Documentation only — design notes on ROS2/DDS integration (topics and QoS, DDS vs NATS, message libraries, fleet patterns). No code, nothing to run. |
 
 ---
 
