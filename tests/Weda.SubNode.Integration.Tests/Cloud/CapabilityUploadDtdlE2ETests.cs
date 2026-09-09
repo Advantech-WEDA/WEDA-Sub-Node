@@ -42,7 +42,9 @@ public class CapabilityUploadDtdlE2ETests : IAsyncLifetime
         .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4222))
         .Build();
 
-    private string NatsUrl => $"nats://localhost:{_natsContainer.GetMappedPublicPort(4222)}";
+    // Resolve the host from the container rather than hardcoding "localhost" — see the note in
+    // ConnectionRestoredE2ETests. The mapped port was already correct; the host was not.
+    private string NatsUrl => $"nats://{_natsContainer.Hostname}:{_natsContainer.GetMappedPublicPort(4222)}";
 
     public async Task InitializeAsync() => await _natsContainer.StartAsync();
     public async Task DisposeAsync() => await _natsContainer.DisposeAsync();
