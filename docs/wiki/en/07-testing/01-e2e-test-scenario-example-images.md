@@ -324,14 +324,47 @@ example's evidence, the defects it exposed, and how to re-run it.
 | D-06 | Three examples hardcoded `.UseMockCloud()`, so they could never reach a WedaNode | High | **Fixed** — config-driven, default real cloud |
 | D-07 | `MyFirstISensingDevice` lacked the `(context, DeviceConfiguration)` ctor the host activates → `MissingMethodException` on every start, on any host | High | **Fixed** |
 | D-08 | `examples/daq-collector/docker-compose.yml` fails validation: `services.daq-collector.devices must be a list` | Medium | **Open** — pre-existing |
-| D-09 | Cloud/device drift: API reports `deployed` while the device has no compose project; `commands:start` → `stack not found`; redeploy answered `skip` | High | **Open** — platform defect. Workaround: `DELETE …/docker/stacks` then redeploy (returns `add`) |
+| D-09 | **Renaming a compose service inside an existing stack config destroys the deployment.** The new container starts, then the agent removes it and settles on `status: deployed` / `reason: "Stack is managed but not currently running"` with an empty container list, while the device has no compose project at all. `commands:start` then fails `stack not found`, and redeploying the same revision is answered `skip`. **Reproduced deterministically** — see §10.1 | High | **Open** — platform defect. Workaround: `DELETE …/docker/stacks` then redeploy (returns `add`) |
 | D-10 | Batch multi-arch builds exhaust the Docker data volume; errors read like network faults | Low | **Documented** — prune between builds |
 | D-11 | Self-contained publish layered on `dotnet/runtime` shipped a **second** unused runtime (~82 MB/image) | Low | **Fixed** — `runtime-deps` |
 | D-12 | Build context 252.9 MB, of which 177 MB was gitignored logs not covered by `.dockerignore` | Low | **Fixed** — context now 22.4 MB |
 | D-16 | Two integration tests hardcoded `nats://localhost:<port>` while Testcontainers publishes on the **Docker host**. The CI agent is itself a container sharing the socket, so `localhost` reached nothing — failing on every branch for a week while passing on developer machines | High | **Fixed** — resolve the host via `IContainer.Hostname` ([PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363)) |
 | D-14 | A stack mixing `network_mode: host` with a **bridge-networked sibling** cannot deploy: the agent programs the project network's veth into the host namespace and the host-mode container is created but never starts (`cannot program address …/28 … conflicts with existing route`). It emits **no logs at all**, so it reads as a hung pull | High | **Fixed in the example** — both services on host networking. The underlying agent behaviour is **Open** |
 | D-15 | Appending to `/etc/rabbitmq/rabbitmq.conf` from `command:` aborts RabbitMQ with `failed_to_prepare_configuration` — the entrypoint generates that file from `RABBITMQ_DEFAULT_*` | Low | **Fixed** — plugins enabled only; MQTT left on 1883 and the SubNode pointed at it |
-| D-13 | Repeated deploy/delete of the same stack name leaves a **stale bridge route** for the project network's subnet. The next deployment's container is created and never starts: `cannot program address 10.226.2.3/28 … conflicts with existing route`. `docker network prune` does not clear it (the network is still in use) | High | **Open** — platform/agent defect. Workaround: `DELETE …/docker/stacks` to drop the project network, then redeploy |
+| D-13 | Repeated deploy/delete of the same stack name leaves a **stale bridge route** for the project network's subnet. The next deployment's container is created and never starts: `cannot program address 10.226.2.3/28 … conflicts with existing route`. `docker network prune` does not clear it (the network is still in use) | Medium | **Open** — platform/agent defect. Workaround: `DELETE …/docker/stacks` to drop the project network, then redeploy |
+
+---
+
+### 10.1 D-09 reproduction
+
+Confirmed on 2026-09-09 with a minimal stack — plain `nginx:alpine`, no host networking, no bridge
+sibling — so it is independent of D-13 and D-14.
+
+1. Deploy revision A with one service named `repro-alpha` → `deviceActions: add`, container running.
+2. `PATCH` the same stack config, changing **only the service name** to `repro-beta`. Deploy the new
+   revision **without** deleting the device's copy first → `deviceActions: update`.
+3. Observe the device stack for ~90 s:
+
+```
+[1] status=running  op=idle/deployed                 containers=[('repro-alpha','running')]
+[2] status=running  op=idle/awaitingDeployedStatus   containers=[('repro-beta','running')]
+...
+[6] status=deployed op=idle/deployed                 containers=[]
+    reason: "Stack is managed but not currently running"
+```
+
+The renamed container **does** start (steps 2–5), then is removed and never restored.
+
+4. On the device: no `repro-*` containers, and `docker compose ls -a` lists only `dmagent` and
+   `sv-ai-model` — the project is gone.
+5. `POST …/docker/stacks/commands:start` → `HTTP 200`, and the command result is
+   `status: 1`, `error: {"code":"internalServerError","message":"Command execution failed: stack not found"}`.
+
+So the cloud believes the stack is managed, the device has nothing, and the recovery command cannot
+bridge the two. Deleting the device's copy and redeploying is the only way out.
+
+**Why it matters:** the API reports success at every step. A caller that trusts `deployed` — which is
+what an operator UI would show — sees a healthy deployment over a device running nothing.
 
 ---
 
@@ -373,15 +406,3 @@ working end to end.** The remaining two are fixture gaps, not failures: `daq-col
 module, `system-agent` needs a device of its own. Three platform defects are open and unassigned
 (**D-09** stack drift, **D-13** stale bridge route, **D-14** host/bridge network mixing) — all three
 present as a device doing nothing while the API reports success.
-
----
-
-## 13. Open Questions
-
-| # | Question | Owner |
-|---|---|---|
-| OQ-1 | D-09: is the cloud/device stack drift reproducible outside a service rename? It silently leaves a device with nothing running while the API reports success | container-management |
-| OQ-5 | D-13: does the agent ever tear down a project network on stack delete, or only its containers? Two of this run's hardest failures (D-09, D-13) were device-side state the API reported as healthy | container-management |
-| OQ-2 | Should `system-agent` be excluded from `examples/` entirely? It is a product component, cannot be deployed alongside itself, and the index already lists it under "Not examples" | SDK maintainers |
-| OQ-3 | `daq-collector` and `modbus-wise4012*` need real hardware. Should the fixture set include a DAQ module and a WISE-4012, or should these examples ship simulators as `feature-*` ones do? | QA + SDK maintainers |
-| OQ-4 | The bundled brokers carry no data producer — the repo has an MQTT *image* simulator but no iSensing or vision publisher. Should those be added so Act 4 can assert real payloads rather than health reports? | SDK maintainers |
