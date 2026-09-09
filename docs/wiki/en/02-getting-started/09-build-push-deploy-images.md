@@ -1,0 +1,160 @@
+# Build, Push and Deploy an Example Image
+
+The operating procedure for taking a SubNode example from source to a container running on a
+WEDA edge device: build a multi-arch image, push it to Harbor, deploy it with the
+container-management API, and verify it is actually working.
+
+Verified end to end on an **EPC-R7300A1** (ARM64, Ubuntu 20.04) against `weda-sit-k3s.weda.dev`.
+
+## 0. The one rule that trips everyone up
+
+**The build context is the repository root, never the example directory.** Every example's
+`.csproj` references `../../src/Weda.SubNode.*`, and the Dockerfile copies the whole tree, so:
+
+```bash
+cd examples/opcua-basic && docker build -t x .     # ✗ fails
+```
+
+```
+MSBUILD : error MSB1003: Specify a project or solution file.
+```
+
+That error names neither the context nor the Dockerfile, so it reads as a broken example. Use
+`scripts/build-push-image.sh`, which enforces the correct context, or pass `-f` from the root
+yourself.
+
+## 1. Match the image architecture to the device
+
+Check before building — an amd64 image will not run on a Jetson-class device:
+
+```bash
+curl -s --cacert weda.pem -H "Authorization: Bearer $TOK" \
+  "$BASE/api/v1/devices/$DEVICE/capabilities" | grep -i processorArchitecture
+#   "processorArchitecture": "ARM64"
+```
+
+| Device | Arch | Build for |
+|---|---|---|
+| EPC-R7300 (Jetson Orin) | ARM64 | `linux/arm64` |
+| x86 edge PC / dev host | AMD64 | `linux/amd64` |
+
+## 2. Build and push
+
+```bash
+cd <repo-root>
+docker login harbor.arfa.wise-paas.com
+
+# multi-arch (default) — both architectures, one manifest list
+./scripts/build-push-image.sh opcua-basic
+
+# single arch, matching the target device
+PLATFORMS=linux/arm64 ./scripts/build-push-image.sh feature-transform-pipeline
+
+# a tool rather than an example
+PATH_PREFIX=tools PLATFORMS=linux/arm64 ./scripts/build-push-image.sh simulator-host
+
+# local build, no push (single platform only — --load cannot take a manifest list)
+PUSH=false PLATFORMS=linux/amd64 ./scripts/build-push-image.sh modbus-wise4012
+```
+
+Images land at `harbor.arfa.wise-paas.com/edge-coa/<name>:latest`. Override with `IMAGE_REPO`
+and `IMAGE_TAG`. The script creates a `docker-container` buildx builder on first use (the default
+`docker` driver cannot emit a manifest list) and installs `binfmt` when a build targets arm.
+
+Confirm what actually landed:
+
+```bash
+docker buildx imagetools inspect harbor.arfa.wise-paas.com/edge-coa/<name>:latest
+```
+
+### Images are self-contained by design
+
+Each example Dockerfile bakes its four config files (`devicecfg`, `systemcfg`, `customcfg`,
+`appsettings`) into `/app`. A stack deployed by container-management has no local files to
+bind-mount, so an image that depends on mounts starts and immediately dies. Local
+`docker compose` bind-mounts still override the baked copies, and any single value can be
+overridden at run time by its environment variable:
+
+```
+DeviceConfig__DeviceConfigs__<Device>__DeviceCommunication__Password=...
+SystemConfig__WedaNode__Password=...
+```
+
+> **Do not bake real credentials.** The committed `systemcfg.json` files carry placeholder NATS
+> credentials. Anything baked into an image is readable by anyone who can pull it — pass real
+> secrets through the stack's `environment` block instead.
+
+## 3. Register the registry once per org
+
+The device pulls from Harbor as itself, so the org needs a registry credential or every pull
+fails with an auth error that surfaces only as a stuck deployment:
+
+```bash
+curl -s -X POST "$BASE/api/v1/orgs/$ORG/containers/registries" \
+  -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+  --data @registry.json      # never inline the password on the command line
+```
+
+Check for an existing one before creating a duplicate:
+
+```bash
+curl -s -H "Authorization: Bearer $TOK" "$BASE/api/v1/orgs/$ORG/containers/registries"
+```
+
+## 4. Create the stack config
+
+`composeFileContent` is **base64-encoded** compose YAML, not plain text.
+
+```bash
+COMPOSE_B64=$(base64 -w0 stack-compose.yml)
+curl -s -X POST "$BASE/api/v1/orgs/$ORG/stack-configs" \
+  -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+  -d "{\"stackName\":\"my-stack\",\"type\":\"compose\",
+       \"composeFileContent\":\"$COMPOSE_B64\",\"description\":\"...\"}"
+```
+
+The response carries `stackConfigId` and `stackRevisionId`. Every edit creates a new immutable
+revision; you always deploy a specific revision, and rolling back is deploying an older one.
+
+Use `network_mode: host` when the container must reach the device's own dmagent (NATS on
+`127.0.0.1:4224`) or another container in the same stack over localhost.
+
+## 5. Deploy to the device
+
+```bash
+curl -s -X POST \
+  "$BASE/api/v1/orgs/$ORG/stack-configs/$STACK_ID/revisions/$REV_ID:deploy" \
+  -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+  -d '{"deviceIds":["48b02dea8160"]}'
+```
+
+This changes what runs on real hardware — confirm the device list first.
+
+## 6. Verify, in four steps
+
+Do not stop at "the API returned 200". Each step below proves something the previous one does not:
+
+| # | Check | Proves |
+|---|---|---|
+| 1 | `GET /api/v1/orgs/$ORG/stack-configs/deployments?deviceIds=$DEVICE` → status reaches `deployed`/`running` | The device accepted and applied the revision |
+| 2 | `GET /api/v1/devices/$DEVICE/docker/stacks` lists the stack with its containers `running` | The images pulled and the containers actually started |
+| 3 | Device telemetry shows the new sensor values arriving | The SubNode inside the container is doing its job |
+| 4 | `GET /api/v1/devices/$DEVICE/capabilities/sensors` lists the sensors the SubNode registered | The SubNode reached the WedaNode and registered its capability catalogue |
+
+A container that is `running` proves only that the process has not exited — a SubNode that cannot
+reach its device or its WedaNode stays up and logs errors forever. Steps 3 and 4 are what
+distinguish "deployed" from "working".
+
+## 7. Clean up
+
+```bash
+# remove one stack from the device
+curl -s -X DELETE "$BASE/api/v1/devices/$DEVICE/docker/stacks?stackConfigId=$STACK_ID" \
+  -H "Authorization: Bearer $TOK"
+```
+
+## See also
+
+- [`scripts/build-push-image.sh`](../../../../scripts/build-push-image.sh) — the build/push script
+- [Examples index](../../../../examples/README.md) — "Building a container image"
+- [Connect to WedaCore](04-connect-to-wedacore.md) — credentials and the WedaNode connection

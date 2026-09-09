@@ -36,6 +36,14 @@ FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 WORKDIR /app
 COPY --from=build /app/publish/ ./
 
+# Default configuration, so the image runs standalone when deployed by container-management
+# (no local files to bind-mount there). docker-compose bind-mounts override these read-only,
+# and any value can be overridden at run time by its DeviceConfig__/SystemConfig__ env var.
+COPY examples/opcua-basic/devicecfg.json /app/devicecfg.json
+COPY examples/opcua-basic/systemcfg.json /app/systemcfg.json
+COPY examples/opcua-basic/customcfg.json /app/customcfg.json
+COPY examples/opcua-basic/appsettings.json /app/appsettings.json
+
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
 ENTRYPOINT ["/app/OpcUaBasic"]

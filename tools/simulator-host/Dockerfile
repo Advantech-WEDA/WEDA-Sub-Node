@@ -27,10 +27,14 @@ RUN RID=$(cat /rid.txt) && \
       -p:DebugType=none \
       -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
+
+# Default simulator profile (Modbus TCP on :5020), so the image runs standalone when deployed
+# by container-management. Override by bind-mounting or by SIMULATOR__ env vars.
+COPY tools/simulator-host/appsettings.json /app/appsettings.json
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
