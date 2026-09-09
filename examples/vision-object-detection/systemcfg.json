@@ -1,6 +1,6 @@
 {
   "WedaNode": {
-    "Url": "127.0.0.1:4222",
+    "Url": "127.0.0.1:4224",
     "AuthStrategy": "UserPassword",
     "Username": "REPLACE_WITH_NATS_USER",
     "Password": "REPLACE_WITH_NATS_PASSWORD"
