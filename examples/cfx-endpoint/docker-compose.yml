@@ -39,6 +39,7 @@ services:
     restart: unless-stopped
 
   cfx-subnode:
+    image: ${CFX_SUBNODE_IMAGE:-harbor.arfa.wise-paas.com/edge-coa/cfx-endpoint:latest}
     build:
       context: ../..
       dockerfile: examples/cfx-endpoint/Dockerfile
@@ -63,6 +64,7 @@ services:
   # the deployment can be verified end-to-end while the production line is idle.
   cfx-replay:
     profiles: ["replay"]
+    image: ${CFX_REPLAY_IMAGE:-harbor.arfa.wise-paas.com/edge-coa/cfx-replay:latest}
     build:
       context: ../..
       dockerfile: tools/cfx-replay/Dockerfile
