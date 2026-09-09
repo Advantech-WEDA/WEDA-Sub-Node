@@ -23,6 +23,9 @@ tags:      [doc:test, feature:sub-node, service:sub-node, service:container-mana
 
 [[_TOC_]]
 
+> **Change record.** Examples work: [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361).
+> CI integration-test fix (D-16): [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
+
 <!-- Step ids E2E-EXD-<act>.<step> are STABLE once published — defect titles quote them.
      "Deployable" here means the container-management API can put the image on a device that has
      no repo checkout. That is a stricter bar than "docker compose up works on my laptop", and it
@@ -305,6 +308,7 @@ example's evidence, the defects it exposed, and how to re-run it.
 | Deployment `deployed`, no container on device | Cloud/device drift | D-09 |
 | Container stuck in `Created`, **no logs at all** | Host-mode service in a stack that also has a bridge-networked service (D-14), or a stale bridge route from a previous stack of the same name (D-13) | D-13, D-14 |
 | `no space left on device`, `ResourceExhausted`, corrupt NuGet | Docker data volume full during a batch multi-arch build | D-10 |
+| `can not connect uris: nats://localhost:<port>` in CI, passes locally | Test hardcodes `localhost`; Testcontainers publishes on the Docker host, which is a different namespace on a containerised agent | D-16 |
 
 ---
 
@@ -324,6 +328,7 @@ example's evidence, the defects it exposed, and how to re-run it.
 | D-10 | Batch multi-arch builds exhaust the Docker data volume; errors read like network faults | Low | **Documented** — prune between builds |
 | D-11 | Self-contained publish layered on `dotnet/runtime` shipped a **second** unused runtime (~82 MB/image) | Low | **Fixed** — `runtime-deps` |
 | D-12 | Build context 252.9 MB, of which 177 MB was gitignored logs not covered by `.dockerignore` | Low | **Fixed** — context now 22.4 MB |
+| D-16 | Two integration tests hardcoded `nats://localhost:<port>` while Testcontainers publishes on the **Docker host**. The CI agent is itself a container sharing the socket, so `localhost` reached nothing — failing on every branch for a week while passing on developer machines | High | **Fixed** — resolve the host via `IContainer.Hostname` ([PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363)) |
 | D-14 | A stack mixing `network_mode: host` with a **bridge-networked sibling** cannot deploy: the agent programs the project network's veth into the host namespace and the host-mode container is created but never starts (`cannot program address …/28 … conflicts with existing route`). It emits **no logs at all**, so it reads as a hung pull | High | **Fixed in the example** — both services on host networking. The underlying agent behaviour is **Open** |
 | D-15 | Appending to `/etc/rabbitmq/rabbitmq.conf` from `command:` aborts RabbitMQ with `failed_to_prepare_configuration` — the entrypoint generates that file from `RABBITMQ_DEFAULT_*` | Low | **Fixed** — plugins enabled only; MQTT left on 1883 and the SubNode pointed at it |
 | D-13 | Repeated deploy/delete of the same stack name leaves a **stale bridge route** for the project network's subnet. The next deployment's container is created and never starts: `cannot program address 10.226.2.3/28 … conflicts with existing route`. `docker network prune` does not clear it (the network is still in use) | High | **Open** — platform/agent defect. Workaround: `DELETE …/docker/stacks` to drop the project network, then redeploy |
@@ -341,6 +346,10 @@ example's evidence, the defects it exposed, and how to re-run it.
 
 **202 tests, 0 failures — and they caught none of §10.** Only 4 of 15 examples have tests at all,
 and every defect above was found by deploying. That is the argument for this scenario existing.
+
+`Weda.SubNode.Core.Tests` (1112) passes too. `Weda.SubNode.Integration.Tests` reported **2 of 10
+failing** throughout this work — see D-16; that failure predates this branch by a week and is
+unrelated to the examples.
 
 > Two test projects are named for directories that no longer exist (`command-handler`,
 > `stock-monitor`). Their `ProjectReference`s are correct; only the names lag the rename.

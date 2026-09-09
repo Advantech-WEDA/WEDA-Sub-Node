@@ -69,3 +69,17 @@ ssh <device> 'docker logs --tail 40 <container>'
 ```
 
 A container reported `running` is **not** sufficient evidence — see §6 of the parent report.
+
+## 6. Change record
+
+| | |
+|---|---|
+| Test run | 2026-09-09, EPC-R7300A1 `48b02dea8160`, SIT |
+| Fixes landed in | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| Harness | `deploy-verify.sh` — deploy revision, wait for the container, assert the four Act-4 checks |
+
+> CI note: `Weda.SubNode.Integration.Tests` reported 2/10 failing throughout this work. That is
+> D-16 — hardcoded `localhost` against a Testcontainers-published port — which predates this
+> branch by a week and is fixed separately in
+> [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
+> It is unrelated to any example result on this page.

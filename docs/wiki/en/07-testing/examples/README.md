@@ -9,6 +9,8 @@ per-example results, so read that first.
 
 **Device under test:** EPC-R7300A1 `48b02dea8160` — ARM64, Ubuntu 20.04, SIT.
 
+**Change record:** example fixes in [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361); the unrelated CI integration-test failure (D-16) in [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
+
 ## Results
 
 | # | Example | Verdict | External dependency |
