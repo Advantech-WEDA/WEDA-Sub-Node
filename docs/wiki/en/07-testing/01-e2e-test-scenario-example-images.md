@@ -255,6 +255,9 @@ sufficient evidence for any step in Act 4 — see the warning in §6.
 
 Gates: **B**uild · **P**ush · **D**eploy · **F**unction. `—` = not applicable.
 
+Each row links to its own report in [`examples/`](examples/README.md), which records that
+example's evidence, the defects it exposed, and how to re-run it.
+
 | # | Example | B | P | D | F | Evidence / blocker |
 |---|---|:-:|:-:|:-:|:-:|---|
 | 1 | `feature-transform-pipeline` | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25 → 77` (°C→°F) then `→ 25.005` (smoothing) |
