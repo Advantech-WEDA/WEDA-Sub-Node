@@ -269,7 +269,7 @@ Gates: **B**uild · **P**ush · **D**eploy · **F**unction. `—` = not applicab
 | 10 | `mqtt-isensing-wise4012` | ✅ | ✅ | ✅ | ✅ | After D-07; subscribed `Advantech/00D0C9FAC80E/{data,status}`, registered `355941923954884608` |
 | 11 | `vision-object-detection` | ✅ | ✅ | ✅ | ✅ | After D-03; subscribed `advantech/+/vision/{detections,status,meta}`, registered `355914456695308288` |
 | 12 | `daq-proxy` | ✅ | ✅ | ✅ | ✅ | nats + registration + telemetry |
-| 13 | `cfx-endpoint` | ✅ | ✅ | ⏳ | ⏳ | See §7.1 — result pending at time of writing |
+| 13 | `cfx-endpoint` | ✅ | ✅ | ✅ | ✅ | After D-14; registered `355914649897533440`, subscribed `+/+/+/CFX/#` for **17 sensors across 17 message types**, config applied |
 | 14 | `daq-collector` | ✅ | ✅ | ✅ | ❌ | `DaqCommunication connection failed: No DAQ modules available` — **fixture gap, not a defect** |
 | 15 | `system-agent` | ✅ | ✅ | — | — | **SKIP** — already runs on the device as a shipped product component; a second instance would contend for the same host resources |
 
@@ -300,7 +300,7 @@ Gates: **B**uild · **P**ush · **D**eploy · **F**unction. `—` = not applicab
 | `MissingMethodException: Constructor … not found` | Device class lacks the `(context, DeviceConfiguration)` overload | D-07 |
 | NATS retry loop, container `running` | WedaNode URL or credentials wrong **for this device** | D-01, D-03, D-04 |
 | Deployment `deployed`, no container on device | Cloud/device drift | D-09 |
-| Container stuck in `Created`, **no logs at all** | Stale bridge route from a previous stack of the same name | D-13 |
+| Container stuck in `Created`, **no logs at all** | Host-mode service in a stack that also has a bridge-networked service (D-14), or a stale bridge route from a previous stack of the same name (D-13) | D-13, D-14 |
 | `no space left on device`, `ResourceExhausted`, corrupt NuGet | Docker data volume full during a batch multi-arch build | D-10 |
 
 ---
@@ -321,6 +321,8 @@ Gates: **B**uild · **P**ush · **D**eploy · **F**unction. `—` = not applicab
 | D-10 | Batch multi-arch builds exhaust the Docker data volume; errors read like network faults | Low | **Documented** — prune between builds |
 | D-11 | Self-contained publish layered on `dotnet/runtime` shipped a **second** unused runtime (~82 MB/image) | Low | **Fixed** — `runtime-deps` |
 | D-12 | Build context 252.9 MB, of which 177 MB was gitignored logs not covered by `.dockerignore` | Low | **Fixed** — context now 22.4 MB |
+| D-14 | A stack mixing `network_mode: host` with a **bridge-networked sibling** cannot deploy: the agent programs the project network's veth into the host namespace and the host-mode container is created but never starts (`cannot program address …/28 … conflicts with existing route`). It emits **no logs at all**, so it reads as a hung pull | High | **Fixed in the example** — both services on host networking. The underlying agent behaviour is **Open** |
+| D-15 | Appending to `/etc/rabbitmq/rabbitmq.conf` from `command:` aborts RabbitMQ with `failed_to_prepare_configuration` — the entrypoint generates that file from `RABBITMQ_DEFAULT_*` | Low | **Fixed** — plugins enabled only; MQTT left on 1883 and the SubNode pointed at it |
 | D-13 | Repeated deploy/delete of the same stack name leaves a **stale bridge route** for the project network's subnet. The next deployment's container is created and never starts: `cannot program address 10.226.2.3/28 … conflicts with existing route`. `docker network prune` does not clear it (the network is still in use) | High | **Open** — platform/agent defect. Workaround: `DELETE …/docker/stacks` to drop the project network, then redeploy |
 
 ---
@@ -348,15 +350,17 @@ and every defect above was found by deploying. That is the argument for this sce
 |---|---|---|
 | X-1 | All 15 examples build and push multi-arch to Harbor | ✅ 15/15 |
 | X-2 | Every example image starts with no bind mounts (E2E-EXD-2.3) | ✅ |
-| X-3 | Every deployable example reaches nats + registration + telemetry on D1 | ⏳ 12 confirmed, 1 pending, 1 fixture-blocked, 1 skipped |
+| X-3 | Every deployable example reaches nats + registration + telemetry on D1 | ⚠️ 13 confirmed, 1 fixture-blocked (`daq-collector`), 1 skipped (`system-agent`) |
 | X-4 | Registration survives container recreation (E2E-EXD-3.3) | ✅ verified by restart |
 | X-5 | No example defaults to a host outside the device it runs on | ✅ D-01 fixed |
 | X-6 | No example is hardcoded to mock cloud | ✅ D-06 fixed |
-| X-7 | Every open defect in §10 has an owner | ❌ D-08, D-09, D-13 unassigned |
+| X-7 | Every open defect in §10 has an owner | ❌ D-08, D-09, D-13, D-14 (agent behaviour) unassigned |
 
-**Overall verdict: CONDITIONAL PASS** — X-3 and X-7 are not met. The blockers are one pending
-result, two fixture gaps (`daq-collector` hardware, `system-agent` device), and two open defects
-(D-08 cosmetic, **D-09 and D-13 platform defects that need an owner**).
+**Overall verdict: CONDITIONAL PASS** — X-3 and X-7 are not met. **13 of 15 examples are confirmed
+working end to end.** The remaining two are fixture gaps, not failures: `daq-collector` needs a DAQ
+module, `system-agent` needs a device of its own. Three platform defects are open and unassigned
+(**D-09** stack drift, **D-13** stale bridge route, **D-14** host/bridge network mixing) — all three
+present as a device doing nothing while the API reports success.
 
 ---
 

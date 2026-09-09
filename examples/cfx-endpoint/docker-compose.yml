@@ -14,23 +14,30 @@
 # Secrets come from .env (gitignored); see .env.example.
 services:
   # The CFX AMQP-to-MQTT bridge the SubNode subscribes to. RabbitMQ speaks AMQP 1.0 to the CFX
-  # endpoints and republishes onto MQTT via rabbitmq_mqtt. It stays on the default bridge network
-  # and publishes its ports, so the host-networked SubNode reaches it at 127.0.0.1:1884 while the
-  # plugin keeps its own default of 1883 inside the container.
+  # endpoints and republishes onto MQTT via rabbitmq_mqtt.
+  #
+  # Host networking, NOT a bridge with published ports. Mixing network_mode: host (the SubNode)
+  # with a bridge-networked sibling makes the edge agent program the project network's veth into
+  # the host namespace, and the SubNode container is created but never starts:
+  #   cannot program address 10.226.2.19/28 ... conflicts with existing route
+  # It emits no logs at all in that state, so it reads as a hung image pull. Verified on an
+  # EPC-R7300.
   cfx-broker:
     image: rabbitmq:3-management
     container_name: cfx-rabbitmq
+    network_mode: host
     environment:
       RABBITMQ_DEFAULT_USER: cfx
       RABBITMQ_DEFAULT_PASS: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
-    # The MQTT plugin is not enabled in the stock image; enable it before the broker boots.
+    # Enable the plugins only -- the stock image enables neither. Do NOT append to
+    # /etc/rabbitmq/rabbitmq.conf to move the MQTT listener: the entrypoint generates that file
+    # from RABBITMQ_DEFAULT_*, and editing it aborts the broker with
+    # failed_to_prepare_configuration. MQTT therefore stays on its default 1883, and the SubNode
+    # is pointed at 1883 below. On host networking 5672 (AMQP) and 15672 (management) are already
+    # on the host.
     command: >
       sh -c "rabbitmq-plugins enable --offline rabbitmq_mqtt rabbitmq_amqp1_0 || true;
              exec docker-entrypoint.sh rabbitmq-server"
-    ports:
-      - "1884:1883"    # MQTT, the port devicecfg.json points at
-      - "5672:5672"    # AMQP 1.0, where CFX endpoints publish
-      - "15672:15672"  # management UI
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -46,6 +53,9 @@ services:
     environment:
       # Broker and WedaNode credentials are kept out of the JSON config files. Environment variables
       # are applied after the JSON providers, so these win over the file values.
+      # The bundled broker serves MQTT on 1883; devicecfg.json documents 1884 for a production
+      # bridge. Drop this override when pointing at a real bridge.
+      DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__BrokerPort: "1883"
       DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__Password: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
       SystemConfig__WedaNode__Password: ${WEDA_NATS_PASSWORD:?set WEDA_NATS_PASSWORD in examples/cfx-endpoint/.env}
     volumes:
@@ -70,7 +80,7 @@ services:
       dockerfile: tools/cfx-replay/Dockerfile
     environment:
       CFX_BROKER_HOST: 127.0.0.1
-      CFX_BROKER_PORT: "1884"
+      CFX_BROKER_PORT: "1883"   # bundled broker; 1884 for a production bridge
       CFX_BROKER_USERNAME: cfx
       CFX_BROKER_PASSWORD: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
       CFX_INTERVAL_MS: "700"
