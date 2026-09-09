@@ -13,6 +13,31 @@
 #
 # Secrets come from .env (gitignored); see .env.example.
 services:
+  # The CFX AMQP-to-MQTT bridge the SubNode subscribes to. RabbitMQ speaks AMQP 1.0 to the CFX
+  # endpoints and republishes onto MQTT via rabbitmq_mqtt. It stays on the default bridge network
+  # and publishes its ports, so the host-networked SubNode reaches it at 127.0.0.1:1884 while the
+  # plugin keeps its own default of 1883 inside the container.
+  cfx-broker:
+    image: rabbitmq:3-management
+    container_name: cfx-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: cfx
+      RABBITMQ_DEFAULT_PASS: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
+    # The MQTT plugin is not enabled in the stock image; enable it before the broker boots.
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_mqtt rabbitmq_amqp1_0 || true;
+             exec docker-entrypoint.sh rabbitmq-server"
+    ports:
+      - "1884:1883"    # MQTT, the port devicecfg.json points at
+      - "5672:5672"    # AMQP 1.0, where CFX endpoints publish
+      - "15672:15672"  # management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   cfx-subnode:
     build:
       context: ../..
@@ -29,6 +54,9 @@ services:
       - ./appsettings.json:/app/appsettings.json:ro
       - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/cfx-subnode}:/app/.weda
     network_mode: host
+    depends_on:
+      cfx-broker:
+        condition: service_healthy
     restart: unless-stopped
 
   # Not part of the standing deployment. Replays the captured CFX payloads onto the same bridge so

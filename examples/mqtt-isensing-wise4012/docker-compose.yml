@@ -1,5 +1,25 @@
 services:
+  # MQTT broker for the iSensing payloads. A real WISE-4012 publishes iSensing JSON from its own
+  # broker (devicecfg.json documents mqtt://172.16.8.122:1883), so this service stands in for it
+  # and makes the example runnable without the hardware. Point ISENSING_BROKER_URL at the real
+  # device to use it instead:
+  #   ISENSING_BROKER_URL=mqtt://172.16.8.122:1883 docker compose up -d
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: isensing-mqtt
+    network_mode: host
+    environment:
+      # Defaults to the broker above; override to talk to a real WISE-4012.
+      - DeviceConfig__DeviceConfigs__MyFirstDevice__DeviceCommunication__BrokerUrl=${ISENSING_BROKER_URL:-mqtt://localhost:1883}
+    entrypoint: ["/bin/sh","-c"]
+    command: ["printf 'listener 1883 0.0.0.0\\nallow_anonymous true\\n' > /tmp/mosquitto.conf && exec mosquitto -c /tmp/mosquitto.conf"]
+    restart: unless-stopped
+
   wise-4012-isensing:
+    depends_on: [mqtt]
+    environment:
+      # Defaults to the bundled broker; override to talk to a real WISE-4012.
+      - DeviceConfig__DeviceConfigs__MyFirstDevice__DeviceCommunication__BrokerUrl=${ISENSING_BROKER_URL:-mqtt://localhost:1883}
     build:
       context: ../..
       dockerfile: examples/mqtt-isensing-wise4012/Dockerfile
