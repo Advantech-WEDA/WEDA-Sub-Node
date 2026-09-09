@@ -31,12 +31,23 @@ RUN RID=$(cat /rid.txt) && \
       -o /app/publish
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
-RUN chmod +x OpcUaBasic
 
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+# Default configuration, so the image runs standalone when deployed by container-management
+# (no local files to bind-mount there). docker-compose bind-mounts override these read-only,
+# and any value can be overridden at run time by its DeviceConfig__/SystemConfig__ env var.
+COPY examples/opcua-basic/devicecfg.json /app/devicecfg.json
+COPY examples/opcua-basic/systemcfg.json /app/systemcfg.json
+COPY examples/opcua-basic/customcfg.json /app/customcfg.json
+COPY examples/opcua-basic/appsettings.json /app/appsettings.json
+
+# The OPC UA stack builds an X.509 application certificate at startup, and the X.500 name
+# handling needs the full ICU data. Under invariant globalization the server aborts with
+# BadInternalError 'Unexpected error starting application', so globalization stays enabled
+# here rather than being switched off as the scalar-protocol examples do.
+ENV DOTNET_ENVIRONMENT=Production
 
 ENTRYPOINT ["/app/OpcUaBasic"]

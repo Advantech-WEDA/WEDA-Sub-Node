@@ -39,6 +39,7 @@ be built on Modbus, but the transport is incidental.
 | Directory | What it actually is |
 |---|---|
 | [`system-agent`](./system-agent/) | A shipped product component — the host-metrics SubNode that runs on every WEDA Node. Kept here for now, but it is not a sample to copy. |
+| [`robot`](./robot/) | Documentation only — design notes on ROS2/DDS integration (topics and QoS, DDS vs NATS, message libraries, fleet patterns). No code, nothing to run. |
 
 ---
 
@@ -52,6 +53,18 @@ Every example follows the same four-file configuration shape:
 | `systemcfg.json` | Where to send telemetry (the WedaNode address and credentials) |
 | `customcfg.json` | Example-specific switches, including whether to use the mock cloud |
 | `appsettings.json` | Logging |
+
+Each example's `docker-compose.yml` also persists `/app/.weda` — the accepted SubNode registration
+and the recording store — through `WEDA_DATA_PATH`, which defaults to the on-device convention
+`/opt/Advantech/weda/node/{containerServiceName}`. Point it somewhere else when you want the state
+beside the example instead:
+
+```bash
+WEDA_DATA_PATH=./weda-data docker compose up -d
+```
+
+Losing that directory makes the SubNode register afresh and collide with its own previous
+registration (`409 Device name already in use`), so treat it as state, not cache.
 
 ```bash
 cd examples/<example-name>

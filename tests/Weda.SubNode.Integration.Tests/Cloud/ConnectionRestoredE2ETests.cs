@@ -39,7 +39,12 @@ public class ConnectionRestoredE2ETests : IAsyncLifetime
             .Build();
     }
 
-    private string NatsUrl => $"nats://localhost:{_hostPort}";
+    // Resolve the host from the container, never hardcode "localhost". When the build agent is
+    // itself a container sharing the Docker socket (the CI pool), published ports land on the
+    // Docker host, not inside the agent — "localhost" then reaches nothing and the test fails
+    // with "can not connect uris". It passes on a developer machine only because the test
+    // process and the daemon happen to share a host. Hostname resolves correctly in both.
+    private string NatsUrl => $"nats://{_natsContainer.Hostname}:{_hostPort}";
 
     private static int GetFreeTcpPort()
     {
