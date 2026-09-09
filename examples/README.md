@@ -53,6 +53,18 @@ Every example follows the same four-file configuration shape:
 | `customcfg.json` | Example-specific switches, including whether to use the mock cloud |
 | `appsettings.json` | Logging |
 
+Each example's `docker-compose.yml` also persists `/app/.weda` — the accepted SubNode registration
+and the recording store — through `WEDA_DATA_PATH`, which defaults to the on-device convention
+`/opt/Advantech/weda/node/{containerServiceName}`. Point it somewhere else when you want the state
+beside the example instead:
+
+```bash
+WEDA_DATA_PATH=./weda-data docker compose up -d
+```
+
+Losing that directory makes the SubNode register afresh and collide with its own previous
+registration (`409 Device name already in use`), so treat it as state, not cache.
+
 ```bash
 cd examples/<example-name>
 dotnet run

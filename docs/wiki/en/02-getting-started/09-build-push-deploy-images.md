@@ -159,15 +159,27 @@ collides with its own earlier registration:
 Failed to register SubNode <name> with Cloud: Code=409, Message=Device name already in use
 ```
 
-The local `docker-compose.yml` files mount `./weda-data:/app/.weda`; a stack deployed through
-container-management must declare the equivalent or it works exactly once:
+Every example's `docker-compose.yml` mounts it through `WEDA_DATA_PATH`, defaulting to the
+on-device convention `/opt/Advantech/weda/node/{containerServiceName}`, and a stack deployed
+through container-management must declare the same or it works exactly once:
 
 ```yaml
     volumes:
-      - weda-data:/app/.weda
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/<service-name>}:/app/.weda
+```
 
-volumes:
-  weda-data:
+Set `WEDA_DATA_PATH` to relocate the state — a different disk, a shared mount, or a scratch
+directory for local development:
+
+```bash
+WEDA_DATA_PATH=./weda-data docker compose up -d     # keep it beside the example instead
+```
+
+If you change where the state lives on a device that has already registered, move the existing
+directory across first, or the SubNode re-registers and hits the 409 below:
+
+```bash
+docker run --rm -v <old-volume>:/from -v /opt/Advantech/weda/node/<service>:/to busybox cp -a /from/. /to/
 ```
 
 With the volume in place, restarting the container resumes reporting under the same `deviceId`
