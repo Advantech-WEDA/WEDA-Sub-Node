@@ -28,10 +28,18 @@ RUN RID=$(cat /rid.txt) && \
       -p:DebugType=none \
       -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
+
+# Default configuration, so the image runs standalone when deployed by container-management
+# (no local files to bind-mount there). docker-compose bind-mounts override these read-only,
+# and any value can be overridden at run time by its DeviceConfig__/SystemConfig__ env var.
+COPY examples/feature-aggregation/devicecfg.json /app/devicecfg.json
+COPY examples/feature-aggregation/systemcfg.json /app/systemcfg.json
+COPY examples/feature-aggregation/customcfg.json /app/customcfg.json
+COPY examples/feature-aggregation/appsettings.json /app/appsettings.json
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 

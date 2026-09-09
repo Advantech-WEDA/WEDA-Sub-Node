@@ -31,12 +31,19 @@ RUN RID=$(cat /rid.txt) && \
       -p:DebugType=none \
       -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
 
-RUN chmod +x DaqProxy
+# Default configuration, so the image runs standalone when deployed by container-management
+# (no local files to bind-mount there). docker-compose bind-mounts override these read-only,
+# and any value can be overridden at run time by its DeviceConfig__/SystemConfig__ env var.
+COPY examples/daq-proxy/devicecfg.json /app/devicecfg.json
+COPY examples/daq-proxy/systemcfg.json /app/systemcfg.json
+COPY examples/daq-proxy/customcfg.json /app/customcfg.json
+COPY examples/daq-proxy/appsettings.json /app/appsettings.json
+
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 

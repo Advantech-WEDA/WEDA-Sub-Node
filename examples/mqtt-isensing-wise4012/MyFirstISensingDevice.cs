@@ -23,6 +23,24 @@ public class MyFirstISensingDevice : MqttISensingDevice
     public MyFirstISensingDevice(IWedaApplicationContext context, string configKey)
         : base(context, configKey)
     {
+        Initialize();
+    }
+
+    /// <summary>
+    /// Creates MyFirstISensingDevice from an already-resolved <see cref="DeviceConfiguration"/>.
+    /// This is the overload the host's typed dispatch activates; without it device construction
+    /// fails at startup with MissingMethodException.
+    /// </summary>
+    /// <param name="context">The application context</param>
+    /// <param name="configuration">The resolved device configuration</param>
+    public MyFirstISensingDevice(IWedaApplicationContext context, DeviceConfiguration configuration)
+        : base(context, configuration)
+    {
+        Initialize();
+    }
+
+    private void Initialize()
+    {
         // Subscribe to DataReceived event to process telemetry
         EnableDataReceivedTracking = true;
         DataReceived += OnDataReceived;

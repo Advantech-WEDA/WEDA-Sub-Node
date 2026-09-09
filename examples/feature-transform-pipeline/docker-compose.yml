@@ -8,6 +8,6 @@ services:
       - ./systemcfg.json:/app/systemcfg.json:ro
       - ./customcfg.json:/app/customcfg.json:ro
       - ./appsettings.json:/app/appsettings.json:ro
-      - ./weda-data:/app/.weda
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/testdevice}:/app/.weda
     network_mode: host
     restart: unless-stopped
