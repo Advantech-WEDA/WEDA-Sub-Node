@@ -150,15 +150,45 @@ distinguish "deployed" from "working".
 Three things cost time on the first EPC-R7300 run; all three look like infrastructure faults and
 are not.
 
-**`409 Device name already in use`.** A SubNode registers itself as its own WEDA device, named by
-`SubNode.Name` in `devicecfg.json`. Deploying an example whose name is already registered on the
-org fails registration while the container stays up and healthy-looking. Override the name per
-deployment rather than deleting the existing device:
+**Persist `/app/.weda`, or the SubNode cannot re-register.** This is the one that bites twice.
+`/app/.weda/subnode.registration.json` holds the accepted registration. Without a volume it is
+destroyed every time the container is recreated, so the SubNode registers from scratch and
+collides with its own earlier registration:
+
+```
+Failed to register SubNode <name> with Cloud: Code=409, Message=Device name already in use
+```
+
+The local `docker-compose.yml` files mount `./weda-data:/app/.weda`; a stack deployed through
+container-management must declare the equivalent or it works exactly once:
+
+```yaml
+    volumes:
+      - weda-data:/app/.weda
+
+volumes:
+  weda-data:
+```
+
+With the volume in place, restarting the container resumes reporting under the same `deviceId`
+with no re-registration at all.
+
+**`409 Device name already in use`.** Same error, different cause: the name in `devicecfg.json` is
+already taken on the org by an unrelated device. Override it per deployment:
 
 ```yaml
     environment:
       - DeviceConfig__SubNode__Name=MyDemo-<deviceId>
 ```
+
+Note that a SubNode child device cannot always be cleaned up afterwards: `GET`, `:deactivate` and
+`DELETE` on `/api/v1/devices/{subNodeId}` can all answer `404` for a device that the org listing
+still returns, so a name consumed by a stale child registration may not be reclaimable.
+
+**Some examples cannot report to the cloud at all.** `opcua-basic` hardcodes `.UseMockCloud()` in
+`Program.cs`, so it logs telemetry locally and never reaches the WedaNode no matter how it is
+configured. Check `Program.cs` for `UseMockCloud` before choosing an example to verify a cloud
+round-trip with.
 
 **Some examples already embed their simulator.** `feature-transform-pipeline` starts its own Modbus
 TCP simulator on `127.0.0.1:5020`. Adding a separate `simulator-host` container to the stack takes
@@ -166,10 +196,34 @@ the port first, and the SubNode dies with `SocketException (98): Address already
 `restart: unless-stopped` crash-loops it, so the API keeps reporting the container as `running`.
 Check the example's log for "Modbus Simulator started" before pairing it with a simulator.
 
-**Deployment status lags the device.** `…/stack-configs/deployments` can still read `pending` with
-an empty `containers` list well after the device has pulled the image, recreated the container and
-started it. Confirm against the device (`docker/stacks`, or the SubNode's own registration) rather
-than trusting the deployment record alone.
+**Deployment status lags the device, and can disagree with it outright.**
+`…/stack-configs/deployments` can read `pending` with an empty `containers` list well after the
+device has pulled, recreated and started the container. Worse, after changing the service name in
+a stack the cloud reported `deployed` / `Stack is managed but not currently running` while the
+device had no such compose project at all. In that state:
+
+- `commands:start` fails with `Command execution failed: stack not found`
+- re-deploying the same revision is answered `"skip"`, because the cloud believes it is already there
+
+The way out is to delete the device's copy and deploy again, which comes back as `"add"`:
+
+```bash
+curl -X DELETE "$BASE/api/v1/devices/$DEVICE/docker/stacks?stackConfigId=$STACK_ID" -H "Authorization: Bearer $TOK"
+# then POST …/revisions/$REV:deploy again
+```
+
+Always confirm against the device itself (`docker compose ls`, container logs) rather than
+trusting the deployment record.
+
+**Batch builds exhaust the Docker disk.** Building all the examples multi-arch in one pass carries
+two full self-contained .NET runtimes per example through BuildKit. On the build host this filled
+Docker's data volume (a separate mount from `/`) and the builds failed with
+`no space left on device`, `ResourceExhausted`, and corrupt-NuGet errors that look like network
+faults. Prune between builds:
+
+```bash
+docker buildx prune -f --keep-storage 2GB
+```
 
 ## 7. Clean up
 
