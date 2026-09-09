@@ -31,11 +31,10 @@ RUN RID=$(cat /rid.txt) && \
       -o /app/publish
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
-RUN chmod +x FeatureTransformPipeline
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
