@@ -145,6 +145,32 @@ A container that is `running` proves only that the process has not exited — a 
 reach its device or its WedaNode stays up and logs errors forever. Steps 3 and 4 are what
 distinguish "deployed" from "working".
 
+## Gotchas found running this for real
+
+Three things cost time on the first EPC-R7300 run; all three look like infrastructure faults and
+are not.
+
+**`409 Device name already in use`.** A SubNode registers itself as its own WEDA device, named by
+`SubNode.Name` in `devicecfg.json`. Deploying an example whose name is already registered on the
+org fails registration while the container stays up and healthy-looking. Override the name per
+deployment rather than deleting the existing device:
+
+```yaml
+    environment:
+      - DeviceConfig__SubNode__Name=MyDemo-<deviceId>
+```
+
+**Some examples already embed their simulator.** `feature-transform-pipeline` starts its own Modbus
+TCP simulator on `127.0.0.1:5020`. Adding a separate `simulator-host` container to the stack takes
+the port first, and the SubNode dies with `SocketException (98): Address already in use` — then
+`restart: unless-stopped` crash-loops it, so the API keeps reporting the container as `running`.
+Check the example's log for "Modbus Simulator started" before pairing it with a simulator.
+
+**Deployment status lags the device.** `…/stack-configs/deployments` can still read `pending` with
+an empty `containers` list well after the device has pulled the image, recreated the container and
+started it. Confirm against the device (`docker/stacks`, or the SubNode's own registration) rather
+than trusting the deployment record alone.
+
 ## 7. Clean up
 
 ```bash
