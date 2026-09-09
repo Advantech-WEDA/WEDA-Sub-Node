@@ -44,6 +44,10 @@ COPY examples/opcua-basic/systemcfg.json /app/systemcfg.json
 COPY examples/opcua-basic/customcfg.json /app/customcfg.json
 COPY examples/opcua-basic/appsettings.json /app/appsettings.json
 
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+# The OPC UA stack builds an X.509 application certificate at startup, and the X.500 name
+# handling needs the full ICU data. Under invariant globalization the server aborts with
+# BadInternalError 'Unexpected error starting application', so globalization stays enabled
+# here rather than being switched off as the scalar-protocol examples do.
+ENV DOTNET_ENVIRONMENT=Production
 
 ENTRYPOINT ["/app/OpcUaBasic"]
