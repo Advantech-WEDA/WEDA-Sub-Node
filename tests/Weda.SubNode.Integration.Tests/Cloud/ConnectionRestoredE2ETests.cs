@@ -27,17 +27,15 @@ public class ConnectionRestoredE2ETests : IAsyncLifetime
 {
     // A fixed host port is required: a random binding would be re-assigned when
     // the container restarts, and the NATS client would reconnect into the void.
-    private readonly int _hostPort = GetFreeTcpPort();
-    private readonly IContainer _natsContainer;
+    private int _hostPort;
+    private IContainer _natsContainer = null!;
 
-    public ConnectionRestoredE2ETests()
-    {
-        _natsContainer = new ContainerBuilder()
+    private static IContainer BuildNatsContainer(int hostPort) =>
+        new ContainerBuilder()
             .WithImage("nats:2-alpine")
-            .WithPortBinding(_hostPort, 4222)
+            .WithPortBinding(hostPort, 4222)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4222))
             .Build();
-    }
 
     // Resolve the host from the container, never hardcode "localhost". When the build agent is
     // itself a container sharing the Docker socket (the CI pool), published ports land on the
@@ -55,8 +53,35 @@ public class ConnectionRestoredE2ETests : IAsyncLifetime
         return port;
     }
 
-    public async Task InitializeAsync() => await _natsContainer.StartAsync();
-    public async Task DisposeAsync() => await _natsContainer.DisposeAsync();
+    // GetFreeTcpPort() probes this process's network namespace, but the port is bound in the
+    // Docker daemon's. When the build agent is itself a container sharing the socket those differ,
+    // so a port free here can already be taken there. Retry with a fresh port rather than failing.
+    public async Task InitializeAsync()
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            _hostPort = GetFreeTcpPort();
+            _natsContainer = BuildNatsContainer(_hostPort);
+            try
+            {
+                await _natsContainer.StartAsync();
+                return;
+            }
+            catch when (attempt < maxAttempts)
+            {
+                await _natsContainer.DisposeAsync();
+            }
+        }
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (_natsContainer is not null)
+        {
+            await _natsContainer.DisposeAsync();
+        }
+    }
 
     [Fact]
     public async Task ConnectionRestored_ShouldFire_WhenNatsConnectionDropsAndRecovers()
