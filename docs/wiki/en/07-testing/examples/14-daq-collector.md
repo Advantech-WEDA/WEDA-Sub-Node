@@ -2,83 +2,104 @@
 doc-id:    E2E-EXD-DAQ_COLLECTOR
 title:     "daq-collector — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.0
+version:   1.1
 status:    Review
-date:      2026-09-09
+date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
 tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, status:review]
 ---
 
 # daq-collector — End-to-End Deployment Test Report
 
-> **Verdict: ❌ BLOCKED**
-> Part of [E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md), which defines the
-> gates, the step format and the shared fixtures. This page records only what this example did.
+| Verdict | Test run | Device under test | Environment |
+|:--|:--|:--|:--|
+| **❌ BLOCKED** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
-## 0. At a Glance
+> Method, gate definitions, fixtures, negative cases and the shared defect register live in
+> **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
+> what **this** example did. Section numbering is identical across all 15 reports.
 
-| | |
+## 1. Subject under test
+
+| Field | Value |
 |---|---|
 | **Example** | [`examples/daq-collector`](../../../../../examples/daq-collector/) |
 | **Compose service** | `daq-collector` |
 | **Image** | `harbor.arfa.wise-paas.com/edge-coa/daq-collector:latest` |
 | **Transport** | DAQ streaming with windowed feature extraction |
-| **External dependency** | **Real DAQ modules on the device** |
-| **SubNode name used** | `DaqCDemo-<date>` |
-| **Registered deviceId** | — |
-| **Device** | EPC-R7300A1 `48b02dea8160` — ARM64, Ubuntu 20.04 |
-| **Verdict** | **❌ BLOCKED** |
+| **External dependency** | **Real DAQ modules on the device — absent on `48b02dea8160`** |
+| **Host endpoints used** | 2395 (SubNode Web API) |
+| **Required deployment overrides** | None |
+| **SubNode name** | `DaqCDemo-<date>` |
+| **Registered deviceId** | — never registered |
 
-## 1. Gate results
+## 2. Gate results
 
-| Gate | Step | Result |
-|---|---|---|
-| Build | E2E-EXD-2.2 | ✅ builds for `linux/arm64` |
-| Push | E2E-EXD-2.2 | ✅ multi-arch manifest in Harbor |
-| Standalone start | E2E-EXD-2.3 | — not exercised |
-| Deploy | E2E-EXD-3.2 | ✅ `deviceActions: add` |
-| Function | E2E-EXD-4.1–4.4 | ❌ BLOCKED |
+Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
+it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
 
-## 2. Evidence
+| Gate | Step | Check | Result | Evidence |
+|---|---|---|:-:|---|
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | — | not exercised — it cannot pass its hardware probe on any host without DAQ modules |
+| **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running` — it starts and retries rather than crash-looping |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ❌ | not reached — startup halts at the DAQ probe |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ❌ | not reached |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ❌ | not reached — `No DAQ modules available` |
 
-Observed on the device (`docker logs`):
+> **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
+> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
-- `DaqCommunication connection failed: No DAQ modules available`
-- `Connection failed`
+## 3. Evidence log
 
-## 3. Defects this example exposed
+Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
 
-- D-08 `docker-compose.yml` fails validation: `services.daq-collector.devices must be a list`
-
-Defect numbering is shared across the suite — see
-[§10 of the parent report](../01-e2e-test-scenario-example-images.md).
-
-## 4. Notes
-
-**Fixture gap, not a defect.** Builds, pushes and deploys; the container runs and fails only where it needs hardware that this device does not have. Excluded from the base-image change (pins a `gpgv` CVE fix). D-08 is pre-existing and still open.
-
-## 5. Re-running this test
-
-```bash
-# 1. Build and publish (repository root is the build context — the script enforces it)
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh daq-collector
-
-# 2. Deploy the stack to the device through container-management, then confirm on the device
-ssh <device> 'docker logs --tail 40 <container>'
+```text
+[4.4] DaqCommunication connection failed: No DAQ modules available
+[4.4] Connection failed
 ```
 
-A container reported `running` is **not** sufficient evidence — see §6 of the parent report.
+## 4. Defects
 
-## 6. Change record
+| # | Severity | Status | What it did **here** |
+|---|---|---|---|
+| **D-08** | Medium | **Open** | `examples/daq-collector/docker-compose.yml` fails validation: `services.daq-collector.devices must be a list` — pre-existing, still open |
+
+> Defect ids are shared across the suite; the full register is [§10 of the parent report](../01-e2e-test-scenario-example-images.md).
+
+### Analysis
+
+**Fixture gap, not a defect.** It builds, pushes and deploys, and the container runs — it fails only where it needs hardware this device does not have, which is the correct behaviour. Excluded from the base-image change (it pins a `gpgv` CVE fix). D-08 is pre-existing and independent of the hardware gap.
+
+## 5. Not verified in this run
+
+| Check left unproven | Why | What would unblock it |
+|---|---|---|
+| E2E-EXD-4.2 – 4.4 | the test device has no DAQ modules fitted | re-run on a device with DAQ hardware; no code change is expected |
+| E2E-EXD-2.3 — standalone start | same hardware gap | re-run on a device with DAQ hardware |
+
+> **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
+
+## 6. Re-running this test
+
+```bash
+# 1. Build and publish — the repository root is the build context; the script enforces it
+PLATFORMS=linux/arm64 ./scripts/build-push-image.sh daq-collector
+
+# 2. Deploy the revision through container-management, then assert the four Act-4 checks
+./scripts/deploy-verify.sh daq-collector
+
+# 3. Confirm on the device itself
+ssh <device> 'docker logs --tail 40 daq-collector'
+```
+
+## 7. Change record
 
 | | |
 |---|---|
-| Test run | 2026-09-09, EPC-R7300A1 `48b02dea8160`, SIT |
-| Fixes landed in | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| Harness | `deploy-verify.sh` — deploy revision, wait for the container, assert the four Act-4 checks |
-
-> CI note: `Weda.SubNode.Integration.Tests` reported 2/10 failing throughout this work. That is
-> D-16 — hardcoded `localhost` against a Testcontainers-published port — which predates this
-> branch by a week and is fixed separately in
-> [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
-> It is unrelated to any example result on this page.
+| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
+| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |

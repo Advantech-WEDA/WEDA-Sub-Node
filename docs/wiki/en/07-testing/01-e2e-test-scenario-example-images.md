@@ -256,31 +256,46 @@ sufficient evidence for any step in Act 4 — see the warning in §6.
 
 ## 7. Act 5 — Per-example results
 
-Gates: **B**uild · **P**ush · **D**eploy · **F**unction. `—` = not applicable.
+Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy, then the four
+function checks of Act 4 scored separately. `—` = not applicable · `⏭️` = not executed.
+
+> **Why 4.1–4.4 are four columns and not one.** D-01, D-03 and D-06 each produced a container
+> the platform reported as `running` while the SubNode reached nothing. A single "Function"
+> verdict would have scored all three green. Each row below must earn its own evidence, and the
+> per-example page names the log line behind each cell.
 
 Each row links to its own report in [`examples/`](examples/README.md), which records that
-example's evidence, the defects it exposed, and how to re-run it.
+example's per-check evidence, the defects it exposed, what was **not** verified, and how to
+re-run it.
 
-| # | Example | B | P | D | F | Evidence / blocker |
-|---|---|:-:|:-:|:-:|:-:|---|
-| 1 | `feature-transform-pipeline` | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25 → 77` (°C→°F) then `→ 25.005` (smoothing) |
-| 2 | `feature-custom-commands` | ✅ | ✅ | ✅ | ✅ | `sensor.read`, `tag.set`, `props.get` all succeeded on-device |
-| 3 | `http-air-quality` | ✅ | ✅ | ✅ | ✅ | `Air quality data received`; registered `355900119696015360` |
-| 4 | `http-stock-quotes` | ✅ | ✅ | ✅ | ✅ | Live TWSE: TSMC high 2490 / low 2475 / vol 5734 |
-| 5 | `feature-aggregation` | ✅ | ✅ | ✅ | ✅ | Current 5.71 A + Voltage 227.89 V → Power 1276.19 W |
-| 6 | `opcua-basic` | ✅ | ✅ | ✅ | ✅ | OPC UA simulator starts after D-05; nats + registration + telemetry |
-| 7 | `modbus-wise4012` | ✅ | ✅ | ✅ | ✅ | Registers against the device's own dmagent after D-01 |
-| 8 | `modbus-wise4012-builder` | ✅ | ✅ | ✅ | ⚠️ | SubNode side healthy (nats + registration, 0 errors); Modbus target `172.16.8.122:502` unreachable at test time |
-| 9 | `mqtt-image-chunked` | ✅ | ✅ | ✅ | ✅ | Passes with the bundled mosquitto |
-| 10 | `mqtt-isensing-wise4012` | ✅ | ✅ | ✅ | ✅ | After D-07; subscribed `Advantech/00D0C9FAC80E/{data,status}`, registered `355941923954884608` |
-| 11 | `vision-object-detection` | ✅ | ✅ | ✅ | ✅ | After D-03; subscribed `advantech/+/vision/{detections,status,meta}`, registered `355914456695308288` |
-| 12 | `daq-proxy` | ✅ | ✅ | ✅ | ✅ | nats + registration + telemetry |
-| 13 | `cfx-endpoint` | ✅ | ✅ | ✅ | ✅ | After D-14; registered `355914649897533440`, subscribed `+/+/+/CFX/#` for **17 sensors across 17 message types**, config applied |
-| 14 | `daq-collector` | ✅ | ✅ | ✅ | ❌ | `DaqCommunication connection failed: No DAQ modules available` — **fixture gap, not a defect** |
-| 15 | `system-agent` | ✅ | ✅ | — | — | **SKIP** — already runs on the device as a shipped product component; a second instance would contend for the same host resources |
+| # | Example | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | Headline evidence / blocker |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| 1 | [`feature-transform-pipeline`](examples/01-feature-transform-pipeline.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25 → 77` (°C→°F) then `→ 25.005` (smoothing) |
+| 2 | [`feature-custom-commands`](examples/02-feature-custom-commands.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `sensor.read`, `tag.set`, `props.get` all succeeded on-device |
+| 3 | [`http-air-quality`](examples/03-http-air-quality.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `Air quality data received`; registered `355900119696015360` |
+| 4 | [`http-stock-quotes`](examples/04-http-stock-quotes.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Live TWSE: TSMC high 2490 / low 2475 / vol 5734 |
+| 5 | [`feature-aggregation`](examples/05-feature-aggregation.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Current 5.71 A + Voltage 227.89 V → Power 1276.19 W |
+| 6 | [`opcua-basic`](examples/06-opcua-basic.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | OPC UA simulator starts after D-05; nats + registration + telemetry |
+| 7 | [`modbus-wise4012`](examples/07-modbus-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Registers against the device's **own** dmagent after D-01 |
+| 8 | [`modbus-wise4012-builder`](examples/08-modbus-wise4012-builder.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | SubNode side healthy (nats = 2, registration = 1, errors = 0); Modbus target `172.16.8.122:502` unreachable at test time |
+| 9 | [`mqtt-image-chunked`](examples/09-mqtt-image-chunked.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Passes with the bundled mosquitto |
+| 10 | [`mqtt-isensing-wise4012`](examples/10-mqtt-isensing-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | After D-07; subscribed `Advantech/00D0C9FAC80E/{data,status}`, registered `355941923954884608` |
+| 11 | [`vision-object-detection`](examples/11-vision-object-detection.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | After D-03; subscribed `advantech/+/vision/{detections,status,meta}`, registered `355914456695308288` |
+| 12 | [`daq-proxy`](examples/12-daq-proxy.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | nats = 2, registration = 2, telemetry = 3 |
+| 13 | [`cfx-endpoint`](examples/13-cfx-endpoint.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | After D-14; registered `355914649897533440`, subscribed `+/+/+/CFX/#` for **17 sensors across 17 message types**, config applied |
+| 14 | [`daq-collector`](examples/14-daq-collector.md) | ✅ | ✅ | — | ✅ | ✅ | ❌ | ❌ | ❌ | `DaqCommunication connection failed: No DAQ modules available` — **fixture gap, not a defect** |
+| 15 | [`system-agent`](examples/15-system-agent.md) | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **SKIP** — already runs on the device as a shipped product component; a second instance would contend for the same host resources |
+
+**13 PASS · 1 PARTIAL · 1 BLOCKED · 1 SKIP.**
 
 > **`system-agent` is a deliberate SKIP, and a SKIP is not a pass.** Deploying it was judged a risk
 > to a working device rather than a test. It needs a dedicated device to be verified.
+
+> **Evidence gap to close on the next run.** Check 4.2 carries a verbatim log line on only two
+> examples (`modbus-wise4012-builder` and `daq-proxy`, via `nats = 2` counters); elsewhere it
+> rests on the `deploy-verify.sh` assertion with no line captured on the page. 4.2 is precisely
+> the check D-01 defeated, so capture `NATS connection verified` and
+> `NATS service discovered … WedaNodeId=<deviceId>` per example next time.
 
 ---
 
