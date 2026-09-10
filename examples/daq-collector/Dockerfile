@@ -67,9 +67,14 @@ COPY examples/daq-collector/appsettings.json /app/appsettings.json
 # Ensure executables have execute permission
 RUN chmod +x DaqCollector /app/entrypoint.sh
 
-# Single layer for all runtime setup including CVE fix
+# Single layer for all runtime setup including CVE fix.
+# Take the archive candidate and ASSERT the CVE floor, rather than pinning an exact
+# version. Ubuntu drops superseded point releases, so `=2.4.4-2ubuntu17.4` broke the
+# build the moment 17.6 landed. apt has no `>=` operator for install, so the floor is
+# enforced explicitly: the build fails if the installed gpgv is older than the fix.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gpgv=2.4.4-2ubuntu17.4 && \
+    apt-get install -y --no-install-recommends gpgv && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' gpgv)" ge 2.4.4-2ubuntu17.4 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

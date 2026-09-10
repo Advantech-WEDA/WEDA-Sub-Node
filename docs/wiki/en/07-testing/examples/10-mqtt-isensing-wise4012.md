@@ -2,7 +2,7 @@
 doc-id:    E2E-EXD-MQTT_ISENSING_WISE4012
 title:     "mqtt-isensing-wise4012 — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.1
+version:   1.2
 status:    Review
 date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **✅ PASS** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -30,36 +30,43 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 | **External dependency** | MQTT broker — **bundled**; a real WISE-4012 publishes the payloads in production |
 | **Host endpoints used** | 2395 (SubNode Web API), 1883 (bundled broker) |
 | **Required deployment overrides** | None |
-| **SubNode name** | `ISensingDemo-<date>` |
+| **SubNode name** | `ISensingDemo-0909b` |
 | **Registered deviceId** | `355941923954884608` |
 
 ## 2. Gate results
 
 Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
+it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
+device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
-| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
-| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
-| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | starts with no bind mounts |
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
 | **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
-| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running`, log stream advancing |
-| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
-| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | org listing shows child device `355941923954884608` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | topic subscriptions established + `Health report sent successfully` |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2709ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=ISensingDemo-0909b, DeviceId=355941923954884608` |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
-> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
 ## 3. Evidence log
 
-Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
+Verbatim from `docker logs weda-isensing` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 48 lines total.
 
 ```text
-[4.4] Subscribed to ISensing topics: Advantech/00D0C9FAC80E/data, .../status
-[4.4] Message broker subscription established
-[4.4] Health report sent successfully
+[4.2] [01:16:18.612 INF] NATS connection verified - RTT: 0.2709ms
+[4.2] [01:16:18.659 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [01:16:18.672 INF] Found existing SubNode registration: DeviceName=ISensingDemo-0909b, DeviceId=355941923954884608
+[4.3] [01:16:19.079 INF] Configuration uploaded successfully: DeviceId=355941923954884608, Status=applied
+[4.4] [01:16:19.116 INF] Reporting health: DeviceId=355941923954884608, IsHealthy=True, CpuUsage=57.97%, MemoryUsage=1.64%, Topic=eco1j.weda.355941923954884608.health, ReqSeqId
+[4.4] [01:16:19.120 INF] Subscribed to MQTT topic: Advantech/00D0C9FAC80E/data
+[4.4] [01:16:19.121 INF] Subscribed to MQTT topic: Advantech/00D0C9FAC80E/status
+[4.4] [01:16:19.121 INF] Subscribed to ISensing topics: Advantech/00D0C9FAC80E/data, Advantech/00D0C9FAC80E/status
+[4.4] [01:16:19.122 INF] Message broker subscription established
 ```
 
 ## 4. Defects
@@ -72,13 +79,13 @@ Verbatim from `docker logs <container>` on the device, each line tagged with the
 
 ### Analysis
 
-D-07 meant this example **could not start on any host**, container or not. It was masked: without a broker it died on the MQTT connect first, so the constructor failure never surfaced until a broker was bundled. Bundling the fixture is what found the bug.
+Starts, registers and subscribes to both iSensing topics — the D-07 fix is holding.
 
 ## 5. Not verified in this run
 
 | Check left unproven | Why | What would unblock it |
 |---|---|---|
-| Decoded iSensing payloads from real hardware | the bundled broker stands in for the WISE-4012 | point the example at a real WISE-4012 publisher |
+| Decoded iSensing payloads from real hardware | the bundled broker stands in for the WISE-4012 and published nothing | point the example at a real WISE-4012 publisher |
 
 > **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
 
@@ -86,20 +93,22 @@ D-07 meant this example **could not start on any host**, container or not. It wa
 
 ```bash
 # 1. Build and publish — the repository root is the build context; the script enforces it
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh mqtt-isensing-wise4012
+./scripts/build-push-image.sh mqtt-isensing-wise4012
 
-# 2. Deploy the revision through container-management, then assert the four Act-4 checks
-./scripts/deploy-verify.sh mqtt-isensing-wise4012
+# 2. Deploy the revision through container-management and assert 4.1-4.4
+./scripts/deploy-verify.sh mqtt-isensing-wise4012 <compose-file> weda-isensing
 
 # 3. Confirm on the device itself
-ssh <device> 'docker logs --tail 40 wise-4012-isensing'
+ssh <device> 'docker logs --tail 40 weda-isensing'
 ```
 
 ## 7. Change record
 
 | | |
 |---|---|
-| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
-| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
-| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
+| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |

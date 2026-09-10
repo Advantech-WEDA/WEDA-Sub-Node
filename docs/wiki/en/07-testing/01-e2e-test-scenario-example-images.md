@@ -2,9 +2,9 @@
 doc-id:    E2E-EXAMPLE-IMAGES-001
 title:     "SubNode Examples — Build, Publish, Deploy and Verify — End-to-End Test Scenario"
 product:   "SubNode SDK (Examples)"
-version:   1.0
+version:   1.2
 status:    Review
-date:      2026-09-09
+date:      2026-09-10
 traces-to: docs/wiki/en/02-getting-started/09-build-push-deploy-images.md (SOP), examples/README.md, templates/subnode/Dockerfile
 tags:      [doc:test, feature:sub-node, service:sub-node, service:container-management, layer:edge, layer:cloud, tech:docker, tech:rest, tech:nats, tech:mqtt, ver:1.2, status:review]
 ---
@@ -25,6 +25,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, service:container-mana
 
 > **Change record.** Examples work: [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361).
 > CI integration-test fix (D-16): [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
+> Report schema, the 2026-09-10 re-run evidence and the D-17 fix: [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396).
 
 <!-- Step ids E2E-EXD-<act>.<step> are STABLE once published — defect titles quote them.
      "Deployable" here means the container-management API can put the image on a device that has
@@ -43,8 +44,9 @@ tags:      [doc:test, feature:sub-node, service:sub-node, service:container-mana
 | **Secondary persona** | **Maya**, an SDK maintainer — signs off that no example ships a default that only works on one developer's machine |
 | **Scope** | 4 gates per example: **Build → Push → Deploy → Function**. An example passes only when all four pass |
 | **Device** | EPC-R7300A1 — ARM64, 6 cores, Ubuntu 20.04, `deviceId 48b02dea8160` |
-| **Duration** | ~4 min per example (arm64 build + push + deploy + settle); a full pass is ~2 h, dominated by first-time image pulls |
+| **Duration** | ~4 min per example (multi-arch build + push + deploy + settle); the 2026-09-10 full pass ran ~1 h 50 m, dominated by cold image pulls |
 | **Verdict** | PASS only when **every** Exit Criterion in §12 is ticked |
+| **Last run** | **2026-09-10** — 11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP (§7) |
 
 ## Demo Path
 
@@ -256,46 +258,50 @@ sufficient evidence for any step in Act 4 — see the warning in §6.
 
 ## 7. Act 5 — Per-example results
 
+**Run 2026-09-10** — every image rebuilt and re-pushed, every stack redeployed, and the
+device's own container log captured per example. Previous run: 2026-09-09.
+
 Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy, then the four
 function checks of Act 4 scored separately. `—` = not applicable · `⏭️` = not executed.
 
 > **Why 4.1–4.4 are four columns and not one.** D-01, D-03 and D-06 each produced a container
-> the platform reported as `running` while the SubNode reached nothing. A single "Function"
-> verdict would have scored all three green. Each row below must earn its own evidence, and the
-> per-example page names the log line behind each cell.
+> the platform reported as `running` while the SubNode reached nothing. This run vindicated the
+> split twice more: `modbus-wise4012` and `daq-collector` are both ✅✅✅❌ — provably healthy
+> up to the field device, and provably stuck at it. One "Function" cell could only say "fail".
 
-Each row links to its own report in [`examples/`](examples/README.md), which records that
-example's per-check evidence, the defects it exposed, what was **not** verified, and how to
-re-run it.
+Each row links to its own report in [`examples/`](examples/README.md), which quotes the log
+line behind every cell, the defects it exposed, what was **not** verified, and how to re-run it.
 
 | # | Example | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | Headline evidence / blocker |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
-| 1 | [`feature-transform-pipeline`](examples/01-feature-transform-pipeline.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25 → 77` (°C→°F) then `→ 25.005` (smoothing) |
+| 1 | [`feature-transform-pipeline`](examples/01-feature-transform-pipeline.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25` → `[0] 25 -> 77` (°C→°F) → smoothing; same deviceId as 09-09 |
 | 2 | [`feature-custom-commands`](examples/02-feature-custom-commands.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `sensor.read`, `tag.set`, `props.get` all succeeded on-device |
-| 3 | [`http-air-quality`](examples/03-http-air-quality.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `Air quality data received`; registered `355900119696015360` |
-| 4 | [`http-stock-quotes`](examples/04-http-stock-quotes.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Live TWSE: TSMC high 2490 / low 2475 / vol 5734 |
-| 5 | [`feature-aggregation`](examples/05-feature-aggregation.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Current 5.71 A + Voltage 227.89 V → Power 1276.19 W |
-| 6 | [`opcua-basic`](examples/06-opcua-basic.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | OPC UA simulator starts after D-05; nats + registration + telemetry |
-| 7 | [`modbus-wise4012`](examples/07-modbus-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Registers against the device's **own** dmagent after D-01 |
-| 8 | [`modbus-wise4012-builder`](examples/08-modbus-wise4012-builder.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | SubNode side healthy (nats = 2, registration = 1, errors = 0); Modbus target `172.16.8.122:502` unreachable at test time |
-| 9 | [`mqtt-image-chunked`](examples/09-mqtt-image-chunked.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Passes with the bundled mosquitto |
-| 10 | [`mqtt-isensing-wise4012`](examples/10-mqtt-isensing-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | After D-07; subscribed `Advantech/00D0C9FAC80E/{data,status}`, registered `355941923954884608` |
-| 11 | [`vision-object-detection`](examples/11-vision-object-detection.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | After D-03; subscribed `advantech/+/vision/{detections,status,meta}`, registered `355914456695308288` |
-| 12 | [`daq-proxy`](examples/12-daq-proxy.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | nats = 2, registration = 2, telemetry = 3 |
-| 13 | [`cfx-endpoint`](examples/13-cfx-endpoint.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | After D-14; registered `355914649897533440`, subscribed `+/+/+/CFX/#` for **17 sensors across 17 message types**, config applied |
-| 14 | [`daq-collector`](examples/14-daq-collector.md) | ✅ | ✅ | — | ✅ | ✅ | ❌ | ❌ | ❌ | `DaqCommunication connection failed: No DAQ modules available` — **fixture gap, not a defect** |
-| 15 | [`system-agent`](examples/15-system-agent.md) | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **SKIP** — already runs on the device as a shipped product component; a second instance would contend for the same host resources |
+| 3 | [`http-air-quality`](examples/03-http-air-quality.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `Air quality data received`; child `355900119696015360` |
+| 4 | [`http-stock-quotes`](examples/04-http-stock-quotes.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Live TWSE: TSMC 2445 / high 2450 / vol 2203 — moved since 09-09, as live data should |
+| 5 | [`feature-aggregation`](examples/05-feature-aggregation.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Current 5.00 A + Voltage 230.00 V, derived Power tracking both |
+| 6 | [`opcua-basic`](examples/06-opcua-basic.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Failed in-batch, passed on isolated re-run** — cold pull outran the 7.5 min window, not D-09 |
+| 7 | [`modbus-wise4012`](examples/07-modbus-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | **PASS → PARTIAL.** SubNode healthy; `SocketException (111): Connection refused` on `172.16.8.122:502` |
+| 8 | [`modbus-wise4012-builder`](examples/08-modbus-wise4012-builder.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | PARTIAL again, same unreachable WISE-4012; 18 connection failures |
+| 9 | [`mqtt-image-chunked`](examples/09-mqtt-image-chunked.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Subscribed `sensor/image/mnist` with the bundled mosquitto |
+| 10 | [`mqtt-isensing-wise4012`](examples/10-mqtt-isensing-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Subscribed `Advantech/00D0C9FAC80E/{data,status}`, child `355941923954884608` |
+| 11 | [`vision-object-detection`](examples/11-vision-object-detection.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Subscribed vision topics, child `355914456695308288` |
+| 12 | [`daq-proxy`](examples/12-daq-proxy.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Passes without its upstream present |
+| 13 | [`cfx-endpoint`](examples/13-cfx-endpoint.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Clean first attempt** (four were needed on 09-09); `+/+/+/CFX/#` for 17 sensors / 17 message types |
+| 14 | [`daq-collector`](examples/14-daq-collector.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | **4.2/4.3 corrected to ✅** — it registers, *then* fails `No DAQ modules available` |
+| 15 | [`system-agent`](examples/15-system-agent.md) | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **SKIP** — already runs on this device as a shipped component; needs a device of its own |
 
-**13 PASS · 1 PARTIAL · 1 BLOCKED · 1 SKIP.**
+**11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP = 15.**
+
+> **Count correction.** Earlier editions claimed *13 PASS · 1 PARTIAL · 1 BLOCKED · 1 SKIP*,
+> which totals 16 for a 15-example suite. Totals are now counted from the verdict column.
 
 > **`system-agent` is a deliberate SKIP, and a SKIP is not a pass.** Deploying it was judged a risk
 > to a working device rather than a test. It needs a dedicated device to be verified.
 
-> **Evidence gap to close on the next run.** Check 4.2 carries a verbatim log line on only two
-> examples (`modbus-wise4012-builder` and `daq-proxy`, via `nats = 2` counters); elsewhere it
-> rests on the `deploy-verify.sh` assertion with no line captured on the page. 4.2 is precisely
-> the check D-01 defeated, so capture `NATS connection verified` and
-> `NATS service discovered … WedaNodeId=<deviceId>` per example next time.
+> **The 4.2 evidence gap is closed.** Every deployed example now carries its own
+> `NATS connection verified` line *and* `NATS service discovered: … WedaNodeId=48b02dea8160`.
+> That second line is the one that matters: it names the WedaNode, so it proves the SubNode
+> reached **this** device rather than a developer's machine — precisely what D-01 defeated.
 
 ---
 
@@ -347,6 +353,7 @@ re-run it.
 | D-14 | A stack mixing `network_mode: host` with a **bridge-networked sibling** cannot deploy: the agent programs the project network's veth into the host namespace and the host-mode container is created but never starts (`cannot program address …/28 … conflicts with existing route`). It emits **no logs at all**, so it reads as a hung pull | High | **Fixed in the example** — both services on host networking. The underlying agent behaviour is **Open** |
 | D-15 | Appending to `/etc/rabbitmq/rabbitmq.conf` from `command:` aborts RabbitMQ with `failed_to_prepare_configuration` — the entrypoint generates that file from `RABBITMQ_DEFAULT_*` | Low | **Fixed** — plugins enabled only; MQTT left on 1883 and the SubNode pointed at it |
 | D-13 | Repeated deploy/delete of the same stack name leaves a **stale bridge route** for the project network's subnet. The next deployment's container is created and never starts: `cannot program address 10.226.2.3/28 … conflicts with existing route`. `docker network prune` does not clear it (the network is still in use) | Medium | **Open** — platform/agent defect. Workaround: `DELETE …/docker/stacks` to drop the project network, then redeploy |
+| D-17 | **An exact `apt` pin on a security package rots.** `daq-collector` and `system-agent` pinned `gpgv=2.4.4-2ubuntu17.4`; Ubuntu shipped `17.6` and dropped `17.4` from the archive, so **both builds failed outright** — `E: Version '2.4.4-2ubuntu17.4' for 'gpgv' was not found`. Nothing in the repo changed; the archive did. It fails closed, which is the one mercy | High | **Fixed** — take the archive candidate and assert the floor with `dpkg --compare-versions` (`apt-get install` has no `>=` operator). Stronger than the original pin: always current, and the build fails if it is ever below the CVE floor |
 
 ---
 

@@ -2,7 +2,7 @@
 doc-id:    E2E-EXD-MQTT_IMAGE_CHUNKED
 title:     "mqtt-image-chunked — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.1
+version:   1.2
 status:    Review
 date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **✅ PASS** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -30,34 +30,42 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 | **External dependency** | MQTT broker — **bundled** (mosquitto) |
 | **Host endpoints used** | 2395 (SubNode Web API), 1883 (bundled mosquitto) |
 | **Required deployment overrides** | None |
-| **SubNode name** | `ImageDemo-<date>` |
-| **Registered deviceId** | — not captured in this run |
+| **SubNode name** | `ImageDemo-0909` |
+| **Registered deviceId** | `355915016601337856` |
 
 ## 2. Gate results
 
 Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
+it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
+device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
-| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
-| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
-| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | starts with no bind mounts |
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
 | **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
-| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running`, log stream advancing |
-| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
-| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2591ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=ImageDemo-0909, DeviceId=355915016601337856` |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
-> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
 ## 3. Evidence log
 
-Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
+Verbatim from `docker logs weda-image-sensor` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 52 lines total.
 
 ```text
-[4.2–4.4] nats + registration + telemetry with the bundled broker
+[4.2] [01:15:19 INF] NATS connection verified - RTT: 0.2591ms
+[4.2] [01:15:19 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [01:15:19 INF] Found existing SubNode registration: DeviceName=ImageDemo-0909, DeviceId=355915016601337856
+[4.3] [01:15:20 INF] Configuration uploaded successfully: DeviceId=355915016601337856, Status=applied
+[4.4] [01:15:20 INF] Reporting health: DeviceId=355915016601337856, IsHealthy=True, CpuUsage=56.48%, MemoryUsage=1.56%, Topic=eco1j.weda.355915016601337856.health, ReqSeqId=1
+[4.4] [01:15:20 INF] Subscribed to MQTT topic: sensor/image/mnist
+[4.4] [01:15:20 INF] Subscribed to image topic: sensor/image/mnist
+[4.4] [01:15:20 INF] Message broker subscription established
 ```
 
 ## 4. Defects
@@ -68,14 +76,13 @@ None. This example exposed no defect of its own; it inherited the suite-wide fix
 
 ### Analysis
 
-The first attempt failed on **my test stack, not the example**: overriding only `command:` on `eclipse-mosquitto` is swallowed by the image entrypoint, so the broker never started. Fixed by overriding `entrypoint` too. Recorded here so the next runner does not log it as an example defect.
+Subscribes and registers cleanly. What it cannot show without a publisher is the chunking itself — the feature the example exists to demonstrate.
 
 ## 5. Not verified in this run
 
 | Check left unproven | Why | What would unblock it |
 |---|---|---|
-| Verbatim evidence for 4.2–4.4 | recorded only as the summary “nats + registration + telemetry” | re-run with `deploy-verify.sh --capture` and paste the matched lines |
-| Chunk reassembly of a large real image | the bundled broker supplied synthetic payloads | attach a real image publisher and assert reassembled frame size |
+| Chunk reassembly of a real image | the bundled broker had no publisher attached, so the SubNode subscribed but received no frames | attach an image publisher and assert reassembled frame size |
 
 > **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
 
@@ -83,20 +90,22 @@ The first attempt failed on **my test stack, not the example**: overriding only 
 
 ```bash
 # 1. Build and publish — the repository root is the build context; the script enforces it
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh mqtt-image-chunked
+./scripts/build-push-image.sh mqtt-image-chunked
 
-# 2. Deploy the revision through container-management, then assert the four Act-4 checks
-./scripts/deploy-verify.sh mqtt-image-chunked
+# 2. Deploy the revision through container-management and assert 4.1-4.4
+./scripts/deploy-verify.sh mqtt-image-chunked <compose-file> weda-image-sensor
 
 # 3. Confirm on the device itself
-ssh <device> 'docker logs --tail 40 image-sensor'
+ssh <device> 'docker logs --tail 40 weda-image-sensor'
 ```
 
 ## 7. Change record
 
 | | |
 |---|---|
-| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
-| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
-| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
+| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |

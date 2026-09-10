@@ -2,7 +2,7 @@
 doc-id:    E2E-EXD-MODBUS_WISE4012_BUILDER
 title:     "modbus-wise4012-builder — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.1
+version:   1.2
 status:    Review
 date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **⚠️ PARTIAL** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **⚠️ PARTIAL** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -27,38 +27,42 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 | **Compose service** | `wise-4012-builder` |
 | **Image** | `harbor.arfa.wise-paas.com/edge-coa/modbus-wise4012-builder:latest` |
 | **Transport** | Modbus TCP (builder-hosted) |
-| **External dependency** | **Real WISE-4012 at `172.16.8.122:502`** — unreachable at test time |
+| **External dependency** | **Real WISE-4012 at `172.16.8.122:502`** — refusing connections at test time |
 | **Host endpoints used** | 2395 (SubNode Web API) |
 | **Required deployment overrides** | None |
-| **SubNode name** | `ModbusBDemo-<date>` |
-| **Registered deviceId** | — not captured in this run |
+| **SubNode name** | `ModbusBDemo-0909` |
+| **Registered deviceId** | `355911829806907392` |
 
 ## 2. Gate results
 
 Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
+it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
+device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
-| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
-| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
-| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | starts with no bind mounts |
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
 | **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
-| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running`, `errors = 0` |
-| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `nats = 2` |
-| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `registration = 1` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ⚠️ | **no field data** — the Modbus target never answered |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2753ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=ModbusBDemo-0909, DeviceId=355911829806907392` |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ❌ | `SocketException (111): Connection refused` against `172.16.8.122:502` |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
-> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
 ## 3. Evidence log
 
-Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
+Verbatim from `docker logs weda-modbusb` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 86 lines total.
 
 ```text
-[4.1–4.3] nats = 2, registration = 1, errors = 0    # the SubNode side is healthy
-[4.4]     TcpCommunication.ConnectCoreAsync -> Connection failed, retrying
+[4.2] [01:14:10 INF] NATS connection verified - RTT: 0.2753ms
+[4.2] [01:14:10 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [01:14:10 INF] Found existing SubNode registration: DeviceName=ModbusBDemo-0909, DeviceId=355911829806907392
+[4.4-fail] [01:14:10 ERR] Failed to connect to TCP at 172.16.8.122:502
+[4.4-fail] System.Net.Sockets.SocketException (111): Connection refused
 ```
 
 ## 4. Defects
@@ -69,13 +73,13 @@ None. This example exposed no defect of its own; it inherited the suite-wide fix
 
 ### Analysis
 
-**Not a defect, and not a pass.** The SubNode side is fully healthy — it reached the WedaNode and registered — so gates 1–3 and checks 4.1–4.3 are genuine passes. Only the Modbus read path is unproven. This is why the suite counts PARTIAL separately from the 13 PASSes rather than rounding it either way.
+PARTIAL for the second run running, same cause as its sibling. It now carries a real registered deviceId where the previous report had `—`.
 
 ## 5. Not verified in this run
 
 | Check left unproven | Why | What would unblock it |
 |---|---|---|
-| E2E-EXD-4.4 — telemetry from the field device | the WISE-4012 at `172.16.8.122:502` was unpowered during the run | power the WISE-4012 and re-run; no code change is expected |
+| E2E-EXD-4.4 — telemetry from the field device | same unreachable WISE-4012; 18 connection failures in the captured log | power the WISE-4012 / restart its Modbus service, then re-run |
 
 > **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
 
@@ -83,20 +87,22 @@ None. This example exposed no defect of its own; it inherited the suite-wide fix
 
 ```bash
 # 1. Build and publish — the repository root is the build context; the script enforces it
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh modbus-wise4012-builder
+./scripts/build-push-image.sh modbus-wise4012-builder
 
-# 2. Deploy the revision through container-management, then assert the four Act-4 checks
-./scripts/deploy-verify.sh modbus-wise4012-builder
+# 2. Deploy the revision through container-management and assert 4.1-4.4
+./scripts/deploy-verify.sh modbus-wise4012-builder <compose-file> weda-modbusb
 
 # 3. Confirm on the device itself
-ssh <device> 'docker logs --tail 40 wise-4012-builder'
+ssh <device> 'docker logs --tail 40 weda-modbusb'
 ```
 
 ## 7. Change record
 
 | | |
 |---|---|
-| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
-| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
-| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
+| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |

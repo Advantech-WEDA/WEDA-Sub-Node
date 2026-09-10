@@ -2,7 +2,7 @@
 doc-id:    E2E-EXD-FEATURE_TRANSFORM_PIPELINE
 title:     "feature-transform-pipeline — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.1
+version:   1.2
 status:    Review
 date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **✅ PASS** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -30,37 +30,46 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 | **External dependency** | None — the example starts its own simulator |
 | **Host endpoints used** | 2395 (SubNode Web API), 5020 (embedded Modbus simulator) |
 | **Required deployment overrides** | None |
-| **SubNode name** | `TransformDemo-<deviceId>` |
+| **SubNode name** | `TransformDemo-09090124` |
 | **Registered deviceId** | `355886333169762304` |
 
 ## 2. Gate results
 
 Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
+it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
+device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
-| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
-| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
-| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | starts with no bind mounts — config baked into `/app` |
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
 | **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
-| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running`, log stream advancing |
-| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
-| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | org listing shows child device `355886333169762304` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | `temperature_sensor: 25.057` + `Health report sent successfully` |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.3242ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=TransformDemo-09090124, DeviceId=355886333169762304` |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
-> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
 ## 3. Evidence log
 
-Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
+Verbatim from `docker logs weda-transform-pipeline` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 91 lines total.
 
 ```text
-[4.4] temperature_sensor: 25.057
-[4.4] [0] 25.057 -> 77.103          # °C→°F transform
-[4.4] [0] 25.057 -> 25.028          # smoothing filter
-[4.4] Health report sent successfully
+[4.1] [00:58:09 INF] Modbus TCP Simulator started successfully
+[4.2] [00:58:09 INF] NATS connection verified - RTT: 0.3242ms
+[4.2] [00:58:09 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [00:58:10 INF] Found existing SubNode registration: DeviceName=TransformDemo-09090124, DeviceId=355886333169762304
+[4.3] [00:58:10 INF] Configuration uploaded successfully: DeviceId=355886333169762304, Status=applied
+[4.4] [00:58:10 INF] Reporting health: DeviceId=355886333169762304, IsHealthy=True, CpuUsage=45.05%, MemoryUsage=1.93%, Topic=eco1j.weda.355886333169762304.health, ReqSeqId=1
+[4.4] [00:58:10 INF] temperature_sensor: 25
+[4.4] [00:58:10 INF]   [0] 25 -> 77
+[4.4] [00:58:15 INF] temperature_sensor: 25.030037
+[4.4] [00:58:15 INF]   [0] 25.030037 -> 77.05406646728515
+[4.4] [00:58:15 INF]   [0] 77.05406646728515 -> 25.03003692626953
+[4.4] [00:58:20 INF]   [0] 24.66589736938477 -> 24.883808578372133
 ```
 
 ## 4. Defects
@@ -75,7 +84,7 @@ Verbatim from `docker logs <container>` on the device, each line tagged with the
 
 ### Analysis
 
-The reference case: the first example proven end to end, and the one that exposed D-02 and the `/app/.weda` persistence requirement that every later example inherited.
+The reference case, and still the cleanest run in the suite. The registration id is **unchanged from the 2026-09-09 run**, so `/app/.weda` persistence held across a week, a full image rebuild and a redeploy — the D-02 lesson is sticking.
 
 ## 5. Not verified in this run
 
@@ -85,20 +94,22 @@ Nothing. All eight checks were exercised and observed.
 
 ```bash
 # 1. Build and publish — the repository root is the build context; the script enforces it
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh feature-transform-pipeline
+./scripts/build-push-image.sh feature-transform-pipeline
 
-# 2. Deploy the revision through container-management, then assert the four Act-4 checks
-./scripts/deploy-verify.sh feature-transform-pipeline
+# 2. Deploy the revision through container-management and assert 4.1-4.4
+./scripts/deploy-verify.sh feature-transform-pipeline <compose-file> weda-transform-pipeline
 
 # 3. Confirm on the device itself
-ssh <device> 'docker logs --tail 40 testdevice'
+ssh <device> 'docker logs --tail 40 weda-transform-pipeline'
 ```
 
 ## 7. Change record
 
 | | |
 |---|---|
-| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
-| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
-| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
+| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |

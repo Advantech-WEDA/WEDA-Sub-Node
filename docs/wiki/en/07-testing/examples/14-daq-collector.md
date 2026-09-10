@@ -2,7 +2,7 @@
 doc-id:    E2E-EXD-DAQ_COLLECTOR
 title:     "daq-collector — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.1
+version:   1.2
 status:    Review
 date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **❌ BLOCKED** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **❌ BLOCKED** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -30,55 +30,58 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 | **External dependency** | **Real DAQ modules on the device — absent on `48b02dea8160`** |
 | **Host endpoints used** | 2395 (SubNode Web API) |
 | **Required deployment overrides** | None |
-| **SubNode name** | `DaqCDemo-<date>` |
-| **Registered deviceId** | — never registered |
+| **SubNode name** | `DaqCDemo-0909` |
+| **Registered deviceId** | `355905847374643200` |
 
 ## 2. Gate results
 
 Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
+it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
+device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
-| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
-| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
-| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | — | not exercised — it cannot pass its hardware probe on any host without DAQ modules |
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` after the D-17 fix |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
 | **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
-| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running` — it starts and retries rather than crash-looping |
-| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ❌ | not reached — startup halts at the DAQ probe |
-| **Function** | E2E-EXD-4.3 | Registered as its own child device | ❌ | not reached |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ❌ | not reached — `No DAQ modules available` |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.391ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=DaqCDemo-0909, DeviceId=355905847374643200` |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ❌ | `DaqCommunication connection failed: No DAQ modules available.` |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
-> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
 ## 3. Evidence log
 
-Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
+Verbatim from `docker logs weda-daqc` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 142 lines total.
 
 ```text
-[4.4] DaqCommunication connection failed: No DAQ modules available
-[4.4] Connection failed
+[4.2] [01:23:55 INF] NATS connection verified - RTT: 0.391ms
+[4.2] [01:23:55 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [01:23:55 INF] Found existing SubNode registration: DeviceName=DaqCDemo-0909, DeviceId=355905847374643200
+[4.4-fail] [01:23:55 ERR] DaqCommunication connection failed: No DAQ modules available.
 ```
 
 ## 4. Defects
 
 | # | Severity | Status | What it did **here** |
 |---|---|---|---|
-| **D-08** | Medium | **Open** | `examples/daq-collector/docker-compose.yml` fails validation: `services.daq-collector.devices must be a list` — pre-existing, still open |
+| **D-08** | Medium | **Open** | `docker-compose.yml` fails validation: `services.daq-collector.devices must be a list` — pre-existing, still open |
+| **D-17** | High | **Fixed** in this run | the build failed outright until this run's fix: the image pinned `gpgv=2.4.4-2ubuntu17.4`, which Ubuntu has dropped from the archive |
 
 > Defect ids are shared across the suite; the full register is [§10 of the parent report](../01-e2e-test-scenario-example-images.md).
 
 ### Analysis
 
-**Fixture gap, not a defect.** It builds, pushes and deploys, and the container runs — it fails only where it needs hardware this device does not have, which is the correct behaviour. Excluded from the base-image change (it pins a `gpgv` CVE fix). D-08 is pre-existing and independent of the hardware gap.
+**The previous report was wrong about this example and this run corrects it.** It claimed 4.2 and 4.3 were “not reached — startup halts at the DAQ probe”. They are reached: the SubNode verifies NATS, registers, and only then fails the hardware probe. The corrected row is ✅✅✅❌ — the same shape as a PARTIAL, but the verdict stays BLOCKED because the missing hardware is not a transient fixture outage, it is absent from this class of device.
 
 ## 5. Not verified in this run
 
 | Check left unproven | Why | What would unblock it |
 |---|---|---|
-| E2E-EXD-4.2 – 4.4 | the test device has no DAQ modules fitted | re-run on a device with DAQ hardware; no code change is expected |
-| E2E-EXD-2.3 — standalone start | same hardware gap | re-run on a device with DAQ hardware |
+| E2E-EXD-4.4 — telemetry from the DAQ modules | the test device has no DAQ modules fitted | re-run on a device with DAQ hardware; no code change expected |
 
 > **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
 
@@ -86,20 +89,22 @@ Verbatim from `docker logs <container>` on the device, each line tagged with the
 
 ```bash
 # 1. Build and publish — the repository root is the build context; the script enforces it
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh daq-collector
+./scripts/build-push-image.sh daq-collector
 
-# 2. Deploy the revision through container-management, then assert the four Act-4 checks
-./scripts/deploy-verify.sh daq-collector
+# 2. Deploy the revision through container-management and assert 4.1-4.4
+./scripts/deploy-verify.sh daq-collector <compose-file> weda-daqc
 
 # 3. Confirm on the device itself
-ssh <device> 'docker logs --tail 40 daq-collector'
+ssh <device> 'docker logs --tail 40 weda-daqc'
 ```
 
 ## 7. Change record
 
 | | |
 |---|---|
-| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
-| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
-| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
+| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |

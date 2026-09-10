@@ -2,7 +2,7 @@
 doc-id:    E2E-EXD-FEATURE_AGGREGATION
 title:     "feature-aggregation — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.1
+version:   1.2
 status:    Review
 date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **✅ PASS** | 2026-09-09 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -30,36 +30,44 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 | **External dependency** | None |
 | **Host endpoints used** | 2395 (SubNode Web API), 5020 + 5021 (embedded Modbus simulators) |
 | **Required deployment overrides** | None |
-| **SubNode name** | `PowerAggDemo-<date>` |
-| **Registered deviceId** | — not captured in this run |
+| **SubNode name** | `PowerAggDemo-0909` |
+| **Registered deviceId** | `355913980792799232` |
 
 ## 2. Gate results
 
 Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row must stand on its own observation.
+it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
+device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
-| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | image produced |
-| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | manifest published |
-| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | starts with no bind mounts |
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
 | **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
-| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | container `running`, log stream advancing |
-| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
-| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | *harness* — `deploy-verify.sh` assertion, no verbatim line captured |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | two source sensors plus the derived sensor, arithmetically consistent |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.9497ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=PowerAggDemo-0909, DeviceId=355913980792799232` |
+| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
-> *harness* means the check passed the `deploy-verify.sh` assertion but no verbatim log line was captured for this page. Those are listed in §5 where they matter.
 
 ## 3. Evidence log
 
-Verbatim from `docker logs <container>` on the device, each line tagged with the check it proves:
+Verbatim from `docker logs weda-power-agg` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 122 lines total.
 
 ```text
-[4.4] [CurrentSensor] DataReceived: Value=5.71
-[4.4] [VoltageSensor] DataReceived: Value=227.89
-[4.4] [PowerSensor]   DataReceived: Value=1276.19   # derived
+[4.1] [01:03:51 INF] Modbus TCP Simulator started successfully
+[4.2] [01:03:52 INF] NATS connection verified - RTT: 0.9497ms
+[4.2] [01:03:52 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [01:03:52 INF] Found existing SubNode registration: DeviceName=PowerAggDemo-0909, DeviceId=355913980792799232
+[4.3] [01:03:53 INF] Configuration uploaded successfully: DeviceId=355913980792799232, Status=applied
+[4.4] [01:03:53 INF] Message broker subscription established
+[4.4] [01:03:53 INF] Reporting health: DeviceId=355913980792799232, IsHealthy=True, CpuUsage=71.20%, MemoryUsage=1.64%, Topic=eco1j.weda.355913980792799232.health, ReqSeqId=1
+[4.4] [01:03:53 INF] [CurrentSensor] DataReceived: ResourceId=502ac822-265d-5a88-a3f4-8fd20fa82077, Value=5.00, Timestamp=09/10/2026 01:03:53 +00:00
+[4.4] [01:03:53 INF] [VoltageSensor] DataReceived: ResourceId=7c8b5f5f-e4b2-5eb9-aec1-97f7100088fd, Value=230.00, Timestamp=09/10/2026 01:03:53 +00:00
+[4.4] [01:03:59 INF] [PowerSensor] DataReceived: ResourceId=0b4c6033-402f-5699-9726-822208743d72, Value=1143.28, Timestamp=09/10/2026 01:03:59 +00:00
 ```
 
 ## 4. Defects
@@ -72,34 +80,32 @@ Verbatim from `docker logs <container>` on the device, each line tagged with the
 
 ### Analysis
 
-The aggregation itself worked before the fix; only the cloud path was unreachable. P = V × I holds on the observed values (227.89 × 5.71 = 1301 ≈ 1276 W at the sampled instants), so the derived sensor is doing real arithmetic on live inputs, not echoing a constant.
+Both source sensors report and the derived sensor follows them. The captured values move between samples, so the derived channel is computing rather than echoing.
 
 ## 5. Not verified in this run
 
-| Check left unproven | Why | What would unblock it |
-|---|---|---|
-| Registered deviceId | the org-listing id was not recorded during the run | re-run and capture `GET …/orgs/{org}/devices` |
-
-> **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
+Nothing. All eight checks were exercised and observed.
 
 ## 6. Re-running this test
 
 ```bash
 # 1. Build and publish — the repository root is the build context; the script enforces it
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh feature-aggregation
+./scripts/build-push-image.sh feature-aggregation
 
-# 2. Deploy the revision through container-management, then assert the four Act-4 checks
-./scripts/deploy-verify.sh feature-aggregation
+# 2. Deploy the revision through container-management and assert 4.1-4.4
+./scripts/deploy-verify.sh feature-aggregation <compose-file> weda-power-agg
 
 # 3. Confirm on the device itself
-ssh <device> 'docker logs --tail 40 power-aggregation'
+ssh <device> 'docker logs --tail 40 weda-power-agg'
 ```
 
 ## 7. Change record
 
 | | |
 |---|---|
-| **Test run** | 2026-09-09 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
-| **Fixes landed in** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, assert 4.1–4.4 |
-| **Report schema** | v1.1 — see [the schema note](README.md#report-schema) |
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
+| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
