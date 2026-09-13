@@ -1,0 +1,12 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-transform-pipeline",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/feature-transform-pipeline:latest",
+  "business": {
+    "mode": "auto",
+    "patterns": [
+      "\\[0\\] [0-9.]+ -> [0-9.]+"
+    ],
+    "note": "A transform stage rewrote a sensor value (25 -> 77 is degC -> degF)."
+  }
+}

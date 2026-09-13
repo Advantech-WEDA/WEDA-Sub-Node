@@ -18,7 +18,8 @@ set -euo pipefail
 NAME="${1:?usage: $0 <example-name>}"
 PATH_PREFIX="${PATH_PREFIX:-examples}"
 IMAGE_REPO="${IMAGE_REPO:-harbor.arfa.wise-paas.com/edge-coa/${NAME}}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+# A delivered image needs a fixed version: `latest` cannot be matched to a report of a problem.
+IMAGE_TAG="${IMAGE_TAG:-$(date +%Y%m%d-%H%M%S)}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 PUSH="${PUSH:-true}"
 BUILDER_NAME="${BUILDER_NAME:-weda-multiarch}"
@@ -52,6 +53,7 @@ fi
 echo ">> ${IMAGE_REPO}:${IMAGE_TAG}  [${PLATFORMS}]  ${OUTPUT}"
 docker buildx build \
   --platform "${PLATFORMS}" \
+  --build-arg "WEDA_NATS_PASSWORD=${WEDA_NATS_PASSWORD:-}" \
   -f "${DOCKERFILE}" \
   -t "${IMAGE_REPO}:${IMAGE_TAG}" \
   ${OUTPUT} \

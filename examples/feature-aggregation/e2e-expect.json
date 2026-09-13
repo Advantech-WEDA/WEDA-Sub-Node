@@ -1,0 +1,12 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-power-agg",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/feature-aggregation:latest",
+  "business": {
+    "mode": "auto",
+    "patterns": [
+      "\\[PowerSensor\\] DataReceived: .*Value=[0-9.]+"
+    ],
+    "note": "The derived sensor produced a value, so both source sensors fed the aggregation."
+  }
+}

@@ -1,5 +1,9 @@
 services:
   daq-proxy:
+    environment:
+      # The NATS password is no longer stored in systemcfg.json. Supply it at run time:
+      #   cp .env.example .env      (docker compose reads .env automatically)
+      - SystemConfig__WedaNode__Password=${WEDA_NATS_PASSWORD:-}
     image: harbor.arfa.wise-paas.com/edge-coa/daq-proxy:latest
     container_name: daq-proxy
     network_mode: host

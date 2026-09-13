@@ -1,0 +1,12 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-stock",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/http-stock-quotes:latest",
+  "business": {
+    "mode": "auto",
+    "patterns": [
+      "\\(stock_[0-9]+_current\\): [0-9.]+ TWD"
+    ],
+    "note": "A live TWSE quote was read. Needs outbound internet, and values change between runs."
+  }
+}

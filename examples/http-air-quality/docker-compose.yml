@@ -1,5 +1,9 @@
 services:
   air-quality-monitor:
+    environment:
+      # The NATS password is no longer stored in systemcfg.json. Supply it at run time:
+      #   cp .env.example .env      (docker compose reads .env automatically)
+      - SystemConfig__WedaNode__Password=${WEDA_NATS_PASSWORD:-}
     build:
       context: ../..
       dockerfile: examples/http-air-quality/Dockerfile

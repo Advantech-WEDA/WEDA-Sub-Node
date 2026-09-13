@@ -1,5 +1,9 @@
 services:
   wise-4012-builder:
+    environment:
+      # The NATS password is no longer stored in systemcfg.json. Supply it at run time:
+      #   cp .env.example .env      (docker compose reads .env automatically)
+      - SystemConfig__WedaNode__Password=${WEDA_NATS_PASSWORD:-}
     build:
       context: ../..
       dockerfile: examples/modbus-wise4012-builder/Dockerfile

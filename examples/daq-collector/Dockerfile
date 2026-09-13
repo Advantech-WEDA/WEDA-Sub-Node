@@ -60,7 +60,16 @@ COPY examples/daq-collector/entrypoint.sh /app/entrypoint.sh
 
 # Copy default configuration files (can be overridden via docker-compose.yml volume mounts)
 COPY examples/daq-collector/devicecfg.json /app/devicecfg.json
+# The delivered image carries the WedaNode password, so a customer needs only the image and
+# the compose file. scripts/build-push-image.sh passes it from the environment; built without
+# it, the image ships the empty password the repository holds, and the compose can still
+# supply one. Either way the value is readable inside the image - that is the trade for one
+# image that runs as delivered. A customer who needs their own password builds their own.
+ARG WEDA_NATS_PASSWORD=""
 COPY examples/daq-collector/systemcfg.json /app/systemcfg.json
+RUN if [ -n "$WEDA_NATS_PASSWORD" ]; then \
+      sed -i "s|\"Password\": \"\"|\"Password\": \"$WEDA_NATS_PASSWORD\"|" /app/systemcfg.json; \
+    fi
 COPY examples/daq-collector/customcfg.json /app/customcfg.json
 COPY examples/daq-collector/appsettings.json /app/appsettings.json
 

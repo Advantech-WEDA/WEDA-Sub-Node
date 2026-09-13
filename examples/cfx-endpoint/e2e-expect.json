@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-cfx",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/cfx-endpoint:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "Subscribing to +/+/+/CFX/# is not receipt. tools/cfx-replay replays captured CFX payloads onto the same broker (docker compose --profile replay up); fill the pattern from that run."
+  }
+}
