@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **⚠️ PARTIAL** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2709ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=ISensingDemo-0909b, DeviceId=355941923954884608` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [01:16:19.116 INF] Reporting health: DeviceId=355941923954884608, IsHealthy=True, CpuUsage… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ❌ | The bundled broker has no publisher. Unblock with a real WISE-4012 (ISENSING_BROKER_URL=mqtt://172.16.8.122:1883) or an iSensing payload publisher. |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -63,10 +65,10 @@ Captured 2026-09-10; 48 lines total.
 [4.3] [01:16:18.672 INF] Found existing SubNode registration: DeviceName=ISensingDemo-0909b, DeviceId=355941923954884608
 [4.3] [01:16:19.079 INF] Configuration uploaded successfully: DeviceId=355941923954884608, Status=applied
 [4.4] [01:16:19.116 INF] Reporting health: DeviceId=355941923954884608, IsHealthy=True, CpuUsage=57.97%, MemoryUsage=1.64%, Topic=eco1j.weda.355941923954884608.health, ReqSeqId
-[4.4] [01:16:19.120 INF] Subscribed to MQTT topic: Advantech/00D0C9FAC80E/data
-[4.4] [01:16:19.121 INF] Subscribed to MQTT topic: Advantech/00D0C9FAC80E/status
-[4.4] [01:16:19.121 INF] Subscribed to ISensing topics: Advantech/00D0C9FAC80E/data, Advantech/00D0C9FAC80E/status
-[4.4] [01:16:19.122 INF] Message broker subscription established
+[4.5] [01:16:19.120 INF] Subscribed to MQTT topic: Advantech/00D0C9FAC80E/data
+[4.5] [01:16:19.121 INF] Subscribed to MQTT topic: Advantech/00D0C9FAC80E/status
+[4.5] [01:16:19.121 INF] Subscribed to ISensing topics: Advantech/00D0C9FAC80E/data, Advantech/00D0C9FAC80E/status
+[4.5] [01:16:19.122 INF] Message broker subscription established
 ```
 
 ## 4. Defects
@@ -95,8 +97,8 @@ Starts, registers and subscribes to both iSensing topics — the D-07 fix is hol
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh mqtt-isensing-wise4012
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh mqtt-isensing-wise4012 <compose-file> weda-isensing
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh mqtt-isensing-wise4012
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-isensing'
@@ -110,5 +112,5 @@ ssh <device> 'docker logs --tail 40 weda-isensing'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/mqtt-isensing-wise4012/e2e-expect.json` |

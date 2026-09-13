@@ -13,7 +13,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 | Verdict | Test run | Device under test | Environment |
 |:--|:--|:--|:--|
-| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **⚠️ PARTIAL** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
 > Method, gate definitions, fixtures, negative cases and the shared defect register live in
 > **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2983ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=VisionDemo-0909b, DeviceId=355914456695308288` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [01:20:44 INF] Reporting health: DeviceId=355914456695308288, IsHealthy=True, CpuUsage=51.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ❌ | The bundled broker has no publisher; in production the Advantech YOLO CV stack publishes the detections. Unblock by running the CV container or replaying captured detections. |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -64,11 +66,11 @@ Captured 2026-09-10; 68 lines total.
 [4.3] [01:20:44 INF] Configuration uploaded successfully: DeviceId=355914456695308288, Status=null
 [4.3] [01:20:44 INF] Device registered: DeviceId=355914456695308288, RegistrationStatus=accepted, RspSeqId=685440c5-91fc-49ca-acc2-603e6de80220
 [4.4] [01:20:44 INF] Reporting health: DeviceId=355914456695308288, IsHealthy=True, CpuUsage=51.66%, MemoryUsage=1.68%, Topic=eco1j.weda.355914456695308288.health, ReqSeqId=1
-[4.4] [01:20:44 INF] Subscribed to MQTT topic: advantech/+/vision/detections
-[4.4] [01:20:44 INF] Subscribed to MQTT topic: advantech/+/vision/status
-[4.4] [01:20:44 INF] Subscribed to MQTT topic: advantech/+/vision/meta
-[4.4] [01:20:44 INF] Subscribed to vision topics: advantech/+/vision/detections, advantech/+/vision/status, advantech/+/vision/meta
-[4.4] [01:20:44 INF] Message broker subscription established
+[4.5] [01:20:44 INF] Subscribed to MQTT topic: advantech/+/vision/detections
+[4.5] [01:20:44 INF] Subscribed to MQTT topic: advantech/+/vision/status
+[4.5] [01:20:44 INF] Subscribed to MQTT topic: advantech/+/vision/meta
+[4.5] [01:20:44 INF] Subscribed to vision topics: advantech/+/vision/detections, advantech/+/vision/status, advantech/+/vision/meta
+[4.5] [01:20:44 INF] Message broker subscription established
 ```
 
 ## 4. Defects
@@ -98,8 +100,8 @@ Both credential defects stay fixed — 4.2 shows a verified NATS connection on t
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh vision-object-detection
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh vision-object-detection <compose-file> weda-vision
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh vision-object-detection
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-vision'
@@ -113,5 +115,5 @@ ssh <device> 'docker logs --tail 40 weda-vision'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/vision-object-detection/e2e-expect.json` |

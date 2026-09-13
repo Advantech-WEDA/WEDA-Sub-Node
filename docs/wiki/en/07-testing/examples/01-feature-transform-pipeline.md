@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.3242ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=TransformDemo-09090124, DeviceId=355886333169762304` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [00:58:10 INF] Reporting health: DeviceId=355886333169762304, IsHealthy=True, CpuUsage=45.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ✅ | [00:58:10 INF]   [0] 25 -> 77 |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -64,12 +66,12 @@ Captured 2026-09-10; 91 lines total.
 [4.3] [00:58:10 INF] Found existing SubNode registration: DeviceName=TransformDemo-09090124, DeviceId=355886333169762304
 [4.3] [00:58:10 INF] Configuration uploaded successfully: DeviceId=355886333169762304, Status=applied
 [4.4] [00:58:10 INF] Reporting health: DeviceId=355886333169762304, IsHealthy=True, CpuUsage=45.05%, MemoryUsage=1.93%, Topic=eco1j.weda.355886333169762304.health, ReqSeqId=1
-[4.4] [00:58:10 INF] temperature_sensor: 25
-[4.4] [00:58:10 INF]   [0] 25 -> 77
-[4.4] [00:58:15 INF] temperature_sensor: 25.030037
-[4.4] [00:58:15 INF]   [0] 25.030037 -> 77.05406646728515
-[4.4] [00:58:15 INF]   [0] 77.05406646728515 -> 25.03003692626953
-[4.4] [00:58:20 INF]   [0] 24.66589736938477 -> 24.883808578372133
+[4.5] [00:58:10 INF] temperature_sensor: 25
+[4.5] [00:58:10 INF]   [0] 25 -> 77
+[4.5] [00:58:15 INF] temperature_sensor: 25.030037
+[4.5] [00:58:15 INF]   [0] 25.030037 -> 77.05406646728515
+[4.5] [00:58:15 INF]   [0] 77.05406646728515 -> 25.03003692626953
+[4.5] [00:58:20 INF]   [0] 24.66589736938477 -> 24.883808578372133
 ```
 
 ## 4. Defects
@@ -88,7 +90,7 @@ The reference case, and still the cleanest run in the suite. The registration id
 
 ## 5. Not verified in this run
 
-Nothing. All eight checks were exercised and observed.
+Nothing. All nine checks were exercised and observed.
 
 ## 6. Re-running this test
 
@@ -96,8 +98,8 @@ Nothing. All eight checks were exercised and observed.
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh feature-transform-pipeline
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh feature-transform-pipeline <compose-file> weda-transform-pipeline
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh feature-transform-pipeline
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-transform-pipeline'
@@ -111,5 +113,5 @@ ssh <device> 'docker logs --tail 40 weda-transform-pipeline'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/feature-transform-pipeline/e2e-expect.json` |

@@ -46,7 +46,7 @@ tags:      [doc:test, feature:sub-node, service:sub-node, service:container-mana
 | **Device** | EPC-R7300A1 — ARM64, 6 cores, Ubuntu 20.04, `deviceId 48b02dea8160` |
 | **Duration** | ~4 min per example (multi-arch build + push + deploy + settle); the 2026-09-10 full pass ran ~1 h 50 m, dominated by cold image pulls |
 | **Verdict** | PASS only when **every** Exit Criterion in §12 is ticked |
-| **Last run** | **2026-09-10** — 11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP (§7) |
+| **Last run** | **2026-09-10** — 6 PASS · 7 PARTIAL · 1 BLOCKED · 1 SKIP (§7) |
 
 ## Demo Path
 
@@ -190,6 +190,10 @@ sufficient evidence for any step in Act 4 — see the warning in §6.
 
 ## 5. Act 3 — Deploy through the platform *(no device access)*
 
+> The compose content for every step below is that example's `docker-compose.deploy.yml`, and
+> the container to look for is the `container_name` in it. Both, plus what the example should be
+> seen doing, are recorded in `examples/<example>/e2e-expect.json`.
+
 ### E2E-EXD-3.1 — Create the stack config
 
 | | |
@@ -247,12 +251,31 @@ sufficient evidence for any step in Act 4 — see the warning in §6.
 | **Expect** | `Configuration uploaded successfully` or `Found existing SubNode registration`, and the org listing shows a child device with `parentDeviceId = <deviceId>` and `connectivity.state = Connected` |
 | **Proves** | A SubNode registers as its **own** WEDA device named by `SubNode.Name` — it does not appear as sensors on the host device |
 
-### E2E-EXD-4.4 — It is producing its own telemetry
+### E2E-EXD-4.4 — The heartbeat reaches the cloud
 
 | | |
 |---|---|
-| **Expect** | Sensor values in the log **and** `Health report sent successfully` |
-| **Proves** | The example's actual job is being done — the thing that distinguishes "deployed" from "working" |
+| **Expect** | `Reporting health: … IsHealthy=True` |
+| **Proves** | The SubNode is alive to the cloud. A SubNode emits this whether or not the device it reads is reachable, so it proves nothing about the example's own job |
+
+### E2E-EXD-4.5 — It is doing what it exists to do
+
+| | |
+|---|---|
+| **Expect** | The line recorded in `examples/<name>/e2e-expect.json` — a transformed value, a command result, a quote, a derived sensor |
+| **Proves** | The example's actual job is being done: the thing that distinguishes "deployed" from "working" |
+
+`business.mode` in that file says how the check is settled:
+
+| Mode | Meaning | Verdict effect |
+|---|---|---|
+| `auto` | patterns taken from a logged success; all must match | scored by the harness |
+| `external` | no successful sample exists — hardware or a publisher is missing | `NOT-SCORED`, capped at PARTIAL |
+| `manual` | a person judges the values | `NOT-SCORED` until recorded, capped at PARTIAL |
+| `skip` | not verified on this device | `NOT-SCORED` |
+
+**`NOT-SCORED` is not a pass.** An example that reached the platform but was never seen working is
+PARTIAL, and its report says what would close the gap.
 
 ---
 
@@ -261,10 +284,10 @@ sufficient evidence for any step in Act 4 — see the warning in §6.
 **Run 2026-09-10** — every image rebuilt and re-pushed, every stack redeployed, and the
 device's own container log captured per example. Previous run: 2026-09-09.
 
-Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy, then the four
+Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy, then the five
 function checks of Act 4 scored separately. `—` = not applicable · `⏭️` = not executed.
 
-> **Why 4.1–4.4 are four columns and not one.** D-01, D-03 and D-06 each produced a container
+> **Why 4.1–4.5 are five columns and not one.** D-01, D-03 and D-06 each produced a container
 > the platform reported as `running` while the SubNode reached nothing. This run vindicated the
 > split twice more: `modbus-wise4012` and `daq-collector` are both ✅✅✅❌ — provably healthy
 > up to the field device, and provably stuck at it. One "Function" cell could only say "fail".
@@ -272,25 +295,25 @@ function checks of Act 4 scored separately. `—` = not applicable · `⏭️` =
 Each row links to its own report in [`examples/`](examples/README.md), which quotes the log
 line behind every cell, the defects it exposed, what was **not** verified, and how to re-run it.
 
-| # | Example | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | Headline evidence / blocker |
-|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
-| 1 | [`feature-transform-pipeline`](examples/01-feature-transform-pipeline.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25` → `[0] 25 -> 77` (°C→°F) → smoothing; same deviceId as 09-09 |
-| 2 | [`feature-custom-commands`](examples/02-feature-custom-commands.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `sensor.read`, `tag.set`, `props.get` all succeeded on-device |
-| 3 | [`http-air-quality`](examples/03-http-air-quality.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `Air quality data received`; child `355900119696015360` |
-| 4 | [`http-stock-quotes`](examples/04-http-stock-quotes.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Live TWSE: TSMC 2445 / high 2450 / vol 2203 — moved since 09-09, as live data should |
-| 5 | [`feature-aggregation`](examples/05-feature-aggregation.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Current 5.00 A + Voltage 230.00 V, derived Power tracking both |
-| 6 | [`opcua-basic`](examples/06-opcua-basic.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Failed in-batch, passed on isolated re-run** — cold pull outran the 7.5 min window, not D-09 |
-| 7 | [`modbus-wise4012`](examples/07-modbus-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | **PASS → PARTIAL.** SubNode healthy; `SocketException (111): Connection refused` on `172.16.8.122:502` |
-| 8 | [`modbus-wise4012-builder`](examples/08-modbus-wise4012-builder.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | PARTIAL again, same unreachable WISE-4012; 18 connection failures |
-| 9 | [`mqtt-image-chunked`](examples/09-mqtt-image-chunked.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Subscribed `sensor/image/mnist` with the bundled mosquitto |
-| 10 | [`mqtt-isensing-wise4012`](examples/10-mqtt-isensing-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Subscribed `Advantech/00D0C9FAC80E/{data,status}`, child `355941923954884608` |
-| 11 | [`vision-object-detection`](examples/11-vision-object-detection.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Subscribed vision topics, child `355914456695308288` |
-| 12 | [`daq-proxy`](examples/12-daq-proxy.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Passes without its upstream present |
-| 13 | [`cfx-endpoint`](examples/13-cfx-endpoint.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Clean first attempt** (four were needed on 09-09); `+/+/+/CFX/#` for 17 sensors / 17 message types |
-| 14 | [`daq-collector`](examples/14-daq-collector.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | **4.2/4.3 corrected to ✅** — it registers, *then* fails `No DAQ modules available` |
-| 15 | [`system-agent`](examples/15-system-agent.md) | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **SKIP** — already runs on this device as a shipped component; needs a device of its own |
+| # | Example | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | 4.5 | Headline evidence / blocker |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| 1 | [`feature-transform-pipeline`](examples/01-feature-transform-pipeline.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `temperature_sensor: 25` → `[0] 25 -> 77` (°C→°F) → smoothing; same deviceId as 09-09 |
+| 2 | [`feature-custom-commands`](examples/02-feature-custom-commands.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `sensor.read`, `tag.set`, `props.get` all succeeded on-device |
+| 3 | [`http-air-quality`](examples/03-http-air-quality.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | `Air quality data received`; child `355900119696015360` |
+| 4 | [`http-stock-quotes`](examples/04-http-stock-quotes.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Live TWSE: TSMC 2445 / high 2450 / vol 2203 — moved since 09-09, as live data should |
+| 5 | [`feature-aggregation`](examples/05-feature-aggregation.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Current 5.00 A + Voltage 230.00 V, derived Power tracking both |
+| 6 | [`opcua-basic`](examples/06-opcua-basic.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Failed in-batch, passed on isolated re-run** — cold pull outran the 7.5 min window, not D-09 |
+| 7 | [`modbus-wise4012`](examples/07-modbus-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | **PASS → PARTIAL.** SubNode healthy; `SocketException (111): Connection refused` on `172.16.8.122:502` |
+| 8 | [`modbus-wise4012-builder`](examples/08-modbus-wise4012-builder.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | PARTIAL again, same unreachable WISE-4012; 18 connection failures |
+| 9 | [`mqtt-image-chunked`](examples/09-mqtt-image-chunked.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Subscribed `sensor/image/mnist`; the bundled broker had no publisher, so no frame arrived |
+| 10 | [`mqtt-isensing-wise4012`](examples/10-mqtt-isensing-wise4012.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Subscribed `Advantech/00D0C9FAC80E/{data,status}`, child `355941923954884608`; nothing published to those topics |
+| 11 | [`vision-object-detection`](examples/11-vision-object-detection.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Subscribed the vision topics, child `355914456695308288`; no CV container was publishing |
+| 12 | [`daq-proxy`](examples/12-daq-proxy.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Heartbeat only — `daq-collector` was blocked, so there was no upstream to proxy |
+| 13 | [`cfx-endpoint`](examples/13-cfx-endpoint.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | **Clean first attempt** (four were needed on 09-09); subscribed `+/+/+/CFX/#` for 17 sensors / 17 message types — a subscription, not receipt |
+| 14 | [`daq-collector`](examples/14-daq-collector.md) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | **4.2/4.3 corrected to ✅** — it registers, *then* fails `No DAQ modules available` |
+| 15 | [`system-agent`](examples/15-system-agent.md) | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **SKIP** — already runs on this device as a shipped component; needs a device of its own |
 
-**11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP = 15.**
+**6 PASS · 7 PARTIAL · 1 BLOCKED · 1 SKIP = 15**.
 
 > **Count correction.** Earlier editions claimed *13 PASS · 1 PARTIAL · 1 BLOCKED · 1 SKIP*,
 > which totals 16 for a 15-example suite. Totals are now counted from the verdict column.
@@ -417,14 +440,17 @@ unrelated to the examples.
 |---|---|---|
 | X-1 | All 15 examples build and push multi-arch to Harbor | ✅ 15/15 |
 | X-2 | Every example image starts with no bind mounts (E2E-EXD-2.3) | ✅ |
-| X-3 | Every deployable example reaches nats + registration + telemetry on D1 | ⚠️ 13 confirmed, 1 fixture-blocked (`daq-collector`), 1 skipped (`system-agent`) |
+| X-3 | Every deployable example reaches nats + registration on D1 | ✅ 14/14 deployed |
+| X-3b | Every deployable example is seen doing its own job (E2E-EXD-4.5) | ❌ 6 of 14; 7 need hardware or a publisher, 1 needs DAQ modules |
 | X-4 | Registration survives container recreation (E2E-EXD-3.3) | ✅ verified by restart |
 | X-5 | No example defaults to a host outside the device it runs on | ✅ D-01 fixed |
 | X-6 | No example is hardcoded to mock cloud | ✅ D-06 fixed |
 | X-7 | Every open defect in §10 has an owner | ❌ D-08, D-09, D-13, D-14 (agent behaviour) unassigned |
 
-**Overall verdict: CONDITIONAL PASS** — X-3 and X-7 are not met. **13 of 15 examples are confirmed
-working end to end.** The remaining two are fixture gaps, not failures: `daq-collector` needs a DAQ
-module, `system-agent` needs a device of its own. Three platform defects are open and unassigned
-(**D-09** stack drift, **D-13** stale bridge route, **D-14** host/bridge network mixing) — all three
-present as a device doing nothing while the API reports success.
+**Overall verdict: CONDITIONAL PASS** — X-3b and X-7 are not met. **Six of fifteen examples are
+confirmed working end to end**, and fourteen are confirmed deployable and registering. The gap
+between those two numbers is what scoring the heartbeat apart from the example's own output
+exposed: seven examples need hardware or a publisher that this device does not have, one needs DAQ
+modules, and one is not run here at all. Three platform defects are open and unassigned (**D-09**
+stack drift, **D-13** stale bridge route, **D-14** host/bridge network mixing) — all three present
+as a device doing nothing while the API reports success.

@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.276ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=OpcUaDemo2-0909, DeviceId=355913752391974912` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [01:25:08 INF] Reporting health: DeviceId=355913752391974912, IsHealthy=True, CpuUsage=25.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ✅ | [01:25:08 INF] temperature_sensor: 25 · [01:25:08 INF] pressure_sensor: 1013 |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -64,12 +66,12 @@ Captured 2026-09-10; 98 lines total.
 [4.3] [01:25:07 INF] Found existing SubNode registration: DeviceName=OpcUaDemo2-0909, DeviceId=355913752391974912
 [4.3] [01:25:07 INF] Configuration uploaded successfully: DeviceId=355913752391974912, Status=null
 [4.3] [01:25:08 INF] Device registered: DeviceId=355913752391974912, RegistrationStatus=accepted, RspSeqId=858ba921-e25a-4eb3-afbb-79635fd5652f
-[4.4] [01:25:08 INF] temperature_sensor: 25
-[4.4] [01:25:08 INF] humidity_sensor: 55
-[4.4] [01:25:08 INF] pressure_sensor: 1013
+[4.5] [01:25:08 INF] temperature_sensor: 25
+[4.5] [01:25:08 INF] humidity_sensor: 55
+[4.5] [01:25:08 INF] pressure_sensor: 1013
 [4.4] [01:25:08 INF] Reporting health: DeviceId=355913752391974912, IsHealthy=True, CpuUsage=25.13%, MemoryUsage=3.12%, Topic=eco1j.weda.355913752391974912.health, ReqSeqId=1
-[4.4] [01:25:13 INF] temperature_sensor: 24.839359283447266
-[4.4] [01:25:13 INF] humidity_sensor: 55.17400360107422
+[4.5] [01:25:13 INF] temperature_sensor: 24.839359283447266
+[4.5] [01:25:13 INF] humidity_sensor: 55.17400360107422
 ```
 
 ## 4. Defects
@@ -87,7 +89,7 @@ Captured 2026-09-10; 98 lines total.
 
 ## 5. Not verified in this run
 
-Nothing. All eight checks were exercised and observed.
+Nothing. All nine checks were exercised and observed.
 
 ## 6. Re-running this test
 
@@ -95,8 +97,8 @@ Nothing. All eight checks were exercised and observed.
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh opcua-basic
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh opcua-basic <compose-file> weda-opcua
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh opcua-basic
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-opcua'
@@ -110,5 +112,5 @@ ssh <device> 'docker logs --tail 40 weda-opcua'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/opcua-basic/e2e-expect.json` |

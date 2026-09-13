@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.9497ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=PowerAggDemo-0909, DeviceId=355913980792799232` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [01:03:53 INF] Reporting health: DeviceId=355913980792799232, IsHealthy=True, CpuUsage=71.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ✅ | [01:03:59 INF] [PowerSensor] DataReceived: ResourceId=0b4c6033-402f-5699-9726-82… |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -63,11 +65,11 @@ Captured 2026-09-10; 122 lines total.
 [4.2] [01:03:52 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
 [4.3] [01:03:52 INF] Found existing SubNode registration: DeviceName=PowerAggDemo-0909, DeviceId=355913980792799232
 [4.3] [01:03:53 INF] Configuration uploaded successfully: DeviceId=355913980792799232, Status=applied
-[4.4] [01:03:53 INF] Message broker subscription established
+[4.5] [01:03:53 INF] Message broker subscription established
 [4.4] [01:03:53 INF] Reporting health: DeviceId=355913980792799232, IsHealthy=True, CpuUsage=71.20%, MemoryUsage=1.64%, Topic=eco1j.weda.355913980792799232.health, ReqSeqId=1
-[4.4] [01:03:53 INF] [CurrentSensor] DataReceived: ResourceId=502ac822-265d-5a88-a3f4-8fd20fa82077, Value=5.00, Timestamp=09/10/2026 01:03:53 +00:00
-[4.4] [01:03:53 INF] [VoltageSensor] DataReceived: ResourceId=7c8b5f5f-e4b2-5eb9-aec1-97f7100088fd, Value=230.00, Timestamp=09/10/2026 01:03:53 +00:00
-[4.4] [01:03:59 INF] [PowerSensor] DataReceived: ResourceId=0b4c6033-402f-5699-9726-822208743d72, Value=1143.28, Timestamp=09/10/2026 01:03:59 +00:00
+[4.5] [01:03:53 INF] [CurrentSensor] DataReceived: ResourceId=502ac822-265d-5a88-a3f4-8fd20fa82077, Value=5.00, Timestamp=09/10/2026 01:03:53 +00:00
+[4.5] [01:03:53 INF] [VoltageSensor] DataReceived: ResourceId=7c8b5f5f-e4b2-5eb9-aec1-97f7100088fd, Value=230.00, Timestamp=09/10/2026 01:03:53 +00:00
+[4.5] [01:03:59 INF] [PowerSensor] DataReceived: ResourceId=0b4c6033-402f-5699-9726-822208743d72, Value=1143.28, Timestamp=09/10/2026 01:03:59 +00:00
 ```
 
 ## 4. Defects
@@ -84,7 +86,7 @@ Both source sensors report and the derived sensor follows them. The captured val
 
 ## 5. Not verified in this run
 
-Nothing. All eight checks were exercised and observed.
+Nothing. All nine checks were exercised and observed.
 
 ## 6. Re-running this test
 
@@ -92,8 +94,8 @@ Nothing. All eight checks were exercised and observed.
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh feature-aggregation
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh feature-aggregation <compose-file> weda-power-agg
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh feature-aggregation
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-power-agg'
@@ -107,5 +109,5 @@ ssh <device> 'docker logs --tail 40 weda-power-agg'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/feature-aggregation/e2e-expect.json` |

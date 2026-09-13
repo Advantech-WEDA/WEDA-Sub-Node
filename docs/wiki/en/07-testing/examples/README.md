@@ -13,36 +13,53 @@ record only per-example results, so read that first.
 | **Environment** | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 | **This run** | **2026-09-10** — full rebuild, re-push, redeploy, with the device log captured per example |
 | **Previous run** | 2026-09-09 |
-| **Report schema** | v1.2 — see [Report schema](#report-schema) |
+| **Report schema** | v1.3 — see [Report schema](#report-schema) |
 
 ## Results
 
 Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy · then the four
 function checks. `—` = not applicable, `⏭️` = not executed.
 
-| # | Example | Verdict | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | External dependency |
-|---|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
-| 01 | [`feature-transform-pipeline`](01-feature-transform-pipeline.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds its simulator |
-| 02 | [`feature-custom-commands`](02-feature-custom-commands.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds its simulator |
-| 03 | [`http-air-quality`](03-http-air-quality.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | internet (MOENV API) |
-| 04 | [`http-stock-quotes`](04-http-stock-quotes.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | internet (TWSE) |
-| 05 | [`feature-aggregation`](05-feature-aggregation.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds two simulators |
-| 06 | [`opcua-basic`](06-opcua-basic.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds its simulator |
-| 07 | [`modbus-wise4012`](07-modbus-wise4012.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | real WISE-4012 — **refusing connections** |
-| 08 | [`modbus-wise4012-builder`](08-modbus-wise4012-builder.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | real WISE-4012 — **refusing connections** |
-| 09 | [`mqtt-image-chunked`](09-mqtt-image-chunked.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | MQTT broker (bundled) |
-| 10 | [`mqtt-isensing-wise4012`](10-mqtt-isensing-wise4012.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | MQTT broker (bundled) |
-| 11 | [`vision-object-detection`](11-vision-object-detection.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | MQTT broker (bundled) |
-| 12 | [`daq-proxy`](12-daq-proxy.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | pairs with `daq-collector` |
-| 13 | [`cfx-endpoint`](13-cfx-endpoint.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | CFX bridge (bundled RabbitMQ) |
-| 14 | [`daq-collector`](14-daq-collector.md) | ❌ BLOCKED | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | **real DAQ modules — absent** |
-| 15 | [`system-agent`](15-system-agent.md) | ⏭️ SKIP | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **a device of its own** |
+| # | Example | Verdict | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | 4.5 | External dependency |
+|---|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| 01 | [`feature-transform-pipeline`](01-feature-transform-pipeline.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds its simulator |
+| 02 | [`feature-custom-commands`](02-feature-custom-commands.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds its simulator |
+| 03 | [`http-air-quality`](03-http-air-quality.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | internet (MOENV API) |
+| 04 | [`http-stock-quotes`](04-http-stock-quotes.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | internet (TWSE) |
+| 05 | [`feature-aggregation`](05-feature-aggregation.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds two simulators |
+| 06 | [`opcua-basic`](06-opcua-basic.md) | ✅ PASS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | none — embeds its simulator |
+| 07 | [`modbus-wise4012`](07-modbus-wise4012.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | real WISE-4012 — **refusing connections** |
+| 08 | [`modbus-wise4012-builder`](08-modbus-wise4012-builder.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | real WISE-4012 — **refusing connections** |
+| 09 | [`mqtt-image-chunked`](09-mqtt-image-chunked.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | MQTT broker (bundled) |
+| 10 | [`mqtt-isensing-wise4012`](10-mqtt-isensing-wise4012.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | MQTT broker (bundled) |
+| 11 | [`vision-object-detection`](11-vision-object-detection.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | MQTT broker (bundled) |
+| 12 | [`daq-proxy`](12-daq-proxy.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | pairs with `daq-collector` |
+| 13 | [`cfx-endpoint`](13-cfx-endpoint.md) | ⚠️ PARTIAL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | CFX bridge (bundled RabbitMQ) |
+| 14 | [`daq-collector`](14-daq-collector.md) | ❌ BLOCKED | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | **real DAQ modules — absent** |
+| 15 | [`system-agent`](15-system-agent.md) | ⏭️ SKIP | ✅ | ✅ | — | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | ⏭️ | **a device of its own** |
 
-**11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP = 15** — and a SKIP is not a pass.
+**6 PASS · 7 PARTIAL · 1 BLOCKED · 1 SKIP = 15** — and a SKIP is not a pass.
 
 > **Count correction.** The previous edition of this page claimed *13 PASS · 1 PARTIAL · 1 BLOCKED ·
 > 1 SKIP*, which totals 16 for a 15-example suite; the table underneath it showed 12 PASS. The
 > verdict column is authoritative and the totals above are counted from it.
+
+## What changed with the 4.4 / 4.5 split
+
+Scoring the framework heartbeat apart from the example's own output moved five examples out of
+PASS. Each of them reached the platform and registered; none was ever seen doing its job.
+
+| Example | Was | Now | What 4.4 was standing in for |
+|---|---|---|---|
+| `mqtt-image-chunked` | ✅ PASS | ⚠️ PARTIAL | subscribed to the image topic; no frame ever arrived |
+| `mqtt-isensing-wise4012` | ✅ PASS | ⚠️ PARTIAL | subscribed to the iSensing topics; nothing published to them |
+| `vision-object-detection` | ✅ PASS | ⚠️ PARTIAL | subscribed to the vision topics; no CV container running |
+| `daq-proxy` | ✅ PASS | ⚠️ PARTIAL | the heartbeat alone; its upstream was blocked |
+| `cfx-endpoint` | ✅ PASS | ⚠️ PARTIAL | subscribed for 17 sensors; 17 is the subscription, not receipt |
+
+`modbus-wise4012`, `modbus-wise4012-builder` and `daq-collector` also lose their 4.4 mark: the
+excerpt kept for those reports carries no heartbeat line, which is not the same as the heartbeat
+being absent. Their §5 says so and names what would settle it.
 
 ## What changed since 2026-09-09
 
@@ -112,7 +129,7 @@ where to look without re-reading the page:
 |---|---|---|
 | — | Verdict banner | Verdict · test run date · device · environment |
 | 1 | **Subject under test** | Example, compose service, image, transport, external dependency, host endpoints, **required deployment overrides**, SubNode name, registered deviceId |
-| 2 | **Gate results** | The eight checks, one row each: gate · step id · check · result · **the evidence for that specific check** |
+| 2 | **Gate results** | The nine checks, one row each: gate · step id · check · result · **the evidence for that specific check**. 4.4 is the framework heartbeat, 4.5 is the example's own job |
 | 3 | **Evidence log** | Verbatim device log lines, each tagged with the check it proves |
 | 4 | **Defects** | Table of id · severity · status · what the defect did *on this example*, then an **Analysis** paragraph |
 | 5 | **Not verified in this run** | Every unproven check, its reason, and what would unblock it |
@@ -126,7 +143,7 @@ Rules the schema enforces:
    and this run proved the point twice, on `modbus-wise4012` and `daq-collector`.
 2. **Evidence is keyed to a check.** A log line that proves nothing in particular does not belong in
    §3.
-3. **§5 always exists.** "Nothing — all eight checks were exercised" is a statement; an absent
+3. **§5 always exists.** "Nothing — all nine checks were exercised" is a statement; an absent
    section is not.
 4. **Severity and status travel with the defect**, so a reader knows D-08 is still open without
    opening the parent report.

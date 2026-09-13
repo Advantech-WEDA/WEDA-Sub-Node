@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2556ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=StockDemo-0909, DeviceId=355914199278288896` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ✅ | sensor values + `Reporting health` — see §3 |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [01:01:37 INF] Reporting health: DeviceId=355914199278288896, IsHealthy=True, CpuUsage=79.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ✅ | [01:01:37 INF]   TSMC Current Price (stock_2330_current): 2445 TWD |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -63,13 +65,13 @@ Captured 2026-09-10; 85 lines total.
 [4.3] [01:01:37 INF] Found existing SubNode registration: DeviceName=StockDemo-0909, DeviceId=355914199278288896
 [4.3] [01:01:37 INF] Configuration uploaded successfully: DeviceId=355914199278288896, Status=applied
 [4.4] [01:01:37 INF] Reporting health: DeviceId=355914199278288896, IsHealthy=True, CpuUsage=79.79%, MemoryUsage=1.61%, Topic=eco1j.weda.355914199278288896.health, ReqSeqId=1
-[4.4] [01:01:37 INF]   Advantech Open Price (stock_2395_open): 647 TWD
-[4.4] [01:01:37 INF]   Advantech High Price (stock_2395_high): 658 TWD
-[4.4] [01:01:37 INF]   Advantech Low Price (stock_2395_low): 647 TWD
-[4.4] [01:01:37 INF]   Advantech Volume (stock_2395_volume): 100 shares
-[4.4] [01:01:37 INF]   TSMC Current Price (stock_2330_current): 2445 TWD
-[4.4] [01:01:37 INF]   TSMC Open Price (stock_2330_open): 2445 TWD
-[4.4] [01:01:37 INF]   TSMC High Price (stock_2330_high): 2450 TWD
+[4.5] [01:01:37 INF]   Advantech Open Price (stock_2395_open): 647 TWD
+[4.5] [01:01:37 INF]   Advantech High Price (stock_2395_high): 658 TWD
+[4.5] [01:01:37 INF]   Advantech Low Price (stock_2395_low): 647 TWD
+[4.5] [01:01:37 INF]   Advantech Volume (stock_2395_volume): 100 shares
+[4.5] [01:01:37 INF]   TSMC Current Price (stock_2330_current): 2445 TWD
+[4.5] [01:01:37 INF]   TSMC Open Price (stock_2330_open): 2445 TWD
+[4.5] [01:01:37 INF]   TSMC High Price (stock_2330_high): 2450 TWD
 ```
 
 ## 4. Defects
@@ -86,7 +88,7 @@ Live market data reaching the cloud, which is the half D-06 used to break. The v
 
 ## 5. Not verified in this run
 
-Nothing. All eight checks were exercised and observed.
+Nothing. All nine checks were exercised and observed.
 
 ## 6. Re-running this test
 
@@ -94,8 +96,8 @@ Nothing. All eight checks were exercised and observed.
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh http-stock-quotes
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh http-stock-quotes <compose-file> weda-stock
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh http-stock-quotes
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-stock'
@@ -109,5 +111,5 @@ ssh <device> 'docker logs --tail 40 weda-stock'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/http-stock-quotes/e2e-expect.json` |

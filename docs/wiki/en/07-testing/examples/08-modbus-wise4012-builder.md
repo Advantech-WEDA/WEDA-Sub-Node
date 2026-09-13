@@ -35,9 +35,10 @@ tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, s
 
 ## 2. Gate results
 
-Four gates, eight checks. **A container reported `running` satisfies check 4.1 and nothing else** —
-it is not evidence for 4.2, 4.3 or 4.4. Every row stands on its own observation, quoted from the
-device's own log in §3.
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
 | Gate | Step | Check | Result | Evidence |
 |---|---|---|:-:|---|
@@ -48,7 +49,8 @@ device's own log in §3.
 | **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
 | **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.2753ms` |
 | **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=ModbusBDemo-0909, DeviceId=355911829806907392` |
-| **Function** | E2E-EXD-4.4 | Producing its own telemetry | ❌ | `SocketException (111): Connection refused` against `172.16.8.122:502` |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ⚠️ | not quoted — the §3 excerpt carries no `Reporting health` line, and the full log was not kept |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ❌ | Same WISE-4012 as modbus-wise4012, same refusal. Pattern to be filled from the first successful read. |
 
 > **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
@@ -61,8 +63,8 @@ Captured 2026-09-10; 86 lines total.
 [4.2] [01:14:10 INF] NATS connection verified - RTT: 0.2753ms
 [4.2] [01:14:10 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
 [4.3] [01:14:10 INF] Found existing SubNode registration: DeviceName=ModbusBDemo-0909, DeviceId=355911829806907392
-[4.4-fail] [01:14:10 ERR] Failed to connect to TCP at 172.16.8.122:502
-[4.4-fail] System.Net.Sockets.SocketException (111): Connection refused
+[4.5-fail] [01:14:10 ERR] Failed to connect to TCP at 172.16.8.122:502
+[4.5-fail] System.Net.Sockets.SocketException (111): Connection refused
 ```
 
 ## 4. Defects
@@ -79,7 +81,8 @@ PARTIAL for the second run running, same cause as its sibling. It now carries a 
 
 | Check left unproven | Why | What would unblock it |
 |---|---|---|
-| E2E-EXD-4.4 — telemetry from the field device | same unreachable WISE-4012; 18 connection failures in the captured log | power the WISE-4012 / restart its Modbus service, then re-run |
+| E2E-EXD-4.5 — telemetry from the field device | same unreachable WISE-4012; 18 connection failures in the captured log | power the WISE-4012 / restart its Modbus service, then re-run |
+| E2E-EXD-4.4 — the heartbeat | the excerpt kept for this report does not include it | re-run and keep the whole log; `deploy-verify.sh` writes it to `artifacts/e2e/` |
 
 > **A gap listed here is not a pass.** It is recorded so the next run closes it rather than rediscovering it.
 
@@ -89,8 +92,8 @@ PARTIAL for the second run running, same cause as its sibling. It now carries a 
 # 1. Build and publish — the repository root is the build context; the script enforces it
 ./scripts/build-push-image.sh modbus-wise4012-builder
 
-# 2. Deploy the revision through container-management and assert 4.1-4.4
-./scripts/deploy-verify.sh modbus-wise4012-builder <compose-file> weda-modbusb
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh modbus-wise4012-builder
 
 # 3. Confirm on the device itself
 ssh <device> 'docker logs --tail 40 weda-modbusb'
@@ -104,5 +107,5 @@ ssh <device> 'docker logs --tail 40 weda-modbusb'
 | **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
 | **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
 | **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
-| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.4 separately and capture the full container log |
-| **Report schema** | v1.2 — see [the schema note](README.md#report-schema) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/modbus-wise4012-builder/e2e-expect.json` |
