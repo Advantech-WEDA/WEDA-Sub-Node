@@ -54,6 +54,19 @@ Every example follows the same four-file configuration shape:
 | `customcfg.json` | Example-specific switches, including whether to use the mock cloud |
 | `appsettings.json` | Logging |
 
+Each example ships two compose files. `docker-compose.yml` builds the image from this
+checkout and bind-mounts the four JSON files, which is what you want on a development machine.
+`docker-compose.deploy.yml` pulls a published image whose configuration is already baked in, and
+mounts nothing but the state directory — that is the one a device uses, whether deployed through
+container-management or driven by hand over SSH. See
+[Build, push and deploy an example image](../docs/wiki/en/02-getting-started/09-build-push-deploy-images.md).
+
+The repository holds an empty WedaNode password - the value belongs to the node you are connecting
+to, not to the example. For local development, copy `.env.example` to `.env` and fill it in;
+docker compose reads `.env` automatically, and `.env` is gitignored. An image built for delivery
+gets the password written in at build time instead, so whoever receives it needs only the image
+and `docker-compose.deploy.yml`; `scripts/package-example.sh` puts those two together.
+
 Each example's `docker-compose.yml` also persists `/app/.weda` — the accepted SubNode registration
 and the recording store — through `WEDA_DATA_PATH`, which defaults to the on-device convention
 `/opt/Advantech/weda/node/{containerServiceName}`. Point it somewhere else when you want the state
