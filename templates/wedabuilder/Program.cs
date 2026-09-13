@@ -6,8 +6,16 @@ using Weda.SubNode.Simulators.Modbus;
 
 using WedaBuilder;
 
-var builder = WedaApplication.CreateDefaultBuilder(args)
-    .UseMockCloud();
+var builder = WedaApplication.CreateDefaultBuilder(args);
+
+// Cloud target is configuration-driven, so the same build runs either way and nothing has to be
+// edited to reach a real WedaNode:
+//   customcfg.json "UseMockCloud": true  -> telemetry is logged locally, no WedaNode needed
+//   customcfg.json "UseMockCloud": false -> published to the WedaNode in systemcfg.json
+if (bool.TryParse(builder.Configuration["CustomConfig:UseMockCloud"], out var useMockCloud) && useMockCloud)
+{
+    builder.UseMockCloud();
+}
 
 // Register Modbus simulator as hosted service (starts automatically with the app)
 builder.Services.AddHostedService(sp =>
