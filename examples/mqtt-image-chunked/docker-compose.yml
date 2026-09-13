@@ -1,15 +1,17 @@
 services:
-  # MQTT Broker - Eclipse Mosquitto
+  # MQTT broker for the image payloads. Host networking, not a published port: the SubNode below
+  # uses host networking, and a stack that mixes the two cannot be deployed to a device - the
+  # agent programs the project network's veth into the host namespace and the host-mode container
+  # is created but never starts, with no logs at all.
+  #
+  # The stock image ships no usable config; write a minimal anonymous listener before starting.
+  # Overriding only `command:` is swallowed by the image entrypoint, so `entrypoint:` goes too.
   mqtt:
     image: eclipse-mosquitto:2
     container_name: image-sensor-mqtt
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+    network_mode: host
+    entrypoint: ["/bin/sh","-c"]
+    command: ["printf 'listener 1883 0.0.0.0\\nallow_anonymous true\\n' > /tmp/mosquitto.conf && exec mosquitto -c /tmp/mosquitto.conf"]
     restart: unless-stopped
 
   # ImageSensor Application
@@ -27,7 +29,7 @@ services:
       # AuthStrategy: None | UserPassword | Token | TlsCert | CredFile
       - SystemConfig__WedaNode__AuthStrategy=${WEDA_NODE_AUTH_STRATEGY:-UserPassword}
       - SystemConfig__WedaNode__Username=${WEDA_NODE_USERNAME:-advantech_nats}
-      - SystemConfig__WedaNode__Password=${WEDA_NODE_PASSWORD:-}
+      - SystemConfig__WedaNode__Password=${WEDA_NATS_PASSWORD:-}
       - SystemConfig__WedaNode__Token=${WEDA_NODE_TOKEN:-}
       - SystemConfig__WedaNode__CredFile=${WEDA_NODE_CRED_FILE:-}
       - SystemConfig__WedaNode__TlsCertPath=${WEDA_NODE_TLS_CERT_PATH:-}

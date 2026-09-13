@@ -1,3 +1,8 @@
+# Development only: runs the example against the standalone Modbus simulator on one machine.
+#
+# Not deployable. The simulator publishes a port while the SubNode uses host networking, which a
+# device's agent cannot deploy, and the registration is kept beside the project rather than under
+# /opt/Advantech. Use docker-compose.deploy.yml for a device.
 services:
   simulator:
     build:
