@@ -28,10 +28,10 @@ services:
     restart: unless-stopped
     environment:
       # === SystemConfig.WedaNode (NATS connection to WedaNode) ===
-      - SystemConfig__WedaNode__Url=${WEDA_NODE_URL:-127.0.0.1:4222}
+      - SystemConfig__WedaNode__Url=${WEDA_NODE_URL:-127.0.0.1:4224}
       - SystemConfig__WedaNode__AuthStrategy=${WEDA_NODE_AUTH_STRATEGY:-UserPassword}
-      - SystemConfig__WedaNode__Username=${WEDA_NODE_USERNAME:-}
-      - SystemConfig__WedaNode__Password=${WEDA_NODE_PASSWORD:-}
+      - SystemConfig__WedaNode__Username=${WEDA_NODE_USERNAME:-advantech_nats}
+      - SystemConfig__WedaNode__Password=${WEDA_NATS_PASSWORD:-}
       - SystemConfig__WedaNode__Token=${WEDA_NODE_TOKEN:-}
       - SystemConfig__WedaNode__CredFile=${WEDA_NODE_CRED_FILE:-}
       # === DeviceConfig: MQTT source (the CV container's broker + device id) ===
