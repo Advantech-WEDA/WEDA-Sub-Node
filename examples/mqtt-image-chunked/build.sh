@@ -2,17 +2,25 @@
 # Multi-arch build & push for the ImageSensor example.
 #
 # Usage:
+#   PUSH=false ./build.sh                   # local single-arch build (--load), no registry
 #   ./build.sh                              # build & push :latest for amd64+arm64
 #   IMAGE_TAG=v1.0.0 ./build.sh             # custom tag
 #   PLATFORMS=linux/arm64 ./build.sh        # single-arch
-#   PUSH=false ./build.sh                   # local build (single platform only)
+#
+# For most users, `docker compose up --build` is enough — it builds the image locally
+# and no registry is involved. Use this script only to publish a multi-arch image to
+# your own registry, e.g.:
+#   IMAGE_REPO=docker.io/youruser/image-sensor ./build.sh
+#   IMAGE_REPO=harbor.example.com/team/image-sensor ./build.sh   # after `docker login`
 
 set -euo pipefail
 
-IMAGE_REPO="${IMAGE_REPO:-harbor.arfa.wise-paas.com/edge-coa/image-sensor}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+# Default is a plain local tag (no registry). Override IMAGE_REPO to push elsewhere.
+IMAGE_REPO="${IMAGE_REPO:-image-sensor}"
+IMAGE_TAG="${IMAGE_TAG:-local}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
-PUSH="${PUSH:-true}"
+# Default to a local build: pushing requires an IMAGE_REPO you have access to.
+PUSH="${PUSH:-false}"
 BUILDER_NAME="${BUILDER_NAME:-image-sensor-builder}"
 
 # Repo root = two levels up from this script.
