@@ -33,7 +33,7 @@ public record DeviceCapDto(
     [property: JsonPropertyName("manufacturer")] string Manufacturer,
     [property: JsonPropertyName("model")] string Model,
     [property: JsonPropertyName("deviceType")] string SubNodeType,
-    [property: JsonPropertyName("subDeviceSwVersion")] string SubNodeSwVersion,
+    [property: JsonPropertyName("swVersion")] string SubNodeSwVersion,
     [property: JsonPropertyName("deviceName")] string DeviceName,
     [property: JsonPropertyName("deviceInfo")] Dictionary<string, object> DeviceInfo,
     [property: JsonPropertyName("sensors")] IReadOnlyList<SensorDto> Sensors,
