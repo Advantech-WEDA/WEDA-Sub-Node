@@ -32,7 +32,6 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
 [Logging(LogLevel.Information)]
-[AutoAck(false)]
 public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownCommand, SystemShutdownResult>
 {
     // glibc reboot() wrapper takes only 1 argument (cmd). Magic numbers are handled internally by glibc.
@@ -50,7 +49,6 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
         var logger = context.GetLogger<SystemShutdownCommandHandler>();
         var cloudService = context.CloudService;
         var deviceId = context.SubNodeInfo.Id;
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var delaySeconds = Math.Max(command.Parameters.DelaySeconds, 0);
 
@@ -74,8 +72,7 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
                 RuntimeInformation.OSDescription);
             return SystemShutdownResult.Error(
                 SystemCommandStatusCode.NotSupported,
-                $"System shutdown via container is only supported on Linux. Current platform: {RuntimeInformation.OSDescription}",
-                executedAt);
+                $"System shutdown via container is only supported on Linux. Current platform: {RuntimeInformation.OSDescription}");
         }
 
         // 2b. Verify at least one escalation path can reach the host. sysrq needs no pid: host;
@@ -91,8 +88,7 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
             logger.LogError("Cannot shut down host: {Reason}", detail);
             return SystemShutdownResult.Error(
                 SystemCommandStatusCode.NotSupported,
-                $"Cannot shut down host: {detail}",
-                executedAt);
+                $"Cannot shut down host: {detail}");
         }
 
         if (!sysrqAvailable)
@@ -123,7 +119,7 @@ public class SystemShutdownCommandHandler : ICommandHandler<SystemShutdownComman
         }, CancellationToken.None);
 
         // 4. Return result indicating shutdown is commencing
-        return SystemShutdownResult.Success(resultData, executedAt);
+        return SystemShutdownResult.Success(resultData);
     }
 
     /// <summary>

@@ -26,7 +26,6 @@ public class GetDevicePropsCommandHandler
         IWedaApplicationContext context,
         CancellationToken cancellationToken = default)
     {
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var options = new Dictionary<string, string>(
             command.Parameters?.Options ?? [], StringComparer.OrdinalIgnoreCase);
         options.TryGetValue("deviceName", out var deviceName);
@@ -45,12 +44,10 @@ public class GetDevicePropsCommandHandler
                 CommandStatusCode.NotFound,
                 string.IsNullOrWhiteSpace(deviceName)
                     ? "No devices are registered"
-                    : $"Device '{deviceName}' not found",
-                executedAt)
+                    : $"Device '{deviceName}' not found")
             : GetDevicePropsResult.Success(
                 devices.ToDictionary(d => d.DeviceName,
-                    d => BuildProps(d, includeSensors), StringComparer.OrdinalIgnoreCase),
-                executedAt);
+                    d => BuildProps(d, includeSensors), StringComparer.OrdinalIgnoreCase));
 
         context.GetLogger<GetDevicePropsCommandHandler>().LogInformation(
             "props.get: DeviceName={DeviceName}, IncludeSensors={IncludeSensors} -> {Count} device(s), Status={Status}",
