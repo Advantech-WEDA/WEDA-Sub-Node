@@ -1,7 +1,8 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 using Shouldly;
 
+using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Cloud.Serialization;
 
@@ -210,8 +211,7 @@ public class CamelCaseUploadTests
                 Status = ConfigUpdateStatus.Success,
                 LastUpdateTime = DateTimeOffset.UnixEpoch
             },
-            sdkVersion: "0.0.5",
-            schemaVersion: 2);
+            new SubNodeInfo { Name = "x" });
 
         var report = new SubNodeConfigUpdateMessage
         {
@@ -244,9 +244,11 @@ public class CamelCaseUploadTests
         var subNode = devicecfg.GetProperty("subNode");
         subNode.GetProperty("name").GetString().ShouldBe("x");
 
-        // The SDK-injected version keys survive and stay camelCase (idempotent).
-        subNode.GetProperty("sdkVersion").GetString().ShouldBe("0.0.5");
-        subNode.GetProperty("schemaVersion").GetInt32().ShouldBe(2);
+        // The SDK-injected version keys survive and stay camelCase. Both are read
+        // from the read-only statics, not from the SubNodeInfo instance, so the
+        // cloud cannot be told a version the build does not carry.
+        subNode.GetProperty("sdkVersion").GetString().ShouldBe(SubNodeInfo.CurrentSdkVersion);
+        subNode.GetProperty("schemaVersion").GetInt32().ShouldBe(SubNodeInfo.CurrentSchemaVersion);
 
         // Dictionary keys under Parameters are camelCase.
         var parameters = devicecfg
