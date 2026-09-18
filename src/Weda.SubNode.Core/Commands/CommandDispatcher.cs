@@ -110,11 +110,15 @@ public class CommandDispatcher(
         // Extract metadata from command (RespTopic, Timeout)
         var metadata = ExtractCommandMetadata(command, commandName);
 
+        // executedAt is stamped when the command is accepted for execution (the ack point),
+        // and reused as the fallback for the final result when the handler does not supply its own.
+        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
         // Send "Received" response if RespTopic is provided and auto ack is enabled
         if (!string.IsNullOrEmpty(metadata.RespTopic) && registration.AutoAckEnabled)
         {
             await SendResponseAsync(metadata.RespTopic,
-                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId));
+                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId, executedAt: executedAt));
         }
 
         try
@@ -170,7 +174,9 @@ public class CommandDispatcher(
                 {
                     if (result.Value is IResult typedResult)
                     {
-                        // Use IResult properties for structured response
+                        // Use IResult properties for structured response. Fall back to the
+                        // ack-time executedAt when the handler did not stamp its own, so every
+                        // response in the lifecycle carries a start time.
                         var response = new CommandResponse
                         {
                             DeviceId = context.SubNodeInfo.Id ?? "",
@@ -183,7 +189,7 @@ public class CommandDispatcher(
                                 Status = typedResult.Status,
                                 Message = typedResult.Message,
                                 ResultData = typedResult.ResultData,
-                                ExecutedAt = typedResult.ExecutedAt,
+                                ExecutedAt = typedResult.ExecutedAt ?? executedAt,
                                 CompletedAt = typedResult.CompletedAt
                             }
                         };
@@ -192,9 +198,10 @@ public class CommandDispatcher(
                     else
                     {
                         // Fallback for non-IResult responses
-                        await SendResponseAsync(metadata.RespTopic,
-                            CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
-                                CommandStatusCode.Success, null, result.Value, message.ReqSeqId));
+                        var response = CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
+                            CommandStatusCode.Success, null, result.Value, message.ReqSeqId);
+                        response.Data!.ExecutedAt = executedAt;
+                        await SendResponseAsync(metadata.RespTopic, response);
                     }
                 }
             }

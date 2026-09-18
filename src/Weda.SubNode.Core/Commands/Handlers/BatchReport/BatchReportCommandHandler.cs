@@ -134,7 +134,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         // Send initial ack with estimates (include SeqId and ReqSeqId from command)
         await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic!, command.DeviceCmd,
             command.SeqId, command.ReqSeqId, estimate.EstimatedBatches, estimate.EstimatedSamples,
-            estimate.EstimatedDurationSeconds, logger, cancellationToken);
+            estimate.EstimatedDurationSeconds, executedAt, logger, cancellationToken);
 
         // Step 2. Query and batch send with timeout support
         var batchBuffer = new List<BatchTelemetryMeasureDto>();
@@ -179,7 +179,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                         TotalSamples = estimate.EstimatedSamples,
                         PercentComplete = Math.Round((double)processedSensors.Count / sensorIds.Count * 100, 1)
                     }
-                }, logger, linkedToken);
+                }, executedAt, logger, linkedToken);
 
             if (command.Parameters.TransmissionRateLimit > 0)
             {
@@ -527,6 +527,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         ulong seqId,
         string? reqSeqId,
         BatchReportProgress progress,
+        long executedAt,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -546,6 +547,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                     MsgType = "progress",
                     Status = CommandStatusCode.Success,
                     Message = "Progress update",
+                    ExecutedAt = executedAt,
                     ResultData = progress.Progress
                 }
             };
@@ -570,6 +572,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         int estimatedBatches,
         int estimatedSamples,
         int estimatedDurationSeconds,
+        long executedAt,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -589,6 +592,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                     MsgType = "ack",
                     Status = CommandStatusCode.Success,
                     Message = "Historical data query started",
+                    ExecutedAt = executedAt,
                     ResultData = new
                     {
                         estimatedBatches,

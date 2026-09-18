@@ -115,6 +115,32 @@ public class CommandDispatcherStep0Tests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task Dispatch_stamps_executedAt_on_auto_ack_response()
+    {
+        // The auto-ack marks when the command was received/started executing.
+        // executedAt must be present on that ack, not only on the final result,
+        // so a consumer can read a start time from the very first response.
+        var dispatcher = new CommandDispatcher(_registry, _context, dtdlValidationOptions: null);
+
+        var message = BuildMessage("do.set", new
+        {
+            outputs = new[] { new { name = "do_0", state = true } },
+        });
+
+        var responses = new List<CommandResponse>();
+        _context.MockCloudService
+            .SendCommandResponseAsync(Arg.Any<string>(), Arg.Do<CommandResponse>(responses.Add), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        await dispatcher.DispatchAsync(message);
+
+        var ack = responses.SingleOrDefault(r => r.Data!.MsgType == "ack");
+        ack.ShouldNotBeNull();
+        ack.Data!.ExecutedAt.ShouldNotBeNull();
+        ack.Data.ExecutedAt.Value.ShouldBeGreaterThan(0);
+    }
+
     private static CommandMessage BuildMessage(string deviceCmd, object parameters)
     {
         var envelope = new

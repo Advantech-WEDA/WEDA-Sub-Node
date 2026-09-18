@@ -181,6 +181,44 @@ public class BatchReportCommandHandlerTests : IDisposable
 
     #endregion
 
+    #region ExecutedAt Lifecycle
+
+    [Fact]
+    public async Task HandleAsync_StampsExecutedAtOnAckProgressAndResult_WithSameValue()
+    {
+        // Arrange - data present so the handler flushes at least one batch and emits a progress update.
+        SetupSensors("sensor-a", "sensor-b");
+        SetupRecordings("sensor-a", Measure(interval: 1000, values: [1.0, 2.0]));
+        SetupRecordings("sensor-b", Measure(interval: 1000, values: [3.0]));
+
+        var responses = new List<CommandResponse>();
+        _context.MockCloudService
+            .SendCommandResponseAsync(Arg.Any<string>(), Arg.Do<CommandResponse>(responses.Add), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await _handler.HandleAsync(CreateCommand(), _context);
+
+        // Assert - result carries executedAt (already the case before the fix).
+        result.IsError.ShouldBeFalse();
+        var executedAt = result.Value.ExecutedAt;
+        executedAt.ShouldBeGreaterThan(0);
+
+        // The ack and every progress update must carry the same executedAt as the result.
+        var ack = responses.SingleOrDefault(r => r.Data!.MsgType == "ack");
+        ack.ShouldNotBeNull();
+        ack.Data!.ExecutedAt.ShouldBe(executedAt);
+
+        var progressResponses = responses.Where(r => r.Data!.MsgType == "progress").ToList();
+        progressResponses.ShouldNotBeEmpty();
+        foreach (var progress in progressResponses)
+        {
+            progress.Data!.ExecutedAt.ShouldBe(executedAt);
+        }
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private void SetupSensors(params string[] sensorIds) =>
