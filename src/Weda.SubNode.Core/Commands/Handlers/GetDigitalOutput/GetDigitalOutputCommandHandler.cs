@@ -33,7 +33,6 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<GetDigitalOutputCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var values = new List<DigitalOutputValue>();
         var errors = new List<DigitalOutputError>();
@@ -45,8 +44,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
         {
             return GetDigitalOutputResult.Error(
                 CommandStatusCode.UnsupportedCommand,
-                "No devices support digital output reading",
-                executedAt);
+                "No devices support digital output reading");
         }
 
         // Filter by device name if specified
@@ -60,8 +58,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
             {
                 return GetDigitalOutputResult.Error(
                     CommandStatusCode.NotFound,
-                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital output reading",
-                    executedAt);
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital output reading");
             }
 
             targetDevices = [specificDevice];
@@ -118,8 +115,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
             {
                 return GetDigitalOutputResult.Error(
                     CommandStatusCode.Timeout,
-                    $"Command execution timed out after {command.Timeout} seconds",
-                    executedAt);
+                    $"Command execution timed out after {command.Timeout} seconds");
             }
         }
 
@@ -131,26 +127,24 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
 
         if (errors.Count == 0 && values.Count > 0)
         {
-            return GetDigitalOutputResult.Success(resultData, executedAt);
+            return GetDigitalOutputResult.Success(resultData);
         }
 
         if (values.Count > 0 && errors.Count > 0)
         {
-            return GetDigitalOutputResult.PartialSuccess(resultData, executedAt);
+            return GetDigitalOutputResult.PartialSuccess(resultData);
         }
 
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetDigitalOutputResult.Error(
                 CommandStatusCode.HardwareError,
-                $"Failed to read any outputs: {errors[0].Error}",
-                executedAt);
+                $"Failed to read any outputs: {errors[0].Error}");
         }
 
         return GetDigitalOutputResult.Error(
             CommandStatusCode.HardwareError,
-            "No outputs available to read",
-            executedAt);
+            "No outputs available to read");
     }
 
     private static async Task<(IDigitalOutputReadable? device, bool? state, string? error)> TryReadOutputAsync(

@@ -106,7 +106,6 @@ public class CommandRegistry
 
             // Scan handler attributes to build behavior configurations
             var behaviorConfigs = ScanHandlerAttributes(type);
-            var autoAckEnabled = IsAutoAckEnabled(type);
 
             var parameterType = GetCommandParameterType(commandType);
             var description = commandType.GetCustomAttribute<DescriptionAttribute>()?.Description;
@@ -134,7 +133,6 @@ public class CommandRegistry
                 ResultType: resultType,
                 HandlerType: type,
                 BehaviorConfigurations: behaviorConfigs,
-                AutoAckEnabled: autoAckEnabled,
                 ParameterType: parameterType,
                 Description: description,
                 Schema: schema,
@@ -197,8 +195,9 @@ public class CommandRegistry
     /// Parameters / Result Object schemas in <c>schemas[]</c>.
     /// </summary>
     private static JsonObject EmitMergedCommandSchema(
-        string commandName, Type requestType, Type responseType, string? description) =>
-        WedaDtdlEmitter.EmitCommand(
+        string commandName, Type requestType, Type responseType, string? description)
+    {
+        var schema = WedaDtdlEmitter.EmitCommand(
             new WedaDtdlEmitter.Options(
                 Prefix: "dtmi:advantech:weda",
                 Category: "command",
@@ -208,6 +207,45 @@ public class CommandRegistry
             commandName: SanitizeDtdlName(commandName),
             requestType: requestType,
             responseType: responseType);
+
+        // executedAt/completedAt are framework-owned response fields (stamped by
+        // CommandDispatcher, not by the handler result). Handler result models no longer
+        // declare them, so the emitter does not see them — declare them on the Result
+        // Object here so the DTDL contract stays in sync with the runtime response payload.
+        EnsureFrameworkTimestampFields(schema);
+        return schema;
+    }
+
+    private static void EnsureFrameworkTimestampFields(JsonObject schema)
+    {
+        if (schema["schemas"] is not JsonArray schemas)
+            return;
+
+        var resultObject = schemas
+            .OfType<JsonObject>()
+            .FirstOrDefault(s => s["@id"]?.GetValue<string>()?.EndsWith(":Result;1") == true
+                && s["@type"]?.GetValue<string>() == "Object");
+
+        if (resultObject?["fields"] is not JsonArray fields)
+            return;
+
+        foreach (var name in new[] { "executedAt", "completedAt" })
+        {
+            var present = fields.OfType<JsonObject>()
+                .Any(f => f["name"]?.GetValue<string>() == name);
+            if (present)
+                continue;
+
+            fields.Add(new JsonObject
+            {
+                ["@type"] = new JsonArray("Field", "ConfigConstraint"),
+                ["name"] = name,
+                ["schema"] = "long",
+                ["required"] = false,
+                ["writable"] = true
+            });
+        }
+    }
 
     /// <summary>
     /// Mirror of WedaDtdlEmitter's separator replacement, applied to the
@@ -264,15 +302,6 @@ public class CommandRegistry
         }
 
         return configs;
-    }
-
-    /// <summary>
-    /// Checks if auto ack is enabled for the handler type.
-    /// </summary>
-    private static bool IsAutoAckEnabled(Type handlerType)
-    {
-        var autoAckAttr = handlerType.GetCustomAttribute<AutoAckAttribute>();
-        return autoAckAttr?.Enabled ?? true; // Default is enabled
     }
 
     /// <summary>
@@ -581,7 +610,6 @@ public record CommandRegistration(
     Type HandlerType,
     object? HandlerInstance = null,
     IReadOnlyList<BehaviorConfiguration>? BehaviorConfigurations = null,
-    bool AutoAckEnabled = true,
     Type? ParameterType = null,
     string? Description = null,
     JsonObject? Schema = null,

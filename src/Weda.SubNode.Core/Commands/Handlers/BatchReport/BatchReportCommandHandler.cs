@@ -14,12 +14,12 @@ namespace Weda.SubNode.Core.Commands.Handlers.BatchReport;
 /// Handler for the "report" command that queries historical telemetry and sends batch records.
 /// </summary>
 /// <remarks>
-/// Response handling (Received/Success/Failed) is managed by CommandDispatcher.
-/// This handler sends its own initial ack with estimated metrics, so auto ack is disabled.
+/// Response handling (ack/Success/Failed) and the executedAt/completedAt timestamps are
+/// managed by CommandDispatcher. This handler only emits interim progress updates during
+/// the batch send; it reads the framework-stamped executedAt off the command.
 /// </remarks>
 [Validation(typeof(BatchReportCommandValidator))]
 [Logging(LogLevel.Information)]
-[AutoAck(false)]
 public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, BatchReportResult>
 {
     /// <summary>
@@ -36,7 +36,9 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         var recordingService = context.RecordingService;
         var cloudService = context.CloudService;
         var subNodeId = context.SubNodeInfo.Id;
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        // executedAt is stamped by the framework at ack time and written onto the command;
+        // reuse it so any progress this handler emits carries the same value as the ack/result.
+        var executedAt = command.ExecutedAt;
 
         // Validate recording service is available
         if (recordingService is null)
@@ -44,8 +46,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.HardwareError,
                 "STORAGE_UNAVAILABLE",
-                "RecordingService is not configured",
-                executedAt);
+                "RecordingService is not configured");
         }
 
         // Validate SubNode is registered
@@ -54,8 +55,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.PermissionDenied,
                 "NOT_REGISTERED",
-                "SubNode is not registered",
-                executedAt);
+                "SubNode is not registered");
         }
 
         // Get effective time range (applies defaults if TimeRange is null)
@@ -67,8 +67,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.ValidationFailed,
                 "INVALID_TIME_RANGE",
-                "Start time must be before end time",
-                executedAt);
+                "Start time must be before end time");
         }
 
         var maxQueryDays = context.RecordingOptions?.MaxQueryTimeRangeDays ?? 30;
@@ -80,8 +79,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 return BatchReportResult.Error(
                     CommandStatusCode.ValidationFailed,
                     "TIME_RANGE_TOO_LARGE",
-                    $"Time range exceeds maximum of {maxQueryDays} days",
-                    executedAt);
+                    $"Time range exceeds maximum of {maxQueryDays} days");
             }
         }
 
@@ -99,8 +97,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.HardwareError,
                 "STORAGE_ERROR",
-                sensorIdsResult.FirstError.Description,
-                executedAt);
+                sensorIdsResult.FirstError.Description);
         }
 
         var sensorIds = FilterSensors(sensorIdsResult.Value, command.Parameters.SensorFilter);
@@ -116,8 +113,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                     TotalSamples = 0,
                     TimeRange = BatchReportTimeRange.FromUnixTimeMs(effectiveTimeRange.StartTime, effectiveTimeRange.EndTime),
                     Sensors = []
-                },
-                executedAt);
+                });
         }
 
         logger.LogDebug("Processing {Count} sensors", sensorIds.Count);
@@ -126,15 +122,11 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         // data gap reported at the end.
         var sensorIntervals = BuildSensorIntervalLookup(context);
 
-        // Calculate estimated metrics for initial ack based on sensor intervals and command parameters
+        // Calculate estimated metrics used to populate the progress totals. The framework sends
+        // the ack (carrying executedAt); this handler no longer emits its own ack.
         var estimate = CalculateEstimatedMetrics(
             sensorIds, effectiveTimeRange, command.Parameters.MaxBatchesPerMessage, command.Parameters.MaxBatchSize,
             command.Parameters.TransmissionRateLimit, sensorIntervals, logger);
-
-        // Send initial ack with estimates (include SeqId and ReqSeqId from command)
-        await SendInitialAckAsync(cloudService, subNodeId, command.RespTopic!, command.DeviceCmd,
-            command.SeqId, command.ReqSeqId, estimate.EstimatedBatches, estimate.EstimatedSamples,
-            estimate.EstimatedDurationSeconds, executedAt, logger, cancellationToken);
 
         // Step 2. Query and batch send with timeout support
         var batchBuffer = new List<BatchTelemetryMeasureDto>();
@@ -290,8 +282,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.Timeout,
                 "TIMEOUT",
-                $"Command execution exceeded {command.Timeout} seconds timeout",
-                executedAt);
+                $"Command execution exceeded {command.Timeout} seconds timeout");
         }
         catch (OperationCanceledException)
         {
@@ -299,8 +290,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.Timeout,
                 "CANCELLED",
-                "Operation was cancelled",
-                executedAt);
+                "Operation was cancelled");
         }
         catch (OutOfMemoryException ex)
         {
@@ -308,8 +298,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
             return BatchReportResult.Error(
                 CommandStatusCode.ResourceExhausted,
                 "RESOURCE_EXHAUSTED",
-                "Insufficient memory to load data. Reduce time range or batch size.",
-                executedAt);
+                "Insufficient memory to load data. Reduce time range or batch size.");
         }
 
         var completedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -352,7 +341,7 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
                 : null
         };
 
-        return BatchReportResult.Success(statusCode, message, resultData, executedAt, completedAt);
+        return BatchReportResult.Success(statusCode, message, resultData);
     }
 
     /// <summary>
@@ -559,57 +548,6 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to send progress update");
-        }
-    }
-
-    private static async Task SendInitialAckAsync(
-        IWedaCloudService cloudService,
-        string deviceId,
-        string respTopic,
-        string deviceCmd,
-        ulong seqId,
-        string? reqSeqId,
-        int estimatedBatches,
-        int estimatedSamples,
-        int estimatedDurationSeconds,
-        long executedAt,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(respTopic))
-            return;
-
-        try
-        {
-            var response = new CommandResponse
-            {
-                DeviceId = deviceId,
-                SeqId = seqId,
-                ReqSeqId = reqSeqId,
-                Data = new CommandResponseData
-                {
-                    DeviceCmd = deviceCmd,
-                    MsgType = "ack",
-                    Status = CommandStatusCode.Success,
-                    Message = "Historical data query started",
-                    ExecutedAt = executedAt,
-                    ResultData = new
-                    {
-                        estimatedBatches,
-                        estimatedSamples,
-                        estimatedDurationSeconds,
-                        storageAvailable = true
-                    }
-                }
-            };
-
-            await cloudService.SendCommandResponseAsync(respTopic, response, cancellationToken);
-            logger.LogDebug("Initial ack sent: estimated {Batches} batches, {Samples} samples, {Duration}s",
-                estimatedBatches, estimatedSamples, estimatedDurationSeconds);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to send initial ack");
         }
     }
 }

@@ -22,14 +22,4 @@ public interface IResult
     /// This will be serialized as the "resultData" field in CommandResponseData.
     /// </summary>
     object? ResultData => null;
-
-    /// <summary>
-    /// Timestamp when execution started (Unix milliseconds).
-    /// </summary>
-    long? ExecutedAt => null;
-
-    /// <summary>
-    /// Timestamp when execution completed (Unix milliseconds).
-    /// </summary>
-    long? CompletedAt => null;
 }

@@ -53,4 +53,13 @@ public class CommandData<TParameter> : ICommand<TParameter>
     /// </summary>
     [JsonIgnore]
     public string? ReqSeqId { get; set; }
+
+    /// <summary>
+    /// Time the command was accepted for execution (Unix milliseconds), stamped by the
+    /// framework when it sends the ack and written back here. Handlers that emit their own
+    /// progress responses read this so every response in the lifecycle carries the same
+    /// executedAt; handlers do not compute it themselves.
+    /// </summary>
+    [JsonIgnore]
+    public long ExecutedAt { get; set; }
 }

@@ -184,9 +184,14 @@ public class BatchReportCommandHandlerTests : IDisposable
     #region ExecutedAt Lifecycle
 
     [Fact]
-    public async Task HandleAsync_StampsExecutedAtOnAckProgressAndResult_WithSameValue()
+    public async Task HandleAsync_StampsFrameworkExecutedAtOnProgress()
     {
-        // Arrange - data present so the handler flushes at least one batch and emits a progress update.
+        // The framework stamps executedAt at ack time and writes it onto the command. This handler
+        // no longer sends its own ack nor computes a timestamp; every progress update it emits must
+        // carry the framework-stamped command.ExecutedAt so the whole lifecycle agrees.
+        const long frameworkExecutedAt = 1_700_000_000_000L;
+
+        // Data present so the handler flushes at least one batch and emits a progress update.
         SetupSensors("sensor-a", "sensor-b");
         SetupRecordings("sensor-a", Measure(interval: 1000, values: [1.0, 2.0]));
         SetupRecordings("sensor-b", Measure(interval: 1000, values: [3.0]));
@@ -196,24 +201,24 @@ public class BatchReportCommandHandlerTests : IDisposable
             .SendCommandResponseAsync(Arg.Any<string>(), Arg.Do<CommandResponse>(responses.Add), Arg.Any<CancellationToken>())
             .Returns(true);
 
+        var command = CreateCommand();
+        command.ExecutedAt = frameworkExecutedAt;
+
         // Act
-        var result = await _handler.HandleAsync(CreateCommand(), _context);
+        var result = await _handler.HandleAsync(command, _context);
 
-        // Assert - result carries executedAt (already the case before the fix).
+        // Assert
         result.IsError.ShouldBeFalse();
-        var executedAt = result.Value.ExecutedAt;
-        executedAt.ShouldBeGreaterThan(0);
 
-        // The ack and every progress update must carry the same executedAt as the result.
-        var ack = responses.SingleOrDefault(r => r.Data!.MsgType == "ack");
-        ack.ShouldNotBeNull();
-        ack.Data!.ExecutedAt.ShouldBe(executedAt);
+        // The handler no longer emits its own ack — that is the framework's job now.
+        responses.ShouldNotContain(r => r.Data!.MsgType == "ack");
 
+        // Every progress update carries the framework-stamped executedAt.
         var progressResponses = responses.Where(r => r.Data!.MsgType == "progress").ToList();
         progressResponses.ShouldNotBeEmpty();
         foreach (var progress in progressResponses)
         {
-            progress.Data!.ExecutedAt.ShouldBe(executedAt);
+            progress.Data!.ExecutedAt.ShouldBe(frameworkExecutedAt);
         }
     }
 

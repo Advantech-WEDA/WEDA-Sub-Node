@@ -110,12 +110,15 @@ public class CommandDispatcher(
         // Extract metadata from command (RespTopic, Timeout)
         var metadata = ExtractCommandMetadata(command, commandName);
 
-        // executedAt is stamped when the command is accepted for execution (the ack point),
-        // and reused as the fallback for the final result when the handler does not supply its own.
+        // executedAt is stamped by the framework when the command is accepted for execution
+        // (the ack point). It is written back onto the command so a handler that emits its own
+        // progress responses reuses the same value, and it is reused as the executedAt of the
+        // final result. The framework owns executedAt/completedAt end to end; handlers do not.
         var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        PopulateExecutedAt(command, executedAt);
 
-        // Send "Received" response if RespTopic is provided and auto ack is enabled
-        if (!string.IsNullOrEmpty(metadata.RespTopic) && registration.AutoAckEnabled)
+        // Framework always sends the ack, carrying executedAt.
+        if (!string.IsNullOrEmpty(metadata.RespTopic))
         {
             await SendResponseAsync(metadata.RespTopic,
                 CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId, executedAt: executedAt));
@@ -172,11 +175,14 @@ public class CommandDispatcher(
                 }
                 else
                 {
+                    // The framework owns the execution timestamps: executedAt is the ack-time
+                    // value stamped above, completedAt is stamped here when the result is sent.
+                    // Handlers no longer supply either.
+                    var completedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
                     if (result.Value is IResult typedResult)
                     {
-                        // Use IResult properties for structured response. Fall back to the
-                        // ack-time executedAt when the handler did not stamp its own, so every
-                        // response in the lifecycle carries a start time.
+                        // Use IResult properties for structured response.
                         var response = new CommandResponse
                         {
                             DeviceId = context.SubNodeInfo.Id ?? "",
@@ -189,8 +195,8 @@ public class CommandDispatcher(
                                 Status = typedResult.Status,
                                 Message = typedResult.Message,
                                 ResultData = typedResult.ResultData,
-                                ExecutedAt = typedResult.ExecutedAt ?? executedAt,
-                                CompletedAt = typedResult.CompletedAt
+                                ExecutedAt = executedAt,
+                                CompletedAt = completedAt
                             }
                         };
                         await SendResponseAsync(metadata.RespTopic, response);
@@ -201,6 +207,7 @@ public class CommandDispatcher(
                         var response = CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
                             CommandStatusCode.Success, null, result.Value, message.ReqSeqId);
                         response.Data!.ExecutedAt = executedAt;
+                        response.Data.CompletedAt = completedAt;
                         await SendResponseAsync(metadata.RespTopic, response);
                     }
                 }
@@ -427,6 +434,20 @@ public class CommandDispatcher(
 
         var reqSeqIdProperty = type.GetProperty("ReqSeqId", BindingFlags.Public | BindingFlags.Instance);
         reqSeqIdProperty?.SetValue(command, reqSeqId);
+    }
+
+    /// <summary>
+    /// Writes the framework-stamped executedAt onto the command so handlers that emit their own
+    /// progress responses reuse the same value instead of computing their own.
+    /// </summary>
+    private static void PopulateExecutedAt(object command, long executedAt)
+    {
+        var executedAtProperty = command.GetType()
+            .GetProperty("ExecutedAt", BindingFlags.Public | BindingFlags.Instance);
+        if (executedAtProperty?.CanWrite == true && executedAtProperty.PropertyType == typeof(long))
+        {
+            executedAtProperty.SetValue(command, executedAt);
+        }
     }
 
     /// <summary>
