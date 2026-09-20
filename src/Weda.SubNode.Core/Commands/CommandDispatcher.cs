@@ -117,11 +117,14 @@ public class CommandDispatcher(
         var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         PopulateExecutedAt(command, executedAt);
 
-        // Framework always sends the ack, carrying executedAt.
+        // Framework always sends the ack, carrying executedAt. A handler may enrich the ack with a
+        // payload (via ICommandHandler.AckAsync); failing to compute that payload must never fail
+        // the ack, so InvokeAckPayloadAsync swallows errors and yields null.
         if (!string.IsNullOrEmpty(metadata.RespTopic))
         {
+            var ackPayload = await registry.InvokeAckPayloadAsync(registration, command, context, cancellationToken);
             await SendResponseAsync(metadata.RespTopic,
-                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId, executedAt: executedAt));
+                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId, resultData: ackPayload, executedAt: executedAt));
         }
 
         try

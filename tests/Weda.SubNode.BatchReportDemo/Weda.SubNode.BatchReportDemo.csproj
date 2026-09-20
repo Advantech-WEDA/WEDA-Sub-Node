@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Weda SubNode SDK references (by project, so a run exercises the current source). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Weda.SubNode.Abstractions\Weda.SubNode.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Weda.SubNode.Core\Weda.SubNode.Core.csproj" />
+    <ProjectReference Include="..\..\src\Weda.SubNode.Host\Weda.SubNode.Host.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+  </ItemGroup>
+
+</Project>

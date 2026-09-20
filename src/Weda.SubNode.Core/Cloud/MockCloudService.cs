@@ -27,10 +27,96 @@ public class MockCloudService : IWedaCloudService
     private bool _disposed;
     private DeviceConfiguration? _deviceConfiguration;
 
+    // Optional file sink: when SinkFilePath is set, every outbound message (command responses,
+    // batch/normal telemetry) is appended as one JSON line recording its subject and payload, so a
+    // manual-context run can be inspected offline. Null (the default) keeps the mock log-only and
+    // leaves existing behaviour untouched.
+    private readonly object _sinkLock = new();
+
+    // Stores the command handler registered by SubNodeManager via SubscribeCommandsAsync so a test
+    // or harness can drive a command through the real dispatch path with InjectCommandAsync.
+    private Func<ExecuteCommandEvent, Task>? _commandHandler;
+
     public MockCloudService(ILogger<MockCloudService>? logger = null)
     {
         _logger = logger ?? NullLoggerFactory.Instance.CreateLogger<MockCloudService>();
         _subscriptionManager = new MockSubscriptionManager(_logger);
+    }
+
+    /// <summary>
+    /// When set, every outbound message is appended to this file as one JSON line
+    /// (<c>{ ts, direction, subject, payload }</c>). Leave null to keep the mock log-only.
+    /// </summary>
+    public string? SinkFilePath { get; set; }
+
+    /// <summary>
+    /// Injects a command as if it arrived from the cloud, driving it through the handler that
+    /// SubNodeManager registered via <see cref="SubscribeCommandsAsync"/>. The resulting ack,
+    /// progress, batch telemetry and result all flow back through this mock and, when
+    /// <see cref="SinkFilePath"/> is set, land in the sink file.
+    /// </summary>
+    /// <param name="deviceId">The target device (SubNode) id.</param>
+    /// <param name="data">The full command envelope ("data" field) as JSON.</param>
+    /// <param name="seqId">Sequence id echoed on every response.</param>
+    /// <param name="reqSeqId">Request sequence id for correlation.</param>
+    /// <returns>True if a handler was registered and invoked; false if no subscriber exists.</returns>
+    public async Task<bool> InjectCommandAsync(
+        string deviceId,
+        System.Text.Json.JsonElement data,
+        ulong seqId = 1,
+        string? reqSeqId = null)
+    {
+        var handler = _commandHandler;
+        if (handler is null)
+        {
+            _logger.LogWarning("[MockCloud] InjectCommand ignored: no command subscriber registered");
+            return false;
+        }
+
+        var deviceCmd = data.TryGetProperty("deviceCmd", out var cmd) ? cmd.GetString() ?? "" : "";
+        var respTopic = data.TryGetProperty("respTopic", out var rt) ? rt.GetString() ?? "" : "";
+
+        var command = new DeviceCommand
+        {
+            DeviceCmd = deviceCmd,
+            RespTopic = respTopic,
+            SeqId = seqId,
+            ReqSeqId = reqSeqId,
+            RawData = data.Clone(),
+        };
+
+        var evt = new ExecuteCommandEvent(deviceId, command, DateTimeOffset.UtcNow);
+        await handler(evt);
+        return true;
+    }
+
+    private void RecordOutbound(string subject, object? payload)
+    {
+        var path = SinkFilePath;
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var line = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                direction = "outbound",
+                subject,
+                payload,
+            });
+
+            lock (_sinkLock)
+            {
+                File.AppendAllText(path, line + Environment.NewLine);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[MockCloud] Failed to write outbound record to sink {Path}", path);
+        }
     }
 
     /// <inheritdoc />
@@ -172,6 +258,7 @@ public class MockCloudService : IWedaCloudService
                 unit);
         }
 
+        RecordOutbound($"mock.telemetry.{deviceId}", telemetryData);
         return Task.FromResult(true);
     }
 
@@ -266,7 +353,9 @@ public class MockCloudService : IWedaCloudService
             "Subscribe to commands (simulated): DeviceId={DeviceId}",
             deviceId);
 
-        // Return a no-op disposable
+        // Retain the handler so InjectCommandAsync can drive the real dispatch path.
+        _commandHandler = handler;
+
         return Task.FromResult<IDisposable>(new NoOpDisposable());
     }
 
@@ -328,6 +417,7 @@ public class MockCloudService : IWedaCloudService
         _logger.LogInformation(
             "[MockCloud] Command response: Topic={Topic}",
             responseTopic);
+        RecordOutbound(responseTopic, response);
         return Task.FromResult(true);
     }
 
@@ -339,6 +429,9 @@ public class MockCloudService : IWedaCloudService
         _logger.LogInformation(
             "[MockCloud] Batch telemetry: DeviceId={DeviceId}, MeasureCount={MeasureCount}",
             deviceId, message.Data.Measures.Count);
+        // Real cloud publishes to the per-device NatsTopicAssignments.TelemetryTopic; the mock has
+        // no wire topic, so record a logical subject that mirrors it plus the full payload.
+        RecordOutbound($"mock.telemetry.batch.{deviceId}", message);
         return Task.FromResult(true);
     }
 

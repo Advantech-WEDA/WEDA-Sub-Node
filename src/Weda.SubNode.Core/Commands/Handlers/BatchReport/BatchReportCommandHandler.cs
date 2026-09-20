@@ -27,6 +27,65 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
     /// </summary>
     private const double DefaultSensorIntervalMs = 1000.0;
 
+    /// <summary>
+    /// Enriches the framework-sent ack with an estimate of the download volume so the cloud can
+    /// size a progress bar the moment the ack arrives.
+    /// </summary>
+    /// <remarks>
+    /// Runs before the handler body, so it enumerates sensors independently rather than sharing
+    /// the body's work. The extra enumeration is cheap (a sensor-id listing plus interval lookups
+    /// from already-loaded device config); the expensive per-sensor history reads happen only in
+    /// the body. Returns null — a plain ack — when the estimate cannot be computed (no recording
+    /// service, no matching sensors, an invalid time range, or a storage error), so a missing
+    /// estimate never jeopardises the ack.
+    /// </remarks>
+    public async Task<object?> AckAsync(
+        BatchReportCommand command,
+        IWedaApplicationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var recordingService = context.RecordingService;
+        if (recordingService is null)
+        {
+            return null;
+        }
+
+        var effectiveTimeRange = command.GetEffectiveTimeRange();
+        if (effectiveTimeRange.StartTime >= effectiveTimeRange.EndTime)
+        {
+            return null;
+        }
+
+        var sensorIdsResult = await recordingService.GetSensorIdsAsync(cancellationToken);
+        if (sensorIdsResult.IsError)
+        {
+            return null;
+        }
+
+        var sensorIds = FilterSensors(sensorIdsResult.Value, command.Parameters.SensorFilter);
+        if (sensorIds.Count == 0)
+        {
+            return null;
+        }
+
+        var sensorIntervals = BuildSensorIntervalLookup(context);
+        var logger = context.GetLogger<BatchReportCommandHandler>();
+        var estimate = CalculateEstimatedMetrics(
+            sensorIds, effectiveTimeRange, command.Parameters.MaxBatchesPerMessage, command.Parameters.MaxBatchSize,
+            command.Parameters.TransmissionRateLimit, sensorIntervals, logger);
+
+        return new BatchReportInitialAckData
+        {
+            DeviceCmd = command.DeviceCmd,
+            Status = CommandStatusCode.Success,
+            Message = "Batch report accepted; estimated download volume attached",
+            EstimatedBatches = estimate.EstimatedBatches,
+            EstimatedSamples = estimate.EstimatedSamples,
+            EstimatedDurationSeconds = estimate.EstimatedDurationSeconds,
+            StorageAvailable = true
+        };
+    }
+
     public async Task<ErrorOr<BatchReportResult>> HandleAsync(
         BatchReportCommand command,
         IWedaApplicationContext context,
@@ -122,8 +181,10 @@ public class BatchReportCommandHandler : ICommandHandler<BatchReportCommand, Bat
         // data gap reported at the end.
         var sensorIntervals = BuildSensorIntervalLookup(context);
 
-        // Calculate estimated metrics used to populate the progress totals. The framework sends
-        // the ack (carrying executedAt); this handler no longer emits its own ack.
+        // Calculate estimated metrics used to populate the progress totals. AckAsync computes the
+        // same estimate independently for the ack payload; the body recomputes it here rather than
+        // sharing state, since the two run at different lifecycle points. Only the cheap sensor
+        // enumeration is repeated — the expensive per-sensor history reads happen once, below.
         var estimate = CalculateEstimatedMetrics(
             sensorIds, effectiveTimeRange, command.Parameters.MaxBatchesPerMessage, command.Parameters.MaxBatchSize,
             command.Parameters.TransmissionRateLimit, sensorIntervals, logger);

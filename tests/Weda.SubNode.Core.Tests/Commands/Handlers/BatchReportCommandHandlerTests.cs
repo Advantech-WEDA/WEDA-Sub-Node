@@ -224,6 +224,43 @@ public class BatchReportCommandHandlerTests : IDisposable
 
     #endregion
 
+    #region Ack Payload (estimated download volume)
+
+    [Fact]
+    public async Task AckAsync_ReturnsEstimatedDownloadVolume()
+    {
+        // The framework owns the ack, but BatchReport enriches it with an estimate of the download
+        // volume so the cloud can size a progress bar the moment the ack arrives. AckAsync runs
+        // before the handler body: it enumerates sensors and estimates samples/batches/duration.
+        var start = DateTimeOffset.UtcNow.AddMinutes(-10).ToUnixTimeMilliseconds();
+        var end = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        SetupSensors("sensor-a", "sensor-b");
+
+        var ack = await _handler.AckAsync(CreateCommand(start, end), _context);
+
+        var estimate = ack.ShouldBeOfType<BatchReportInitialAckData>();
+        estimate.StorageAvailable.ShouldBeTrue();
+        // Two sensors, each ~601 samples at the 1s default interval over a 10-minute window.
+        estimate.EstimatedSamples.ShouldBe(1202);
+        estimate.EstimatedBatches.ShouldBeGreaterThan(0);
+        estimate.EstimatedDurationSeconds.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task AckAsync_WhenStorageUnavailable_ReturnsNullSoAckStaysPlain()
+    {
+        // No recording service configured: the estimate cannot be computed. AckAsync must return
+        // null (a plain ack) rather than throw, so the framework's ack is never jeopardised.
+        _context.RecordingService = null;
+
+        var ack = await _handler.AckAsync(CreateCommand(), _context);
+
+        ack.ShouldBeNull();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private void SetupSensors(params string[] sensorIds) =>

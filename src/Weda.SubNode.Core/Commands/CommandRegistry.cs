@@ -402,6 +402,63 @@ public class CommandRegistry
     }
 
     /// <summary>
+    /// Invokes the handler's <c>AckAsync</c> to obtain an optional ack payload.
+    /// </summary>
+    /// <remarks>
+    /// <c>AckAsync</c> is a default interface method on
+    /// <see cref="ICommandHandler{TCommand,TResult}"/>, so it is resolved off the closed interface
+    /// type rather than the handler's concrete type (a handler that does not override it has no
+    /// such method on its own type). Any failure — the handler cannot be created, the method
+    /// cannot be resolved, or it throws — yields null so the caller sends a plain ack; enriching
+    /// the ack is best-effort and must never fail the ack.
+    /// </remarks>
+    /// <param name="registration">The command registration.</param>
+    /// <param name="command">The deserialized command.</param>
+    /// <param name="context">The application context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The ack payload, or null.</returns>
+    public async Task<object?> InvokeAckPayloadAsync(
+        CommandRegistration registration,
+        object command,
+        IWedaApplicationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var handlerInstance = registration.HandlerInstance
+                ?? Activator.CreateInstance(registration.HandlerType);
+            if (handlerInstance is null)
+            {
+                return null;
+            }
+
+            var interfaceType = typeof(ICommandHandler<,>)
+                .MakeGenericType(registration.CommandType, registration.ResultType);
+            var ackMethod = interfaceType.GetMethod(nameof(ICommandHandler<ICommand, object>.AckAsync));
+            if (ackMethod is null)
+            {
+                return null;
+            }
+
+            var task = (Task?)ackMethod.Invoke(handlerInstance, [command, context, cancellationToken]);
+            if (task is null)
+            {
+                return null;
+            }
+
+            await task.ConfigureAwait(false);
+            return task.GetType().GetProperty("Result")?.GetValue(task);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex,
+                "AckAsync failed for {HandlerType}; sending a plain ack without a payload",
+                registration.HandlerType.Name);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Creates behavior instances for the given registration based on attribute configurations.
     /// Behaviors are sorted by DefaultPipeline order, then by attribute declaration order.
     /// </summary>
