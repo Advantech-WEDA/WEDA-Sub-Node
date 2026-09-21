@@ -2,7 +2,6 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Net;
 using Serilog;
@@ -15,6 +14,7 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
@@ -108,12 +108,12 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly SystemCfg _systemCfg;
     private readonly DeviceCfg _deviceCfg;
     private readonly CustomCfg _customCfg;
-    private readonly Timer? _cleanupTimer;
+    private readonly RecordingCleanupScheduler? _cleanupScheduler;
     private readonly RecordingOptions? _recordingOptions;
     private volatile bool _disposed;
 
     public RecordingOptions? RecordingOptions => _recordingOptions;
-    
+
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext with default options.
     /// </summary>
@@ -238,7 +238,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             mockLogger.LogWarning("║                                                                     ║");
             mockLogger.LogWarning("║  To connect to Weda.Node, please remove:                            ║");
             mockLogger.LogWarning("║    options.CloudService = WedaFactory.Cloud.Mock in subnode mode or ║");
-            mockLogger.LogWarning("║    UseMockCloud() in wedabuilder mode                               ║"); 
+            mockLogger.LogWarning("║    UseMockCloud() in wedabuilder mode                               ║");
             mockLogger.LogWarning("╚═════════════════════════════════════════════════════════════════════╝");
         }
 
@@ -256,44 +256,43 @@ public class WedaApplicationContext : IWedaApplicationContext
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
         // Use provided recording service from options (DI scenario), or create new instance if EnableRecording is true
-        if (_options.RecordingService != null)
-        {
-            _recordingService = _options.RecordingService;
-            _recordingOptions = _options.RecordingOptions
-                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
-            _recordingOptions.Validate();
-
-            // Start daily cleanup timer
-            _cleanupTimer = new Timer(
-                callback: _ => ExecuteCleanup(),
-                state: null,
-                dueTime: TimeSpan.Zero,
-                period: TimeSpan.FromDays(1));
-        }
-        else if (_options.DeviceOptions.EnableRecording)
+        if (_options.RecordingService != null || _options.DeviceOptions.EnableRecording)
         {
             _recordingOptions = _options.RecordingOptions
                 ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
             _recordingOptions.Validate();
 
-            var recordStorage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_recordingOptions));
-            _recordingService = new RecordingService(_loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, Options.Create(_recordingOptions));
+            if (_options.RecordingService != null)
+            {
+                // An injected service owns its own options; runtime updates reach it through
+                // IRecordingService.UpdateStorageSettings like any other caller.
+                _recordingService = _options.RecordingService;
+            }
+            else
+            {
+                // One provider shared by storage and service, so a configuration update reaches
+                // both. Each component reading its own captured copy is what let a cloud-pushed
+                // retention change be acknowledged and then quietly ignored.
+                var optionsProvider = new RecordingOptionsProvider(_recordingOptions);
+                var recordStorage = new BinaryRecordStorage(
+                    _loggerFactory.CreateLogger<BinaryRecordStorage>(), optionsProvider);
+                _recordingService = new RecordingService(
+                    _loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, optionsProvider);
+            }
 
-            // Start daily cleanup timer
-            _cleanupTimer = new Timer(
-                callback: _ => ExecuteCleanup(),
-                state: null,
-                dueTime: TimeSpan.Zero,
-                period: TimeSpan.FromDays(1));
-        }
-
-        // Initialize DynamicRecordStorage for MIME type data (JSON, images, etc.)
-        // This is independent of RecordingService (which handles primitive types)
-        if (_options.DeviceOptions.EnableRecording || _options.RecordingService != null)
-        {
+            // Initialize DynamicRecordStorage for MIME type data (JSON, images, etc.)
+            // This is independent of RecordingService (which handles primitive types), but it
+            // ages out under the same retention policy and must resolve to the same directory.
             _dynamicRecordStorage = new DynamicRecordStorage(
                 _loggerFactory.CreateLogger<DynamicRecordStorage>(),
-                RecordingOptions.StorageDirectory);
+                PathHelper.ResolveStorageDirectory(_recordingOptions.StorageDirectory));
+
+            _cleanupScheduler = new RecordingCleanupScheduler(
+                _loggerFactory.CreateLogger<RecordingCleanupScheduler>(),
+                _recordingService,
+                _dynamicRecordStorage,
+                _recordingOptions.CleanupInterval ?? TimeSpan.Zero);
+            _cleanupScheduler.Start();
         }
 
         // Bind configuration objects using Options Pattern
@@ -472,7 +471,7 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <inheritdoc />
     public IRecordingService? RecordingService => _recordingService;
-    
+
     /// <inheritdoc />
     public IDynamicRecordStorage? DynamicRecordStorage => _dynamicRecordStorage;
 
@@ -1003,31 +1002,6 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #endregion
 
-    #region Recording Cleanup
-
-    private void ExecuteCleanup()
-    {
-        if (_recordingService == null || _recordingOptions == null)
-            return;
-
-        // RetentionDays = 0 means retention-based cleanup is disabled
-        if (_recordingOptions.RetentionDays <= 0)
-            return;
-
-        try
-        {
-            var cutoff = DateTimeOffset.UtcNow.AddDays(-_recordingOptions.RetentionDays);
-            _recordingService.CleanupAsync(cutoff, CancellationToken.None).Wait();
-        }
-        catch (Exception ex)
-        {
-            _loggerFactory.CreateLogger<WedaApplicationContext>()
-                .LogError(ex, "Recording cleanup failed");
-        }
-    }
-
-    #endregion
-
     #region IDisposable
 
     /// <inheritdoc />
@@ -1047,8 +1021,8 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         if (disposing && _options.DisposeServices)
         {
-            // Dispose cleanup timer
-            _cleanupTimer?.Dispose();
+            // Dispose cleanup scheduler
+            _cleanupScheduler?.Dispose();
 
             // Flush recording buffers before shutdown
             if (_recordingService != null)

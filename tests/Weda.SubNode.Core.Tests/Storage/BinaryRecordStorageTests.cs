@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Weda.SubNode.Abstractions.Storage.Recordings;
-using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Core.Storage;
 using Xunit;
 
@@ -23,28 +22,21 @@ public class BinaryRecordStorageTests : IDisposable
     public BinaryRecordStorageTests()
     {
         _loggerFactory = new NullLoggerFactory();
-        // Use the constant storage directory resolved by PathHelper
-        _testDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
+        // Each fixture owns its own storage directory. Sharing one global directory let the
+        // ring-buffer FIFO in one test delete files another test was asserting on.
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"binary-record-storage-test-{Guid.NewGuid():N}");
         // Use a unique prefix for sensor IDs to avoid conflicts between test runs
         _testSensorPrefix = $"test-{Guid.NewGuid():N}-";
 
-        _options = new RecordingOptions();
+        _options = new RecordingOptions { StorageDirectory = _testDirectory };
         _storage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_options));
     }
 
     public void Dispose()
     {
-        // Clean up only test sensor directories (those with our prefix)
         if (Directory.Exists(_testDirectory))
         {
-            foreach (var dir in Directory.GetDirectories(_testDirectory))
-            {
-                var dirName = Path.GetFileName(dir);
-                if (dirName.StartsWith(_testSensorPrefix))
-                {
-                    Directory.Delete(dir, recursive: true);
-                }
-            }
+            Directory.Delete(_testDirectory, recursive: true);
         }
     }
 
@@ -422,6 +414,129 @@ public class BinaryRecordStorageTests : IDisposable
                 Directory.Delete(sensorDir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task CleanupAsync_ReportsWhatItScannedAndDeleted()
+    {
+        // Arrange
+        var sensorId = TestSensorId("sensor-report");
+        var oldDate = DateTime.UtcNow.AddDays(-10);
+        var recentDate = DateTime.UtcNow.AddDays(-1);
+        await WriteAtAsync(sensorId, oldDate);
+        await WriteAtAsync(sensorId, recentDate);
+
+        var oldFilePath = Path.Combine(_testDirectory, sensorId, $"{oldDate:yyyy-MM-dd}_1000_double.bin");
+        var expectedBytes = new FileInfo(oldFilePath).Length;
+
+        // Act
+        var result = await _storage.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+        // Assert - the tally is what tells an operator the sweep ran at all
+        result.FilesScanned.ShouldBe(2);
+        result.FilesDeleted.ShouldBe(1);
+        result.BytesFreed.ShouldBe(expectedBytes);
+        result.FilesFailed.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task CleanupAsync_UndeletableFile_SweepsTheRestAndReportsTheFailure()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || IsRunningAsRoot())
+        {
+            // The permission barrier below does not hold on Windows or for root; skip rather than
+            // assert something the platform cannot enforce.
+            return;
+        }
+
+        // Arrange - one sensor whose directory refuses deletes, one that does not
+        var blockedSensor = TestSensorId("sensor-blocked");
+        var sweptSensor = TestSensorId("sensor-swept");
+        var oldDate = DateTime.UtcNow.AddDays(-10);
+        await WriteAtAsync(blockedSensor, oldDate);
+        await WriteAtAsync(sweptSensor, oldDate);
+
+        var blockedDir = Path.Combine(_testDirectory, blockedSensor);
+        var blockedFile = Path.Combine(blockedDir, $"{oldDate:yyyy-MM-dd}_1000_double.bin");
+        var sweptFile = Path.Combine(_testDirectory, sweptSensor, $"{oldDate:yyyy-MM-dd}_1000_double.bin");
+        var originalMode = File.GetUnixFileMode(blockedDir);
+
+        try
+        {
+            File.SetUnixFileMode(blockedDir, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+
+            // Act
+            var result = await _storage.CleanupAsync(DateTimeOffset.UtcNow.AddDays(-7));
+
+            // Assert - one locked file must not cost every other sensor its sweep
+            File.Exists(blockedFile).ShouldBeTrue();
+            File.Exists(sweptFile).ShouldBeFalse();
+            result.FilesDeleted.ShouldBe(1);
+            result.FilesFailed.ShouldBe(1);
+        }
+        finally
+        {
+            File.SetUnixFileMode(blockedDir, originalMode);
+        }
+    }
+
+    [Fact]
+    public async Task EnforceStorageLimitsAsync_OverMaxStorageSize_DeletesOldestUntilWithinLimit()
+    {
+        // Arrange - three ~675 KB daily files against a 1 MB cap
+        var sensorId = TestSensorId("sensor-fifo");
+        var oldest = DateTime.UtcNow.AddDays(-3);
+        await WriteAtAsync(sensorId, oldest);
+        await WriteAtAsync(sensorId, DateTime.UtcNow.AddDays(-2));
+        await WriteAtAsync(sensorId, DateTime.UtcNow.AddDays(-1));
+
+        var capped = CreateStorageWith(new RecordingStorageSettings(RetentionDays: 7, MaxStorageSizeMb: 1, MinFreeDiskSpaceMb: 0));
+        var oldestFile = Path.Combine(_testDirectory, sensorId, $"{oldest:yyyy-MM-dd}_1000_double.bin");
+
+        // Act - no write in flight, so only this call can bring storage back under the cap
+        var result = await capped.EnforceStorageLimitsAsync();
+
+        // Assert
+        result.FilesDeleted.ShouldBeGreaterThan(0);
+        File.Exists(oldestFile).ShouldBeFalse("ring-buffer FIFO evicts the oldest first");
+        TotalStorageBytes().ShouldBeLessThanOrEqualTo(1024L * 1024L);
+    }
+
+    [Fact]
+    public async Task EnforceStorageLimitsAsync_LimitsDisabled_DeletesNothing()
+    {
+        // Arrange
+        var sensorId = TestSensorId("sensor-nolimit");
+        await WriteAtAsync(sensorId, DateTime.UtcNow.AddDays(-1));
+        var unlimited = CreateStorageWith(new RecordingStorageSettings(RetentionDays: 7, MaxStorageSizeMb: 0, MinFreeDiskSpaceMb: 0));
+
+        // Act
+        var result = await unlimited.EnforceStorageLimitsAsync();
+
+        // Assert
+        result.FilesDeleted.ShouldBe(0);
+        TotalStorageBytes().ShouldBeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Builds a second storage over the same directory with different limits.
+    /// </summary>
+    private BinaryRecordStorage CreateStorageWith(RecordingStorageSettings settings) =>
+        new(_loggerFactory.CreateLogger<BinaryRecordStorage>(),
+            new RecordingOptionsProvider(_options.WithStorageSettings(settings)));
+
+    /// <summary>
+    /// Writes one sample dated <paramref name="date"/>, creating that day's recording file.
+    /// </summary>
+    private Task WriteAtAsync(string sensorId, DateTime date)
+    {
+        var timestamp = new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        return _storage.WriteAsync(sensorId, 1000, SchemaType.Double, new RecordingDataPoint(timestamp, 42.5, SchemaType.Double));
+    }
+
+    private long TotalStorageBytes() =>
+        Directory.Exists(_testDirectory)
+            ? Directory.GetFiles(_testDirectory, "*.bin", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length)
+            : 0;
 
     private static bool IsRunningAsRoot() =>
         !RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.UserName == "root";

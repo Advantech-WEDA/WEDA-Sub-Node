@@ -432,11 +432,21 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 systemCfg.Record.BatchEnabled,
                 systemCfg.Record.BatchMaxSamples);
 
+            // Retention and the ring-buffer limits travel in this same message and were
+            // range-checked by RecordValidator above. Applying only the batch settings left an
+            // operator's retention change acknowledged but never enforced.
+            var storageSettings = systemCfg.Record.ToStorageSettings();
+            _recordingService.UpdateStorageSettings(storageSettings);
+
             _logger.LogInformation(
-                "Updated recording settings: Enabled={Enabled}, BatchEnabled={BatchEnabled}, BatchMaxSamples={BatchMaxSamples}",
+                "Updated recording settings: Enabled={Enabled}, BatchEnabled={BatchEnabled}, BatchMaxSamples={BatchMaxSamples}, " +
+                "RetentionDays={RetentionDays}, MaxStorageSizeMb={MaxStorageSizeMb}, MinFreeDiskSpaceMb={MinFreeDiskSpaceMb}",
                 systemCfg.Record.Enabled,
                 systemCfg.Record.BatchEnabled,
-                systemCfg.Record.BatchMaxSamples);
+                systemCfg.Record.BatchMaxSamples,
+                storageSettings.RetentionDays,
+                storageSettings.MaxStorageSizeMb,
+                storageSettings.MinFreeDiskSpaceMb);
         }
 
         // Note: Serilog settings require restart - not applied at runtime

@@ -9,6 +9,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Events;
 using Weda.SubNode.Abstractions.Storage;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Tests.Fakes;
@@ -78,7 +79,7 @@ public class SubNodeManagerTests : IAsyncDisposable
             .Returns(true);
     }
 
-    private SubNodeManager CreateManager()
+    private SubNodeManager CreateManager(IRecordingService? recordingService = null)
     {
         _manager = new SubNodeManager(
             _mockCloudService,
@@ -86,6 +87,7 @@ public class SubNodeManagerTests : IAsyncDisposable
             _connectionOptions,
             _deviceRegistry,
             _logger,
+            recordingService: recordingService,
             configurationCache: _mockConfigurationCache);
         return _manager;
     }
@@ -935,6 +937,90 @@ public class SubNodeManagerTests : IAsyncDisposable
         return new UpdateConfigurationEvent(
             DeviceId: "test-subnode-001",
             ConfigType: SubscriptionTypes.DeviceConfig,
+            Message: message,
+            Timestamp: DateTimeOffset.UtcNow);
+    }
+
+    #endregion
+
+    #region System Config - Record Settings
+
+    /// <summary>
+    /// Retention and the ring-buffer limits arrive in the same SystemConfig message as the batch
+    /// settings. Applying only the batch settings left an operator's retention change validated,
+    /// acknowledged and then dropped (work item 53692).
+    /// </summary>
+    [Fact]
+    public async Task HandleSystemConfigUpdate_AppliesRetentionAndRingBufferLimits()
+    {
+        // Arrange
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var updateEvent = CreateSystemConfigUpdateEvent(new SubNodeRecordConfigDto
+        {
+            Enabled = true,
+            BatchEnabled = false,
+            BatchMaxSamples = 10,
+            RetentionDays = 3,
+            MaxStorageSizeMb = 64,
+            MinFreeDiskSpaceMb = 32
+        });
+
+        // Act
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        // Assert
+        recordingService.Received(1).SetEnabled(true);
+        recordingService.Received(1).UpdateBatchSettings(false, 10);
+        recordingService.Received(1).UpdateStorageSettings(
+            new RecordingStorageSettings(RetentionDays: 3, MaxStorageSizeMb: 64, MinFreeDiskSpaceMb: 32));
+    }
+
+    [Fact]
+    public async Task HandleSystemConfigUpdate_InvalidRetention_AppliesNothing()
+    {
+        // Arrange
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var updateEvent = CreateSystemConfigUpdateEvent(new SubNodeRecordConfigDto
+        {
+            RetentionDays = 400 // out of range: 0-365
+        });
+
+        // Act
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        // Assert - a rejected message leaves the policy in force untouched
+        recordingService.DidNotReceive().UpdateStorageSettings(Arg.Any<RecordingStorageSettings>());
+        recordingService.DidNotReceive().SetEnabled(Arg.Any<bool>());
+    }
+
+    private static UpdateConfigurationEvent CreateSystemConfigUpdateEvent(SubNodeRecordConfigDto record)
+    {
+        var message = new SubNodeConfigUpdateMessage
+        {
+            SeqId = 7,
+            Data = new SubNodeConfigUpdateData
+            {
+                Cfg = new SubNodeConfigState
+                {
+                    Desired = new SubNodeDesiredConfigSections
+                    {
+                        SystemCfg = new SubNodeSystemCfgDto { Record = record }
+                    }
+                }
+            }
+        };
+
+        return new UpdateConfigurationEvent(
+            DeviceId: "test-subnode-001",
+            ConfigType: SubscriptionTypes.SystemConfig,
             Message: message,
             Timestamp: DateTimeOffset.UtcNow);
     }

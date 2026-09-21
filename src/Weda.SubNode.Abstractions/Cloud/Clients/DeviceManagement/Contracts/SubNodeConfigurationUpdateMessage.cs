@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 
@@ -528,7 +529,8 @@ public class SubNodeSystemCfgDto
 
 /// <summary>
 /// Recording configuration DTO for systemcfg.json.
-/// Note: StorageDirectory is not included as it cannot be changed at runtime.
+/// Note: StorageDirectory is not included - relocating live recording data is a restart-time
+/// operation, not a runtime one.
 /// </summary>
 public class SubNodeRecordConfigDto
 {
@@ -541,6 +543,8 @@ public class SubNodeRecordConfigDto
 
     /// <summary>
     /// Minimum free disk space in megabytes for Ring Buffer FIFO cleanup.
+    /// This is a floor on free space for the whole drive, not a cap on the recording
+    /// directory - the cap is <see cref="MaxStorageSizeMb"/>.
     /// Valid range: 0-102400 (0-100GB).
     /// </summary>
     [JsonPropertyName("MinFreeDiskSpaceMb")]
@@ -582,6 +586,17 @@ public class SubNodeRecordConfigDto
     /// </summary>
     [JsonPropertyName("MaxQueryTimeRangeDays")]
     public int MaxQueryTimeRangeDays { get; set; } = 30;
+
+    /// <summary>
+    /// The retention and ring-buffer limits carried by this message.
+    /// </summary>
+    /// <remarks>
+    /// Call <see cref="TryValidate"/> first: these values arrive from off the device and are
+    /// not trustworthy until they have been range-checked.
+    /// </remarks>
+    /// <returns>The limits as a single value object.</returns>
+    public RecordingStorageSettings ToStorageSettings()
+        => new(RetentionDays, MaxStorageSizeMb, MinFreeDiskSpaceMb);
 
     /// <summary>
     /// Validates the configuration values.

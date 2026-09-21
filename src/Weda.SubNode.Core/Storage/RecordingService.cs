@@ -17,7 +17,7 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
     private readonly ILogger<RecordingService> _logger;
     private readonly IRecordStorage _storage;
     private readonly IDeviceRegistry _deviceRegistry;
-    private readonly RecordingOptions _options;
+    private readonly RecordingOptionsProvider _optionsProvider;
     private readonly ConcurrentDictionary<string, int> _lastRecordedslot = new();
     private readonly Dictionary<string, List<RecordingDataPoint>> _batchBuffers = new();
     private readonly Timer? _flushTimer;
@@ -27,26 +27,63 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
     private volatile int _batchMaxSamples;
     private volatile bool _disposed;
 
+    /// <summary>
+    /// Creates a recording service from a fixed set of options.
+    /// </summary>
+    /// <param name="logger">Logger for recording diagnostics.</param>
+    /// <param name="storage">The backing record storage.</param>
+    /// <param name="deviceRegistry">Registry used to resolve sensor metadata.</param>
+    /// <param name="options">The recording options.</param>
     public RecordingService(ILogger<RecordingService> logger, IRecordStorage storage, IDeviceRegistry deviceRegistry, IOptions<RecordingOptions> options)
+        : this(logger, storage, deviceRegistry, new RecordingOptionsProvider((options ?? throw new ArgumentNullException(nameof(options))).Value))
     {
+    }
+
+    /// <summary>
+    /// Creates a recording service that reads its options through a shared provider.
+    /// </summary>
+    /// <remarks>
+    /// Pass the same provider that backs <paramref name="storage"/>: <see cref="UpdateStorageSettings"/>
+    /// publishes through it, which is how a cloud-pushed retention or ring-buffer change reaches
+    /// the storage that has to enforce it.
+    /// </remarks>
+    /// <param name="logger">Logger for recording diagnostics.</param>
+    /// <param name="storage">The backing record storage.</param>
+    /// <param name="deviceRegistry">Registry used to resolve sensor metadata.</param>
+    /// <param name="optionsProvider">The provider holding the recording options in force.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    public RecordingService(ILogger<RecordingService> logger, IRecordStorage storage, IDeviceRegistry deviceRegistry, RecordingOptionsProvider optionsProvider)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(deviceRegistry);
+        ArgumentNullException.ThrowIfNull(optionsProvider);
+
         _logger = logger;
         _storage = storage;
         _deviceRegistry = deviceRegistry;
-        _options = options.Value;
-        _enabled = options.Value.Enabled;
-        _batchMaxSamples = Math.Max(1, options.Value.BatchMaxSamples);
-        _batchEnabled = options.Value.BatchEnabled;
+        _optionsProvider = optionsProvider;
 
-        if (_batchEnabled && _options.FlushIntervalSeconds > 0)
+        var options = optionsProvider.Current;
+        _enabled = options.Enabled;
+        _batchMaxSamples = Math.Max(1, options.BatchMaxSamples);
+        _batchEnabled = options.BatchEnabled;
+
+        if (_batchEnabled && options.FlushIntervalSeconds > 0)
         {
             _flushTimer = new Timer(
                 callback: async _ => await ExecutePeriodicFlush(),
                 state: null,
-                dueTime: TimeSpan.FromSeconds(_options.FlushIntervalSeconds),
-                period: TimeSpan.FromSeconds(_options.FlushIntervalSeconds)
+                dueTime: TimeSpan.FromSeconds(options.FlushIntervalSeconds),
+                period: TimeSpan.FromSeconds(options.FlushIntervalSeconds)
             );
         }
     }
+
+    /// <summary>
+    /// The recording options in force right now.
+    /// </summary>
+    private RecordingOptions Options => _optionsProvider.Current;
 
     private async Task ExecutePeriodicFlush()
     {
@@ -173,9 +210,16 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
         }
     }
 
-    public async Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public async Task<RecordingCleanupResult> CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
     {
-        await _storage.CleanupAsync(before, cancellationToken);
+        return await _storage.CleanupAsync(before, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<RecordingCleanupResult> EnforceStorageLimitsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _storage.EnforceStorageLimitsAsync(cancellationToken);
     }
 
     public async Task<ErrorOr<IReadOnlyList<string>>> GetSensorIdsAsync(CancellationToken cancellationToken = default)
@@ -319,6 +363,22 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
     public void SetEnabled(bool enabled)
     {
         _enabled = enabled;
+    }
+
+    /// <inheritdoc />
+    public RecordingStorageSettings StorageSettings => Options.StorageSettings;
+
+    /// <inheritdoc />
+    public void UpdateStorageSettings(RecordingStorageSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.Validate();
+
+        _optionsProvider.UpdateStorageSettings(settings);
+
+        _logger.LogInformation(
+            "[RecordingService] Storage limits updated: RetentionDays={RetentionDays}, MaxStorageSizeMb={MaxStorageSizeMb}, MinFreeDiskSpaceMb={MinFreeDiskSpaceMb}",
+            settings.RetentionDays, settings.MaxStorageSizeMb, settings.MinFreeDiskSpaceMb);
     }
 
     private static long GetStartOfDay(long timestamp)

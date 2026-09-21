@@ -34,7 +34,21 @@ public interface IRecordingService
     /// <param name="cancellationToken">Cancellation token</param>
     Task FlushSensorAsync(string sensorId, CancellationToken cancellationToken = default);
 
-    Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Deletes every recording dated before <paramref name="before"/>.
+    /// </summary>
+    /// <param name="before">The cutoff; recordings older than this are removed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>What the pass scanned, deleted and freed.</returns>
+    Task<RecordingCleanupResult> CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies the ring-buffer FIFO limits, deleting the oldest recordings until the configured
+    /// maximum storage size and minimum free disk space are both satisfied.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>What the pass scanned, deleted and freed.</returns>
+    Task<RecordingCleanupResult> EnforceStorageLimitsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all sensor short IDs that have recording data.
@@ -75,6 +89,24 @@ public interface IRecordingService
     /// </summary>
     /// <param name="enabled">Whether recording is enabled</param>
     void SetEnabled(bool enabled);
+
+    /// <summary>
+    /// The retention and ring-buffer limits currently in force.
+    /// </summary>
+    RecordingStorageSettings StorageSettings { get; }
+
+    /// <summary>
+    /// Applies new retention and ring-buffer limits at runtime.
+    /// </summary>
+    /// <remarks>
+    /// Takes effect on the next write and the next cleanup sweep - no restart. Callers that
+    /// accept these values from outside the device must validate them first; an out-of-range
+    /// value is rejected here rather than silently clamped.
+    /// </remarks>
+    /// <param name="settings">The limits to apply.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="settings"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="settings"/> holds a value outside its range.</exception>
+    void UpdateStorageSettings(RecordingStorageSettings settings);
 }
 
 public record RecordingResult(
