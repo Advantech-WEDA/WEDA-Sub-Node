@@ -943,13 +943,33 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
         await _configUpdateLock.WaitAsync(ct);
         try
         {
-            // Pre-hook for derived class validation
-            await OnBeforeConfigUpdateAsync(
-                new UpdateConfigurationEvent(
-                    SubNodeId ?? "unknown",
-                    SubscriptionTypes.DeviceConfig,
-                    message,
-                    DateTimeOffset.UtcNow), ct);
+            // Pre-hook for derived class validation.
+            // A derived device refuses a configuration by throwing from this hook, so the
+            // exception is a validation verdict - not a fault. Translating it here keeps the
+            // refusal inside the transaction, so SubNodeManager reports "invalid" to the
+            // shadow instead of the update being abandoned without any status (Issue 54293).
+            try
+            {
+                await OnBeforeConfigUpdateAsync(
+                    new UpdateConfigurationEvent(
+                        SubNodeId ?? "unknown",
+                        SubscriptionTypes.DeviceConfig,
+                        message,
+                        DateTimeOffset.UtcNow), ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Cancellation is not a rejection - let the caller unwind.
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Device {DeviceName} refused the configuration update during pre-validation: {Error}",
+                    Configuration.DeviceName, ex.Message);
+
+                return ConfigUpdateValidationResult.Invalid(deviceTypeName, ex.Message);
+            }
 
             // Check for valid message structure
             if (message?.Data?.Cfg?.Desired == null)
