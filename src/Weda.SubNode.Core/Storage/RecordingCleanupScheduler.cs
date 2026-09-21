@@ -143,7 +143,14 @@ public sealed class RecordingCleanupScheduler : IDisposable
             result += await _recordingService.EnforceStorageLimitsAsync(cancellationToken);
         }
 
-        _logger.LogInformation(
+        // A sweep that could not delete something is the one outcome an operator must not
+        // miss, and devices ship with Serilog's minimum level at Warning - reporting the
+        // whole tally at Information would hide exactly the case where storage keeps
+        // growing. Routine sweeps stay at Information.
+        var level = result.FilesFailed > 0 ? LogLevel.Warning : LogLevel.Information;
+
+        _logger.Log(
+            level,
             "Recording cleanup swept: cutoff={Cutoff}, scanned={FilesScanned}, deleted={FilesDeleted}, freed={BytesFreed}B, failed={FilesFailed}",
             cutoff?.ToString("O") ?? "disabled",
             result.FilesScanned,

@@ -10,7 +10,7 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 ### 新增
 - 變更觸發的設定回報 — `ISubNodeManager.TriggerConfigSync()` 可要求立即發佈已回報的裝置設定。當你在本地(非雲端 desired 更新)變更裝置設定後呼叫它,雲端即可反映變更,不必等到下一次週期同步。並行呼叫會合併為單次發佈。此成員以 default no-op 介面方法加入,不會 source-break 既有的外部 `ISubNodeManager` 實作者。
 - 重連後重新發佈 — `IWedaCloudService.ConnectionRestored` 會在底層連線中斷後重新建立時觸發(初次連線不觸發)。`SubNodeManager` 訂閱此事件並重新發佈已回報設定,使離線期間發生的變更能立即送達雲端。`MockCloudService.SimulateConnectionRestoredAsync()` 提供離線/獨立測試時觸發該事件的入口。
-- 排程式 recording 清理 — `RecordingCleanupScheduler` 會在啟動時掃一次,之後每 `Record.CleanupIntervalMinutes` 分鐘(預設 **60**)再掃一次,同時執行保留期清理與 ring-buffer FIFO。每次掃描都以 `Information` 記錄 cutoff、掃描檔數、刪除檔數、釋放位元組與刪除失敗檔數,讓「掃過但沒東西可刪」與「根本沒掃」能區分開來。
+- 排程式 recording 清理 — `RecordingCleanupScheduler` 會在啟動時掃一次,之後每 `Record.CleanupIntervalMinutes` 分鐘(預設 **60**)再掃一次,同時執行保留期清理與 ring-buffer FIFO。每次掃描都會記錄 cutoff、掃描檔數、刪除檔數、釋放位元組與刪除失敗檔數,讓「掃過但沒東西可刪」與「根本沒掃」能區分開來。有刪除失敗的掃描以 `Warning` 記錄,其餘以 `Information` — 裝置出廠的 Serilog 最低層級是 Warning,而「儲存會持續成長」正是唯一不能被濾掉的結果。
 - `Record.CleanupIntervalMinutes`(0-1440,預設 60)— 清理掃描的間隔。設為 `0` 會停用排程清理,屆時儲存只會在寫入資料時才縮減。
 - `Record.StorageDirectory` 現在是真正可設定的屬性。它原本是 `const`,因此永遠無法被設定,而 `RecordingOptions.Validate()` 對它的空值檢查是死碼。預設值不變(`./.weda/data/recording`);原常數保留為 `RecordingOptions.DefaultStorageDirectory`。
 - `IRecordingService.StorageSettings` / `UpdateStorageSettings(RecordingStorageSettings)` 與 `IRecordStorage.EnforceStorageLimitsAsync()` — 保留期與 ring-buffer 上限現在可於執行期變更,且無須有寫入進行中即可強制執行容量上限。

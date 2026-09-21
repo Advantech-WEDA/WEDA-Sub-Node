@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Weda.SubNode.Abstractions.Storage;
 using Shouldly;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Core.Context;
@@ -247,6 +249,63 @@ public class RecordingCleanupSchedulerTests : IDisposable
 
         scheduler.IsRunning.ShouldBeFalse();
         Should.Throw<ObjectDisposedException>(() => scheduler.Start());
+    }
+
+    /// <summary>
+    /// A sweep that could not delete a file must be visible on a device whose minimum log
+    /// level is Warning - which is how they ship. Reported at Information, the one outcome
+    /// that means storage keeps growing would be filtered out.
+    /// </summary>
+    [Fact]
+    public async Task RunOnceAsync_WhenAFileCannotBeDeleted_ReportsAtWarning()
+    {
+        // Arrange
+        var recordingService = Substitute.For<IRecordingService>();
+        recordingService.StorageSettings.Returns(new RecordingStorageSettings(RetentionDays: 7, MaxStorageSizeMb: 0, MinFreeDiskSpaceMb: 0));
+        recordingService.CleanupAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new RecordingCleanupResult(FilesScanned: 3, FilesDeleted: 1, BytesFreed: 10, FilesFailed: 2));
+
+        var logger = new RecordingLevelLogger();
+        using var scheduler = new RecordingCleanupScheduler(logger, recordingService, dynamicStorage: null, TimeSpan.FromHours(1));
+
+        // Act
+        await scheduler.RunOnceAsync();
+
+        // Assert
+        logger.Levels.ShouldContain(LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_WhenNothingFails_ReportsAtInformation()
+    {
+        // Arrange
+        var recordingService = Substitute.For<IRecordingService>();
+        recordingService.StorageSettings.Returns(new RecordingStorageSettings(RetentionDays: 7, MaxStorageSizeMb: 0, MinFreeDiskSpaceMb: 0));
+        recordingService.CleanupAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new RecordingCleanupResult(FilesScanned: 3, FilesDeleted: 3, BytesFreed: 30, FilesFailed: 0));
+
+        var logger = new RecordingLevelLogger();
+        using var scheduler = new RecordingCleanupScheduler(logger, recordingService, dynamicStorage: null, TimeSpan.FromHours(1));
+
+        // Act
+        await scheduler.RunOnceAsync();
+
+        // Assert - routine sweeps must not cry wolf
+        logger.Levels.ShouldContain(LogLevel.Information);
+        logger.Levels.ShouldNotContain(LogLevel.Warning);
+    }
+
+    /// <summary>Captures the level of every log entry the scheduler writes.</summary>
+    private sealed class RecordingLevelLogger : ILogger<RecordingCleanupScheduler>
+    {
+        public List<LogLevel> Levels { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Levels.Add(logLevel);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
