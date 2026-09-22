@@ -702,7 +702,22 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
                 continue;
             }
 
-            var validationResult = await device.ValidateConfigurationUpdateAsync(message, default);
+            ConfigUpdateValidationResult validationResult;
+            try
+            {
+                validationResult = await device.ValidateConfigurationUpdateAsync(message, default);
+            }
+            catch (Exception ex)
+            {
+                // A device that refuses by throwing must still produce a verdict, otherwise the
+                // transaction unwinds and no status ever reaches the shadow (Issue 54293).
+                _logger.LogError(ex, "Validation threw for device {DeviceName}, treating as invalid: {Error}",
+                    deviceName, ex.Message);
+
+                validationResult = ConfigUpdateValidationResult.Invalid(
+                    device.Configuration.SubNodeType.ToString(), ex.Message);
+            }
+
             validationResults[deviceName] = validationResult;
 
             if (!validationResult.IsValid)

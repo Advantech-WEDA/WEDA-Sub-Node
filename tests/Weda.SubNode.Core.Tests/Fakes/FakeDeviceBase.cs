@@ -19,6 +19,7 @@ public class FakeDevice : IDevice
     private readonly DeviceConfiguration _configuration;
     private ConfigUpdateValidationResult _validationResult;
     private ConfigUpdateResult _applyResult;
+    private Exception? _validationException;
     private readonly DeviceConfigurationBackup _backup;
 
     public FakeDevice(DeviceConfiguration configuration)
@@ -62,11 +63,24 @@ public class FakeDevice : IDevice
         return this;
     }
 
+    /// <summary>
+    /// Makes Phase 1 throw instead of returning a verdict, the way a device
+    /// refuses a configuration from its OnBeforeConfigUpdateAsync hook.
+    /// </summary>
+    public FakeDevice WithValidationException(Exception? exception)
+    {
+        _validationException = exception;
+        return this;
+    }
+
     public Task<ConfigUpdateValidationResult> ValidateConfigurationUpdateAsync(
         SubNodeConfigUpdateMessage message,
         CancellationToken ct)
     {
         ValidateCallCount++;
+        if (_validationException != null)
+            throw _validationException;
+
         return Task.FromResult(_validationResult);
     }
 
