@@ -86,6 +86,77 @@ public class DeviceCfgMessageKeyTests
             "The device's own apply outcome must win, not the stale desired stamp");
     }
 
+    [Fact]
+    public void ReportedDeviceCfg_SerializesEveryKey_InCamelCase()
+    {
+        // The reported devicecfg reaches the cloud two ways: copied from the raw desired
+        // JSON, which is camelCase already, or rebuilt from these DTOs when no raw JSON is
+        // available. The second path used to emit PascalCase, so the same section arrived
+        // in one of two shapes depending on which path produced it.
+        var dto = new SubNodeDeviceCfgDto
+        {
+            Message = SampleMessage(),
+            SubNode = new SubNodeInfoDto { Name = "AdvantechWedaMainboardExtension" },
+            DeviceConfigs = new Dictionary<string, SubNodeDeviceConfigDto>
+            {
+                ["systemAgentDeviceConfig"] = new()
+                {
+                    Enabled = true,
+                    Periods = new SubNodePeriodsDto { ReportHealth = 60000, ReportConfiguration = 300000 },
+                    Sensors =
+                    [
+                        new SubNodeSensorReportDto
+                        {
+                            Name = "cpu_usage",
+                            SensorGroup = "SYS",
+                            Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 5000 }
+                        }
+                    ]
+                }
+            }
+        };
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(dto));
+
+        var pascal = PascalCaseKeys(doc.RootElement, "devicecfg").ToList();
+        pascal.ShouldBeEmpty(
+            $"Every reported devicecfg key must be camelCase; found: {string.Join(", ", pascal)}");
+    }
+
+    /// <summary>
+    /// Walks the payload and yields the path of every object key starting with an
+    /// uppercase letter. Dictionary keys that are device names are not wire names, so
+    /// the deviceConfigs map's own keys are skipped.
+    /// </summary>
+    private static IEnumerable<string> PascalCaseKeys(JsonElement element, string path)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var prop in element.EnumerateObject())
+                {
+                    var isDeviceNameKey = path.EndsWith("deviceConfigs", StringComparison.Ordinal);
+
+                    if (!isDeviceNameKey && prop.Name.Length > 0 && char.IsUpper(prop.Name[0]))
+                        yield return $"{path}.{prop.Name}";
+
+                    foreach (var found in PascalCaseKeys(prop.Value, $"{path}.{prop.Name}"))
+                        yield return found;
+                }
+                break;
+
+            case JsonValueKind.Array:
+                var i = 0;
+                foreach (var item in element.EnumerateArray())
+                {
+                    foreach (var found in PascalCaseKeys(item, $"{path}[{i}]"))
+                        yield return found;
+                    i++;
+                }
+                break;
+        }
+    }
+
     private static JsonElement ReportedDeviceCfg(SubNodeReportedConfig reported)
     {
         var json = JsonSerializer.Serialize(reported);
