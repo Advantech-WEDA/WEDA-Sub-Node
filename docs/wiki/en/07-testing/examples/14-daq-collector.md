@@ -70,7 +70,7 @@ Captured 2026-09-10; 142 lines total.
 
 | # | Severity | Status | What it did **here** |
 |---|---|---|---|
-| **D-08** | Medium | **Open** | `docker-compose.yml` fails validation: `services.daq-collector.devices must be a list` — pre-existing, still open |
+| **D-08** | Medium | **Fixed** | `docker-compose.yml` failed validation — `services.daq-collector.devices must be a array` — because the `devices:` key was left in place with every entry under it commented out. The key is now commented out with its entries, which is why this run deployed from a file the repository did not hold |
 | **D-17** | High | **Fixed** in this run | the build failed outright until this run's fix: the image pinned `gpgv=2.4.4-2ubuntu17.4`, which Ubuntu has dropped from the archive |
 
 > Defect ids are shared across the suite; the full register is [§10 of the parent report](../01-e2e-test-scenario-example-images.md).

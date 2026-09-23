@@ -87,9 +87,11 @@ DeviceConfig__DeviceConfigs__<Device>__DeviceCommunication__Password=...
 SystemConfig__WedaNode__Password=...
 ```
 
-> **Do not bake real credentials.** The committed `systemcfg.json` files carry placeholder NATS
-> credentials. Anything baked into an image is readable by anyone who can pull it — pass real
-> secrets through the stack's `environment` block instead.
+> **What is baked is readable.** The committed `systemcfg.json` files carry an empty password; an
+> image built with `WEDA_NATS_PASSWORD` set carries that value, which is what lets a delivered
+> image run as delivered. Anyone who can pull the image can read it, so build one image per
+> audience that may hold the credential, and use the stack's `environment` block for a device whose
+> WedaNode differs.
 
 ## 3. Register the registry once per org
 
@@ -192,7 +194,7 @@ curl -s -X POST \
 
 This changes what runs on real hardware — confirm the device list first.
 
-## 6. Verify, in five steps
+## 6. Verify, in four steps
 
 Do not stop at "the API returned 200". Each step below proves something the previous one does not:
 
@@ -259,10 +261,11 @@ Note that a SubNode child device cannot always be cleaned up afterwards: `GET`, 
 `DELETE` on `/api/v1/devices/{subNodeId}` can all answer `404` for a device that the org listing
 still returns, so a name consumed by a stale child registration may not be reclaimable.
 
-**Some examples cannot report to the cloud at all.** `opcua-basic` hardcodes `.UseMockCloud()` in
-`Program.cs`, so it logs telemetry locally and never reaches the WedaNode no matter how it is
-configured. Check `Program.cs` for `UseMockCloud` before choosing an example to verify a cloud
-round-trip with.
+**The mock cloud is a setting, not a code change.** Three examples once hardcoded
+`.UseMockCloud()`, so they logged telemetry locally and never reached a WedaNode however they were
+configured. They now read `CustomConfig:UseMockCloud` and default to the real cloud; set it to
+`true` in `customcfg.json`, or `CustomConfig__UseMockCloud=true` in the environment, to work
+without a WedaNode.
 
 **Some examples already embed their simulator.** `feature-transform-pipeline` starts its own Modbus
 TCP simulator on `127.0.0.1:5020`. Adding a separate `simulator-host` container to the stack takes
@@ -319,13 +322,15 @@ Each example ships **two** compose files, and the difference is which machine bu
 `docker-compose.deploy.yml` is also the file to paste into a container-management stack config
 (§4). Everything below is the same file driven by hand.
 
-### 8.1 Copy the two files to the device
+### 8.1 Copy the compose file to the device
 
 ```bash
 ssh <device> 'mkdir -p /opt/<example>-demo'
-scp examples/<example>/docker-compose.deploy.yml examples/<example>/.env.example \
-    <device>:/opt/<example>-demo/
+scp examples/<example>/docker-compose.deploy.yml <device>:/opt/<example>-demo/
 ```
+
+That is the only file the device needs. Credentials, when they are needed at all, are written
+there in 8.2.
 
 ### 8.2 Credentials, when they are needed at all
 

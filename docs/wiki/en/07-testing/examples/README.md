@@ -17,8 +17,9 @@ record only per-example results, so read that first.
 
 ## Results
 
-Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy · then the four
-function checks. `—` = not applicable, `⏭️` = not executed.
+Gates: **B**uild · **P**ush · **S**tandalone start (E2E-EXD-2.3) · **D**eploy · then the five
+function checks. 4.4 is the framework heartbeat; 4.5 is what the example exists to do.
+`—` = not applicable, `⏭️` = not executed.
 
 | # | Example | Verdict | B | P | S | D | 4.1 | 4.2 | 4.3 | 4.4 | 4.5 | External dependency |
 |---|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
@@ -108,9 +109,9 @@ the presence of `hb`. Recorded as a follow-up on the warning's wording, **not** 
 
 | Verdict | Meaning | In terms of the checks |
 |---|---|---|
-| **PASS** | Container running with 0 restarts, NATS connected, registration accepted, telemetry flowing | B·P·S·D and 4.1–4.4 all ✅ |
-| **PARTIAL** | SubNode reached the cloud, but its field device or upstream was unavailable **at test time** | 4.1–4.3 ✅, 4.4 ❌ |
-| **BLOCKED** | Deploys, runs and registers; cannot function without hardware this device lacks | 4.1–4.3 ✅, 4.4 ❌ — same shape as PARTIAL, but the gap is not transient |
+| **PASS** | Container running with 0 restarts, NATS connected, registration accepted, and the example seen doing its own job | B·P·S·D and 4.1–4.5 all ✅ |
+| **PARTIAL** | SubNode reached the cloud, but its field device, publisher or upstream was unavailable **at test time** | 4.1–4.4 ✅, 4.5 ❌ |
+| **BLOCKED** | Deploys, runs and registers; cannot function without hardware this device lacks | 4.5 ❌ — same shape as PARTIAL, but the gap is not transient |
 | **SKIP** | Not executed, with the reason recorded. **Never counts as a pass** | Function checks ⏭️ |
 
 PARTIAL and BLOCKED share a check pattern and differ in prognosis: a PARTIAL clears when someone
@@ -118,7 +119,7 @@ powers a device back on; a BLOCKED needs different hardware.
 
 A container reported `running` proves only that the process has not exited. Three of this suite's
 defects produced a `running` container that was doing nothing at all — which is why **4.1 is a
-separate check from 4.2–4.4** in every report, rather than one "Function" row.
+separate check from 4.2–4.5** in every report, rather than one "Function" row.
 
 ## Report schema
 
@@ -138,15 +139,15 @@ where to look without re-reading the page:
 
 Rules the schema enforces:
 
-1. **No collapsed function gate.** 4.1, 4.2, 4.3 and 4.4 each get their own row and their own
-   evidence. A single "Function ✅" row hides exactly the failure mode this suite exists to catch —
-   and this run proved the point twice, on `modbus-wise4012` and `daq-collector`.
+1. **No collapsed function gate.** 4.1 through 4.5 each get their own row and their own evidence.
+   A single "Function ✅" row hides exactly the failure mode this suite exists to catch, and the
+   heartbeat hides it a second time: five examples passed on 4.4 while never receiving a reading.
 2. **Evidence is keyed to a check.** A log line that proves nothing in particular does not belong in
    §3.
 3. **§5 always exists.** "Nothing — all nine checks were exercised" is a statement; an absent
    section is not.
-4. **Severity and status travel with the defect**, so a reader knows D-08 is still open without
-   opening the parent report.
+4. **Severity and status travel with the defect**, so a reader knows the agent half of D-14 is
+   still open without opening the parent report.
 5. **Totals are counted from the verdict column**, never asserted separately.
 
 ## CI status

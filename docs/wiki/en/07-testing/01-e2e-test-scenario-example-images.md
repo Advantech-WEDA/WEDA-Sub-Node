@@ -367,7 +367,7 @@ line behind every cell, the defects it exposed, what was **not** verified, and h
 | D-05 | `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` breaks the OPC UA X.509 application-certificate path | High | **Fixed** — proven by elimination, not inspection |
 | D-06 | Three examples hardcoded `.UseMockCloud()`, so they could never reach a WedaNode | High | **Fixed** — config-driven, default real cloud |
 | D-07 | `MyFirstISensingDevice` lacked the `(context, DeviceConfiguration)` ctor the host activates → `MissingMethodException` on every start, on any host | High | **Fixed** |
-| D-08 | `examples/daq-collector/docker-compose.yml` fails validation: `services.daq-collector.devices must be a list` | Medium | **Open** — pre-existing |
+| D-08 | `examples/daq-collector/docker-compose.yml` fails validation: `services.daq-collector.devices must be a array`. The `devices:` key was present with every entry under it commented out, which makes it an empty value | Medium | **Fixed** — the key is commented out with its entries, and the instructions say both have to be uncommented together |
 | D-09 | **Renaming a compose service inside an existing stack config destroys the deployment.** The new container starts, then the agent removes it and settles on `status: deployed` / `reason: "Stack is managed but not currently running"` with an empty container list, while the device has no compose project at all. `commands:start` then fails `stack not found`, and redeploying the same revision is answered `skip`. **Reproduced deterministically** — see §10.1 | High | **Open** — platform defect. Workaround: `DELETE …/docker/stacks` then redeploy (returns `add`) |
 | D-10 | Batch multi-arch builds exhaust the Docker data volume; errors read like network faults | Low | **Documented** — prune between builds |
 | D-11 | Self-contained publish layered on `dotnet/runtime` shipped a **second** unused runtime (~82 MB/image) | Low | **Fixed** — `runtime-deps` |
@@ -445,7 +445,7 @@ unrelated to the examples.
 | X-4 | Registration survives container recreation (E2E-EXD-3.3) | ✅ verified by restart |
 | X-5 | No example defaults to a host outside the device it runs on | ✅ D-01 fixed |
 | X-6 | No example is hardcoded to mock cloud | ✅ D-06 fixed |
-| X-7 | Every open defect in §10 has an owner | ❌ D-08, D-09, D-13, D-14 (agent behaviour) unassigned |
+| X-7 | Every open defect in §10 has an owner | ❌ D-09, D-13, D-14 (agent behaviour) unassigned |
 
 **Overall verdict: CONDITIONAL PASS** — X-3b and X-7 are not met. **Six of fifteen examples are
 confirmed working end to end**, and fourteen are confirmed deployable and registering. The gap

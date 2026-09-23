@@ -1,411 +1,329 @@
-# SubNode 範例可部署性與防呆機制 — 開發計畫
+# SubNode 範例可部署性、交付與防呆機制 — 開發計畫
 
 | | |
 |---|---|
 | **分支** | `docs/e2e-example-report-schema` |
-| **狀態** | 已完成 — P1~P8 全數實作並驗測；`feature-transform-pipeline` 的交付包已在 EPC-R7300A1 實跑通過 |
+| **狀態** | 已完成 — 八項工作全數實作並驗測；`feature-transform-pipeline` 的交付包已在 EPC-R7300A1 實跑通過 |
 | **前置 PR** | #7361（範例可部署性修正）、!7396（報告 schema + 2026-09-10 重跑） |
-| **範圍外** | 排程 build（CI 第三層）、把 pipeline 測試改成會擋（CI 第二層）、真機部署進 CI |
+| **範圍外** | 排程 build、把 pipeline 既有測試改成會擋、真機部署進 CI |
 | **後續** | 另外 5 個自帶模擬器的範例（`feature-custom-commands`、`http-air-quality`、`http-stock-quotes`、`feature-aggregation`、`opcua-basic`）的 `delivery.md` 已備妥，待 build 並 push 後產交付包 |
 
 ---
 
-## 0. 這份計畫要解決什麼
+## 0. 這份計畫解決什麼
 
-`!7396` 把 15 份範例測試報告統一了 schema 並重跑一輪，但 review 找到四類問題。這份計畫處理其中六件事：
+`!7396` 把 15 份範例測試報告統一了 schema 並重跑一輪，review 找到六件事：
 
-| # | 問題 | 處理階段 |
-|---|---|---|
-| 1 | 15 份 compose 有 8 份只有 `build:` 沒有 `image:`，是本機編譯用的形狀，裝置上不能編譯；實際部署用的 compose 沒留在 repo，重跑指令只能寫 `<compose-file>` 佔位符 | P2 |
-| 2 | `daq-collector` 報告同時寫著「compose 驗證過不了」與「部署成功」，因為測的不是 repo 那份 | P1 + P2 |
-| 3 | 大報告 §12 簽核表仍寫「13 confirmed」，與 §7 的 11/2/1/1 不一致 | P7 |
-| 4 | 「有在吐資料」這格只看 health report（框架心跳），範例自己的業務功能沒被檢查 | P6 + P7 |
-| 5 | `dotnet new` 模板仍帶著已修掉的四個缺陷，新專案會原地重演 | P5 |
-| 6 | 平台預設 NATS 密碼隨 image 上 Harbor | P3 |
+| # | 問題 | 說明 | 對應段落 |
+|---|---|---|---|
+| 1 | 15 份 compose 有 8 份只能本機編譯，裝置上不能編譯 | 裝置沒有原始碼、不能現場編譯，只能拉現成的 image 來跑。這 8 份範例的 compose 檔還停在「本機編譯」那個形狀，沒有一份「直接拉 image 來跑」的版本可以部署。也因為沒有這份檔案，各範例報告「怎麼重跑這個測試」那節的指令只能留一個 `<compose-file>` 佔位字讓人自己填——例如 `01-feature-transform-pipeline.md` 原本寫的是 `./scripts/deploy-verify.sh feature-transform-pipeline <compose-file> weda-transform-pipeline` | C |
+| 2 | `14-daq-collector.md` 這份報告自相矛盾 | 同一份文件裡，「Deploy」那格打勾寫部署成功，底下「Defects」列表卻又寫著 D-08「`docker-compose.yml` 驗證失敗：`devices must be a list`」還沒修好。兩句話兜不起來，是因為測試當時實際部署用的檔案，跟現在 repo 裡的 `examples/daq-collector/docker-compose.yml` 不是同一份 | A + C |
+| 3 | `01-e2e-test-scenario-example-images.md` 這份總覽報告裡兩個地方數字對不上 | 開頭摘要寫「13 個確認可用」，後面 §7 逐範例列表卻列著「11 個」 | G |
+| 4 | 「範例真的有在運作」這一格，其實只檢查了心跳，沒檢查真正的功能 | 見 E 段的完整說明 | E + G |
+| 5 | 用 `dotnet new` 產生新專案時，會重新出現舊範例已經修好的問題 | 因為修的是既有的 15 個範例，產生新專案用的模板沒有跟著修 | D |
+| 6 | 連線密碼明文寫在 20 個檔案裡，而且會跟著 image 一起上傳到公開的 image 倉庫 | 任何人只要能拉到這個 image，就能從裡面翻出密碼 | C |
 
-**NOTE**：CI 第二層（pipeline 測試改成會擋）與第三層（排程 build）不在這條分支處理；`docs/wiki/.../06-remote-control/04-historical-report-command.md` 與 `examples/system-agent/scripts/build-windows-package.sh` 兩個與分支主題不相關的檔案依舊保留。
+除了修這六個問題，這次還多一個目標：**讓範例能直接交給客戶用**——客戶只要拿到一個 image 位址和一份
+啟動設定檔，放到裝置上就能跑起來，不需要再自己準備任何東西。
 
 ---
 
-## 1. 命名慣例（P2 起全程沿用）
+## 1. 命名與版本慣例
 
-image 名稱一律等於範例目錄名，與 `scripts/build-push-image.sh` 的預設值一致（`harbor.arfa.wise-paas.com/edge-coa/${NAME}`）。容器名沿用 2026-09-10 那輪報告已經在用的名字。
+**這張表在講什麼**：15 個範例裡，只有 6 個「可交付」（見上面新增的目標）——原因很簡單，另外 9 個
+都需要接真實硬體（例如某台特定型號的儀表）或某個外部系統來源才看得到效果，把這種範例包成一個獨立
+的 image 交給客戶，客戶啟動後只會看到「連不到硬體」的錯誤，沒有意義。所以現階段先讓那 6 個能單獨
+運作、示範用的範例可以交付。
 
-| # | 範例目錄 | image | 容器名 | 隨附服務 |
+image 名稱一律等於範例目錄名，與 `scripts/build-push-image.sh` 的預設一致
+（`harbor.arfa.wise-paas.com/edge-coa/${NAME}`）。容器名沿用 2026-09-10 那輪報告已經在用的名字。
+
+| # | 範例目錄 | 容器名 | 隨附服務 | 可交付 |
 |---|---|---|---|---|
-| 01 | `feature-transform-pipeline` | `edge-coa/feature-transform-pipeline` | `weda-transform-pipeline` | — |
-| 02 | `feature-custom-commands` | `edge-coa/feature-custom-commands` | `weda-command-handler` | — |
-| 03 | `http-air-quality` | `edge-coa/http-air-quality` | `weda-air-quality` | — |
-| 04 | `http-stock-quotes` | `edge-coa/http-stock-quotes` | `weda-stock` | — |
-| 05 | `feature-aggregation` | `edge-coa/feature-aggregation` | `weda-power-agg` | — |
-| 06 | `opcua-basic` | `edge-coa/opcua-basic` | `weda-opcua` | — |
-| 07 | `modbus-wise4012` | `edge-coa/modbus-wise4012` | `weda-modbus` | — |
-| 08 | `modbus-wise4012-builder` | `edge-coa/modbus-wise4012-builder` | `weda-modbusb` | — |
-| 09 | `mqtt-image-chunked` | `edge-coa/mqtt-image-chunked` | `weda-image-sensor` | mosquitto |
-| 10 | `mqtt-isensing-wise4012` | `edge-coa/mqtt-isensing-wise4012` | `weda-isensing` | mosquitto |
-| 11 | `vision-object-detection` | `edge-coa/vision-object-detection` | `weda-vision` | mosquitto |
-| 12 | `daq-proxy` | `edge-coa/daq-proxy` | `weda-daqp` | — |
-| 13 | `cfx-endpoint` | `edge-coa/cfx-endpoint` | `weda-cfx` | rabbitmq |
-| 14 | `daq-collector` | `edge-coa/daq-collector` | `weda-daqc` | — |
-| 15 | `system-agent` | `edge-coa/system-agent` | `weda-system-agent` | — |
+| 01 | `feature-transform-pipeline` | `weda-transform-pipeline` | — | ✅ 已交付 |
+| 02 | `feature-custom-commands` | `weda-command-handler` | — | ✅ 待 build |
+| 03 | `http-air-quality` | `weda-air-quality` | — | ✅ 待 build（需外網） |
+| 04 | `http-stock-quotes` | `weda-stock` | — | ✅ 待 build（需外網） |
+| 05 | `feature-aggregation` | `weda-power-agg` | — | ✅ 待 build |
+| 06 | `opcua-basic` | `weda-opcua` | — | ✅ 待 build |
+| 07 | `modbus-wise4012` | `weda-modbus` | — | ❌ 需 WISE-4012 |
+| 08 | `modbus-wise4012-builder` | `weda-modbusb` | — | ❌ 需 WISE-4012 |
+| 09 | `mqtt-image-chunked` | `weda-image-sensor` | mosquitto | ❌ 需影像發布端 |
+| 10 | `mqtt-isensing-wise4012` | `weda-isensing` | mosquitto | ❌ 需 iSensing 發布端 |
+| 11 | `vision-object-detection` | `weda-vision` | mosquitto | ❌ 需 CV 發布端 |
+| 12 | `daq-proxy` | `weda-daqp` | — | ❌ 需上游 SubNode |
+| 13 | `cfx-endpoint` | `weda-cfx` | rabbitmq | ❌ 需 CFX 來源 |
+| 14 | `daq-collector` | `weda-daqc` | — | ❌ 需 DAQ 模組 |
+| 15 | `system-agent` | `weda-system-agent` | — | ❌ 產品元件 |
 
-`mqtt-image-chunked` 目前的 compose 用的是 `edge-coa/image-sensor`，與建置腳本的預設不符，P2 一併對齊。
+「可交付」的判準是**不需要外部硬體或發布端就能看到成果**。交給客戶一個起來就報錯說連不到硬體的包沒有意義。
 
----
-
-## 2. 階段
-
-### P1 — 修 `daq-collector` compose 的驗證錯誤
-
-**改什麼**
-
-`examples/daq-collector/docker-compose.yml` 的 `devices:` 鍵存在但所有項目都被註解掉，等於空值，compose 驗證直接失敗：
-
-```
-services.daq-collector.devices must be a array
-```
-
-把 `devices:` 這個鍵本身也一起註解掉，並在說明裡寫明「取消註解時要連鍵一起打開」。
-
-**如何驗測**
-
-```bash
-docker compose -f examples/daq-collector/docker-compose.yml config -q   # 無輸出 = 通過
-```
+- **image tag**：`YYYYMMDD-HHMMSS`，`IMAGE_TAG=` 可覆蓋。交付一律固定 tag，`latest` 對不出版本。
+- **交付包**：`examples/<範例>/delivery/<範例>-<tag>/`，內含 `docker-compose.yml` 與繁體中文 `README.md`，納入版控。
 
 ---
 
-### P2 — 每個範例補一份部署用 compose
+## 2. 工作項
 
-**改什麼**
+### A — 修 `daq-collector` compose 的驗證錯誤
 
-每個範例目錄新增 `docker-compose.deploy.yml`，與現有的 `docker-compose.yml`（本機開發用，保留不動）並存：
+`devices:` 鍵存在但所有項目都被註解掉，等於空值，compose 驗證直接失敗
+（`services.daq-collector.devices must be a array`）。把鍵本身也一起註解，並寫明取消註解時要連鍵一起打開。
 
-- `image:` 指向第 1 節表格的 Harbor 位址，**不含 `build:`**
-- `container_name:` 用第 1 節的名字
-- 不掛任何 `./xxx.json`（設定檔已烘進 image），只保留 `${WEDA_DATA_PATH:-/opt/Advantech/weda/node/<service>}:/app/.weda`
-- 隨附服務（mosquitto / rabbitmq）一併寫進來，**全部 host networking**，不使用 `ports:`
-- `mqtt-image-chunked` 的 mosquitto 目前是 bridge + `ports:` + 掛 `./mosquitto/config`，三項在裝置上都不成立，改成與 `vision-object-detection` 一致的寫法（host networking + entrypoint 內產生最小設定）
-- `cfx-endpoint` 的 `cfx-replay` 是驗證用途、掛在 profile 下，不列入部署 compose
+**如何驗測**：`docker compose -f examples/daq-collector/docker-compose.yml config -q` 無輸出。
 
-連帶修正一處本機開發用的 compose：`examples/vision-object-detection/docker-compose.yml` 的
-`WEDA_NODE_URL` 預設值是 `127.0.0.1:4222`（錯的 port）、`WEDA_NODE_USERNAME` 預設空字串。環境變數
-會蓋掉烘進 image 的 `systemcfg.json`，所以這是 D-01 從環境變數那一層跑回來。改為 `4224` 與
-`advantech_nats`。
+---
 
-同時新增 `examples/<name>/e2e-expect.json`，讓驗證腳本只需要範例名就能自己找到其餘資訊：
+### B — `vision-object-detection` 開發用 compose 不再蓋掉 image 的設定
 
-```json
-{
-  "compose": "docker-compose.deploy.yml",
-  "container": "weda-modbus",
-  "image": "harbor.arfa.wise-paas.com/edge-coa/modbus-wise4012:latest",
-  "business": {
-    "mode": "external",
-    "patterns": [],
-    "note": "Needs a reachable WISE-4012 at 172.16.8.122:502 ..."
-  }
-}
-```
+`WEDA_NODE_URL` 預設 `127.0.0.1:4222`（錯的 port）、`WEDA_NODE_USERNAME` 預設空字串。環境變數在 JSON
+之後套用，所以這兩個會蓋掉烘進 image 的 `systemcfg.json`。
 
-`patterns` 是陣列且**全部都要命中**才算通過（例如 `feature-custom-commands` 要三個指令都成功）。
+這其實是同一個問題的重演：`E2E-EXAMPLE-IMAGES-001` 那份測試報告把「範例的連線設定寫錯，指向了開發者
+自己的機器或錯誤的 port」這個缺陷編號為 D-01，原本已經在 `systemcfg.json` 裡修好。但這裡的
+`docker-compose.yml` 是用環境變數去覆蓋 `systemcfg.json` 的值，而環境變數裡又是同一個錯——等於修好的
+東西又從另一層被蓋回去。改為 `4224` 與 `advantech_nats`。
 
-`business.mode` 三種值的定義見 P7。
+**如何驗測**：`docker compose config` 展開後兩個值正確。
+
+---
+
+### C — 可部署與可交付
+
+**目標**：裝置上跑得起來；客戶拿一個 image 位址加一份 compose 就能跑。
+
+**做法**
+
+1. **每個範例新增 `docker-compose.deploy.yml`**，讓裝置拉現成 image 就能跑：
+   - `image:` 寫字面值——客戶要換位址或版本，改的就是這一行
+   - `container_name:` 固定——查 log 的指令不必猜容器叫什麼
+   - 唯一的掛載是 `/app/.weda`，那裡放已被接受的註冊；沒有它，每次重建容器都會重新註冊並撞上自己
+     先前的身分（`409 Device name already in use`）
+   - 隨附服務一律 host networking——與 bridge 混用時 agent 會部署不起來且不吐 log
+   - `system-agent` 例外：它的設定由安裝程式放在裝置的 `/opt/Advantech/system-monitor/`
+
+2. **設定與密碼都放進 image**，讓客戶不必準備任何檔案：
+   - Dockerfile 把四個 JSON 檔 COPY 進 `/app`
+   - 密碼：**建置的人**在自己的 shell 設 `WEDA_NATS_PASSWORD=<值>` 之後再跑
+     `scripts/build-push-image.sh`；腳本以 `--build-arg WEDA_NATS_PASSWORD=...` 傳給 `docker build`，
+     Dockerfile 的 `ARG` 再把它寫進 image 裡的 `systemcfg.json`
+   - repo 裡那份 `systemcfg.json` 永遠是空字串，密碼不進版控
+
+3. **`scripts/package-example.sh <範例> <tag>` 產出實際交給客戶的東西**：
+   `examples/<範例>/delivery/<範例>-<tag>/` 底下的 `docker-compose.yml`（image 釘到該 tag）與中文
+   `README.md`。納入版控，因為它是「交出去的是哪一版」的紀錄。
+
+4. **compose 裡的憑證項目寫成不帶等號的 bare key**（`- SystemConfig__WedaNode__Password`），意思是
+   「環境有設就傳、沒設就不傳」。這樣客戶不設定時 image 裡的密碼留著，要換 WedaNode 時在 compose 旁
+   放 `.env` 就能覆蓋。
+
+5. **SubNode 名稱預設 `${SUBNODE_NAME:-<烘進去的名字>-${EDGESYNC_EDGE_ID:-local}}`**，讓同一份 compose
+   推到多台裝置不會撞名——`EDGESYNC_EDGE_ID` 是 agent 部署時自動注入的裝置 id。
+
+6. **`examples/<範例>/e2e-expect.json` 記錄容器名、image 與「該被看到做什麼」**，讓驗證腳本（E）與
+   報告（G）用同一份來源，不會各自漂移。
+
+7. **repo 內其餘五處同一組密碼一併清空**，讓「版控裡沒有明文密碼」這件事成立。
 
 **如何驗測**
 
 ```bash
 for f in examples/*/docker-compose.deploy.yml; do docker compose -f "$f" config -q || echo "FAIL $f"; done
+docker run --rm --entrypoint sh <交付用 image> -c 'grep -q "\"Password\": \"\"" /app/systemcfg.json'
 ```
 
-- 15 份都要通過驗證，且每份都要有 `image:`、`container_name:`、`WEDA_DATA_PATH`
-- 每份都不得同時出現 `network_mode: host` 與 `ports:`
-- 每份都不得出現 `build:` 或 `./*.json` 的 bind mount
-- 抽 `feature-transform-pipeline`（自帶模擬器）與 `mqtt-image-chunked`（有隨附 broker）兩個實機部署一次，確認容器名與腳本抓 log 的名字一致
+- 15 份 compose 都通過驗證，都有 `image:`、`container_name:`、`WEDA_DATA_PATH`，都沒有 `build:` 或
+  `./*.json` 掛載
+- 第二行對交付用 image 必須**不成立**，且值不印出來
+- `git grep` 該密碼字串零命中
+- 不帶環境變數時 `config`、`ps`、`down` 都成功；帶 `SystemConfig__WedaNode__Password` 時展開成傳入的值
+- 交付包內 `grep -riE "D-[0-9]{2}|SIT|E2E|docs/wiki|stack config"` 零命中
+- 在 EPC-R7300A1 上只放 `docker-compose.yml`、不建 `.env`，`up -d` 後四項檢查全過
 
 ---
 
-### P3 — image 內密碼留空，部署時注入
+### D — 修 `dotnet new` 模板
 
-> **P4 取代了這裡的一部分決定。** 交付用的 image 改成在 build 時把密碼寫進去，部署端不再需要提供。
-> 仍然成立的是：repo 內沒有明文密碼，`git grep` 零命中；值只存在於 build 者的環境變數與 image 內。
+**這裡的「模板」指什麼**：`templates/subnode/` 與 `templates/wedabuilder/` 這兩個資料夾。使用者打
+`dotnet new subnode` 或 `dotnet new wedabuilder` 時，工具就是照這兩份骨架長出一個新專案。C 段修的是
+現有 15 個範例；這裡修的是「以後生出新範例／新專案」用的模子——模子本身沒修，新專案會把 C 段修掉的
+問題重新生一次。
 
-**改什麼**
+**模子裡帶著五個問題，跟 C 段修過的是同一批**：
 
-- 14 個範例的 `systemcfg.json` 把 `WedaNode.Password` 改為 `""`（`cfx-endpoint` 已經是空的，維持不變）。帳號 `advantech_nats` 與位址 `127.0.0.1:4224` 保留。
-- 本機開發用的 `docker-compose.yml`：新增 `SystemConfig__WedaNode__Password: ${WEDA_NATS_PASSWORD:?...}`，並在各範例目錄補 `.env.example`。
-- 部署用的 `docker-compose.deploy.yml`：同樣以環境變數注入，值由部署端提供。`system-agent` 例外，它不烘設定、讀裝置上 `/opt/Advantech` 的那份，所以不加這個變數。
-- 一併補 `DeviceConfig__SubNode__Name=${SUBNODE_NAME:-<烘進去的名字>-${EDGESYNC_EDGE_ID:-local}}`。agent 部署每個 stack 時會自動注入 `EDGESYNC_EDGE_ID`（裝置 id），所以同一份 stack config 推到多台裝置不會撞名，不必每台改 `environment`。SubNode 名稱在同一個 org 內唯一，同一個範例部署到第二台裝置時第二次註冊會被拒（`409 Device name already in use`）。2026-09-10 那輪報告登記的名字（`ModbusDemo-0909` 等）與烘進 devicecfg 的名字（`Wise4012` 等）對不上，就是因為當時是用環境變數蓋掉的。
-- 順手移除 `mqtt-isensing-wise4012` 的 mosquitto 服務上那個 `DeviceConfig__...BrokerUrl` 變數：mosquitto 不讀它，是複製貼上殘留。
-- SOP `docs/wiki/en/02-getting-started/09-build-push-deploy-images.md` 增加一小節，說明部署時必須傳 `SystemConfig__WedaNode__Password`，以及沒傳時的症狀（NATS 認證失敗、容器持續重試）。
+1. 連線位址寫死 `localhost:4222`（對照 B 段修過的 `172.22.160.197:4222`，同一類錯誤：指向開發者
+   自己的機器，不是裝置上的 WedaNode）
+2. 設定檔沒有烘進 image（對照 C 段第 2 點，裝置上沒有檔案可掛，容器會直接啟動失敗）
+3. 註冊資料存在 `./weda-data`（相對路徑，容器一刪就不見，對照 C 段的 `/app/.weda` 掛載）
+4. Dockerfile 把專案路徑寫死成 `apps/<專案名>`，但範例照慣例會建在 `examples/<專案名>`，路徑對不上
+   導致 build 失敗
+5. `Program.cs` 不管設定寫死選 mock cloud（假的雲端，本機模擬用），新專案不改一行程式碼就永遠連不到
+   真正的 WedaNode
 
-這組密碼在 repo 裡是同一組，屬於平台預設值而非每台裝置獨立，所以 repo 內其餘出現位置一併清掉：
+**怎麼修**：
 
-| 檔案 | 怎麼清 |
-|---|---|
-| `tools/nats-web-dashboard/appsettings.json` | 密碼留空；順帶把 `172.22.160.197:4224` 改為 `127.0.0.1:4224`（與 D-01 同一類） |
-| `examples/mqtt-image-chunked/Receiver/appsettings.json` | 密碼留空，靠環境變數覆蓋 |
-| `examples/mqtt-image-chunked/.env.sample` | `WEDA_NODE_PASSWORD=` 留空，加註解說明值從哪裡取得 |
-| `examples/feature-transform-pipeline/scripts/test-device-capabilities-upload.sh` | 改為 `NATS_PASS="${WEDA_NATS_PASSWORD:?set WEDA_NATS_PASSWORD}"` |
-| `examples/daq-proxy/Devices/FeatureProxyDevice.cs` | 內建預設值改為空字串，空的時候讀環境變數 `WEDA_NATS_PASSWORD`；讀 `systemcfg.json` 的既有邏輯不動 |
+- 新增一個建置參數 `PROJECT_DIR`，讓使用者建置時告訴 Dockerfile「我的專案放在哪裡」，不用再寫死
+  `apps/<name>`
+- 讀取 `CustomConfig:UseMockCloud` 這個設定值來決定要不要用 mock cloud，預設為 false（連真正的
+  WedaNode），不再寫死
+- 密碼的處理方式跟 C 段第 2 點一樣：建置時用 `ARG` 把密碼寫進 image
 
-**如何驗測**
-
-```bash
-PUSH=false PLATFORMS=linux/amd64 ./scripts/build-push-image.sh feature-transform-pipeline
-docker run --rm --entrypoint cat feature-transform-pipeline:latest /app/systemcfg.json | grep '"Password"'
-```
-
-- 上面必須看到 `"Password": ""`
-- 加上 `${WEDA_NATS_PASSWORD:?...}` 之後，`docker compose config` 要帶假值才會通過，這一點同步反映在 P8 的檢查腳本
-- 對其餘 13 個 image 重複同一檢查（或以 P8 的靜態檢查涵蓋 `systemcfg.json` 這一側）
-- 實機以 `SystemConfig__WedaNode__Password` 注入部署一次，log 要出現 `NATS connection verified`；不注入時要出現認證失敗而非靜默無 log
-- 版控內搜尋該密碼字串（`git grep`）必須零命中；`examples/sit-testnode/` 是未納入版控的臨時專案，不在範圍內
-- `daq-proxy` 改動後要能建置並啟動，確認讀 `systemcfg.json` 的路徑沒被破壞
+**如何驗測**：把兩個模板都建成新專案、放到 `examples/` 底下，確認能編譯成功；用
+`PROJECT_DIR=examples/tmp-probe` 建置 image 成功；跑起來的容器不掛任何檔案也能啟動、讀得到烘進去的
+設定，而且**不再印出 mock cloud 的提示字樣**（代表真的連的是真雲端，不是模擬用的假雲端）。
 
 ---
 
-### P3b —文件同步
+### E — `deploy-verify.sh` 把「活著」與「有在做事」分開判
 
-**改什麼**
+**背景**：範例部署到裝置後，怎麼知道它「真的在運作」？之前的驗證腳本 `deploy-verify.sh` 只看一件事
+——裝置有沒有定時傳心跳訊號回雲端。但心跳只代表「這支程式沒當機」，不代表它真正的工作（讀感測器、
+轉發資料）有在跑。以前只看心跳，等於一個範例卡死在「連上了但什麼都沒做」也會被判定通過——這正是這次
+review 抓到的問題（見上面第 4 點問題）。
 
-P2 換了部署方式、P3 換了憑證來源，兩者都是使用者會直接踩到的介面，但原本的 plan 沒有安排文件工作。照舊文件走的人會拿到 `required variable WEDA_NATS_PASSWORD is missing a value` 而不知道發生什麼事。
+E 段把「活著」與「有在做事」拆成兩個獨立的檢查項目，並各自編號，之後 G 段的報告表格會用到這兩個編號：
 
-- SOP `09-build-push-deploy-images.md` 新增 §8「手動透過 SSH 部署」：兩份 compose 的差別、一行寫入 `.env` 的指令（`read -rsp`，不進 shell history）、四個可覆蓋的 WedaNode 變數、四種提供憑證的情境、四項檢查、首次與再次部署在 log 上的差別。§2 加一行指向它。
-- `examples/README.md`：兩份 compose 的用途，以及 `.env.example` → `.env`。
-- `07-tot-30min-subnode-for-si.md` 那條簡報檢查表已因 P3 過期（寫著「範例的 systemcfg.json 有寫死的 lab 憑證」），改成「`.env` 要填好且不要投影」。
-- E2E 主文件 Act 3 開頭指明：compose 內容取自該範例的 `docker-compose.deploy.yml`，容器名與業務判準取自 `e2e-expect.json`。
+- **4.4（心跳檢查）**：裝置有沒有定時回報「我還活著」
+- **4.5（功能檢查）**：這個範例存在的目的有沒有真的達成（例如「有沒有讀到感測器的值」「有沒有把
+  資料轉發出去」）
 
-一併修正 P3 引入的一個設計錯誤：密碼用 `${VAR:?}` 會讓 **每個** compose 子指令（`down`、`ps`、`logs`、`config`）都要求該值，只是要停容器也被擋。改為 `${VAR:-}`，沒填密碼時 compose 照常運作，錯誤改在容器 log 裡以 NATS 認證失敗呈現。
+這兩個編號的完整脈絡在母文件 `E2E-EXAMPLE-IMAGES-001`（也就是 `01-e2e-test-scenario-example-images.md`）
+的「第 4 幕」：那份文件把「部署完之後怎麼驗證它真的在動」拆成四到五個檢查點依序編號 4.1、4.2……，
+4.4 與 4.5 是其中最後兩個。這裡不重講整份文件，只講 4.4／4.5 這兩點怎麼改。
 
-**如何驗測**
+**功能檢查怎麼判定**：每個範例的目錄底下有一個 `e2e-expect.json` 檔案，裡面寫著「這個範例正常運作時，
+log 裡應該出現哪一行文字」。腳本就拿這個當標準答案去比對裝置上實際印出的 log。如果比對不到，就標記
+為 `NOT-SCORED`（無法判定是否成功），並把整體結論降為 `PARTIAL`（部分通過，不算完全過關）。
 
-- 在 EPC-R7300A1 上照 §8 從頭跑一次 `feature-transform-pipeline`：copy → 建 `.env` → `up` → 四項檢查 → `down`
-- 不帶任何環境變數時，`config -q`、`ps`、`down` 三個子指令都要成功
-- 文件裡出現的每一條指令都必須是實際跑過的那一條，不得改寫
+**其他改動**：
 
----
+- 指令只需要打範例名稱，其餘（compose 檔路徑、容器名稱）都自動從 `e2e-expect.json` 讀出來，不會跟
+  報告寫的對不上
+- 新增 `--from-log` 選項，可以直接餵一份已經存在的 log 檔去測，不必真的連裝置——用來驗證判定標準
+  本身寫得對不對
+- 透過平台部署時，連線密碼等變數要放進「部署設定」（stack config，平台那邊記錄「要在裝置上跑
+  什麼」的設定物件）的 `environment` 欄位一起送出——裝置端沒有 `.env` 檔可以讀，這是唯一能把值
+  傳過去的管道
 
-### P4 — Track A：交付「現成 image + compose」（先做 feature-transform-pipeline）
-
-客戶拿到一個 image 位址和一份 compose，把 compose 放上裝置、起起來就會動。設定全部在 image 裡，包含要連
-哪一台 WedaNode 與密碼。要用自己的密碼就自己 build（Track B）。
-
-**改什麼**
-
-1. **密碼在 build 時寫進 image**。Dockerfile 加 `ARG WEDA_NATS_PASSWORD`，把值寫進已經烘好的
-   `/app/systemcfg.json`；`scripts/build-push-image.sh` 從環境變數傳進去。repo 裡仍然是空字串，所以
-   `git grep` 還是零命中——值只存在於 build 者的環境與 image 內。沒帶這個變數 build 出來的 image 就是
-   空密碼，compose 仍可覆蓋。
-2. **部署 compose 的密碼那行改成「有設才傳」**（`- SystemConfig__WedaNode__Password`，不帶等號）。
-   原本的 `${WEDA_NATS_PASSWORD:-}` 在沒給值時會送空字串進容器，**把烘進去的密碼蓋掉**，實機上就是
-   `Authorization Violation`。
-3. **image 那行改成字面值**。既然作法是叫人改那一行，`${X_IMAGE:-...}` 兩層語法只是障礙。15 份一起改
-   （含既有的 `VISION_SUBNODE_IMAGE`、`IMAGE_SENSOR_IMAGE`、`CFX_SUBNODE_IMAGE`）。本機開發用的
-   `docker-compose.yml` 不是交付物，維持原狀。
-4. **`IMAGE_TAG` 預設改為 `YYYYMMDD-HHMMSS`**，可覆蓋。交付一律固定 tag，`latest` 對不出版本。
-5. **新增 `scripts/package-example.sh <example> <tag>`**，產出交付包：
-
-   ```
-   examples/<example>/delivery/<example>-<tag>/
-     docker-compose.yml    ← 唯一要放上裝置的檔案；檔頭換成客戶版，image 釘到該 tag
-     README.md             ← 繁體中文，留在交付方手上
-   ```
-
-   交付包放在該範例自己的目錄底下（範例的所有東西都在那裡），已加入 `.gitignore`。腳本產完會自己
-   grep 一次，內部字眼（缺陷編號、環境名、測試情境、repo 路徑）只要出現就 `exit 1`。
-6. **新增 `examples/<example>/delivery.md`**：範例本身在做什麼、正常會看到什麼。README 其餘部分
-   （前提、四步驟、故障排除）由腳本以共用樣板產生，避免 15 份 README 各自漂移。
-7. **README 的故障排除三條**：`Authorization Violation`（image 裡的密碼不是這台 WedaNode 的，用 `.env`
-   覆蓋或另外建置）、`Code=409, Message=Device name already in use`（說明預設名稱以 `-local` 結尾、
-   什麼情況會遇到、用 `SUBNODE_NAME` 避開，**不寫成必填**）、`Address already in use`（一台裝置一次
-   只能跑一個 SubNode）。
-8. **`.env.example` 移除 repo 內部路徑**（原本指向 `docs/wiki/...`，客戶手上沒有）。開發用的
-   `docker-compose.yml` 仍走 `.env` 注入，不受影響。
-
-**如何驗測**
-
-- `docker run --rm --entrypoint sh <image> -c 'grep -q "\"Password\": \"\"" /app/systemcfg.json'`
-  對交付用 image 必須**不成立**（密碼確實烘進去了），且值不印出來
-- 交付包內 `docker compose config -q` 通過，image 行是字面值且帶該 tag
-- 交付包內 `grep -riE "D-[0-9]{2}|SIT|E2E|docs/wiki|stack config"` 零命中（腳本已內建此檢查）
-- 在 EPC-R7300A1 上只放 `docker-compose.yml`、不建 `.env`，`docker compose up -d` 後四項檢查全過
-- `IMAGE_TAG` 不指定時產生的 tag 形如 `20260911-103046`
+**如何驗測**：拿 `feature-transform-pipeline`（自帶模擬器、能自動判定的範例）已存在的 log 測，功能
+檢查要判定為通過；拿 `modbus-wise4012`（需要外部硬體、目前沒接的範例）的 log 測，功能檢查要判定為
+`NOT-SCORED` 並印出缺什麼（沒接 WISE-4012），整體結論為 `PARTIAL`。
 
 ---
 
-### P4b — Track B：客戶自己 build
+### F — 新增一支 CI 自動檢查腳本
 
-客戶手上有整包 repo，適用於 image 要帶自己的 WedaNode 憑證、或改過範例的情況。
+**這裡的「CI」指什麼**：程式碼推上去之後、正式合併之前，系統自動跑的一批檢查。跑起來只要幾秒鐘、
+不需要真的裝置，所以放在最前面——檢查沒過就不用浪費時間往下編譯。
 
-**改什麼**
+**這支腳本 `scripts/lint-examples.sh` 檢查什麼**：把 A~D 段修過的每一種錯誤，都寫成一條規則，
+以後有人不小心改回錯的寫法，這裡就會擋下來。十條規則對應的錯誤類型：
 
-SOP 新增 §9「自己 build image」：範例不能單獨 build（`.csproj` 以 `../../src/...` 引用 SDK，整包 repo
-才是 build context，專案必須放在 repo 根目錄下兩層），四個環境變數各自的用途（`IMAGE_REPO` 指自己的
-registry、`WEDA_NATS_PASSWORD` 寫進 image、`PLATFORMS` 對齊裝置架構、`IMAGE_TAG` 釘版本）、改
-`docker-compose.deploy.yml` 的 image 那行，然後接 §8（SSH）或 §4（平台）。最後一小節說明用
-`dotnet new` 開自己的專案時形狀完全一樣，只是要帶 `PROJECT_DIR`。
+1. compose 檔本身格式錯到連 `docker compose` 都解析不了（對照 A 段）
+2. WedaNode 連線位址指向開發者自己的機器，不是 `127.0.0.1`（對照 B 段）
+3. repo 裡出現真的密碼，或是像 `REPLACE_WITH_...` 這種忘記填的佔位字
+4. 程式碼寫死用假的雲端（mock cloud），沒有讀設定值來決定要不要用（對照 D 段第 5 點）
+5. 設定檔沒有烘進 image（對照 C 段第 2 點）
+6. Dockerfile 用 `apt-get install pkg=1.2.3` 這種釘死版本號的寫法——套件倉庫之後可能把那個版本
+   下架，build 會突然壞掉
+7. 同一個 compose 檔裡把 `network_mode: host` 跟對外開 port 的寫法混在一起——這個組合部署到裝置上
+   會啟動失敗
+8. SubNode 的註冊資料沒有掛到裝置上的固定路徑（對照 C 段第 1 點的 `/app/.weda`）
+9. 部署用的 compose 還在用 `build:` 建置，或把密碼寫成「一律傳、沒設就傳空字串」而不是「有設才傳」
+   （對照 C 段第 1、4 點）
+10. 範例目錄底下沒有 `e2e-expect.json`（對照 E 段）
 
-**如何驗測**
+檔名結尾是 `-sim` 的 compose 檔是刻意留給開發機用的模擬環境，本來就不打算部署到裝置，所以規則 7、8
+會跳過它，並在檔案開頭寫明「這份不是拿去部署的」。
 
-- 以 `IMAGE_REPO` 指向另一個位址 build 並 push 一次，確認腳本吃得到覆蓋
-- 文件裡的每一條指令都要能照抄執行
-
----
-
-### P5 — 修 `dotnet new` 模板
-
-**改什麼**
-
-`templates/subnode` 與 `templates/wedabuilder` 各四項：
-
-1. `systemcfg.json` 的 `localhost:4222` → `127.0.0.1:4224`
-2. `Dockerfile` 補上把 `devicecfg.json` / `systemcfg.json` / `customcfg.json` / `appsettings.json` COPY 進 `/app`
-3. `docker-compose.yml` 的 `./weda-data:/app/.weda` → `${WEDA_DATA_PATH:-/opt/Advantech/weda/node/<sourceName>}:/app/.weda`
-4. `Dockerfile` 寫死 `WORKDIR /src/apps/<sourceName>`，但 `.csproj` 以 `../../src/...` 引用 SDK，代表專案只能放在 repo 根目錄下的 `apps/`；放到 `examples/` 就會 build 失敗。改為以 `ARG PROJECT_DIR` 帶入路徑，`docker-compose.yml` 一併傳值，並在模板 README（若無則在 `docs/wiki/en/02-getting-started/` 的對應頁）寫明這個限制。
-
-`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` 保留，但加註解說明「接 OPC UA 時必須移除，否則 X.509 憑證建立會失敗」。
-
-**如何驗測**
-
-```bash
-dotnet new install templates/subnode
-dotnet new subnode -n TmpProbe -o examples/tmp-probe
-docker build -f examples/tmp-probe/Dockerfile --build-arg PROJECT_DIR=examples/tmp-probe -t tmp-probe:test .
-docker run --rm tmp-probe:test        # 需在無 mount 的情況下啟動
-```
-
-- 放在 `examples/` 與 `apps/` 兩個位置都要 build 成功
-- 無任何 bind mount 啟動時，不得出現缺設定檔的錯誤（連不到 NATS 而重試是預期行為）
-- `wedabuilder` 模板重複同一組驗證
-- 驗證後刪除暫存專案
+**如何驗測**：在已經修好的樹上跑一次，十條全部通過；接著針對每一條規則，故意把某個檔案改回錯誤的
+寫法，確認腳本會抓到並回報失敗，改完再改回來（也就是「先證明抓得到，再證明抓不到就是真的沒問題」）。
 
 ---
 
-### P6 — `deploy-verify.sh` 支援新判準
+### G — 把 15 份範例測試報告改成新的計分方式
 
-**改什麼**
+**這裡改的是什麼**：`docs/wiki/en/07-testing/examples/` 底下那 15 份文件，每個範例一份，記錄它在
+真實裝置上測試的結果。這些報告原本就有一張表格，列出每個範例通過了哪些檢查；E 段把「心跳檢查」
+（表格裡的 4.4 欄）與「功能檢查」（4.5 欄）拆開之後，這些報告的表格也要跟著改，數字才會對得起來。
 
-- 參數從 `<example> <compose-file> <container-name>` 簡化為 `<example>`，其餘由 `e2e-expect.json` 讀取。重跑指令因此不再有 `<compose-file>` 佔位符。
-- 4.4 只判心跳；新增 4.5 依 `business.mode` 判定：`auto` 要 `patterns` 全部命中才 PASS，`external`、`manual`、`skip` 一律輸出 `NOT-SCORED` 而非 PASS。
-- 新增離線模式 `--from-log <file>`，直接對既有 log 檔跑判定邏輯，讓判準本身可以在沒有裝置的情況下驗證。
-- `.result` 輸出增加 `r45` / `e45` / `mode` 欄位。
+**改法**：
 
-**如何驗測**
+- 每份報告的表格從「4.4 一欄」變成「4.4（心跳）／4.5（功能）」兩欄
+- 功能檢查（4.5）依 E 段的判定方式分四種情況。每個範例目錄下的 `e2e-expect.json` 裡都有一個
+  `business.mode` 欄位，就是用來標記屬於哪一種：
 
-```bash
-# 用 2026-09-10 那輪已擷取的 log 驗判準，不需要裝置
-./scripts/deploy-verify.sh feature-transform-pipeline --from-log artifacts/e2e/feature-transform-pipeline.log
-./scripts/deploy-verify.sh modbus-wise4012 --from-log artifacts/e2e/modbus-wise4012.log
-```
+| `business.mode` 的值 | 意思 | 對這個範例的結論 |
+|---|---|---|
+| `auto` | 有現成的成功紀錄可以比對，而且比對到了，功能真的有驗證過 | 通過 |
+| `external` | 需要外部硬體或外部資料來源，但目前沒接，沒辦法驗證（不是失敗，是環境不齊全） | 最高只能是「部分通過」 |
+| `manual` | 需要人工看數字判斷合不合理，還沒有人判讀過 | 最高只能是「部分通過」 |
+| `skip` | 這次測試根本沒有跑這個範例，沒驗證 | 沒辦法算通過 |
 
-- `feature-transform-pipeline` 的 4.5 必須 PASS（log 內有溫度轉換）
-- `modbus-wise4012` 的 4.5 必須是 `NOT-SCORED`，且理由寫著缺 WISE-4012；4.1–4.4 仍為 PASS
-- 至少一個範例在實機跑完整流程，確認簡化後的參數能自己找到 compose 與容器名
+- 拿同一批 2026-09-10 測試留下的 log 重新對照計分，**沒有重新跑一次測試**：
+  15 個範例裡，6 個完全通過、7 個部分通過、1 個卡在缺硬體、1 個沒跑。舊報告寫的是「11 個完全通過」，
+  差的那 5 個原本就只有心跳合格、功能從來沒真的驗證過（例如：範例訂閱了某個訊息通道，但從頭到尾
+  沒有任何資料真的傳進來）
+- 有 3 個範例的「心跳」那格改標成「沒有紀錄可查」而不是「失敗」：那 3 份報告當初只保留了整份 log
+  裡的一小段摘錄，摘錄裡剛好沒有心跳那行，但這不代表心跳真的沒發生——原始 log 有 80 幾行，並非
+  只有摘錄那幾行
 
----
-
-### P7 — 報告 schema：把功能檢查拆成心跳與業務
-
-**改什麼**
-
-Act 4 的第四項檢查拆成兩項：
-
-- **E2E-EXD-4.4 心跳**：log 出現 `Reporting health` / `Health report sent successfully` 即通過。這一項只證明 SubNode 這個外殼活著、雲端看得到它，與感測器是否運作無關。腳本自動判定。
-- **E2E-EXD-4.5 業務**：這個範例存在的目的有沒有達成。每個範例在 `e2e-expect.json` 定義判準，結果分三態：
-
-| 狀態 | 意義 | 誰判 | 適用範例 |
-|---|---|---|---|
-| ✅ `auto` | 期望可寫成 log 比對，且已有成功樣本 | 腳本 | 01、02、03、04、05、06（共 6 個） |
-| ⚠️ `external` | 需要真實硬體或外部發布端才能驗證 | 記為未驗證並寫明缺什麼 | 07、08、09、10、11、12、13、14（共 8 個） |
-| ⏭️ `skip` | 不在這台裝置上驗證 | 記原因 | 15 `system-agent` |
-| 👤 `manual` | 只能人工判讀數值是否合理 | 人工，報告記判讀人 | 目前無 |
-
-`external` 佔八個，是 P2 逐一比對報告 §3 的實際 log 後的結果，不是預估：09、10、11、13 的 4.4 綠燈只證明**訂閱建立**（`Subscribed to MQTT topic: ...`），沒有任何訊息進來；12 `daq-proxy` 除了心跳沒有任何業務行，報告自己寫著「Passes without its upstream present」。07、08、14 則是硬體不在。
-
-`external` 的 `patterns` 一律留空，因為還沒有成功樣本可以據以定義判準——等發布端或硬體補上、跑出第一次成功的 log 之後再填。
-
-verdict 規則：4.5 是 `external` 或 `manual` 未判讀時，該範例最高只能是 **PARTIAL**，不得標 PASS。
-
-連帶要改：
-
-- 15 份 `docs/wiki/en/07-testing/examples/*.md`：檢查列 8 → 9，`§2` 加一列，`§5 未驗證` 對齊新狀態
-- `docs/wiki/en/07-testing/examples/README.md`：欄位 4.1–4.4 → 4.1–4.5，重算 verdict
-- `docs/wiki/en/07-testing/01-e2e-test-scenario-example-images.md`：`§6` 新增 4.5 的定義與三態說明、`§7` 表格加欄
-- 同一份大報告 `§12` 簽核表：X-3 由「13 confirmed」改為與 `§7` 一致的數字，整體結論一併更新
-
-依 P6 的新規則，09、10、11、12、13 五個都會從 PASS 變 PARTIAL，通過數由 11 變 6。
-
-**如何驗測**
-
-- 15 份報告都要有 9 列檢查與 7 節（以 grep 逐份確認 `E2E-EXD-4.5` 存在）
-- README 的統計數字與 verdict 欄逐列相加相符，且與大報告 `§7`、`§12` 三處一致
-- 每個 `business.mode` 為 `external` 或 `manual` 的範例，verdict 都不是 PASS
+**如何驗測**：15 份報告都要有完整的九項檢查列表；範例索引頁、總覽報告、還有底下的驗收簽核表，這
+三個地方的統計數字要一致（都是前面講的 6／7／1／1）；被判定「部分通過」的範例，結論欄位不能寫
+「完全通過」。
 
 ---
 
-### P8 — CI 第一層：靜態檢查腳本
+### H — 更新使用文件
 
-**改什麼**
+前面 A~G 段動了程式碼與 compose 檔，這一段是把文件跟上，不然照舊文件操作的人會卡在「怎麼跟改過的
+東西對不起來」。
 
-新增 `scripts/lint-examples.sh`，不需要 docker daemon 之外的任何資源、不需要裝置或 Harbor，對 `examples/*` 與 `templates/*` 同時套用：
+- **建置與部署的操作手冊**（SOP，即 `09-build-push-deploy-images.md`）：
+  - 補上「透過 SSH 手動部署」這一節：範例目錄下現在有兩份 compose（開發用、部署用），差在哪裡；
+    連線的帳號密碼位址等四個值可以怎麼覆蓋；部署完之後怎麼確認範例真的在動；以及「第一次部署」跟
+    「重新部署」在 log 上長得不一樣（`SUBNODE_NAME` 這個設定值只有在第一次部署時才有意義，因為
+    程式碼裡的 `GetOrRegisterDeviceIdAsync` 會直接沿用上次記住的裝置 ID，不會拿新設的名字去比對）
+  - 補上「自己建置 image」這一節：範例的專案結構限制它不能單獨建置，一定要在整個 repo 的根目錄下
+    建置；並列出四個建置時可以設定的環境變數，各自預防了什麼失敗情況
+  - 說明部署設定（stack config）裡的 `environment` 欄位是拿來解析 compose 檔案裡 `${...}` 這種
+    變數用的，而且大多數情況不需要特別去設定它
+- **範例總覽頁**（`examples/README.md`）：把「本機開發時該用哪份 compose」跟「交付給客戶時該用
+  哪份」分開講清楚；`.env.example` 檔案上也註明它是本機開發用的
+- **業務簡報用的檢查清單**（`07-tot-30min-subnode-for-si.md`）：原本提醒簡報者「`systemcfg.json`
+  裡有密碼，畫面上不要投影出來」——這句話已經過期，因為 C 段之後這個檔案裡已經沒有密碼了，所以拿掉
 
-| 檢查 | 守住的缺陷 |
-|---|---|
-| 所有 compose 通過 `docker compose config -q`（以 exit code 判定，並帶假值環境變數） | D-08 |
-| `systemcfg.json` 的 `WedaNode.Url` 只允許 `127.0.0.1:4224` | D-01 |
-| 全域不得出現 `REPLACE_WITH_` | D-03 |
-| `Program.cs` 不得出現無條件的 `.UseMockCloud()` | D-06 |
-| Dockerfile 必須 COPY 四個設定檔到 `/app` | D-02 |
-| Dockerfile 不得出現 `apt-get install` 搭配 `套件=確切版本` | D-17 |
-| 同一份 compose 不得同時出現 `network_mode: host` 與 `ports:` | D-14 |
-| 每份 compose 必須以 `${WEDA_DATA_PATH:-...}` 掛 `/app/.weda` | 註冊持久化 |
-| `systemcfg.json` 的 `Password` 必須為空字串 | P3 |
-| `docker-compose.deploy.yml` 必須存在、有 `image:` 與 `container_name:`、且無 `build:` | P2 |
-| 同一組檢查套用在 `templates/*` | 模板漂移 |
-
-腳本以 `exit 1` 表示失敗並列出每一條違規的檔案與行號。`azure-pipelines.yml` 增加一個獨立的 step 呼叫它。
-
-執行 `docker compose config` 時有兩個實作細節，P1 掃描時實測到的：
-
-- 用了 `${VAR:?...}` 的 compose（`cfx-endpoint`，以及 P3 之後的全部）在沒有值時一定失敗，所以檢查要先餵假值（`CFX_BROKER_PASSWORD=x WEDA_NATS_PASSWORD=x ...`）
-- 判定要看 exit code，不能看 stderr 是否為空：`system-agent` 的 compose 還留著已廢棄的 `version: '2.4'`，只會吐警告但驗證是通過的。順帶在 P2 把這個鍵移除
-
-**如何驗測**
-
-- 在修完 P1–P4 的樹上執行，必須全數通過並 `exit 0`
-- 逐條反向驗證：每一條檢查都刻意製造一次違規（例如把某個 `systemcfg.json` 的 Url 改成 IP、把某支 Dockerfile 的 COPY 刪掉、把 `devices:` 改回空值），確認腳本抓到並 `exit 1`，然後還原
-- pipeline 上實跑一次，確認該 step 的失敗會呈現在 PR 上
+**如何驗測**：文件裡出現的每一條指令，都要是真的在裝置上跑過、確認可行的那一條，不能是憑印象寫的。
 
 ---
 
 ## 3. 相依順序
 
-編號即執行順序：每個階段只依賴編號比它小的階段。
-
 ```
-P1 ┐
-P2 ┤  四項彼此獨立，順序可換
-P3 ┤
-P4 ┘
-      P2 ───> P6 ───> P7
-      P4 ───> P5
-      P1~P5 ───────> P8
+A ┐
+B ┤  三項彼此獨立
+C ┘
+    C ──> D（模板比照範例的形狀）
+    C ──> E ──> G（腳本先改，報告才有結果可寫）
+    A~D ─────> F（規則固化成檢查，前面沒修完只會一直紅）
+    全部 ──> H
 ```
 
-- **P6 只依賴 P2**：腳本要讀 `e2e-expect.json`，那份檔案在 P2 產生
-- **P7 依賴 P6**：報告寫的是腳本判出來的結果，先改腳本再改報告，否則報告要改兩次
-- **P8 放最後**：它把前面訂下的規則固化成檢查，提前接上 pipeline 只會一直紅
-- **P4 先於 P5**：模板要不要附交付形狀，取決於 P4 定下的交付包長什麼樣
-- 每個階段各自 commit，訊息語言依 `git log` 現有慣例（英文 title + 中文 body）
+每個工作項各自 commit，訊息語言依 `git log` 現有慣例（英文 title + 英文 body）。
 
 ---
 
-## 4. 已知會被這份計畫改變的結論
+## 4. 已知被這份計畫改變的結論
 
-- 09、10、11、12、13 由 PASS 降為 PARTIAL（P6）：它們的 4.4 綠燈建立在「訂閱建立」或心跳上，沒有任何業務資料流過
-- 統計由 **11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP** 變成 **6 PASS · 7 PARTIAL · 1 BLOCKED · 1 SKIP**，實際值待 P6 重算確認
-- 補齊發布端（`cfx-endpoint` 可用 `tools/cfx-replay`）能把其中幾個轉回 `auto`，屬於後續工作
+- 統計由 **11 PASS · 2 PARTIAL · 1 BLOCKED · 1 SKIP** 變成 **6 PASS · 7 PARTIAL · 1 BLOCKED · 1 SKIP**。
+  `mqtt-image-chunked`、`mqtt-isensing-wise4012`、`vision-object-detection`、`daq-proxy`、`cfx-endpoint`
+  五個從 PASS 降為 PARTIAL：它們只證明了訂閱建立或只有心跳，沒有任何業務資料流過
+- 上面那 5 個「部分通過」的範例，現在都卡在同一個原因：只證明訂閱建立，沒有真的資料流進來，
+  因為沒有東西在對面發資料。之後找人把發送端接上、跑出一次成功的資料，就能把 `e2e-expect.json`
+  的 `business.mode` 從 `external`（目前的「還沒有成功樣本可比對」）改成 `auto`（有樣本可以自動
+  判定），下次重測就能真的判定通過或失敗，不用再靠人工。`cfx-endpoint` 這一個已經有現成工具可以
+  用：`tools/cfx-replay` 會把錄好的 CFX 資料重播到同一個 broker 上，模擬真的有資料進來
+  （`docker compose --profile replay up`）
 - 既有的 `docker-compose.yml` 全數保留，本機 `docker compose up --build` 的流程不受影響
 
 ---
@@ -415,3 +333,4 @@ P4 ┘
 | 日期 | 修訂 |
 |---|---|
 | 2026-09-10 | 初版 |
+| 2026-09-14 | 密碼的處理由「image 留空、部署時注入」改為「build 時寫進 image」，交付包與打包腳本納入範圍；全文改寫為與實作一致 |
