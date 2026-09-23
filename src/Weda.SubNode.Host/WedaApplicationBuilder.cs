@@ -322,7 +322,8 @@ public class WedaApplicationBuilder
     {
         if (configure == null)
         {
-            Services.Configure<RecordingOptions>(Configuration.GetSection($"SystemConfig:{RecordingOptions.SectionName}"));
+            Services.Configure<RecordingOptions>(Configuration.GetSection(
+                $"{DeviceCfg.SectionName}:{DeviceCfg.SubNodeSettingsSectionName}:{RecordingOptions.SectionName}"));
         }
         else
         {

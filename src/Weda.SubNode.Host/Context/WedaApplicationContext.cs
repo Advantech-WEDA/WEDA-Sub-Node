@@ -259,7 +259,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         if (_options.RecordingService != null || _options.DeviceOptions.EnableRecording)
         {
             _recordingOptions = _options.RecordingOptions
-                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+                ?? BindConfiguration<RecordingOptions>(
+                    $"{DeviceCfg.SectionName}:{DeviceCfg.SubNodeSettingsSectionName}:{RecordingOptions.SectionName}");
             _recordingOptions.Validate();
 
             if (_options.RecordingService != null)
