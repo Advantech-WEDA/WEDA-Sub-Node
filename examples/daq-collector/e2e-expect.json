@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-daqc",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/daq-collector:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "Needs real DAQ modules on the device; the EPC-R7300A1 has none (`DaqCommunication connection failed: No DAQ modules available.`)."
+  }
+}

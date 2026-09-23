@@ -17,7 +17,7 @@ TIMEOUT_SECONDS="${2:-30}"
 
 # NATS Authentication (from systemcfg.json)
 NATS_USER="advantech_nats"
-NATS_PASS="3671be64607240cbc2b95af99c9a3b28fb5f9aa3fbe51f501478f1a678e19d48"
+NATS_PASS="${WEDA_NATS_PASSWORD:?set WEDA_NATS_PASSWORD}"
 
 # Subjects
 CFG_UPDATE_REQ_SUBJECT="eco1j.weda.dm.cfg.update.req"  # Device uploads capabilities here

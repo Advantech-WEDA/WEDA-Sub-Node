@@ -1,0 +1,51 @@
+# Deployment compose for mqtt-isensing-wise4012.
+#
+# This is the file container-management pushes to a device: it pulls a published image and
+# mounts nothing but the SubNode's own state directory, because a device has no checkout of
+# this repository. Use docker-compose.yml for local development, where the image is built
+# from this working tree instead.
+#
+# Every service runs on host networking. A stack that mixes host networking with a
+# bridge-networked sibling cannot deploy (D-14): the agent programs the project network's veth
+# into the host namespace and the host-mode container is created but never starts, with no logs.
+services:
+  # A real WISE-4012 publishes iSensing JSON from its own broker; this stands in for it.
+  # Point ISENSING_BROKER_URL at the real device to use that instead.
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: weda-isensing-mqtt
+    network_mode: host
+    # The stock image ships no usable config; write a minimal anonymous listener before starting.
+    # Overriding only `command:` is swallowed by the image entrypoint, so `entrypoint:` is
+    # overridden too.
+    entrypoint: ["/bin/sh","-c"]
+    command: ["printf 'listener 1883 0.0.0.0\\nallow_anonymous true\\n' > /tmp/mosquitto.conf && exec mosquitto -c /tmp/mosquitto.conf"]
+    restart: unless-stopped
+
+  wise-4012-isensing:
+    depends_on: [mqtt]
+    # Change this line to the image you can pull, and to the version you were given.
+    image: harbor.arfa.wise-paas.com/edge-coa/mqtt-isensing-wise4012:latest
+    pull_policy: always
+    container_name: weda-isensing
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # The image already carries the password for the WedaNode it was built for. Set
+      # SystemConfig__WedaNode__Password in the environment, or in a .env beside this file,
+      # only to point it somewhere else - unset, the built-in value stands.
+      - SystemConfig__WedaNode__Password
+      # SubNode names are unique per organisation, so the default appends the device id when one
+      # is available as EDGESYNC_EDGE_ID, and "local" otherwise. A second device registering the
+      # same name is refused with 409 Device name already in use; set SUBNODE_NAME to choose your
+      # own.
+      - DeviceConfig__SubNode__Name=${SUBNODE_NAME:-MyWiseDevice4012SE-${EDGESYNC_EDGE_ID:-local}}
+      # Defaults to the bundled broker; override to talk to a real WISE-4012.
+      - DeviceConfig__DeviceConfigs__MyFirstDevice__DeviceCommunication__BrokerUrl=${ISENSING_BROKER_URL:-mqtt://localhost:1883}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/wise-4012-isensing}:/app/.weda

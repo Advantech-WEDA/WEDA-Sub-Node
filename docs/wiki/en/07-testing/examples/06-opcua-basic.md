@@ -2,84 +2,115 @@
 doc-id:    E2E-EXD-OPCUA_BASIC
 title:     "opcua-basic — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.0
+version:   1.2
 status:    Review
-date:      2026-09-09
+date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
 tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, status:review]
 ---
 
 # opcua-basic — End-to-End Deployment Test Report
 
-> **Verdict: ✅ PASS**
-> Part of [E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md), which defines the
-> gates, the step format and the shared fixtures. This page records only what this example did.
+| Verdict | Test run | Device under test | Environment |
+|:--|:--|:--|:--|
+| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
-## 0. At a Glance
+> Method, gate definitions, fixtures, negative cases and the shared defect register live in
+> **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
+> what **this** example did. Section numbering is identical across all 15 reports.
 
-| | |
+## 1. Subject under test
+
+| Field | Value |
 |---|---|
 | **Example** | [`examples/opcua-basic`](../../../../../examples/opcua-basic/) |
 | **Compose service** | `opcua-device` |
 | **Image** | `harbor.arfa.wise-paas.com/edge-coa/opcua-basic:latest` |
-| **Transport** | OPC UA (embedded simulator on localhost:4840) |
+| **Transport** | OPC UA (embedded simulator on `localhost:4840`) |
 | **External dependency** | None |
-| **SubNode name used** | `OpcUaDemo-<date>` |
-| **Registered deviceId** | — |
-| **Device** | EPC-R7300A1 `48b02dea8160` — ARM64, Ubuntu 20.04 |
-| **Verdict** | **✅ PASS** |
+| **Host endpoints used** | 2395 (SubNode Web API), 4840 (embedded OPC UA simulator) |
+| **Required deployment overrides** | None |
+| **SubNode name** | `OpcUaDemo2-0909` |
+| **Registered deviceId** | `355913752391974912` |
 
-## 1. Gate results
+## 2. Gate results
 
-| Gate | Step | Result |
-|---|---|---|
-| Build | E2E-EXD-2.2 | ✅ builds for `linux/arm64` |
-| Push | E2E-EXD-2.2 | ✅ multi-arch manifest in Harbor |
-| Standalone start | E2E-EXD-2.3 | ✅ starts with no bind mounts |
-| Deploy | E2E-EXD-3.2 | ✅ `deviceActions: add` |
-| Function | E2E-EXD-4.1–4.4 | ✅ PASS |
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
-## 2. Evidence
+| Gate | Step | Check | Result | Evidence |
+|---|---|---|:-:|---|
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
+| **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.276ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=OpcUaDemo2-0909, DeviceId=355913752391974912` |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [01:25:08 INF] Reporting health: DeviceId=355913752391974912, IsHealthy=True, CpuUsage=25.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ✅ | [01:25:08 INF] temperature_sensor: 25 · [01:25:08 INF] pressure_sensor: 1013 |
 
-Observed on the device (`docker logs`):
+> **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
-- `OPC-UA Simulator started successfully at opc.tcp://localhost:4840/WedaOpcUaSimulator`
-- `nats + registration + telemetry`
+## 3. Evidence log
 
-## 3. Defects this example exposed
+Verbatim from `docker logs weda-opcua` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 98 lines total.
 
-- D-05 `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`
-- D-06 hardcoded `.UseMockCloud()`
-
-Defect numbering is shared across the suite — see
-[§10 of the parent report](../01-e2e-test-scenario-example-images.md).
-
-## 4. Notes
-
-D-05 was established by elimination: works via `dotnet run` on the host, works self-contained on the host, fails in a container on **both** base images, starts cleanly with the flag set to 0. The OPC UA stack builds an X.509 application certificate at startup and its X.500 name handling needs ICU.
-
-## 5. Re-running this test
-
-```bash
-# 1. Build and publish (repository root is the build context — the script enforces it)
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh opcua-basic
-
-# 2. Deploy the stack to the device through container-management, then confirm on the device
-ssh <device> 'docker logs --tail 40 <container>'
+```text
+[4.1] [01:25:07 INF] OPC-UA Simulator started successfully at opc.tcp://localhost:4840/WedaOpcUaSimulator
+[4.2] [01:25:07 INF] NATS connection verified - RTT: 0.276ms
+[4.2] [01:25:07 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [01:25:07 INF] Found existing SubNode registration: DeviceName=OpcUaDemo2-0909, DeviceId=355913752391974912
+[4.3] [01:25:07 INF] Configuration uploaded successfully: DeviceId=355913752391974912, Status=null
+[4.3] [01:25:08 INF] Device registered: DeviceId=355913752391974912, RegistrationStatus=accepted, RspSeqId=858ba921-e25a-4eb3-afbb-79635fd5652f
+[4.5] [01:25:08 INF] temperature_sensor: 25
+[4.5] [01:25:08 INF] humidity_sensor: 55
+[4.5] [01:25:08 INF] pressure_sensor: 1013
+[4.4] [01:25:08 INF] Reporting health: DeviceId=355913752391974912, IsHealthy=True, CpuUsage=25.13%, MemoryUsage=3.12%, Topic=eco1j.weda.355913752391974912.health, ReqSeqId=1
+[4.5] [01:25:13 INF] temperature_sensor: 24.839359283447266
+[4.5] [01:25:13 INF] humidity_sensor: 55.17400360107422
 ```
 
-A container reported `running` is **not** sufficient evidence — see §6 of the parent report.
+## 4. Defects
 
-## 6. Change record
+| # | Severity | Status | What it did **here** |
+|---|---|---|---|
+| **D-05** | High | Fixed | `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` broke the OPC UA X.509 application-certificate path at startup |
+| **D-06** | High | Fixed | hardcoded `.UseMockCloud()`, so it could never reach a WedaNode |
+
+> Defect ids are shared across the suite; the full register is [§10 of the parent report](../01-e2e-test-scenario-example-images.md).
+
+### Analysis
+
+**Failed on the first attempt of this run and passed on an isolated re-run.** In the batch the container never appeared inside the 7.5-minute window and the log capture read `No such container`. Re-run alone it came up and passed all four checks. Every image had just been re-pushed, so this run's pulls were all cold; the batch window was too short for this one, not a deployment defect. Recorded because it looks exactly like D-09 until you re-run it — and D-09 does not resolve on a retry.
+
+## 5. Not verified in this run
+
+Nothing. All nine checks were exercised and observed.
+
+## 6. Re-running this test
+
+```bash
+# 1. Build and publish — the repository root is the build context; the script enforces it
+./scripts/build-push-image.sh opcua-basic
+
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh opcua-basic
+
+# 3. Confirm on the device itself
+ssh <device> 'docker logs --tail 40 weda-opcua'
+```
+
+## 7. Change record
 
 | | |
 |---|---|
-| Test run | 2026-09-09, EPC-R7300A1 `48b02dea8160`, SIT |
-| Fixes landed in | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| Harness | `deploy-verify.sh` — deploy revision, wait for the container, assert the four Act-4 checks |
-
-> CI note: `Weda.SubNode.Integration.Tests` reported 2/10 failing throughout this work. That is
-> D-16 — hardcoded `localhost` against a Testcontainers-published port — which predates this
-> branch by a week and is fixed separately in
-> [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
-> It is unrelated to any example result on this page.
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/opcua-basic/e2e-expect.json` |

@@ -62,7 +62,7 @@ Rehearse once end to end:
 - [ ] `docker compose -f docker-compose-sim.yml down` cleans up
 - [ ] Terminal font size is readable on a shared screen (16pt+)
 - [ ] Wiki open in a second tab at [SI Integration Guide](./05-si-integration-guide.md)
-- [ ] `systemcfg.json` is **not** on screen during the demo -- the examples ship with a hard-coded lab NATS credential in that file. Do not project it, and tell attendees to replace it with an environment variable before any real deployment.
+- [ ] `.env` is filled in and **not** on screen during the demo. The examples ship an empty password in `systemcfg.json` and read the real one from `WEDA_NATS_PASSWORD`, so that is the file to keep off the projector.
 
 ---
 

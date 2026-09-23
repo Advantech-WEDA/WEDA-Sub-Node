@@ -3,7 +3,7 @@
     "Url": "127.0.0.1:4224",
     "AuthStrategy": "UserPassword",
     "Username": "advantech_nats",
-    "Password": "<your-wedanode-password>"
+    "Password": ""
   },
   "Record": {
     "MinFreeDiskSpaceMb": 128,

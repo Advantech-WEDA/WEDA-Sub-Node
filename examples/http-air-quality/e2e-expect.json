@@ -1,0 +1,12 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-air-quality",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/http-air-quality:latest",
+  "business": {
+    "mode": "auto",
+    "patterns": [
+      "Air quality data received"
+    ],
+    "note": "The MOENV HTTP API answered and the record was parsed. Needs outbound internet."
+  }
+}

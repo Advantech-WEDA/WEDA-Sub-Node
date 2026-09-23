@@ -57,7 +57,7 @@ services:
       # bridge. Drop this override when pointing at a real bridge.
       DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__BrokerPort: "1883"
       DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__Password: ${CFX_BROKER_PASSWORD:?set CFX_BROKER_PASSWORD in examples/cfx-endpoint/.env}
-      SystemConfig__WedaNode__Password: ${WEDA_NATS_PASSWORD:?set WEDA_NATS_PASSWORD in examples/cfx-endpoint/.env}
+      SystemConfig__WedaNode__Password: ${WEDA_NATS_PASSWORD:-}
     volumes:
       - ./devicecfg.json:/app/devicecfg.json:ro
       - ./systemcfg.json:/app/systemcfg.json:ro

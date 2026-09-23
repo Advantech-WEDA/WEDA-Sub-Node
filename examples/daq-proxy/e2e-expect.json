@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-daqp",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/daq-proxy:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "Proxies what daq-collector produces, so it needs that upstream present. On its own it only reaches the heartbeat."
+  }
+}

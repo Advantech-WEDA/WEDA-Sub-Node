@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-isensing",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/mqtt-isensing-wise4012:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "The bundled broker has no publisher. Unblock with a real WISE-4012 (ISENSING_BROKER_URL=mqtt://172.16.8.122:1883) or an iSensing payload publisher."
+  }
+}

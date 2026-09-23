@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-image-sensor",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/mqtt-image-chunked:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "The bundled broker has no publisher, so the SubNode subscribes but no frame arrives. Unblock by attaching an image publisher, then assert the reassembled frame size."
+  }
+}

@@ -60,16 +60,30 @@ COPY examples/daq-collector/entrypoint.sh /app/entrypoint.sh
 
 # Copy default configuration files (can be overridden via docker-compose.yml volume mounts)
 COPY examples/daq-collector/devicecfg.json /app/devicecfg.json
+# The delivered image carries the WedaNode password, so a customer needs only the image and
+# the compose file. scripts/build-push-image.sh passes it from the environment; built without
+# it, the image ships the empty password the repository holds, and the compose can still
+# supply one. Either way the value is readable inside the image - that is the trade for one
+# image that runs as delivered. A customer who needs their own password builds their own.
+ARG WEDA_NATS_PASSWORD=""
 COPY examples/daq-collector/systemcfg.json /app/systemcfg.json
+RUN if [ -n "$WEDA_NATS_PASSWORD" ]; then \
+      sed -i "s|\"Password\": \"\"|\"Password\": \"$WEDA_NATS_PASSWORD\"|" /app/systemcfg.json; \
+    fi
 COPY examples/daq-collector/customcfg.json /app/customcfg.json
 COPY examples/daq-collector/appsettings.json /app/appsettings.json
 
 # Ensure executables have execute permission
 RUN chmod +x DaqCollector /app/entrypoint.sh
 
-# Single layer for all runtime setup including CVE fix
+# Single layer for all runtime setup including CVE fix.
+# Take the archive candidate and ASSERT the CVE floor, rather than pinning an exact
+# version. Ubuntu drops superseded point releases, so `=2.4.4-2ubuntu17.4` broke the
+# build the moment 17.6 landed. apt has no `>=` operator for install, so the floor is
+# enforced explicitly: the build fails if the installed gpgv is older than the fix.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gpgv=2.4.4-2ubuntu17.4 && \
+    apt-get install -y --no-install-recommends gpgv && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' gpgv)" ge 2.4.4-2ubuntu17.4 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

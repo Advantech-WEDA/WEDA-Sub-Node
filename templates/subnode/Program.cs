@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Host;
@@ -9,8 +10,25 @@ using WedaSubNode;
 
 try
 {
-    // Create WedaApplicationContext with mock cloud (remove UseMockCloud for real cloud)
-    using var context = new WedaApplicationContext(options => options.CloudService = Cloud.Mock());
+    // Cloud target is configuration-driven, so the same build runs either way and nothing has to
+    // be edited to reach a real WedaNode:
+    //   customcfg.json "UseMockCloud": true  -> telemetry is logged locally, no WedaNode needed
+    //   customcfg.json "UseMockCloud": false -> published to the WedaNode in systemcfg.json
+    // CustomConfig__UseMockCloud in the environment overrides the file.
+    var useMockCloud = new ConfigurationBuilder()
+        .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile("customcfg.json", optional: true)
+        .AddEnvironmentVariables("CustomConfig__")
+        .Build()
+        .GetValue("UseMockCloud", false);
+
+    using var context = new WedaApplicationContext(options =>
+    {
+        if (useMockCloud)
+        {
+            options.CloudService = Cloud.Mock();
+        }
+    });
 
     // Configure and start Modbus Simulator
     var simulator = await ConfigureTcpModbusSimulator(context);

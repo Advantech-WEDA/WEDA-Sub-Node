@@ -158,7 +158,9 @@ public class FeatureProxyDevice : DeviceBase
 
             string natsUrl = "nats://127.0.0.1:4224";
             string username = "advantech_nats";
-            string password = "3671be64607240cbc2b95af99c9a3b28fb5f9aa3fbe51f501478f1a678e19d48";
+            // No password in source: the value comes from systemcfg.json below, or from
+            // WEDA_NATS_PASSWORD when that file carries an empty one.
+            string password = Environment.GetEnvironmentVariable("WEDA_NATS_PASSWORD") ?? string.Empty;
 
             if (File.Exists(systemConfigPath))
             {

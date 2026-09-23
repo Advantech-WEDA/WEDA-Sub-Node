@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-modbusb",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/modbus-wise4012-builder:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "Same WISE-4012 as modbus-wise4012, same refusal. Pattern to be filled from the first successful read."
+  }
+}

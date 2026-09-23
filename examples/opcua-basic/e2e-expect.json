@@ -1,0 +1,13 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-opcua",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/opcua-basic:latest",
+  "business": {
+    "mode": "auto",
+    "patterns": [
+      "temperature_sensor: [0-9.]+",
+      "pressure_sensor: [0-9.]+"
+    ],
+    "note": "Values were read over OPC UA from the embedded simulator."
+  }
+}

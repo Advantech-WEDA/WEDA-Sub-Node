@@ -1,0 +1,38 @@
+# Deployment compose for http-stock-quotes.
+#
+# This is the file container-management pushes to a device: it pulls a published image and
+# mounts nothing but the SubNode's own state directory, because a device has no checkout of
+# this repository. Use docker-compose.yml for local development, where the image is built
+# from this working tree instead.
+#
+# Every service runs on host networking. A stack that mixes host networking with a
+# bridge-networked sibling cannot deploy (D-14): the agent programs the project network's veth
+# into the host namespace and the host-mode container is created but never starts, with no logs.
+services:
+  stock-monitor:
+    # Change this line to the image you can pull, and to the version you were given.
+    image: harbor.arfa.wise-paas.com/edge-coa/http-stock-quotes:latest
+    pull_policy: always
+    container_name: weda-stock
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # The image already carries the password for the WedaNode it was built for. Set
+      # SystemConfig__WedaNode__Password in the environment, or in a .env beside this file,
+      # only to point it somewhere else - unset, the built-in value stands.
+      - SystemConfig__WedaNode__Password
+      # SubNode names are unique per organisation, so the default appends the device id when one
+      # is available as EDGESYNC_EDGE_ID, and "local" otherwise. A second device registering the
+      # same name is refused with 409 Device name already in use; set SUBNODE_NAME to choose your
+      # own.
+      - DeviceConfig__SubNode__Name=${SUBNODE_NAME:-MyStockMonitor-${EDGESYNC_EDGE_ID:-local}}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      # Configuration is baked into the image; only the registration state is persisted.
+      # Losing /app/.weda makes the SubNode register afresh and collide with its own previous
+      # registration (409 Device name already in use).
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/stock-monitor}:/app/.weda
