@@ -16,8 +16,14 @@ services:
 
   # ImageSensor Application
   image-sensor:
-    image: ${IMAGE_SENSOR_IMAGE:-harbor.arfa.wise-paas.com/edge-coa/image-sensor:latest}
-    pull_policy: always
+    # Built locally from this repo's Dockerfile — no registry access required.
+    # `docker compose up --build` builds it the first time; override IMAGE_SENSOR_IMAGE
+    # in .env to pull a pre-built image from your own registry instead.
+    image: ${IMAGE_SENSOR_IMAGE:-image-sensor:local}
+    build:
+      # Build context is the repo root — the Dockerfile publishes from the full solution.
+      context: ../..
+      dockerfile: examples/mqtt-image-chunked/Dockerfile
     container_name: image-sensor-app
     network_mode: host
     restart: unless-stopped

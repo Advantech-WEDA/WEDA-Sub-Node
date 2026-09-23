@@ -224,6 +224,97 @@ public class SubNodeManagerTests : IAsyncDisposable
         device1.ApplyCallCount.ShouldBe(0, "device-1 should NOT have apply called when validation fails");
     }
 
+    /// <summary>
+    /// Issue 54293: when a device refuses a configuration by throwing out of Phase 1,
+    /// the transaction must still report "invalid" to the shadow rather than unwind silently.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_ValidationThrows_ShouldPublishInvalidStatusAndNotApply()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        SubNodeConfigUpdateMessage? publishedReport = null;
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedReport = x.Arg<SubNodeConfigUpdateMessage>());
+
+        // device-1: Valid, device-2: refuses by throwing
+        var device1 = CreateFakeDevice("device-1");
+        var device2 = CreateFakeDevice("device-2")
+            .WithValidationException(new InvalidOperationException("Sensor 'cpu' interval 10 is below the minimum of 1000"));
+
+        _deviceRegistry.Register(device1);
+        _deviceRegistry.Register(device2);
+
+        manager.RegisterDeviceHandler("device-1", _ => Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+        manager.RegisterDeviceHandler("device-2", _ => Task.FromResult(ConfigUpdateResult.Invalid(device2.Configuration, "adamEthernet", "Error")));
+
+        var updateEvent = CreateDeviceConfigUpdateEvent(new[] { "device-1", "device-2" });
+
+        // Act
+        _capturedConfigCallback.ShouldNotBeNull();
+        await Should.NotThrowAsync(async () => await _capturedConfigCallback!(updateEvent));
+
+        // Assert
+        publishedReport.ShouldNotBeNull("A refused configuration must still be reported to the shadow");
+        var message = publishedReport!.Data?.Cfg?.Reported?.DeviceCfg?.Message;
+        message.ShouldNotBeNull();
+        message!.Status.ShouldBe(ConfigUpdateStatus.Invalid,
+            "Should publish Invalid status when a device refuses the configuration");
+        message.ErrorMessage.ShouldNotBeNullOrWhiteSpace("The rejection reason must reach the shadow");
+        message.LastUpdateTime.ShouldNotBeNull("The rejection must be stamped with its own time");
+
+        // The configuration must not be applied
+        device1.ApplyCallCount.ShouldBe(0, "device-1 should NOT have apply called when device-2 refuses");
+        device2.ApplyCallCount.ShouldBe(0, "device-2 should NOT have apply called after refusing");
+    }
+
+    /// <summary>
+    /// Issue 54293 AC: a subsequent valid update overwrites the invalid status,
+    /// so the rejection is not sticky.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_ValidUpdateAfterRejection_ShouldPublishSuccessStatus()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var publishedStatuses = new List<string?>();
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedStatuses.Add(
+                x.Arg<SubNodeConfigUpdateMessage>().Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status));
+
+        var device = CreateFakeDevice("device-1")
+            .WithValidationException(new InvalidOperationException("Refused"));
+
+        _deviceRegistry.Register(device);
+        manager.RegisterDeviceHandler("device-1", _ => Task.FromResult(ConfigUpdateResult.Success(device.Configuration, "adamEthernet")));
+
+        var updateEvent = CreateDeviceConfigUpdateEvent(new[] { "device-1" });
+
+        // Act - refuse once, then accept
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        device.WithValidationException(null!);
+        await _capturedConfigCallback!(updateEvent);
+
+        // Assert
+        publishedStatuses.Count.ShouldBe(2, "Both the rejection and the later update must be reported");
+        publishedStatuses[0].ShouldBe(ConfigUpdateStatus.Invalid);
+        publishedStatuses[1].ShouldBe(ConfigUpdateStatus.Success, "The invalid status must not be sticky");
+    }
+
     [Fact]
     public async Task HandleDeviceConfigUpdate_ApplyFails_ShouldRollbackAndPublishFailedStatus()
     {

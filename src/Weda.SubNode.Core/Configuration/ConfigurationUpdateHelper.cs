@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using ErrorOr;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
@@ -1086,9 +1086,11 @@ public static partial class ConfigurationUpdateHelper
         // Build reported config
         var reported = new SubNodeReportedConfig();
 
-        if (rawDeviceCfg.HasValue)
+        var subNodeInfo = ResolveSubNodeInfo(deviceRegistry);
+
+        if (rawDeviceCfg.HasValue && subNodeInfo != null)
         {
-            reported.SetRawDeviceCfgWithMessage(rawDeviceCfg.Value, message, SubNodeInfo.CurrentSdkVersion, SubNodeInfo.CurrentSchemaVersion);
+            reported.SetRawDeviceCfgWithMessage(rawDeviceCfg.Value, message, subNodeInfo);
         }
         else
         {
@@ -1175,9 +1177,11 @@ public static partial class ConfigurationUpdateHelper
             }
         }
 
-        if (baseRawJson.HasValue)
+        var subNodeInfo = ResolveSubNodeInfo(deviceRegistry);
+
+        if (baseRawJson.HasValue && subNodeInfo != null)
         {
-            reported.SetRawDeviceCfgWithMessage(baseRawJson.Value, message, SubNodeInfo.CurrentSdkVersion, SubNodeInfo.CurrentSchemaVersion);
+            reported.SetRawDeviceCfgWithMessage(baseRawJson.Value, message, subNodeInfo);
         }
         else
         {
@@ -1231,6 +1235,24 @@ public static partial class ConfigurationUpdateHelper
     /// Builds raw devicecfg JSON from all devices' RawDeviceCfgJson.
     /// Merges SubNode info and DeviceConfigs from each device.
     /// </summary>
+    /// <summary>
+    /// Returns the SubNodeInfo the registered devices share, or null when no device
+    /// carries one. The reported subNode section is emitted from it, so a report
+    /// without it falls back to the DeviceCfg path rather than inventing an identity.
+    /// </summary>
+    private static SubNodeInfo? ResolveSubNodeInfo(IDeviceRegistry deviceRegistry)
+    {
+        foreach (var device in deviceRegistry.GetAllDevices())
+        {
+            if (device.Configuration.SubNodeInfo != null)
+            {
+                return device.Configuration.SubNodeInfo;
+            }
+        }
+
+        return null;
+    }
+
     private static JsonElement? BuildRawDeviceCfgFromDevices(
         IDeviceRegistry deviceRegistry,
         SubNodeConfigUpdateMessage incomingMessage)
