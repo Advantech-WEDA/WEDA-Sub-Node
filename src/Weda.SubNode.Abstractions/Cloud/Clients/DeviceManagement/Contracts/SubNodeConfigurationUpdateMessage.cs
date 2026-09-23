@@ -538,7 +538,7 @@ public class SubNodeRecordConfigDto
     /// Whether recording is enabled at runtime.
     /// When disabled, recording calls will be ignored.
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
@@ -547,7 +547,7 @@ public class SubNodeRecordConfigDto
     /// directory - the cap is <see cref="MaxStorageSizeMb"/>.
     /// Valid range: 0-102400 (0-100GB).
     /// </summary>
-    [JsonPropertyName("MinFreeDiskSpaceMb")]
+    [JsonPropertyName("minFreeDiskSpaceMb")]
     public int MinFreeDiskSpaceMb { get; set; } = 128;
 
     /// <summary>
@@ -555,7 +555,7 @@ public class SubNodeRecordConfigDto
     /// Set to 0 to disable size-based cleanup.
     /// Valid range: 0-102400 (0-100GB).
     /// </summary>
-    [JsonPropertyName("MaxStorageSizeMb")]
+    [JsonPropertyName("maxStorageSizeMb")]
     public int MaxStorageSizeMb { get; set; } = 1024;
 
     /// <summary>
@@ -563,20 +563,20 @@ public class SubNodeRecordConfigDto
     /// Set to 0 to disable retention-based cleanup (files retained indefinitely).
     /// Valid range: 0-365.
     /// </summary>
-    [JsonPropertyName("RetentionDays")]
+    [JsonPropertyName("retentionDays")]
     public int RetentionDays { get; set; } = 7;
 
     /// <summary>
     /// Whether batch buffering is enabled for recording.
     /// </summary>
-    [JsonPropertyName("BatchEnabled")]
+    [JsonPropertyName("batchEnabled")]
     public bool BatchEnabled { get; set; } = true;
 
     /// <summary>
     /// Maximum number of samples to buffer before writing to storage.
     /// Valid range: 0-10000.
     /// </summary>
-    [JsonPropertyName("BatchMaxSamples")]
+    [JsonPropertyName("batchMaxSamples")]
     public int BatchMaxSamples { get; set; } = 0;
 
     /// <summary>
@@ -584,7 +584,7 @@ public class SubNodeRecordConfigDto
     /// Set to 0 to disable the limit (not recommended).
     /// Valid range: 0-365.
     /// </summary>
-    [JsonPropertyName("MaxQueryTimeRangeDays")]
+    [JsonPropertyName("maxQueryTimeRangeDays")]
     public int MaxQueryTimeRangeDays { get; set; } = 30;
 
     /// <summary>
@@ -733,6 +733,14 @@ public class SubNodeDeviceCfgDto
     [JsonPropertyName("subNode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeInfoDto? SubNode { get; set; }
+
+    /// <summary>
+    /// SubNode-level settings (recording and future whole-node settings).
+    /// Unlike <c>subNode</c>, this section is carried through the reported round-trip verbatim.
+    /// </summary>
+    [JsonPropertyName("subNodeSettings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubNodeSettingsDto? SubNodeSettings { get; set; }
 
     /// <summary>
     /// Dictionary of device configurations keyed by device name (case-insensitive).
