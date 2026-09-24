@@ -130,12 +130,6 @@ public class WedaContextOptions
     public bool UseCache { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets the recording options for local storage.
-    /// If not set, options will be loaded from SystemConfig:Record section.
-    /// </summary>
-    public RecordingOptions? RecordingOptions { get; set; }
-
-    /// <summary>
     /// Gets or sets the recording service for local data storage.
     /// If not set, a default RecordingService instance will be created when EnableRecording is true.
     /// This allows sharing recording service between WedaApplication (DI) and direct device instantiation.
