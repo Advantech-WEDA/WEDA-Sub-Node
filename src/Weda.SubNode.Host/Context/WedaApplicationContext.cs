@@ -307,6 +307,13 @@ public class WedaApplicationContext : IWedaApplicationContext
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
         _customCfg = BindConfiguration<CustomCfg>(CustomCfg.SectionName);
 
+        // Recording moved out of systemcfg; warn if an old Record section is still present.
+        if (_configuration != null)
+        {
+            Weda.SubNode.Host.Configuration.SystemCfgRecordMigration.WarnIfLegacyRecordPresent(
+                _configuration, _loggerFactory.CreateLogger<WedaApplicationContext>());
+        }
+
         // Auto-load NATS settings from SystemCfg (includes command-line args override)
         // SystemCfg.WedaNode is bound from configuration which includes --SystemConfig:WedaNode:Url=xxx
         // Only override if user didn't explicitly set NatsConnectionSettings via configure callback
