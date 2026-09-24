@@ -335,6 +335,10 @@ public class WedaApplicationContext : IWedaApplicationContext
         // Load all device configurations from DeviceCfg
         _deviceConfigs = LoadAllDeviceConfigurations();
 
+        // Re-apply the SubNode-level record from the devicecfg cache after the per-device
+        // rehydrate, so a cloud-pushed record survives a restart. Node-level, runs once.
+        ApplyCachedRecordIfExists(_loggerFactory.CreateLogger<WedaApplicationContext>());
+
         // Create Command Registry and auto-scan handlers (built before cloud
         // service so DeviceAgentClient can receive it for capability upload).
         // Pipeline behaviors are now configured via attributes on handler classes:
@@ -844,6 +848,42 @@ public class WedaApplicationContext : IWedaApplicationContext
             logger.LogWarning(ex,
                 "Failed to apply cached configuration to '{DeviceName}'",
                 deviceConfig.DeviceName);
+        }
+    }
+
+    /// <summary>
+    /// Re-applies the SubNode-level record from the devicecfg cache on startup, so a cloud-pushed
+    /// record survives a restart. Node-level counterpart to <see cref="ApplyCachedConfigurationIfExists"/>.
+    /// </summary>
+    private void ApplyCachedRecordIfExists(Microsoft.Extensions.Logging.ILogger logger)
+    {
+        if (_recordingService == null)
+            return;
+
+        if (!_options.UseCache)
+        {
+            logger.LogDebug("Cache disabled (--no-cache), skipping cached record");
+            return;
+        }
+
+        try
+        {
+            if (!_configurationCache.ExistsAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult())
+                return;
+
+            var cachedMessage = _configurationCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult();
+            if (cachedMessage == null)
+                return;
+
+            if (ConfigurationUpdateHelper.ApplyCachedRecord(cachedMessage, _recordingService))
+            {
+                logger.LogInformation("Applied cached SubNode-level record from {CachePath}",
+                    _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to apply cached SubNode-level record");
         }
     }
 
