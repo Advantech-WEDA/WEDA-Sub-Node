@@ -356,6 +356,16 @@ public class SubNodeDesiredConfigSections : SubNodeConfigSections
             return false;
         }
     }
+
+    /// <summary>
+    /// True only when the whole devicecfg section is JSON null. This resets everything back to
+    /// base, including the SubNode-level record. A narrower <c>DeviceConfigs: null</c> reset
+    /// (see <see cref="IsDeviceCfgReset"/>) resets only the device dictionary and leaves the
+    /// record untouched.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsWholeDeviceCfgReset
+        => RawDeviceCfg is { ValueKind: JsonValueKind.Null };
 }
 
 /// <summary>

@@ -708,6 +708,86 @@ public class SubNodeManagerTests : IAsyncDisposable
             Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// (c') case 1: a whole devicecfg:null reset restores everything, including the record —
+    /// the base devicecfg.json's subNodeSettings.record is applied back.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceCfgNull_RestoresBaseRecord()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            {
+              "SubNode": { "Name": "TestDevice" },
+              "SubNodeSettings": { "Record": { "RetentionDays": 14, "MaxStorageSizeMb": 512, "MinFreeDiskSpaceMb": 64 } },
+              "DeviceConfigs": { "device-1": { "Enabled": true, "Sensors": [] } }
+            }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        try
+        {
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(CreateDeviceConfigResetEvent());
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        recordingService.Received(1).ApplyRecordConfig(Arg.Is<SubNodeRecordConfigDto>(
+            r => r.RetentionDays == 14 && r.MaxStorageSizeMb == 512));
+    }
+
+    /// <summary>
+    /// (c') case 2: DeviceConfigs:null resets only the device dictionary. The record is left
+    /// untouched — it is NOT reset to the base value.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceConfigsNull_DoesNotTouchRecord()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            {
+              "SubNodeSettings": { "Record": { "RetentionDays": 14 } },
+              "DeviceConfigs": { "device-1": { "Enabled": true, "Sensors": [] } }
+            }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        var case2Event = CreateDeviceConfigUpdateEventFromDesiredJson("""{"devicecfg":{"DeviceConfigs":null}}""");
+
+        try
+        {
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(case2Event);
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        recordingService.DidNotReceive().ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>());
+    }
+
     #region Config Sync Trigger Tests (US-47107)
 
     [Fact]

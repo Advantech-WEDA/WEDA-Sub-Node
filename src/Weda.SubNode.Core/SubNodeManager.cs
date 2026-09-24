@@ -561,6 +561,15 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             }
         }
 
+        // A narrow DeviceConfigs:null reset restores only the device dictionary; the SubNode-level
+        // record is left as it is now. Drop the base record from the synthetic message so the
+        // transaction does not re-apply it. A whole devicecfg:null reset keeps it, restoring the
+        // record to its base value along with everything else.
+        if (error == null && baseDeviceCfg != null && !message.Data!.Cfg!.Desired!.IsWholeDeviceCfgReset)
+        {
+            baseDeviceCfg.SubNodeSettings = null;
+        }
+
         if (error != null)
         {
             _logger.LogError("{Error}", error);
