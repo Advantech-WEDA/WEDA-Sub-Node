@@ -14,28 +14,20 @@ public class SquareResult : IResult
     public int Status { get; init; }
     public string Message { get; init; } = string.Empty;
     public SquareResultData? ResultData { get; init; }
-    public long ExecutedAt { get; init; }
-    public long CompletedAt { get; init; }
 
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
-    public static SquareResult Success(SquareResultData resultData, long executedAt) => new()
+    public static SquareResult Success(SquareResultData resultData) => new()
     {
         Status = CommandStatusCode.Success,
         Message = "Calculate successfully",
-        ResultData = resultData,
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        ResultData = resultData
     };
 
-    public static SquareResult Error(int status, string message, long executedAt) => new()
+    public static SquareResult Error(int status, string message) => new()
     {
         Status = status,
-        Message = message,
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        Message = message
     };
 }
 

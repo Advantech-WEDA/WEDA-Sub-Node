@@ -115,6 +115,39 @@ public class CommandDispatcherStep0Tests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task Dispatch_framework_owns_executedAt_and_completedAt_across_ack_and_result()
+    {
+        // The framework marks executedAt when the command is accepted (the ack) and completedAt
+        // when the result is sent. Both are framework-owned: the ack carries executedAt, and the
+        // result carries the SAME executedAt plus a completedAt at or after it. A consumer can read
+        // a start time from the very first response and never sees a null execution timestamp.
+        var dispatcher = new CommandDispatcher(_registry, _context, dtdlValidationOptions: null);
+
+        var message = BuildMessage("do.set", new
+        {
+            outputs = new[] { new { name = "do_0", state = true } },
+        });
+
+        var responses = new List<CommandResponse>();
+        _context.MockCloudService
+            .SendCommandResponseAsync(Arg.Any<string>(), Arg.Do<CommandResponse>(responses.Add), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        await dispatcher.DispatchAsync(message);
+
+        var ack = responses.SingleOrDefault(r => r.Data!.MsgType == "ack");
+        ack.ShouldNotBeNull();
+        ack.Data!.ExecutedAt.ShouldNotBeNull();
+        ack.Data.ExecutedAt!.Value.ShouldBeGreaterThan(0);
+
+        var result = responses.SingleOrDefault(r => r.Data!.MsgType == "result");
+        result.ShouldNotBeNull();
+        result.Data!.ExecutedAt.ShouldBe(ack.Data.ExecutedAt);
+        result.Data.CompletedAt.ShouldNotBeNull();
+        result.Data.CompletedAt!.Value.ShouldBeGreaterThanOrEqualTo(ack.Data.ExecutedAt.Value);
+    }
+
     private static CommandMessage BuildMessage(string deviceCmd, object parameters)
     {
         var envelope = new

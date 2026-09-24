@@ -19,10 +19,10 @@ namespace Weda.SubNode.Core.Commands.Handlers.ReportData;
 /// - Primitive data: Published to realtime telemetry subject (*.rl.enr)
 /// - MIME data > 1MB: Chunked, each chunk published as separate NATS message (future)
 ///
-/// This handler sends its own initial ack, so auto ack is disabled.
+/// The framework sends the ack and owns the executedAt/completedAt timestamps; this handler
+/// only produces the result.
 /// </remarks>
 [Logging(LogLevel.Information)]
-[AutoAck(false)]
 public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, ReportDataResult>
 {
     public async Task<ErrorOr<ReportDataResult>> HandleAsync(
@@ -33,7 +33,6 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
         var logger = context.GetLogger<ReportDataCommandHandler>();
         var cloudService = context.CloudService;
         var subNodeId = context.SubNodeInfo.Id;
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var parameters = command.Parameters;
         var resultData = new ReportDataResultData
@@ -50,17 +49,12 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
             return ReportDataResult.Error(
                 ReportDataStatusCode.PermissionDenied,
                 "SubNode is not registered",
-                resultData,
-                executedAt);
+                resultData);
         }
 
         logger.LogInformation(
             "Executing ReportData: SensorId={SensorId}, Timestamp={Timestamp}, TransferId={TransferId}",
             parameters.SensorShortResourceId, parameters.ResourceTimestamp, parameters.TransferId);
-
-        // Send initial ACK
-        await SendAckAsync(cloudService, subNodeId, command.RespTopic, command.DeviceCmd,
-            command.SeqId, command.ReqSeqId, resultData, logger, cancellationToken);
 
         try
         {
@@ -73,8 +67,7 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
                 return ReportDataResult.Error(
                     ReportDataStatusCode.NoDataAvailable,
                     "Sensor not found",
-                    resultData,
-                    executedAt);
+                    resultData);
             }
 
             var measures = await device.ReadSensorTelemetryAsync(sensor.ResourceId, cancellationToken);
@@ -85,8 +78,7 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
                 return ReportDataResult.Error(
                     ReportDataStatusCode.NoDataAvailable,
                     "No data available for specified sensor",
-                    resultData,
-                    executedAt);
+                    resultData);
             }
 
             var telemetryData = new TelemetryData { Measures = measures };
@@ -97,27 +89,22 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
                 return ReportDataResult.Error(
                     ReportDataStatusCode.GenericError,
                     "Failed to send telemetry data",
-                    resultData,
-                    executedAt);
+                    resultData);
             }
 
             logger.LogInformation("ReportData completed: sent {Count} measures for sensor {SensorId}",
                 measures.Count, parameters.SensorShortResourceId);
 
-            var completedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             return ReportDataResult.Success(
                 "Data retrieval complete",
-                resultData with { DataTransferred = true },
-                executedAt,
-                completedAt);
+                resultData with { DataTransferred = true });
         }
         catch (OperationCanceledException)
         {
             return ReportDataResult.Error(
                 ReportDataStatusCode.Timeout,
                 "Operation was cancelled",
-                resultData,
-                executedAt);
+                resultData);
         }
     }
 
@@ -131,45 +118,5 @@ public class ReportDataCommandHandler : ICommandHandler<ReportDataCommand, Repor
                 return (device, sensor);
         }
         return (null, null);
-    }
-
-    private static async Task SendAckAsync(
-        Abstractions.Cloud.IWedaCloudService cloudService,
-        string deviceId,
-        string? respTopic,
-        string deviceCmd,
-        ulong seqId,
-        string? reqSeqId,
-        ReportDataResultData resultData,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(respTopic))
-            return;
-
-        try
-        {
-            var response = new CommandResponse
-            {
-                DeviceId = deviceId,
-                SeqId = seqId,
-                ReqSeqId = reqSeqId,
-                Data = new CommandResponseData
-                {
-                    DeviceCmd = deviceCmd,
-                    MsgType = "ack",
-                    Status = ReportDataStatusCode.Success,
-                    Message = "Data query started",
-                    ResultData = resultData
-                }
-            };
-
-            await cloudService.SendCommandResponseAsync(respTopic, response, cancellationToken);
-            logger.LogDebug("ACK sent for report.data command");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to send ACK");
-        }
     }
 }

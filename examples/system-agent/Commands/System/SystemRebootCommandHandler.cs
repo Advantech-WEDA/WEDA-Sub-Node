@@ -32,7 +32,6 @@ namespace Weda.SubNode.Core.Commands.Handlers.System;
 /// Auto-ack is disabled because the handler sends its own custom ACK.
 /// </remarks>
 [Logging(LogLevel.Information)]
-[AutoAck(false)]
 public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, SystemRebootResult>
 {
     // glibc reboot() wrapper takes only 1 argument (cmd). Magic numbers are handled internally by glibc.
@@ -50,7 +49,6 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
         var logger = context.GetLogger<SystemRebootCommandHandler>();
         var cloudService = context.CloudService;
         var deviceId = context.SubNodeInfo.Id;
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var delaySeconds = Math.Max(command.Parameters.DelaySeconds, 0);
 
@@ -74,8 +72,7 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
                 RuntimeInformation.OSDescription);
             return SystemRebootResult.Error(
                 SystemCommandStatusCode.NotSupported,
-                $"System reboot via container is only supported on Linux. Current platform: {RuntimeInformation.OSDescription}",
-                executedAt);
+                $"System reboot via container is only supported on Linux. Current platform: {RuntimeInformation.OSDescription}");
         }
 
         // 2b. Verify at least one escalation path can reach the host. sysrq needs no pid: host;
@@ -91,8 +88,7 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
             logger.LogError("Cannot reboot host: {Reason}", detail);
             return SystemRebootResult.Error(
                 SystemCommandStatusCode.NotSupported,
-                $"Cannot reboot host: {detail}",
-                executedAt);
+                $"Cannot reboot host: {detail}");
         }
 
         if (!sysrqAvailable)
@@ -123,7 +119,7 @@ public class SystemRebootCommandHandler : ICommandHandler<SystemRebootCommand, S
         }, CancellationToken.None);
 
         // 4. Return result indicating reboot is commencing
-        return SystemRebootResult.Success(resultData, executedAt);
+        return SystemRebootResult.Success(resultData);
     }
 
     /// <summary>

@@ -33,7 +33,6 @@ public class SetAnalogOutputCommandHandler : ICommandHandler<SetAnalogOutputComm
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<SetAnalogOutputCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         // Get all devices that support analog output control
         var controllableDevices = context.GetAllDevices<IAnalogOutputControllable>();
@@ -44,8 +43,7 @@ public class SetAnalogOutputCommandHandler : ICommandHandler<SetAnalogOutputComm
             return SetAnalogOutputResult.Error(
                 CommandStatusCode.UnsupportedCommand,
                 "UNSUPPORTED_COMMAND",
-                "No devices support analog output control",
-                executedAt);
+                "No devices support analog output control");
         }
 
         logger.LogInformation(
@@ -65,8 +63,7 @@ public class SetAnalogOutputCommandHandler : ICommandHandler<SetAnalogOutputComm
                 return SetAnalogOutputResult.Error(
                     CommandStatusCode.NotFound,
                     "NOT_FOUND",
-                    $"Device '{command.Parameters.DeviceName}' not found or does not support analog output control",
-                    executedAt);
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support analog output control");
             }
 
             targetDevices = [specificDevice];
@@ -122,8 +119,7 @@ public class SetAnalogOutputCommandHandler : ICommandHandler<SetAnalogOutputComm
                 return SetAnalogOutputResult.Error(
                     CommandStatusCode.Timeout,
                     "TIMEOUT",
-                    $"Command execution timed out after {command.Timeout} seconds",
-                    executedAt);
+                    $"Command execution timed out after {command.Timeout} seconds");
             }
         }
 
@@ -137,13 +133,13 @@ public class SetAnalogOutputCommandHandler : ICommandHandler<SetAnalogOutputComm
         if (failureCount == 0)
         {
             logger.LogInformation("SetAnalogOutput completed: {SuccessCount} outputs set successfully", successCount);
-            return SetAnalogOutputResult.Success(resultData, executedAt);
+            return SetAnalogOutputResult.Success(resultData);
         }
         else if (successCount > 0)
         {
             logger.LogWarning("SetAnalogOutput partially completed: {SuccessCount} succeeded, {FailureCount} failed",
                 successCount, failureCount);
-            return SetAnalogOutputResult.PartialSuccess(resultData, executedAt);
+            return SetAnalogOutputResult.PartialSuccess(resultData);
         }
         else
         {
@@ -151,8 +147,7 @@ public class SetAnalogOutputCommandHandler : ICommandHandler<SetAnalogOutputComm
             return SetAnalogOutputResult.Error(
                 CommandStatusCode.HardwareError,
                 "HARDWARE_ERROR",
-                "All analog output operations failed",
-                executedAt);
+                "All analog output operations failed");
         }
     }
 

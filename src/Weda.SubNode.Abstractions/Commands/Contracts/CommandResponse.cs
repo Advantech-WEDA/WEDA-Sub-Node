@@ -77,18 +77,20 @@ public class CommandResponse
     /// <param name="reqSeqId">The request sequence ID for correlation.</param>
     /// <param name="message">The response message.</param>
     /// <param name="resultData">Optional response data.</param>
-    public static CommandResponse Received(string deviceId, string command, ulong seqId, string? reqSeqId = null, string? message = null, object? resultData = null) => new()
+    /// <param name="executedAt">The time the command was received/started executing (Unix ms).</param>
+    public static CommandResponse Received(string deviceId, string command, ulong seqId, string? reqSeqId = null, string? message = null, object? resultData = null, long? executedAt = null) => new()
     {
         DeviceId = deviceId,
         SeqId = seqId,
         ReqSeqId = reqSeqId,
-        Data = new CommandResponseData 
-        { 
+        Data = new CommandResponseData
+        {
             DeviceCmd = command,
             MsgType = "ack",
             Status = CommandStatusCode.Success,
             Message = message ?? $"The command {command} for device {deviceId} received",
-            ResultData = resultData
+            ResultData = resultData,
+            ExecutedAt = executedAt
         }
     };
 
