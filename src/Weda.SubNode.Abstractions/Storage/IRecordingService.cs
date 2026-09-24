@@ -1,4 +1,5 @@
 using ErrorOr;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Storage.Recordings;
 using Weda.SubNode.Abstractions.Telemetry;
@@ -107,6 +108,31 @@ public interface IRecordingService
     /// <exception cref="ArgumentNullException"><paramref name="settings"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="settings"/> holds a value outside its range.</exception>
     void UpdateStorageSettings(RecordingStorageSettings settings);
+
+    /// <summary>
+    /// Captures the full recording state as a rollback snapshot, so the DeviceConfig transaction
+    /// can restore it if any participant fails. Covers every field the service holds, including
+    /// the ones outside <see cref="RecordingStorageSettings"/> (enabled, batch).
+    /// </summary>
+    /// <returns>A snapshot to hand back to <see cref="RestoreFromRollback"/>.</returns>
+    RecordingOptions CaptureForRollback();
+
+    /// <summary>
+    /// Applies a cloud-pushed recording configuration at runtime, validating it first. This is the
+    /// recording participant's apply step in the DeviceConfig transaction.
+    /// </summary>
+    /// <param name="record">The desired recording configuration from the cloud.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="record"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="record"/> holds a value outside its range.</exception>
+    void ApplyRecordConfig(SubNodeRecordConfigDto record);
+
+    /// <summary>
+    /// Restores a snapshot captured by <see cref="CaptureForRollback"/>. This is the recording
+    /// participant's rollback step in the DeviceConfig transaction.
+    /// </summary>
+    /// <param name="snapshot">The snapshot to restore.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> is null.</exception>
+    void RestoreFromRollback(RecordingOptions snapshot);
 }
 
 public record RecordingResult(

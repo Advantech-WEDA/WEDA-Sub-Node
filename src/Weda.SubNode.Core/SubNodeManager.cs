@@ -690,9 +690,16 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         var deviceConfigs = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs;
         var targetDeviceNames = GetTargetDeviceNames(deviceConfigs);
 
-        if (targetDeviceNames.Count == 0)
+        // SubNode-level recording config is a first-class transaction participant. Present when
+        // subNodeSettings.record is non-null; a record-only message (no devices) still runs the
+        // transaction so the record applies.
+        var desiredRecord = _recordingService != null
+            ? message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.SubNodeSettings?.Record
+            : null;
+
+        if (targetDeviceNames.Count == 0 && desiredRecord == null)
         {
-            _logger.LogDebug("No target devices for config update");
+            _logger.LogDebug("No target devices and no record for config update");
             return DeviceConfigTransactionOutcome.NoTargets;
         }
 
@@ -723,6 +730,14 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             }
         }
 
+        // Validate the SubNode-level record as a participant: an out-of-range value coming from
+        // off-device rejects the whole transaction, same as a failing device.
+        if (desiredRecord != null && !desiredRecord.TryValidate(out var recordError))
+        {
+            hasValidationFailure = true;
+            _logger.LogWarning("Validation failed for SubNode record settings: {Error}", recordError);
+        }
+
         // If any validation failed, publish aggregated failed report and return
         if (hasValidationFailure)
         {
@@ -731,8 +746,9 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return DeviceConfigTransactionOutcome.ValidationFailed;
         }
 
-        // Check if all devices are skipped (no update required)
-        if (validationResults.Values.All(r => r.IsSkipped))
+        // Check if all devices are skipped (no update required). A present record is itself an
+        // update, so it keeps the transaction going even when every device skips.
+        if (desiredRecord == null && validationResults.Values.All(r => r.IsSkipped))
         {
             _logger.LogDebug("All devices skipped - no update required");
             return DeviceConfigTransactionOutcome.AllSkipped;
@@ -755,6 +771,10 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         }
 
         _logger.LogDebug("Created backups for {Count} device(s)", backups.Count);
+
+        // Snapshot the recording config so it can be rolled back with the devices if any apply
+        // fails. Captured only when a record is present in this message.
+        var recordBackup = desiredRecord != null ? _recordingService!.CaptureForRollback() : null;
 
         // ===== Phase 3: Apply All (with rollback on failure) =====
         var applyResults = new Dictionary<string, ConfigUpdateResult>();
@@ -785,9 +805,34 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             _logger.LogDebug("Successfully applied config to device {DeviceName}", deviceName);
         }
 
+        // Apply the record last, only after every device succeeded. Applying last means a device
+        // failure never leaves the record half-applied. If the record apply itself throws, treat it
+        // as a transaction failure so every device rolls back.
+        if (!hasApplyFailure && desiredRecord != null)
+        {
+            try
+            {
+                _recordingService!.ApplyRecordConfig(desiredRecord);
+                _logger.LogInformation("Applied SubNode-level record settings");
+            }
+            catch (Exception ex)
+            {
+                hasApplyFailure = true;
+                _logger.LogError(ex, "Apply failed for SubNode record settings, rolling back");
+            }
+        }
+
         // Rollback if any apply failed
         if (hasApplyFailure)
         {
+            // Restore the recording config first if it was captured (it either applied and must be
+            // reverted, or a device failed and it is being restored to its pre-transaction value).
+            if (recordBackup != null)
+            {
+                _recordingService!.RestoreFromRollback(recordBackup);
+                _logger.LogInformation("Rolled back SubNode-level record settings");
+            }
+
             // Include the failed device in rollback (it may have partial changes)
             var devicesToRollback = new List<string>(appliedDevices);
             if (failedDeviceName != null && !devicesToRollback.Contains(failedDeviceName))
