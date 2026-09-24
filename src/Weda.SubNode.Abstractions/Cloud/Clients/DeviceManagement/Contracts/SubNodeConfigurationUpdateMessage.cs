@@ -529,12 +529,6 @@ public class SubNodeSystemCfgDto
     /// </summary>
     [JsonPropertyName("Serilog")]
     public Dictionary<string, JsonElement>? Serilog { get; set; }
-
-    /// <summary>
-    /// Recording configuration for local historical data storage
-    /// </summary>
-    [JsonPropertyName("Record")]
-    public SubNodeRecordConfigDto? Record { get; set; }
 }
 
 /// <summary>

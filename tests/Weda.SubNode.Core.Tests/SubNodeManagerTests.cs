@@ -1026,76 +1026,36 @@ public class SubNodeManagerTests : IAsyncDisposable
     #region System Config - Record Settings
 
     /// <summary>
-    /// Retention and the ring-buffer limits arrive in the same SystemConfig message as the batch
-    /// settings. Applying only the batch settings left an operator's retention change validated,
-    /// acknowledged and then dropped (work item 53692).
+    /// systemcfg is policy-locked as non-remote-configurable. A SystemConfig desired message that
+    /// carries a record (via raw JSON, since the contract field is gone) must NOT reach the
+    /// recording service — recording is configured only through devicecfg.subNodeSettings.record.
     /// </summary>
     [Fact]
-    public async Task HandleSystemConfigUpdate_AppliesRetentionAndRingBufferLimits()
+    public async Task HandleSystemConfigUpdate_WithRecord_DoesNotApplyToRecordingService()
     {
-        // Arrange
         var recordingService = Substitute.For<IRecordingService>();
         var manager = CreateManager(recordingService);
         await manager.InitializeAsync();
 
-        var updateEvent = CreateSystemConfigUpdateEvent(new SubNodeRecordConfigDto
-        {
-            Enabled = true,
-            BatchEnabled = false,
-            BatchMaxSamples = 10,
-            RetentionDays = 3,
-            MaxStorageSizeMb = 64,
-            MinFreeDiskSpaceMb = 32
-        });
+        var updateEvent = CreateSystemConfigUpdateEventFromDesiredJson("""
+            {"systemcfg":{"Record":{"Enabled":true,"RetentionDays":3,"MaxStorageSizeMb":64}}}
+            """);
 
-        // Act
         _capturedConfigCallback.ShouldNotBeNull();
         await _capturedConfigCallback!(updateEvent);
 
-        // Assert
-        recordingService.Received(1).SetEnabled(true);
-        recordingService.Received(1).UpdateBatchSettings(false, 10);
-        recordingService.Received(1).UpdateStorageSettings(
-            new RecordingStorageSettings(RetentionDays: 3, MaxStorageSizeMb: 64, MinFreeDiskSpaceMb: 32));
-    }
-
-    [Fact]
-    public async Task HandleSystemConfigUpdate_InvalidRetention_AppliesNothing()
-    {
-        // Arrange
-        var recordingService = Substitute.For<IRecordingService>();
-        var manager = CreateManager(recordingService);
-        await manager.InitializeAsync();
-
-        var updateEvent = CreateSystemConfigUpdateEvent(new SubNodeRecordConfigDto
-        {
-            RetentionDays = 400 // out of range: 0-365
-        });
-
-        // Act
-        _capturedConfigCallback.ShouldNotBeNull();
-        await _capturedConfigCallback!(updateEvent);
-
-        // Assert - a rejected message leaves the policy in force untouched
-        recordingService.DidNotReceive().UpdateStorageSettings(Arg.Any<RecordingStorageSettings>());
         recordingService.DidNotReceive().SetEnabled(Arg.Any<bool>());
+        recordingService.DidNotReceive().UpdateBatchSettings(Arg.Any<bool>(), Arg.Any<int>());
+        recordingService.DidNotReceive().UpdateStorageSettings(Arg.Any<RecordingStorageSettings>());
     }
 
-    private static UpdateConfigurationEvent CreateSystemConfigUpdateEvent(SubNodeRecordConfigDto record)
+    private static UpdateConfigurationEvent CreateSystemConfigUpdateEventFromDesiredJson(string desiredJson)
     {
+        var desired = System.Text.Json.JsonSerializer.Deserialize<SubNodeDesiredConfigSections>(desiredJson);
         var message = new SubNodeConfigUpdateMessage
         {
             SeqId = 7,
-            Data = new SubNodeConfigUpdateData
-            {
-                Cfg = new SubNodeConfigState
-                {
-                    Desired = new SubNodeDesiredConfigSections
-                    {
-                        SystemCfg = new SubNodeSystemCfgDto { Record = record }
-                    }
-                }
-            }
+            Data = new SubNodeConfigUpdateData { Cfg = new SubNodeConfigState { Desired = desired } }
         };
 
         return new UpdateConfigurationEvent(
