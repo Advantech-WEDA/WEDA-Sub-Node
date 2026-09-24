@@ -36,7 +36,6 @@ public class SetSensorTagsCommandHandler : ICommandHandler<SetSensorTagsCommand,
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<SetSensorTagsCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var parameters = command.Parameters;
 
         logger.LogInformation(
@@ -53,8 +52,7 @@ public class SetSensorTagsCommandHandler : ICommandHandler<SetSensorTagsCommand,
                 CommandStatusCode.NotFound,
                 parameters.DeviceName is null
                     ? "No devices are registered"
-                    : $"Device '{parameters.DeviceName}' not found",
-                executedAt));
+                    : $"Device '{parameters.DeviceName}' not found"));
         }
 
         var (device, sensor) = FindSensor(devices, parameters.SensorName);
@@ -63,8 +61,7 @@ public class SetSensorTagsCommandHandler : ICommandHandler<SetSensorTagsCommand,
             logger.LogWarning("Sensor '{SensorName}' not found on any target device", parameters.SensorName);
             return Task.FromResult<ErrorOr<SetSensorTagsResult>>(SetSensorTagsResult.Error(
                 CommandStatusCode.NotFound,
-                $"Sensor '{parameters.SensorName}' not found",
-                executedAt));
+                $"Sensor '{parameters.SensorName}' not found"));
         }
 
         // Merge into a NEW dictionary and swap it in (never mutate the live
@@ -95,7 +92,7 @@ public class SetSensorTagsCommandHandler : ICommandHandler<SetSensorTagsCommand,
         };
 
         return Task.FromResult<ErrorOr<SetSensorTagsResult>>(
-            SetSensorTagsResult.Success(resultData, executedAt));
+            SetSensorTagsResult.Success(resultData));
     }
 
     /// <summary>

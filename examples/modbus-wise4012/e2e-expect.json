@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-modbus",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/modbus-wise4012:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "Needs a reachable WISE-4012 at 172.16.8.122:502. It answered `Connection refused` on the 2026-09-10 run, so no successful read exists yet to derive a pattern from."
+  }
+}

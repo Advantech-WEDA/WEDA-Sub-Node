@@ -32,47 +32,29 @@ public class SetDigitalOutputResult : IResult
     /// </summary>
     public SetDigitalOutputErrorDetails? ErrorDetails { get; init; }
 
-    /// <summary>
-    /// Timestamp when execution started (Unix ms).
-    /// </summary>
-    public long ExecutedAt { get; init; }
-
-    /// <summary>
-    /// Timestamp when execution completed (Unix ms).
-    /// </summary>
-    public long CompletedAt { get; init; }
-
     // IResult explicit implementation
     object? IResult.ResultData => ResultData ?? (object?)ErrorDetails;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     /// <summary>
     /// Creates a successful result.
     /// </summary>
     public static SetDigitalOutputResult Success(
-        SetDigitalOutputResultData resultData,
-        long executedAt) => new()
+        SetDigitalOutputResultData resultData) => new()
         {
             Status = CommandStatusCode.Success,
             Message = "Digital output set successfully",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     /// <summary>
     /// Creates a partial success result (some outputs failed).
     /// </summary>
     public static SetDigitalOutputResult PartialSuccess(
-        SetDigitalOutputResultData resultData,
-        long executedAt) => new()
+        SetDigitalOutputResultData resultData) => new()
         {
             Status = CommandStatusCode.PartialSuccess,
             Message = "Some digital outputs failed to set",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     /// <summary>
@@ -81,8 +63,7 @@ public class SetDigitalOutputResult : IResult
     public static SetDigitalOutputResult Error(
         int status,
         string errorCode,
-        string errorMessage,
-        long executedAt) => new()
+        string errorMessage) => new()
         {
             Status = status,
             Message = errorMessage,
@@ -90,9 +71,7 @@ public class SetDigitalOutputResult : IResult
             {
                 ErrorCode = errorCode,
                 Recommendation = GetRecommendation(status)
-            },
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            }
         };
 
     private static string? GetRecommendation(int status) => status switch

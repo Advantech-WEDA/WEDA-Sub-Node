@@ -27,33 +27,18 @@ public class SensorReadResult : IResult
     /// </summary>
     public SensorReadResultData? ResultData { get; init; }
 
-    /// <summary>
-    /// Timestamp when execution started (Unix ms).
-    /// </summary>
-    public long ExecutedAt { get; init; }
-
-    /// <summary>
-    /// Timestamp when execution completed (Unix ms).
-    /// </summary>
-    public long CompletedAt { get; init; }
-
     // IResult explicit implementation
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     /// <summary>
     /// Creates a successful result carrying the sensor reading.
     /// </summary>
     public static SensorReadResult Success(
-        SensorReadResultData resultData,
-        long executedAt) => new()
+        SensorReadResultData resultData) => new()
         {
             Status = CommandStatusCode.Success,
             Message = "Sensor value read successfully",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     /// <summary>
@@ -61,13 +46,10 @@ public class SensorReadResult : IResult
     /// </summary>
     public static SensorReadResult Error(
         int status,
-        string message,
-        long executedAt) => new()
+        string message) => new()
         {
             Status = status,
-            Message = message,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            Message = message
         };
 }
 

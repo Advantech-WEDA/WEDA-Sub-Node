@@ -28,10 +28,27 @@ RUN RID=$(cat /rid.txt) && \
       -p:DebugType=none \
       -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS final
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
+
+# Default configuration, so the image runs standalone when deployed by container-management
+# (no local files to bind-mount there). docker-compose bind-mounts override these read-only,
+# and any value can be overridden at run time by its DeviceConfig__/SystemConfig__ env var.
+COPY examples/http-stock-quotes/devicecfg.json /app/devicecfg.json
+# The delivered image carries the WedaNode password, so a customer needs only the image and
+# the compose file. scripts/build-push-image.sh passes it from the environment; built without
+# it, the image ships the empty password the repository holds, and the compose can still
+# supply one. Either way the value is readable inside the image - that is the trade for one
+# image that runs as delivered. A customer who needs their own password builds their own.
+ARG WEDA_NATS_PASSWORD=""
+COPY examples/http-stock-quotes/systemcfg.json /app/systemcfg.json
+RUN if [ -n "$WEDA_NATS_PASSWORD" ]; then \
+      sed -i "s|\"Password\": \"\"|\"Password\": \"$WEDA_NATS_PASSWORD\"|" /app/systemcfg.json; \
+    fi
+COPY examples/http-stock-quotes/customcfg.json /app/customcfg.json
+COPY examples/http-stock-quotes/appsettings.json /app/appsettings.json
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 

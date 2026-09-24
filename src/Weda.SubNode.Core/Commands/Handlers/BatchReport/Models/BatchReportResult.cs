@@ -36,20 +36,8 @@ public class BatchReportResult : IResult
     /// </summary>
     public BatchReportErrorDetails? ErrorDetails { get; init; }
 
-    /// <summary>
-    /// Timestamp when execution started (Unix ms).
-    /// </summary>
-    public long ExecutedAt { get; init; }
-
-    /// <summary>
-    /// Timestamp when execution completed (Unix ms).
-    /// </summary>
-    public long CompletedAt { get; init; }
-
     // IResult explicit implementation - return the appropriate data for serialization
     object? IResult.ResultData => ResultData ?? (object?)ErrorDetails;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     /// <summary>
     /// Creates a successful result.
@@ -57,15 +45,11 @@ public class BatchReportResult : IResult
     public static BatchReportResult Success(
         int status,
         string message,
-        BatchReportResultData resultData,
-        long executedAt,
-        long completedAt = 0) => new()
+        BatchReportResultData resultData) => new()
         {
             Status = status,
             Message = message,
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = completedAt > 0 ? completedAt : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     /// <summary>
@@ -74,8 +58,7 @@ public class BatchReportResult : IResult
     public static BatchReportResult Error(
         int status,
         string errorCode,
-        string errorMessage,
-        long executedAt) => new()
+        string errorMessage) => new()
         {
             Status = status,
             Message = errorMessage,
@@ -83,9 +66,7 @@ public class BatchReportResult : IResult
             {
                 ErrorCode = errorCode,
                 Recommendation = GetRecommendation(status)
-            },
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            }
         };
 
     private static string? GetRecommendation(int status) => status switch

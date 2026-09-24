@@ -38,7 +38,6 @@ public class SensorReadCommandHandler : ICommandHandler<SensorReadCommand, Senso
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<SensorReadCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var parameters = command.Parameters;
 
         logger.LogInformation(
@@ -53,8 +52,7 @@ public class SensorReadCommandHandler : ICommandHandler<SensorReadCommand, Senso
                 CommandStatusCode.NotFound,
                 parameters.DeviceName is null
                     ? "No devices are registered"
-                    : $"Device '{parameters.DeviceName}' not found",
-                executedAt);
+                    : $"Device '{parameters.DeviceName}' not found");
         }
 
         // SIL2 timeout protection: bound the read by the command timeout
@@ -69,8 +67,7 @@ public class SensorReadCommandHandler : ICommandHandler<SensorReadCommand, Senso
                 logger.LogWarning("Sensor '{SensorName}' not found on any target device", parameters.SensorName);
                 return SensorReadResult.Error(
                     CommandStatusCode.NotFound,
-                    $"Sensor '{parameters.SensorName}' not found",
-                    executedAt);
+                    $"Sensor '{parameters.SensorName}' not found");
             }
 
             var measures = await device.ReadSensorTelemetryAsync(sensor.ResourceId, linkedCts.Token);
@@ -80,31 +77,28 @@ public class SensorReadCommandHandler : ICommandHandler<SensorReadCommand, Senso
                 logger.LogWarning("No cached data available for sensor '{SensorName}'", parameters.SensorName);
                 return SensorReadResult.Error(
                     CommandStatusCode.NotFound,
-                    $"No data available for sensor '{parameters.SensorName}'",
-                    executedAt);
+                    $"No data available for sensor '{parameters.SensorName}'");
             }
 
             logger.LogInformation(
                 "sensor.read completed: {DeviceName}/{SensorName} = {Value} @ {Timestamp}",
                 device.DeviceName, sensor.Name, latest.Value, latest.Timestamp);
 
-            return SensorReadResult.Success(BuildResultData(device, sensor, latest), executedAt);
+            return SensorReadResult.Success(BuildResultData(device, sensor, latest));
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
             logger.LogWarning("sensor.read command timed out after {Timeout}s", command.Timeout);
             return SensorReadResult.Error(
                 CommandStatusCode.Timeout,
-                $"Command execution timed out after {command.Timeout} seconds",
-                executedAt);
+                $"Command execution timed out after {command.Timeout} seconds");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "sensor.read failed for sensor '{SensorName}'", parameters.SensorName);
             return SensorReadResult.Error(
                 CommandStatusCode.HardwareError,
-                $"Failed to read sensor '{parameters.SensorName}': {ex.Message}",
-                executedAt);
+                $"Failed to read sensor '{parameters.SensorName}': {ex.Message}");
         }
     }
 

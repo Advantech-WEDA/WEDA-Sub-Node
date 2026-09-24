@@ -2,6 +2,10 @@ bin/
 obj/
 **/bin/
 **/obj/
+# Gitignored build/run output that would otherwise be sent to the daemon on every build:
+# examples/*/logs holds Serilog output (177 MB on a dev box) and artifacts/ holds test output.
+**/logs/
+artifacts/
 node_modules/
 *.pfx
 **/.devcontainer

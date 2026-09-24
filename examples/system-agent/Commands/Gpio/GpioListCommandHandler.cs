@@ -26,7 +26,6 @@ public class GpioListCommandHandler : ICommandHandler<GpioListCommand, GpioListR
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<GpioListCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -35,7 +34,7 @@ public class GpioListCommandHandler : ICommandHandler<GpioListCommand, GpioListR
         if (devices.Count == 0)
         {
             return Task.FromResult<ErrorOr<GpioListResult>>(
-                GpioListResult.Error(CommandStatusCode.NotFound, "No devices expose GPIO pins", executedAt));
+                GpioListResult.Error(CommandStatusCode.NotFound, "No devices expose GPIO pins"));
         }
 
         var inventory = devices.ToDictionary(
@@ -56,6 +55,6 @@ public class GpioListCommandHandler : ICommandHandler<GpioListCommand, GpioListR
             inventory.Count, inventory.Values.Sum(p => p.Length));
 
         return Task.FromResult<ErrorOr<GpioListResult>>(
-            GpioListResult.Success(new GpioListResultData { Devices = inventory }, executedAt));
+            GpioListResult.Success(new GpioListResultData { Devices = inventory }));
     }
 }

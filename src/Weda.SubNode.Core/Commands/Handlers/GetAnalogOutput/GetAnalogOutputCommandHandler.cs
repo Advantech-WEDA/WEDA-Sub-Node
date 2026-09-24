@@ -34,7 +34,6 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<GetAnalogOutputCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var values = new List<AnalogOutputValue>();
         var errors = new List<AnalogOutputError>();
@@ -46,8 +45,7 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
         {
             return GetAnalogOutputResult.Error(
                 CommandStatusCode.UnsupportedCommand,
-                "No devices support analog output reading",
-                executedAt);
+                "No devices support analog output reading");
         }
 
         // Filter by device name if specified
@@ -61,8 +59,7 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
             {
                 return GetAnalogOutputResult.Error(
                     CommandStatusCode.NotFound,
-                    $"Device '{command.Parameters.DeviceName}' not found or does not support analog output reading",
-                    executedAt);
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support analog output reading");
             }
 
             targetDevices = [specificDevice];
@@ -119,8 +116,7 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
             {
                 return GetAnalogOutputResult.Error(
                     CommandStatusCode.Timeout,
-                    $"Command execution timed out after {command.Timeout} seconds",
-                    executedAt);
+                    $"Command execution timed out after {command.Timeout} seconds");
             }
         }
 
@@ -132,26 +128,24 @@ public class GetAnalogOutputCommandHandler : ICommandHandler<GetAnalogOutputComm
 
         if (errors.Count == 0 && values.Count > 0)
         {
-            return GetAnalogOutputResult.Success(resultData, executedAt);
+            return GetAnalogOutputResult.Success(resultData);
         }
 
         if (values.Count > 0 && errors.Count > 0)
         {
-            return GetAnalogOutputResult.PartialSuccess(resultData, executedAt);
+            return GetAnalogOutputResult.PartialSuccess(resultData);
         }
 
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetAnalogOutputResult.Error(
                 CommandStatusCode.HardwareError,
-                $"Failed to read any outputs: {errors[0].Error}",
-                executedAt);
+                $"Failed to read any outputs: {errors[0].Error}");
         }
 
         return GetAnalogOutputResult.Error(
             CommandStatusCode.HardwareError,
-            "No outputs available to read",
-            executedAt);
+            "No outputs available to read");
     }
 
     private static async Task<(IAnalogOutputReadable? device, double? value, string? error)> TryReadOutputAsync(

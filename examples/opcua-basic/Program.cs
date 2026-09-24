@@ -6,8 +6,15 @@ using Weda.SubNode.Simulators.OpcUa;
 using Weda.SubNode.WebApi;
 using opcua_device;
 
-var builder = WedaApplication.CreateDefaultBuilder(args)
-    .UseMockCloud();
+var builder = WedaApplication.CreateDefaultBuilder(args);
+
+// Cloud target is configuration-driven so the same image runs either way:
+//   customcfg.json "UseMockCloud": true  -> log telemetry locally, no WedaNode needed
+//   customcfg.json "UseMockCloud": false -> publish to the WedaNode in systemcfg.json
+if (bool.TryParse(builder.Configuration["CustomConfig:UseMockCloud"], out var useMockCloud) && useMockCloud)
+{
+    builder.UseMockCloud();
+}
 
 builder.AddWebApi();
 builder.AddDevice<MyOpcUaDevice>("MyOpcUaDeviceConfig");

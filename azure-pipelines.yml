@@ -66,6 +66,12 @@ stages:
           #
           # Running dotnet from the repo root lets NuGet discover ./nuget.config
           # in place, so ./nuget resolves to $(Build.SourcesDirectory)/nuget.
+          # Every rule in this script is a defect that reached a device at least once. It needs
+          # no daemon beyond compose parsing, no device and no registry, so it runs before the
+          # build: a compose that cannot be parsed is not worth compiling for.
+          - bash: bash scripts/lint-examples.sh
+            displayName: 'Lint examples and templates'
+
           - bash: |
               set -euo pipefail
               find . -name '*.csproj' -not -path '*/bin/*' -not -path '*/obj/*' -print0 \

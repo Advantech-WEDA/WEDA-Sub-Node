@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-system-agent",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/system-agent:latest",
+  "business": {
+    "mode": "skip",
+    "patterns": [],
+    "note": "Ships as a product component and already runs on every WEDA Node. Deploying a second instance contends for the same host resources, so it needs a device of its own to be verified."
+  }
+}

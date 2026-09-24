@@ -14,18 +14,14 @@ public class GetDevicePropsResult : IResult
     public int Status { get; init; } = CommandStatusCode.Success;
     public string Message { get; init; } = string.Empty;
     public Dictionary<string, DevicePropsEntry>? ResultData { get; init; }
-    public long ExecutedAt { get; init; }
-    public long CompletedAt { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt;
 
-    public static GetDevicePropsResult Success(Dictionary<string, DevicePropsEntry> data, long executedAt) =>
-        new() { Message = "Device properties retrieved successfully", ResultData = data, ExecutedAt = executedAt };
+    public static GetDevicePropsResult Success(Dictionary<string, DevicePropsEntry> data) =>
+        new() { Message = "Device properties retrieved successfully", ResultData = data };
 
-    public static GetDevicePropsResult Error(int status, string message, long executedAt) =>
-        new() { Status = status, Message = message, ExecutedAt = executedAt };
+    public static GetDevicePropsResult Error(int status, string message) =>
+        new() { Status = status, Message = message };
 }
 
 /// <summary>

@@ -1,0 +1,47 @@
+# Deployment compose for system-agent.
+#
+# This is the file container-management pushes to a device: it pulls a published image and
+# mounts nothing but the SubNode's own state directory, because a device has no checkout of
+# this repository. Use docker-compose.yml for local development, where the image is built
+# from this working tree instead.
+#
+# Every service runs on host networking. A stack that mixes host networking with a
+# bridge-networked sibling cannot deploy (D-14): the agent programs the project network's veth
+# into the host namespace and the host-mode container is created but never starts, with no logs.
+services:
+  system-agent:
+    # Change this line to the image you can pull, and to the version you were given.
+    image: harbor.arfa.wise-paas.com/edge-coa/system-agent:latest
+    pull_policy: always
+    container_name: weda-system-agent
+    privileged: true
+    pid: host
+    network_mode: host
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      # Unlike the other examples this image does not bake its configuration: system-agent ships
+      # as a product component and reads the device's own copy under /opt/Advantech.
+      - /opt/Advantech/system-monitor/appsettings.json:/app/appsettings.json
+      - /opt/Advantech/system-monitor/customcfg.json:/app/customcfg.json
+      - /opt/Advantech/system-monitor/devicecfg.json:/app/devicecfg.json
+      - /opt/Advantech/system-monitor/systemcfg.json:/app/systemcfg.json
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/system-agent}:/app/.weda
+      - /sys/firmware/efi/efivars:/sys/firmware/efi/efivars:ro
+      # Advantech SUSI driver (ARM64)
+      - /etc/board:/etc/board:ro
+      - /usr/lib/Advantech/:/usr/lib/Advantech/:ro
+      - /lib/libSUSI-4.00.so:/lib/libSUSI-4.00.so:ro
+      - /lib/libSUSI-4.00.so.1:/lib/libSUSI-4.00.so.1:ro
+      - /lib/libSUSI-4.00.so.1.0.0:/lib/libSUSI-4.00.so.1.0.0:ro
+      - /lib/libjansson.a:/lib/libjansson.a:ro
+      - /lib/libjansson.so:/lib/libjansson.so:ro
+      - /lib/libjansson.so.4:/lib/libjansson.so.4:ro
+      - /lib/libjansson.so.4.11.0:/lib/libjansson.so.4.11.0:ro
+      - /lib/libSusiIoT.so:/lib/libSusiIoT.so:ro
+      - /lib/libSusiIoT.so.1.0.0:/lib/libSusiIoT.so.1.0.0:ro
+      - /dev:/dev

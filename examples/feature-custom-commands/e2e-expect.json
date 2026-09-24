@@ -1,0 +1,14 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-command-handler",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/feature-custom-commands:latest",
+  "business": {
+    "mode": "auto",
+    "patterns": [
+      "Demo command 'sensor\\.read' succeeded",
+      "Demo command 'tag\\.set' succeeded",
+      "Demo command 'props\\.get' succeeded"
+    ],
+    "note": "All three demo commands round-tripped through the SubNode."
+  }
+}

@@ -9,9 +9,15 @@ using Weda.SubNode.Simulators.Modbus;
 try
 {
     // Build the application with logging from appsettings.json
-    var builder = WedaApplication.CreateDefaultBuilder(args)
+    var builder = WedaApplication.CreateDefaultBuilder(args);
 
-        .UseMockCloud();
+    // Cloud target is configuration-driven so the same image runs either way:
+    //   customcfg.json "UseMockCloud": true  -> log telemetry locally, no WedaNode needed
+    //   customcfg.json "UseMockCloud": false -> publish to the WedaNode in systemcfg.json
+    if (bool.TryParse(builder.Configuration["CustomConfig:UseMockCloud"], out var useMockCloud) && useMockCloud)
+    {
+        builder.UseMockCloud();
+    }
 
     builder.AddDevice<CurrentSensorDevice>("CurrentSensor");
     builder.AddDevice<VoltageSensorDevice>("VoltageSensor");

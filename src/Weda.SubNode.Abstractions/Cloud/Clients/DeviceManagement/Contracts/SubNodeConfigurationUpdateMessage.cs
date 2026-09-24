@@ -1,5 +1,7 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+
+using Weda.SubNode.Abstractions.Context;
 
 namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 
@@ -376,7 +378,7 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
     /// Creates a new JsonElement that includes the original devicecfg content plus Message.
     /// </summary>
     public void SetRawDeviceCfgWithMessage(
-        JsonElement rawDeviceCfg, ConfigUpdateMessageDto message, string sdkVersion, int schemaVersion)
+        JsonElement rawDeviceCfg, ConfigUpdateMessageDto message, SubNodeInfo subNodeInfo)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -384,39 +386,42 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
             writer.WriteStartObject();
 
             // Copy all properties from rawDeviceCfg verbatim, except the subNode
-            // section: that one is re-emitted with the SDK-stamped sdkVersion /
-            // schemaVersion appended, so the cloud-side validator can read the
-            // wire-contract version from the reported payload. (schemaVersion in
-            // particular drives the validator's casing mode.) Any stale version
-            // keys already in the authored file are dropped to avoid duplicates.
+            // section, which is dropped here and re-emitted below from the
+            // device's own SubNodeInfo, and any message section, which is
+            // re-emitted below from this apply outcome. The raw JSON is a copy of
+            // the last desired payload, which carries the cloud's own message
+            // stamp, so copying it would leave two keys differing only in case and
+            // the stale one could win with a case-insensitive reader.
             foreach (var prop in rawDeviceCfg.EnumerateObject())
             {
                 if (string.Equals(prop.Name, "subNode", StringComparison.OrdinalIgnoreCase)
-                    && prop.Value.ValueKind == JsonValueKind.Object)
+                    || string.Equals(prop.Name, SubNodeDeviceCfgDto.MessagePropertyName, StringComparison.OrdinalIgnoreCase))
                 {
-                    writer.WritePropertyName(prop.Name);
-                    writer.WriteStartObject();
-                    foreach (var field in prop.Value.EnumerateObject())
-                    {
-                        if (string.Equals(field.Name, "sdkVersion", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(field.Name, "schemaVersion", StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
-                        field.WriteTo(writer);
-                    }
-                    writer.WriteString("sdkVersion", sdkVersion);
-                    writer.WriteNumber("schemaVersion", schemaVersion);
-                    writer.WriteEndObject();
+                    continue;
                 }
-                else
-                {
-                    prop.WriteTo(writer);
-                }
+
+                prop.WriteTo(writer);
             }
 
-            // Add Message
-            writer.WritePropertyName("Message");
+            // subNode is the device's identity, so it is always emitted from
+            // SubNodeInfo and never echoed from the incoming desired state. A
+            // desired payload that omits the section still reports a complete
+            // one, and one that alters a field (schemaVersion in particular,
+            // which drives the cloud validator's casing mode) cannot change what
+            // the device reports about itself.
+            writer.WritePropertyName("subNode");
+            writer.WriteStartObject();
+            writer.WriteString("name", subNodeInfo.Name);
+            writer.WriteString("manufacturer", subNodeInfo.Manufacturer);
+            writer.WriteString("model", subNodeInfo.Model);
+            writer.WriteString("subNodeType", subNodeInfo.SubNodeType.ToString());
+            writer.WriteString("swVersion", subNodeInfo.SwVersion);
+            writer.WriteString("sdkVersion", SubNodeInfo.CurrentSdkVersion);
+            writer.WriteNumber("schemaVersion", SubNodeInfo.CurrentSchemaVersion);
+            writer.WriteEndObject();
+
+            // Add the message section
+            writer.WritePropertyName(SubNodeDeviceCfgDto.MessagePropertyName);
             writer.WriteStartObject();
             if (message.Status != null)
             {
@@ -741,10 +746,16 @@ public class SubNodeDeviceCfgDto
     }
 
     /// <summary>
+    /// Wire name of the apply-outcome section. Kept as a constant so the serialized
+    /// name and the raw-JSON writer in SetRawDeviceCfgWithMessage cannot drift apart.
+    /// </summary>
+    internal const string MessagePropertyName = "message";
+
+    /// <summary>
     /// Configuration update message containing status and error information.
     /// This field is populated during report generation to provide update feedback.
     /// </summary>
-    [JsonPropertyName("message")]
+    [JsonPropertyName(MessagePropertyName)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ConfigUpdateMessageDto? Message { get; set; }
 }

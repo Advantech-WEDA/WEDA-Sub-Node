@@ -29,7 +29,6 @@ public class DeviceSummaryCommandHandler
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<DeviceSummaryCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -39,7 +38,7 @@ public class DeviceSummaryCommandHandler
         {
             return Task.FromResult<ErrorOr<DeviceSummaryResult>>(
                 DeviceSummaryResult.Error(
-                    CommandStatusCode.NotFound, "No devices found", executedAt));
+                    CommandStatusCode.NotFound, "No devices found"));
         }
 
         var entries = devices.Select(BuildEntry).ToList();
@@ -55,7 +54,7 @@ public class DeviceSummaryCommandHandler
         };
 
         return Task.FromResult<ErrorOr<DeviceSummaryResult>>(
-            DeviceSummaryResult.Success(resultData, executedAt));
+            DeviceSummaryResult.Success(resultData));
     }
 
     private static DeviceSummaryEntry BuildEntry(MyFirstDevice device)

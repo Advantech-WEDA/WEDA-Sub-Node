@@ -110,11 +110,21 @@ public class CommandDispatcher(
         // Extract metadata from command (RespTopic, Timeout)
         var metadata = ExtractCommandMetadata(command, commandName);
 
-        // Send "Received" response if RespTopic is provided and auto ack is enabled
-        if (!string.IsNullOrEmpty(metadata.RespTopic) && registration.AutoAckEnabled)
+        // executedAt is stamped by the framework when the command is accepted for execution
+        // (the ack point). It is written back onto the command so a handler that emits its own
+        // progress responses reuses the same value, and it is reused as the executedAt of the
+        // final result. The framework owns executedAt/completedAt end to end; handlers do not.
+        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        PopulateExecutedAt(command, executedAt);
+
+        // Framework always sends the ack, carrying executedAt. A handler may enrich the ack with a
+        // payload (via ICommandHandler.AckAsync); failing to compute that payload must never fail
+        // the ack, so InvokeAckPayloadAsync swallows errors and yields null.
+        if (!string.IsNullOrEmpty(metadata.RespTopic))
         {
+            var ackPayload = await registry.InvokeAckPayloadAsync(registration, command, context, cancellationToken);
             await SendResponseAsync(metadata.RespTopic,
-                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId));
+                CommandResponse.Received(context.SubNodeInfo.Id ?? "", commandName, message.SeqId, message.ReqSeqId, resultData: ackPayload, executedAt: executedAt));
         }
 
         try
@@ -168,9 +178,14 @@ public class CommandDispatcher(
                 }
                 else
                 {
+                    // The framework owns the execution timestamps: executedAt is the ack-time
+                    // value stamped above, completedAt is stamped here when the result is sent.
+                    // Handlers no longer supply either.
+                    var completedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
                     if (result.Value is IResult typedResult)
                     {
-                        // Use IResult properties for structured response
+                        // Use IResult properties for structured response.
                         var response = new CommandResponse
                         {
                             DeviceId = context.SubNodeInfo.Id ?? "",
@@ -183,8 +198,8 @@ public class CommandDispatcher(
                                 Status = typedResult.Status,
                                 Message = typedResult.Message,
                                 ResultData = typedResult.ResultData,
-                                ExecutedAt = typedResult.ExecutedAt,
-                                CompletedAt = typedResult.CompletedAt
+                                ExecutedAt = executedAt,
+                                CompletedAt = completedAt
                             }
                         };
                         await SendResponseAsync(metadata.RespTopic, response);
@@ -192,9 +207,11 @@ public class CommandDispatcher(
                     else
                     {
                         // Fallback for non-IResult responses
-                        await SendResponseAsync(metadata.RespTopic,
-                            CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
-                                CommandStatusCode.Success, null, result.Value, message.ReqSeqId));
+                        var response = CommandResponse.Success(context.SubNodeInfo.Id ?? "", commandName, message.SeqId,
+                            CommandStatusCode.Success, null, result.Value, message.ReqSeqId);
+                        response.Data!.ExecutedAt = executedAt;
+                        response.Data.CompletedAt = completedAt;
+                        await SendResponseAsync(metadata.RespTopic, response);
                     }
                 }
             }
@@ -420,6 +437,20 @@ public class CommandDispatcher(
 
         var reqSeqIdProperty = type.GetProperty("ReqSeqId", BindingFlags.Public | BindingFlags.Instance);
         reqSeqIdProperty?.SetValue(command, reqSeqId);
+    }
+
+    /// <summary>
+    /// Writes the framework-stamped executedAt onto the command so handlers that emit their own
+    /// progress responses reuse the same value instead of computing their own.
+    /// </summary>
+    private static void PopulateExecutedAt(object command, long executedAt)
+    {
+        var executedAtProperty = command.GetType()
+            .GetProperty("ExecutedAt", BindingFlags.Public | BindingFlags.Instance);
+        if (executedAtProperty?.CanWrite == true && executedAtProperty.PropertyType == typeof(long))
+        {
+            executedAtProperty.SetValue(command, executedAt);
+        }
     }
 
     /// <summary>
