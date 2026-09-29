@@ -19,11 +19,10 @@ public class SquareCommandHandler : ICommandHandler<SquareCommand, SquareResult>
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<SquareCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         cancellationToken.ThrowIfCancellationRequested();
-        
+
         return Task.FromResult<ErrorOr<SquareResult>>(
-            SquareResult.Success(new SquareResultData { Result = command.Parameters.Value * command.Parameters.Value }, executedAt));
+            SquareResult.Success(new SquareResultData { Result = command.Parameters.Value * command.Parameters.Value }));
     }
 }

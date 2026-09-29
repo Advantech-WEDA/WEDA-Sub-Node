@@ -1,0 +1,66 @@
+# Deployment compose for cfx-endpoint.
+#
+# This is the file container-management pushes to a device: it pulls a published image and
+# mounts nothing but the SubNode's own state directory, because a device has no checkout of
+# this repository. Use docker-compose.yml for local development, where the image is built
+# from this working tree instead.
+#
+# Every service runs on host networking. A stack that mixes host networking with a
+# bridge-networked sibling cannot deploy (D-14): the agent programs the project network's veth
+# into the host namespace and the host-mode container is created but never starts, with no logs.
+services:
+  # The CFX AMQP-to-MQTT bridge the SubNode subscribes to. RabbitMQ speaks AMQP 1.0 to the CFX
+  # endpoints and republishes onto MQTT via rabbitmq_mqtt.
+  cfx-broker:
+    image: rabbitmq:3-management
+    container_name: weda-cfx-rabbitmq
+    network_mode: host
+    environment:
+      # The bundled broker is reachable only from this device. Marking the password required
+      # would make every compose subcommand - down, ps, logs - demand it as well, so it has a
+      # default; set CFX_BROKER_PASSWORD to change both sides at once.
+      RABBITMQ_DEFAULT_USER: cfx
+      RABBITMQ_DEFAULT_PASS: ${CFX_BROKER_PASSWORD:-cfx-bundled-broker}
+    # Enable the plugins only -- the stock image enables neither. Do NOT append to
+    # /etc/rabbitmq/rabbitmq.conf: the entrypoint generates it from RABBITMQ_DEFAULT_*, and
+    # editing it aborts the broker with failed_to_prepare_configuration (D-15). MQTT therefore
+    # stays on its default 1883 and the SubNode is pointed at it below.
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_mqtt rabbitmq_amqp1_0 || true;
+             exec docker-entrypoint.sh rabbitmq-server"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  cfx-subnode:
+    depends_on:
+      cfx-broker:
+        condition: service_healthy
+    # Change this line to the image you can pull, and to the version you were given.
+    image: harbor.arfa.wise-paas.com/edge-coa/cfx-endpoint:latest
+    pull_policy: always
+    container_name: weda-cfx
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # The bundled broker serves MQTT on 1883; devicecfg.json documents 1884 for a production
+      # bridge. Drop this override when pointing at a real bridge.
+      DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__BrokerPort: "1883"
+      DeviceConfig__DeviceConfigs__CfxEndpoint__DeviceCommunication__Password: ${CFX_BROKER_PASSWORD:-cfx-bundled-broker}
+      # The image ships no NATS password; it is supplied at deploy time.
+      SystemConfig__WedaNode__Password: ${WEDA_NATS_PASSWORD:-}
+      # SubNode names are unique per organisation, so the default appends the device id when one
+      # is available as EDGESYNC_EDGE_ID, and "local" otherwise. A second device registering the
+      # same name is refused with 409 Device name already in use; set SUBNODE_NAME to choose your
+      # own.
+      DeviceConfig__SubNode__Name: ${SUBNODE_NAME:-CfxLineGateway-${EDGESYNC_EDGE_ID:-local}}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/cfx-subnode}:/app/.weda

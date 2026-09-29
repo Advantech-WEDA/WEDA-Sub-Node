@@ -13,45 +13,32 @@ public class GetAnalogOutputResult : IResult
     public int Status { get; init; }
     public string Message { get; init; } = string.Empty;
     public GetAnalogOutputResultData? ResultData { get; init; }
-    public long ExecutedAt { get; init; }
-    public long CompletedAt { get; init; }
 
     // IResult explicit implementation
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     public static GetAnalogOutputResult Success(
-        GetAnalogOutputResultData resultData,
-        long executedAt) => new()
+        GetAnalogOutputResultData resultData) => new()
         {
             Status = CommandStatusCode.Success,
             Message = "Analog outputs read successfully",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     public static GetAnalogOutputResult PartialSuccess(
-        GetAnalogOutputResultData resultData,
-        long executedAt) => new()
+        GetAnalogOutputResultData resultData) => new()
         {
             Status = CommandStatusCode.PartialSuccess,
             Message = "Some analog outputs could not be read",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     public static GetAnalogOutputResult Error(
         int status,
-        string message,
-        long executedAt) => new()
+        string message) => new()
         {
             Status = status,
-            Message = message,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            Message = message
         };
 }
 

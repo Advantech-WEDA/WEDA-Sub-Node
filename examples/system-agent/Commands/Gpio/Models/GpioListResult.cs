@@ -13,28 +13,20 @@ public class GpioListResult : IResult
     public int Status { get; init; }
     public string Message { get; init; } = string.Empty;
     public GpioListResultData? ResultData { get; init; }
-    public long ExecutedAt { get; init; }
-    public long CompletedAt { get; init; }
 
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
-    public static GpioListResult Success(GpioListResultData resultData, long executedAt) => new()
+    public static GpioListResult Success(GpioListResultData resultData) => new()
     {
         Status = CommandStatusCode.Success,
         Message = "GPIO pins listed successfully",
-        ResultData = resultData,
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        ResultData = resultData
     };
 
-    public static GpioListResult Error(int status, string message, long executedAt) => new()
+    public static GpioListResult Error(int status, string message) => new()
     {
         Status = status,
-        Message = message,
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        Message = message
     };
 }
 

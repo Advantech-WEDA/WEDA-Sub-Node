@@ -1,0 +1,10 @@
+{
+  "compose": "docker-compose.deploy.yml",
+  "container": "weda-vision",
+  "image": "harbor.arfa.wise-paas.com/edge-coa/vision-object-detection:latest",
+  "business": {
+    "mode": "external",
+    "patterns": [],
+    "note": "The bundled broker has no publisher; in production the Advantech YOLO CV stack publishes the detections. Unblock by running the CV container or replaying captured detections."
+  }
+}

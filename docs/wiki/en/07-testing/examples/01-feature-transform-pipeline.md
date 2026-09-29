@@ -2,87 +2,116 @@
 doc-id:    E2E-EXD-FEATURE_TRANSFORM_PIPELINE
 title:     "feature-transform-pipeline — End-to-End Deployment Test Report"
 product:   "SubNode SDK (Examples)"
-version:   1.0
+version:   1.2
 status:    Review
-date:      2026-09-09
+date:      2026-09-10
 traces-to: E2E-EXAMPLE-IMAGES-001, docs/wiki/en/02-getting-started/09-build-push-deploy-images.md
 tags:      [doc:test, feature:sub-node, service:sub-node, layer:edge, ver:1.2, status:review]
 ---
 
 # feature-transform-pipeline — End-to-End Deployment Test Report
 
-> **Verdict: ✅ PASS**
-> Part of [E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md), which defines the
-> gates, the step format and the shared fixtures. This page records only what this example did.
+| Verdict | Test run | Device under test | Environment |
+|:--|:--|:--|:--|
+| **✅ PASS** | 2026-09-10 | EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04) | SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
 
-## 0. At a Glance
+> Method, gate definitions, fixtures, negative cases and the shared defect register live in
+> **[E2E-EXAMPLE-IMAGES-001](../01-e2e-test-scenario-example-images.md)**. This page records only
+> what **this** example did. Section numbering is identical across all 15 reports.
 
-| | |
+## 1. Subject under test
+
+| Field | Value |
 |---|---|
 | **Example** | [`examples/feature-transform-pipeline`](../../../../../examples/feature-transform-pipeline/) |
 | **Compose service** | `testdevice` |
 | **Image** | `harbor.arfa.wise-paas.com/edge-coa/feature-transform-pipeline:latest` |
-| **Transport** | Modbus TCP (embedded simulator on 127.0.0.1:5020) |
+| **Transport** | Modbus TCP (embedded simulator on `127.0.0.1:5020`) |
 | **External dependency** | None — the example starts its own simulator |
-| **SubNode name used** | `TransformDemo-<deviceId>` |
-| **Registered deviceId** | 355886333169762304 |
-| **Device** | EPC-R7300A1 `48b02dea8160` — ARM64, Ubuntu 20.04 |
-| **Verdict** | **✅ PASS** |
+| **Host endpoints used** | 2395 (SubNode Web API), 5020 (embedded Modbus simulator) |
+| **Required deployment overrides** | None |
+| **SubNode name** | `TransformDemo-09090124` |
+| **Registered deviceId** | `355886333169762304` |
 
-## 1. Gate results
+## 2. Gate results
 
-| Gate | Step | Result |
-|---|---|---|
-| Build | E2E-EXD-2.2 | ✅ builds for `linux/arm64` |
-| Push | E2E-EXD-2.2 | ✅ multi-arch manifest in Harbor |
-| Standalone start | E2E-EXD-2.3 | ✅ starts with no bind mounts |
-| Deploy | E2E-EXD-3.2 | ✅ `deviceActions: add` |
-| Function | E2E-EXD-4.1–4.4 | ✅ PASS |
+Four gates, nine checks. **A container reported `running` satisfies check 4.1 and nothing else.**
+4.4 is the framework heartbeat, which a SubNode emits whether or not the device it reads is
+reachable; 4.5 is what this example exists to do. Every row stands on its own observation, quoted
+from the device's own log in §3.
 
-## 2. Evidence
+| Gate | Step | Check | Result | Evidence |
+|---|---|---|:-:|---|
+| **Build** | E2E-EXD-2.2 | Builds for `linux/arm64` from the repository root | ✅ | rebuilt for `linux/amd64,linux/arm64` |
+| **Push** | E2E-EXD-2.2 | Multi-arch manifest present in Harbor | ✅ | multi-arch manifest re-published to Harbor |
+| **Push** | E2E-EXD-2.3 | Image runs with nothing mounted | ✅ | config baked into `/app`; no bind mounts required |
+| **Deploy** | E2E-EXD-3.2 | Revision accepted and applied by the device | ✅ | `deviceActions: add` |
+| **Function** | E2E-EXD-4.1 | Container up and not restart-looping | ✅ | `status=running restarts=0` |
+| **Function** | E2E-EXD-4.2 | SubNode reached **this device's** WedaNode | ✅ | `NATS connection verified - RTT: 0.3242ms` |
+| **Function** | E2E-EXD-4.3 | Registered as its own child device | ✅ | `Found existing SubNode registration: DeviceName=TransformDemo-09090124, DeviceId=355886333169762304` |
+| **Function** | E2E-EXD-4.4 | Heartbeat reaching the cloud | ✅ | [00:58:10 INF] Reporting health: DeviceId=355886333169762304, IsHealthy=True, CpuUsage=45.… |
+| **Function** | E2E-EXD-4.5 | Doing what this example exists to do | ✅ | [00:58:10 INF]   [0] 25 -> 77 |
 
-Observed on the device (`docker logs`):
+> **Legend.** ✅ passed · ⚠️ partial · ❌ failed or not reached · ⏭️ not executed · — not applicable.
 
-- `temperature_sensor: 25.057`
-- `[0] 25.057 -> 77.103` (°C→°F transform)
-- `[0] 25.057 -> 25.028` (smoothing filter)
-- `Health report sent successfully`
+## 3. Evidence log
 
-## 3. Defects this example exposed
+Verbatim from `docker logs weda-transform-pipeline` on the device, tagged with the check each line proves.
+Captured 2026-09-10; 91 lines total.
 
-- D-02 config not baked
-- D-11 duplicate runtime
-- D-12 build context
-
-Defect numbering is shared across the suite — see
-[§10 of the parent report](../01-e2e-test-scenario-example-images.md).
-
-## 4. Notes
-
-The reference case: first example proven end to end, and the one that exposed D-02 (images had no baked config) and the `/app/.weda` persistence requirement.
-
-## 5. Re-running this test
-
-```bash
-# 1. Build and publish (repository root is the build context — the script enforces it)
-PLATFORMS=linux/arm64 ./scripts/build-push-image.sh feature-transform-pipeline
-
-# 2. Deploy the stack to the device through container-management, then confirm on the device
-ssh <device> 'docker logs --tail 40 <container>'
+```text
+[4.1] [00:58:09 INF] Modbus TCP Simulator started successfully
+[4.2] [00:58:09 INF] NATS connection verified - RTT: 0.3242ms
+[4.2] [00:58:09 INF] NATS service discovered: Name=subnode-mgmt, Version=1.0.0, WedaNodeId=48b02dea8160, Endpoints=registration,configuration,deletion
+[4.3] [00:58:10 INF] Found existing SubNode registration: DeviceName=TransformDemo-09090124, DeviceId=355886333169762304
+[4.3] [00:58:10 INF] Configuration uploaded successfully: DeviceId=355886333169762304, Status=applied
+[4.4] [00:58:10 INF] Reporting health: DeviceId=355886333169762304, IsHealthy=True, CpuUsage=45.05%, MemoryUsage=1.93%, Topic=eco1j.weda.355886333169762304.health, ReqSeqId=1
+[4.5] [00:58:10 INF] temperature_sensor: 25
+[4.5] [00:58:10 INF]   [0] 25 -> 77
+[4.5] [00:58:15 INF] temperature_sensor: 25.030037
+[4.5] [00:58:15 INF]   [0] 25.030037 -> 77.05406646728515
+[4.5] [00:58:15 INF]   [0] 77.05406646728515 -> 25.03003692626953
+[4.5] [00:58:20 INF]   [0] 24.66589736938477 -> 24.883808578372133
 ```
 
-A container reported `running` is **not** sufficient evidence — see §6 of the parent report.
+## 4. Defects
 
-## 6. Change record
+| # | Severity | Status | What it did **here** |
+|---|---|---|---|
+| **D-02** | High | Fixed | config not baked into the image, so a deployed stack started with none |
+| **D-11** | Low | Fixed | self-contained publish on `dotnet/runtime` shipped a second unused runtime |
+| **D-12** | Low | Fixed | 252.9 MB build context, 177 MB of it gitignored logs |
+
+> Defect ids are shared across the suite; the full register is [§10 of the parent report](../01-e2e-test-scenario-example-images.md).
+
+### Analysis
+
+The reference case, and still the cleanest run in the suite. The registration id is **unchanged from the 2026-09-09 run**, so `/app/.weda` persistence held across a week, a full image rebuild and a redeploy — the D-02 lesson is sticking.
+
+## 5. Not verified in this run
+
+Nothing. All nine checks were exercised and observed.
+
+## 6. Re-running this test
+
+```bash
+# 1. Build and publish — the repository root is the build context; the script enforces it
+./scripts/build-push-image.sh feature-transform-pipeline
+
+# 2. Deploy the revision through container-management and assert 4.1-4.5
+./scripts/deploy-verify.sh feature-transform-pipeline
+
+# 3. Confirm on the device itself
+ssh <device> 'docker logs --tail 40 weda-transform-pipeline'
+```
+
+## 7. Change record
 
 | | |
 |---|---|
-| Test run | 2026-09-09, EPC-R7300A1 `48b02dea8160`, SIT |
-| Fixes landed in | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
-| Harness | `deploy-verify.sh` — deploy revision, wait for the container, assert the four Act-4 checks |
-
-> CI note: `Weda.SubNode.Integration.Tests` reported 2/10 failing throughout this work. That is
-> D-16 — hardcoded `localhost` against a Testcontainers-published port — which predates this
-> branch by a week and is fixed separately in
-> [PR #7363](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7363).
-> It is unrelated to any example result on this page.
+| **This run** | 2026-09-10 — EPC-R7300A1 `48b02dea8160` (ARM64, Ubuntu 20.04), SIT — `weda-sit-k3s.weda.dev`, tenant `central` |
+| **Previous run** | 2026-09-09 — same device; see §4/§5 for what changed |
+| **Example fixes** | [PR #7361](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7361) |
+| **Report schema + this evidence** | [PR !7396](https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edge_subnode/pullrequest/7396) |
+| **Harness** | `deploy-verify.sh` — deploy the revision, wait for the container, score 4.1-4.5 separately and capture the full container log |
+| **Report schema** | v1.3 — the function check is scored as the heartbeat (4.4) and the example's own job (4.5), from `examples/feature-transform-pipeline/e2e-expect.json` |

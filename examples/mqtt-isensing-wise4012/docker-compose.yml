@@ -8,9 +8,6 @@ services:
     image: eclipse-mosquitto:2
     container_name: isensing-mqtt
     network_mode: host
-    environment:
-      # Defaults to the broker above; override to talk to a real WISE-4012.
-      - DeviceConfig__DeviceConfigs__MyFirstDevice__DeviceCommunication__BrokerUrl=${ISENSING_BROKER_URL:-mqtt://localhost:1883}
     entrypoint: ["/bin/sh","-c"]
     command: ["printf 'listener 1883 0.0.0.0\\nallow_anonymous true\\n' > /tmp/mosquitto.conf && exec mosquitto -c /tmp/mosquitto.conf"]
     restart: unless-stopped
@@ -20,6 +17,9 @@ services:
     environment:
       # Defaults to the bundled broker; override to talk to a real WISE-4012.
       - DeviceConfig__DeviceConfigs__MyFirstDevice__DeviceCommunication__BrokerUrl=${ISENSING_BROKER_URL:-mqtt://localhost:1883}
+      # The NATS password is no longer stored in systemcfg.json; supply it at run time
+      # (cp .env.example .env).
+      - SystemConfig__WedaNode__Password=${WEDA_NATS_PASSWORD:-}
     build:
       context: ../..
       dockerfile: examples/mqtt-isensing-wise4012/Dockerfile

@@ -33,7 +33,6 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<SetDigitalOutputCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         // Get all devices that support digital output control
         var controllableDevices = context.GetAllDevices<IDigitalOutputControllable>();
@@ -44,8 +43,7 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
             return SetDigitalOutputResult.Error(
                 CommandStatusCode.UnsupportedCommand,
                 "UNSUPPORTED_COMMAND",
-                "No devices support digital output control",
-                executedAt);
+                "No devices support digital output control");
         }
 
         logger.LogInformation(
@@ -65,8 +63,7 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
                 return SetDigitalOutputResult.Error(
                     CommandStatusCode.NotFound,
                     "NOT_FOUND",
-                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital output control",
-                    executedAt);
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital output control");
             }
 
             targetDevices = [specificDevice];
@@ -122,8 +119,7 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
                 return SetDigitalOutputResult.Error(
                     CommandStatusCode.Timeout,
                     "TIMEOUT",
-                    $"Command execution timed out after {command.Timeout} seconds",
-                    executedAt);
+                    $"Command execution timed out after {command.Timeout} seconds");
             }
         }
 
@@ -137,13 +133,13 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
         if (failureCount == 0)
         {
             logger.LogInformation("SetDigitalOutput completed: {SuccessCount} outputs set successfully", successCount);
-            return SetDigitalOutputResult.Success(resultData, executedAt);
+            return SetDigitalOutputResult.Success(resultData);
         }
         else if (successCount > 0)
         {
             logger.LogWarning("SetDigitalOutput partially completed: {SuccessCount} succeeded, {FailureCount} failed",
                 successCount, failureCount);
-            return SetDigitalOutputResult.PartialSuccess(resultData, executedAt);
+            return SetDigitalOutputResult.PartialSuccess(resultData);
         }
         else
         {
@@ -151,8 +147,7 @@ public class SetDigitalOutputCommandHandler : ICommandHandler<SetDigitalOutputCo
             return SetDigitalOutputResult.Error(
                 CommandStatusCode.HardwareError,
                 "HARDWARE_ERROR",
-                "All digital output operations failed",
-                executedAt);
+                "All digital output operations failed");
         }
     }
 

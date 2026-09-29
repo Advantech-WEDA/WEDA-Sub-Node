@@ -1,0 +1,61 @@
+# Deployment compose for daq-collector.
+#
+# This is the file container-management pushes to a device: it pulls a published image and
+# mounts nothing but the SubNode's own state directory, because a device has no checkout of
+# this repository. Use docker-compose.yml for local development, where the image is built
+# from this working tree instead.
+#
+# Every service runs on host networking. A stack that mixes host networking with a
+# bridge-networked sibling cannot deploy (D-14): the agent programs the project network's veth
+# into the host namespace and the host-mode container is created but never starts, with no logs.
+services:
+  daq-collector:
+    # Change this line to the image you can pull, and to the version you were given.
+    image: harbor.arfa.wise-paas.com/edge-coa/daq-collector:latest
+    pull_policy: always
+    container_name: weda-daqc
+    privileged: true
+    pid: host
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # The image already carries the password for the WedaNode it was built for. Set
+      # SystemConfig__WedaNode__Password in the environment, or in a .env beside this file,
+      # only to point it somewhere else - unset, the built-in value stands.
+      - SystemConfig__WedaNode__Password
+      # SubNode names are unique per organisation, so the default appends the device id when one
+      # is available as EDGESYNC_EDGE_ID, and "local" otherwise. A second device registering the
+      # same name is refused with 409 Device name already in use; set SUBNODE_NAME to choose your
+      # own.
+      - DeviceConfig__SubNode__Name=${SUBNODE_NAME:-UniaxialVibrationDevice-${EDGESYNC_EDGE_ID:-local}}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+    # Device mappings for DAQ devices. Uncomment the `devices:` key AND the entries that match
+    # `find /dev -maxdepth 1 -name 'daq*'` on the host. The key must stay commented while every
+    # entry under it is, or compose rejects the file with `devices must be a array` (D-08).
+    # devices:
+      # - /dev/daq0:/dev/daq0
+      # - /dev/daq1:/dev/daq1
+
+    volumes:
+      - ${WEDA_DATA_PATH:-/opt/Advantech/weda/node/daq-collector}:/app/.weda
+      # Advantech SUSI driver (ARM64)
+      - /etc/board:/etc/board:ro
+      - /usr/lib/Advantech/:/usr/lib/Advantech/:ro
+      - /lib/libSUSI-4.00.so:/lib/libSUSI-4.00.so:ro
+      - /lib/libSUSI-4.00.so.1:/lib/libSUSI-4.00.so.1:ro
+      - /lib/libSUSI-4.00.so.1.0.0:/lib/libSUSI-4.00.so.1.0.0:ro
+      - /lib/libjansson.a:/lib/libjansson.a:ro
+      - /lib/libjansson.so:/lib/libjansson.so:ro
+      - /lib/libjansson.so.4:/lib/libjansson.so.4:ro
+      - /lib/libjansson.so.4.11.0:/lib/libjansson.so.4.11.0:ro
+      - /lib/libSusiIoT.so:/lib/libSusiIoT.so:ro
+      - /lib/libSusiIoT.so.1.0.0:/lib/libSusiIoT.so.1.0.0:ro
+      # Advantech DAQNavi resources
+      - /home/advantech:/app/advantech
+      - /var/lib/daq/:/var/lib/daq/
+      - /opt/advantech/:/opt/advantech/

@@ -13,45 +13,32 @@ public class GetDigitalInputResult : IResult
     public int Status { get; init; }
     public string Message { get; init; } = string.Empty;
     public GetDigitalInputResultData? ResultData { get; init; }
-    public long ExecutedAt { get; init; }
-    public long CompletedAt { get; init; }
 
     // IResult explicit implementation
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     public static GetDigitalInputResult Success(
-        GetDigitalInputResultData resultData,
-        long executedAt) => new()
+        GetDigitalInputResultData resultData) => new()
         {
             Status = CommandStatusCode.Success,
             Message = "Digital inputs read successfully",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     public static GetDigitalInputResult PartialSuccess(
-        GetDigitalInputResultData resultData,
-        long executedAt) => new()
+        GetDigitalInputResultData resultData) => new()
         {
             Status = CommandStatusCode.PartialSuccess,
             Message = "Some digital inputs could not be read",
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     public static GetDigitalInputResult Error(
         int status,
-        string message,
-        long executedAt) => new()
+        string message) => new()
         {
             Status = status,
-            Message = message,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            Message = message
         };
 }
 

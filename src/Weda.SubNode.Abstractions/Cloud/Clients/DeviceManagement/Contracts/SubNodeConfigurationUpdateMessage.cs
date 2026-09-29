@@ -398,10 +398,15 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
 
             // Copy all properties from rawDeviceCfg verbatim, except the subNode
             // section, which is dropped here and re-emitted below from the
-            // device's own SubNodeInfo.
+            // device's own SubNodeInfo, and any message section, which is
+            // re-emitted below from this apply outcome. The raw JSON is a copy of
+            // the last desired payload, which carries the cloud's own message
+            // stamp, so copying it would leave two keys differing only in case and
+            // the stale one could win with a case-insensitive reader.
             foreach (var prop in rawDeviceCfg.EnumerateObject())
             {
-                if (string.Equals(prop.Name, "subNode", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(prop.Name, "subNode", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(prop.Name, SubNodeDeviceCfgDto.MessagePropertyName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -426,8 +431,8 @@ public class SubNodeReportedConfigSections : SubNodeConfigSections
             writer.WriteNumber("schemaVersion", SubNodeInfo.CurrentSchemaVersion);
             writer.WriteEndObject();
 
-            // Add Message
-            writer.WritePropertyName("Message");
+            // Add the message section
+            writer.WritePropertyName(SubNodeDeviceCfgDto.MessagePropertyName);
             writer.WriteStartObject();
             if (message.Status != null)
             {
@@ -768,10 +773,16 @@ public class SubNodeDeviceCfgDto
     }
 
     /// <summary>
+    /// Wire name of the apply-outcome section. Kept as a constant so the serialized
+    /// name and the raw-JSON writer in SetRawDeviceCfgWithMessage cannot drift apart.
+    /// </summary>
+    internal const string MessagePropertyName = "message";
+
+    /// <summary>
     /// Configuration update message containing status and error information.
     /// This field is populated during report generation to provide update feedback.
     /// </summary>
-    [JsonPropertyName("message")]
+    [JsonPropertyName(MessagePropertyName)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ConfigUpdateMessageDto? Message { get; set; }
 }

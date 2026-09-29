@@ -10,28 +10,20 @@ public class DeviceSummaryResult : IResult
     public int Status { get; init; }
     public string Message { get; init; } = string.Empty;
     public DeviceSummaryResultData? ResultData { get; init; }
-    public long ExecutedAt { get; init; }
-    public long CompletedAt { get; init; }
 
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
-    public static DeviceSummaryResult Success(DeviceSummaryResultData resultData, long executedAt) => new()
+    public static DeviceSummaryResult Success(DeviceSummaryResultData resultData) => new()
     {
         Status = CommandStatusCode.Success,
         Message = "Device summary collected successfully",
-        ResultData = resultData,
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        ResultData = resultData
     };
 
-    public static DeviceSummaryResult Error(int status, string message, long executedAt) => new()
+    public static DeviceSummaryResult Error(int status, string message) => new()
     {
         Status = status,
-        Message = message,
-        ExecutedAt = executedAt,
-        CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        Message = message
     };
 }
 

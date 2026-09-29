@@ -34,7 +34,6 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<GetDigitalInputCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var values = new List<DigitalInputValue>();
         var errors = new List<DigitalInputError>();
@@ -46,8 +45,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
         {
             return GetDigitalInputResult.Error(
                 CommandStatusCode.UnsupportedCommand,
-                "No devices support digital input reading",
-                executedAt);
+                "No devices support digital input reading");
         }
 
         // Filter by device name if specified
@@ -61,8 +59,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
             {
                 return GetDigitalInputResult.Error(
                     CommandStatusCode.NotFound,
-                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital input reading",
-                    executedAt);
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support digital input reading");
             }
 
             targetDevices = [specificDevice];
@@ -119,8 +116,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
             {
                 return GetDigitalInputResult.Error(
                     CommandStatusCode.Timeout,
-                    $"Command execution timed out after {command.Timeout} seconds",
-                    executedAt);
+                    $"Command execution timed out after {command.Timeout} seconds");
             }
         }
 
@@ -132,26 +128,24 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
 
         if (errors.Count == 0 && values.Count > 0)
         {
-            return GetDigitalInputResult.Success(resultData, executedAt);
+            return GetDigitalInputResult.Success(resultData);
         }
 
         if (values.Count > 0 && errors.Count > 0)
         {
-            return GetDigitalInputResult.PartialSuccess(resultData, executedAt);
+            return GetDigitalInputResult.PartialSuccess(resultData);
         }
 
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetDigitalInputResult.Error(
                 CommandStatusCode.HardwareError,
-                $"Failed to read any inputs: {errors[0].Error}",
-                executedAt);
+                $"Failed to read any inputs: {errors[0].Error}");
         }
 
         return GetDigitalInputResult.Error(
             CommandStatusCode.HardwareError,
-            "No inputs available to read",
-            executedAt);
+            "No inputs available to read");
     }
 
     private static async Task<(IDigitalInputReadable? device, bool? state, string? error)> TryReadInputAsync(

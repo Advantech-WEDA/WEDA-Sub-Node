@@ -34,7 +34,6 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
         CancellationToken cancellationToken = default)
     {
         var logger = context.GetLogger<GetAnalogInputCommandHandler>();
-        var executedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var values = new List<AnalogInputValue>();
         var errors = new List<AnalogInputError>();
@@ -46,8 +45,7 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
         {
             return GetAnalogInputResult.Error(
                 CommandStatusCode.UnsupportedCommand,
-                "No devices support analog input reading",
-                executedAt);
+                "No devices support analog input reading");
         }
 
         // Filter by device name if specified
@@ -61,8 +59,7 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
             {
                 return GetAnalogInputResult.Error(
                     CommandStatusCode.NotFound,
-                    $"Device '{command.Parameters.DeviceName}' not found or does not support analog input reading",
-                    executedAt);
+                    $"Device '{command.Parameters.DeviceName}' not found or does not support analog input reading");
             }
 
             targetDevices = [specificDevice];
@@ -119,8 +116,7 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
             {
                 return GetAnalogInputResult.Error(
                     CommandStatusCode.Timeout,
-                    $"Command execution timed out after {command.Timeout} seconds",
-                    executedAt);
+                    $"Command execution timed out after {command.Timeout} seconds");
             }
         }
 
@@ -132,26 +128,24 @@ public class GetAnalogInputCommandHandler : ICommandHandler<GetAnalogInputComman
 
         if (errors.Count == 0 && values.Count > 0)
         {
-            return GetAnalogInputResult.Success(resultData, executedAt);
+            return GetAnalogInputResult.Success(resultData);
         }
 
         if (values.Count > 0 && errors.Count > 0)
         {
-            return GetAnalogInputResult.PartialSuccess(resultData, executedAt);
+            return GetAnalogInputResult.PartialSuccess(resultData);
         }
 
         if (values.Count == 0 && errors.Count > 0)
         {
             return GetAnalogInputResult.Error(
                 CommandStatusCode.HardwareError,
-                $"Failed to read any inputs: {errors[0].Error}",
-                executedAt);
+                $"Failed to read any inputs: {errors[0].Error}");
         }
 
         return GetAnalogInputResult.Error(
             CommandStatusCode.HardwareError,
-            "No inputs available to read",
-            executedAt);
+            "No inputs available to read");
     }
 
     private static async Task<(IAnalogInputReadable? device, double? value, string? error)> TryReadInputAsync(

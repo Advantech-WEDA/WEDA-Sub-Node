@@ -1,5 +1,8 @@
 {
   "WedaNode": {
-    "Url": "localhost:4222"
+    "Url": "127.0.0.1:4224",
+    "AuthStrategy": "UserPassword",
+    "Username": "advantech_nats",
+    "Password": ""
   }
 }

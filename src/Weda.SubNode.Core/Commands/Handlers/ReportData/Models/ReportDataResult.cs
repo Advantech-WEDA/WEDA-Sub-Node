@@ -23,35 +23,19 @@ public class ReportDataResult : IResult
     /// </summary>
     public ReportDataResultData? ResultData { get; init; }
 
-    /// <summary>
-    /// Timestamp when execution started (Unix ms).
-    /// </summary>
-    public long ExecutedAt { get; init; }
-
-    /// <summary>
-    /// Timestamp when execution completed (Unix ms).
-    /// </summary>
-    public long CompletedAt { get; init; }
-
     // IResult explicit implementation
     object? IResult.ResultData => ResultData;
-    long? IResult.ExecutedAt => ExecutedAt;
-    long? IResult.CompletedAt => CompletedAt > 0 ? CompletedAt : null;
 
     /// <summary>
     /// Creates a successful result.
     /// </summary>
     public static ReportDataResult Success(
         string message,
-        ReportDataResultData resultData,
-        long executedAt,
-        long completedAt = 0) => new()
+        ReportDataResultData resultData) => new()
         {
             Status = ReportDataStatusCode.Success,
             Message = message,
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = completedAt > 0 ? completedAt : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 
     /// <summary>
@@ -60,14 +44,11 @@ public class ReportDataResult : IResult
     public static ReportDataResult Error(
         int status,
         string errorMessage,
-        ReportDataResultData? resultData,
-        long executedAt) => new()
+        ReportDataResultData? resultData) => new()
         {
             Status = status,
             Message = errorMessage,
-            ResultData = resultData,
-            ExecutedAt = executedAt,
-            CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            ResultData = resultData
         };
 }
 
