@@ -24,7 +24,8 @@
             "Enabled": false
           },
           "SensorInfo": {
-            "Description": "Reserved platform liveness ping. Declaring a sensor named 'hb' enables the SubNode heartbeat; it is never polled, its value is synthesized by the SDK, and its dtmi and boolean schema are supplied by the SDK rather than configured here.",
+            "Schema": "boolean",
+            "Description": "Reserved platform liveness ping. Declaring a sensor named 'hb' enables the SubNode heartbeat; it is never polled, its value is synthesized by the SDK, and its dtmi is supplied by the SDK. Schema is always stamped to boolean; it is declared here so the config satisfies the cloud sensorInfo envelope, where schema is required.",
             "DisplayName": "Heartbeat"
           }
         },
