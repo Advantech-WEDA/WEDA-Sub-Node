@@ -1122,6 +1122,32 @@ public class SubNodeManagerTests : IAsyncDisposable
     }
 
     /// <summary>
+    /// A record-only message must cache the desired so it survives a restart. The per-device
+    /// apply path caches the message, but a record-only message runs no device apply — without
+    /// the transaction caching it, rehydrate has nothing to replay and the record reverts to the
+    /// devicecfg.json value on restart. (Caught by SIT E2E.)
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_RecordOnlyNoDevices_CachesDesired()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson("""
+            {"devicecfg":{
+              "subNodeSettings":{"record":{"retentionDays":30}}
+            }}
+            """);
+
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        await _mockConfigurationCache.Received(1).SaveRawConfigurationAsync(
+            SubscriptionTypes.DeviceConfig, Arg.Any<SubNodeConfigUpdateMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
     /// An out-of-range record fails validation and the whole transaction is rejected —
     /// no record apply, and no device apply either.
     /// </summary>

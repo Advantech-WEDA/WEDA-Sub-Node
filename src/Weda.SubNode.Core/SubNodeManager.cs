@@ -848,6 +848,16 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
         // This ensures Report content reflects the last applied configuration
         UpdateRawDeviceCfgJson(message, appliedDevices);
 
+        // A per-device apply caches the desired message itself (for restart rehydrate). A
+        // record-only message runs no device apply, so cache it here — otherwise the record
+        // would be applied at runtime but lost on restart. Caching the same message twice (once
+        // per device, once here) is idempotent: it targets the same devicecfg cache file.
+        if (desiredRecord != null && _configurationCache != null)
+        {
+            await _configurationCache.SaveRawConfigurationAsync(e.ConfigType, message, default);
+            _logger.LogDebug("Cached desired devicecfg carrying SubNode-level record for restart rehydrate");
+        }
+
         var requiresCapsReupload = validationResults.Values.Any(r => r.RequiresCapsReupload) ||
                                    applyResults.Values.Any(r => r.RequiresCapsReupload);
 
