@@ -60,6 +60,12 @@ public class DeviceCfg
     public const string SectionName = "DeviceConfig";
 
     /// <summary>
+    /// The section name for SubNode-level settings (recording and future whole-node settings)
+    /// within devicecfg. Full IConfiguration path: "DeviceConfig:SubNodeSettings".
+    /// </summary>
+    public const string SubNodeSettingsSectionName = "SubNodeSettings";
+
+    /// <summary>
     /// SubNode identity and metadata configuration.
     /// </summary>
     public SubNodeConfig SubNode { get; set; } = new();

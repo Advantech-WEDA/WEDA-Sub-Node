@@ -14,6 +14,7 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - `Record.CleanupIntervalMinutes`(0-1440,預設 60)— 清理掃描的間隔。設為 `0` 會停用排程清理,屆時儲存只會在寫入資料時才縮減。
 - `Record.StorageDirectory` 現在是真正可設定的屬性。它原本是 `const`,因此永遠無法被設定,而 `RecordingOptions.Validate()` 對它的空值檢查是死碼。預設值不變(`./.weda/data/recording`);原常數保留為 `RecordingOptions.DefaultStorageDirectory`。
 - `IRecordingService.StorageSettings` / `UpdateStorageSettings(RecordingStorageSettings)` 與 `IRecordStorage.EnforceStorageLimitsAsync()` — 保留期與 ring-buffer 上限現在可於執行期變更,且無須有寫入進行中即可強制執行容量上限。
+- **可遠端設定的 recording** — recording 設定改放在 `devicecfg.json` 新的 SubNode 層級 `SubNodeSettings.Record` 區塊(與 `SubNode` / `DeviceConfigs` 同層),並可透過 DeviceConfig desired 管線從雲端設定。下發的 record 會被驗證,並以第一級參與者的身分納入 all-or-nothing 的裝置設定交易(無效的 record 會退回整筆更新,裝置失敗時 record 也隨之回滾),快取後在重啟時重新套用。`IRecordingService` 新增 `CaptureForRollback` / `ApplyRecordConfig` / `RestoreFromRollback` 供交易參與。參見 [`docs/sample-devicecfg.json`](./docs/sample-devicecfg.json)。
 
 ### 變更
 - 設定同步預設週期由 **60 秒調整為 24 小時**(`BackgroundTaskPeriods.DefaultReportConfigurationPeriod`);允許範圍由 10 秒–7 天收斂為 **60 秒–7 天**(`MinReportConfigurationPeriod` 10000 → 60000)。穩態下的 devicecfg 改以變更/重連觸發為主,而非高頻週期 tick。
@@ -21,6 +22,14 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - `Record.MinFreeDiskSpaceMb` 與 `Record.MaxStorageSizeMb` 的說明文件已更正為兩個不同的限制 — 前者是整顆*磁碟*的可用空間下限,後者是 recording *目錄*的容量上限。預設值維持不變(128 MB 與 1024 MB);兩者同為 128 的巧合,長期讓前者被誤讀為「recording 上限 128 MB」。
 - `IRecordStorage.CleanupAsync` 與 `IRecordingService.CleanupAsync` 的回傳型別由 `Task` 改為 `RecordingCleanupResult`(掃描/刪除檔數、釋放位元組、失敗檔數)。對外部實作者為 source-breaking 變更。
 - Recording 設定改為透過共用的 `RecordingOptionsProvider` 讀取,不再各自快取 `IOptions<RecordingOptions>.Value`,因此一次更新即可同時生效於 storage、recording service 與清理排程。更新會發佈新的 options 實例,不會就地修改既有實例。
+
+### 移除
+- **BREAKING — recording 不再於 `systemcfg.json` 設定。** `systemcfg` 依政策不開放遠端設定;recording 已移至 `devicecfg.json` 的 `SubNodeSettings.Record`。移除項目:`HandleSystemConfigUpdateAsync` 中的 `Record` 套用路徑、`SubNodeSystemCfgDto.Record` wire 欄位,以及 `RecordValidator`。仍留在 `systemcfg.json` 的 `Record` 區塊現在會被忽略,並在啟動時記錄一則警告。
+- **BREAKING — `WedaContextOptions.RecordingOptions` 已移除。** 以程式碼提供 recording 設定與「可遠端設定」的模型相衝突 — 它會在下次啟動時覆蓋雲端下發的值。recording 只能透過 `devicecfg.json` 的 `SubNodeSettings.Record` 設定。
+
+#### 安裝與升級說明(移除項目)
+- 將每個 `systemcfg.json` 的 `Record` 區塊移到對應的 `devicecfg.json`,放在新的頂層 `SubNodeSettings` 物件底下:`{ "SubNodeSettings": { "Record": { … } } }`,與 `SubNode`、`DeviceConfigs` 同層。參見 [`docs/sample-devicecfg.json`](./docs/sample-devicecfg.json)。把 `Record` 留在 `systemcfg.json` 不會報錯但不會生效(啟動警告會指出該檔)。
+- 若你在程式碼中設定 `WedaContextOptions.RecordingOptions`,請移除該指派,改把值放進 `devicecfg.json` 的 `SubNodeSettings.Record`。
 
 ### 修正
 - **超過 `RetentionDays` 的 recording 檔案沒有被自動清除**(工作項目 53692)。清理排程使用 `dueTime: Zero, period: 1 day`,因此只在行程啟動時跑一次,之後每 24 小時的「運行時間」才跑一次:啟動掃描之後才產生的檔案最多要多留一整天,而重開機頻率高於一天一次的裝置,實際上永遠只跑得到啟動那一次掃描 — 而它只看得到開機前就存在的檔案。現在預設每小時掃描一次,且排程本身已有測試覆蓋(`RecordingCleanupSchedulerTests`),這是舊 timer 所缺的。

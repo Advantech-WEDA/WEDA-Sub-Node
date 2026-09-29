@@ -110,9 +110,15 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly CustomCfg _customCfg;
     private readonly RecordingCleanupScheduler? _cleanupScheduler;
     private readonly RecordingOptions? _recordingOptions;
+    private readonly RecordingOptionsProvider? _recordingOptionsProvider;
     private volatile bool _disposed;
 
-    public RecordingOptions? RecordingOptions => _recordingOptions;
+    /// <summary>
+    /// The recording options currently in force. Backed by the RecordingOptionsProvider (the
+    /// single source of truth) so it reflects runtime updates, falling back to the startup
+    /// snapshot when no provider is present (e.g. an injected recording service).
+    /// </summary>
+    public RecordingOptions? RecordingOptions => _recordingOptionsProvider?.Current ?? _recordingOptions;
 
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext with default options.
@@ -258,8 +264,8 @@ public class WedaApplicationContext : IWedaApplicationContext
         // Use provided recording service from options (DI scenario), or create new instance if EnableRecording is true
         if (_options.RecordingService != null || _options.DeviceOptions.EnableRecording)
         {
-            _recordingOptions = _options.RecordingOptions
-                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+            _recordingOptions = BindConfiguration<RecordingOptions>(
+                $"{DeviceCfg.SectionName}:{DeviceCfg.SubNodeSettingsSectionName}:{RecordingOptions.SectionName}");
             _recordingOptions.Validate();
 
             if (_options.RecordingService != null)
@@ -272,12 +278,13 @@ public class WedaApplicationContext : IWedaApplicationContext
             {
                 // One provider shared by storage and service, so a configuration update reaches
                 // both. Each component reading its own captured copy is what let a cloud-pushed
-                // retention change be acknowledged and then quietly ignored.
-                var optionsProvider = new RecordingOptionsProvider(_recordingOptions);
+                // retention change be acknowledged and then quietly ignored. The context reads
+                // the live options through this same provider.
+                _recordingOptionsProvider = new RecordingOptionsProvider(_recordingOptions);
                 var recordStorage = new BinaryRecordStorage(
-                    _loggerFactory.CreateLogger<BinaryRecordStorage>(), optionsProvider);
+                    _loggerFactory.CreateLogger<BinaryRecordStorage>(), _recordingOptionsProvider);
                 _recordingService = new RecordingService(
-                    _loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, optionsProvider);
+                    _loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, _recordingOptionsProvider);
             }
 
             // Initialize DynamicRecordStorage for MIME type data (JSON, images, etc.)
@@ -299,6 +306,13 @@ public class WedaApplicationContext : IWedaApplicationContext
         _systemCfg = BindConfiguration<SystemCfg>(SystemCfg.SectionName);
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
         _customCfg = BindConfiguration<CustomCfg>(CustomCfg.SectionName);
+
+        // Recording moved out of systemcfg; warn if an old Record section is still present.
+        if (_configuration != null)
+        {
+            Weda.SubNode.Host.Configuration.SystemCfgRecordMigration.WarnIfLegacyRecordPresent(
+                _configuration, _loggerFactory.CreateLogger<WedaApplicationContext>());
+        }
 
         // Auto-load NATS settings from SystemCfg (includes command-line args override)
         // SystemCfg.WedaNode is bound from configuration which includes --SystemConfig:WedaNode:Url=xxx
@@ -333,6 +347,10 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         // Load all device configurations from DeviceCfg
         _deviceConfigs = LoadAllDeviceConfigurations();
+
+        // Re-apply the SubNode-level record from the devicecfg cache after the per-device
+        // rehydrate, so a cloud-pushed record survives a restart. Node-level, runs once.
+        ApplyCachedRecordIfExists(_loggerFactory.CreateLogger<WedaApplicationContext>());
 
         // Create Command Registry and auto-scan handlers (built before cloud
         // service so DeviceAgentClient can receive it for capability upload).
@@ -843,6 +861,42 @@ public class WedaApplicationContext : IWedaApplicationContext
             logger.LogWarning(ex,
                 "Failed to apply cached configuration to '{DeviceName}'",
                 deviceConfig.DeviceName);
+        }
+    }
+
+    /// <summary>
+    /// Re-applies the SubNode-level record from the devicecfg cache on startup, so a cloud-pushed
+    /// record survives a restart. Node-level counterpart to <see cref="ApplyCachedConfigurationIfExists"/>.
+    /// </summary>
+    private void ApplyCachedRecordIfExists(Microsoft.Extensions.Logging.ILogger logger)
+    {
+        if (_recordingService == null)
+            return;
+
+        if (!_options.UseCache)
+        {
+            logger.LogDebug("Cache disabled (--no-cache), skipping cached record");
+            return;
+        }
+
+        try
+        {
+            if (!_configurationCache.ExistsAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult())
+                return;
+
+            var cachedMessage = _configurationCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult();
+            if (cachedMessage == null)
+                return;
+
+            if (ConfigurationUpdateHelper.ApplyCachedRecord(cachedMessage, _recordingService))
+            {
+                logger.LogInformation("Applied cached SubNode-level record from {CachePath}",
+                    _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to apply cached SubNode-level record");
         }
     }
 

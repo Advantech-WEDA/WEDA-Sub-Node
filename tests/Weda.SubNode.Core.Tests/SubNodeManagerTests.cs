@@ -708,6 +708,86 @@ public class SubNodeManagerTests : IAsyncDisposable
             Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// (c') case 1: a whole devicecfg:null reset restores everything, including the record —
+    /// the base devicecfg.json's subNodeSettings.record is applied back.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceCfgNull_RestoresBaseRecord()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            {
+              "SubNode": { "Name": "TestDevice" },
+              "SubNodeSettings": { "Record": { "RetentionDays": 14, "MaxStorageSizeMb": 512, "MinFreeDiskSpaceMb": 64 } },
+              "DeviceConfigs": { "device-1": { "Enabled": true, "Sensors": [] } }
+            }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        try
+        {
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(CreateDeviceConfigResetEvent());
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        recordingService.Received(1).ApplyRecordConfig(Arg.Is<SubNodeRecordConfigDto>(
+            r => r.RetentionDays == 14 && r.MaxStorageSizeMb == 512));
+    }
+
+    /// <summary>
+    /// (c') case 2: DeviceConfigs:null resets only the device dictionary. The record is left
+    /// untouched — it is NOT reset to the base value.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceConfigsNull_DoesNotTouchRecord()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var baseCfgPath = Path.Combine(Path.GetTempPath(), $"devicecfg-{Guid.NewGuid():N}.json");
+        File.WriteAllText(baseCfgPath, """
+            {
+              "SubNodeSettings": { "Record": { "RetentionDays": 14 } },
+              "DeviceConfigs": { "device-1": { "Enabled": true, "Sensors": [] } }
+            }
+            """);
+        manager.BaseDeviceCfgPath = baseCfgPath;
+
+        var case2Event = CreateDeviceConfigUpdateEventFromDesiredJson("""{"devicecfg":{"DeviceConfigs":null}}""");
+
+        try
+        {
+            _capturedConfigCallback.ShouldNotBeNull();
+            await _capturedConfigCallback!(case2Event);
+        }
+        finally
+        {
+            File.Delete(baseCfgPath);
+        }
+
+        recordingService.DidNotReceive().ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>());
+    }
+
     #region Config Sync Trigger Tests (US-47107)
 
     [Fact]
@@ -946,76 +1026,36 @@ public class SubNodeManagerTests : IAsyncDisposable
     #region System Config - Record Settings
 
     /// <summary>
-    /// Retention and the ring-buffer limits arrive in the same SystemConfig message as the batch
-    /// settings. Applying only the batch settings left an operator's retention change validated,
-    /// acknowledged and then dropped (work item 53692).
+    /// systemcfg is policy-locked as non-remote-configurable. A SystemConfig desired message that
+    /// carries a record (via raw JSON, since the contract field is gone) must NOT reach the
+    /// recording service — recording is configured only through devicecfg.subNodeSettings.record.
     /// </summary>
     [Fact]
-    public async Task HandleSystemConfigUpdate_AppliesRetentionAndRingBufferLimits()
+    public async Task HandleSystemConfigUpdate_WithRecord_DoesNotApplyToRecordingService()
     {
-        // Arrange
         var recordingService = Substitute.For<IRecordingService>();
         var manager = CreateManager(recordingService);
         await manager.InitializeAsync();
 
-        var updateEvent = CreateSystemConfigUpdateEvent(new SubNodeRecordConfigDto
-        {
-            Enabled = true,
-            BatchEnabled = false,
-            BatchMaxSamples = 10,
-            RetentionDays = 3,
-            MaxStorageSizeMb = 64,
-            MinFreeDiskSpaceMb = 32
-        });
+        var updateEvent = CreateSystemConfigUpdateEventFromDesiredJson("""
+            {"systemcfg":{"Record":{"Enabled":true,"RetentionDays":3,"MaxStorageSizeMb":64}}}
+            """);
 
-        // Act
         _capturedConfigCallback.ShouldNotBeNull();
         await _capturedConfigCallback!(updateEvent);
 
-        // Assert
-        recordingService.Received(1).SetEnabled(true);
-        recordingService.Received(1).UpdateBatchSettings(false, 10);
-        recordingService.Received(1).UpdateStorageSettings(
-            new RecordingStorageSettings(RetentionDays: 3, MaxStorageSizeMb: 64, MinFreeDiskSpaceMb: 32));
-    }
-
-    [Fact]
-    public async Task HandleSystemConfigUpdate_InvalidRetention_AppliesNothing()
-    {
-        // Arrange
-        var recordingService = Substitute.For<IRecordingService>();
-        var manager = CreateManager(recordingService);
-        await manager.InitializeAsync();
-
-        var updateEvent = CreateSystemConfigUpdateEvent(new SubNodeRecordConfigDto
-        {
-            RetentionDays = 400 // out of range: 0-365
-        });
-
-        // Act
-        _capturedConfigCallback.ShouldNotBeNull();
-        await _capturedConfigCallback!(updateEvent);
-
-        // Assert - a rejected message leaves the policy in force untouched
-        recordingService.DidNotReceive().UpdateStorageSettings(Arg.Any<RecordingStorageSettings>());
         recordingService.DidNotReceive().SetEnabled(Arg.Any<bool>());
+        recordingService.DidNotReceive().UpdateBatchSettings(Arg.Any<bool>(), Arg.Any<int>());
+        recordingService.DidNotReceive().UpdateStorageSettings(Arg.Any<RecordingStorageSettings>());
     }
 
-    private static UpdateConfigurationEvent CreateSystemConfigUpdateEvent(SubNodeRecordConfigDto record)
+    private static UpdateConfigurationEvent CreateSystemConfigUpdateEventFromDesiredJson(string desiredJson)
     {
+        var desired = System.Text.Json.JsonSerializer.Deserialize<SubNodeDesiredConfigSections>(desiredJson);
         var message = new SubNodeConfigUpdateMessage
         {
             SeqId = 7,
-            Data = new SubNodeConfigUpdateData
-            {
-                Cfg = new SubNodeConfigState
-                {
-                    Desired = new SubNodeDesiredConfigSections
-                    {
-                        SystemCfg = new SubNodeSystemCfgDto { Record = record }
-                    }
-                }
-            }
+            Data = new SubNodeConfigUpdateData { Cfg = new SubNodeConfigState { Desired = desired } }
         };
 
         return new UpdateConfigurationEvent(
@@ -1023,6 +1063,147 @@ public class SubNodeManagerTests : IAsyncDisposable
             ConfigType: SubscriptionTypes.SystemConfig,
             Message: message,
             Timestamp: DateTimeOffset.UtcNow);
+    }
+
+    #endregion
+
+    #region Device Config - SubNode-level Record
+
+    /// <summary>
+    /// A devicecfg desired message carrying subNodeSettings.record applies the recording config as
+    /// the last transaction participant, after all devices succeed.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_WithSubNodeSettingsRecord_AppliesRecord()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ => Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson("""
+            {"devicecfg":{
+              "deviceConfigs":{"device-1":{"enabled":true,"sensors":[]}},
+              "subNodeSettings":{"record":{"retentionDays":30,"maxStorageSizeMb":2048,"minFreeDiskSpaceMb":128}}
+            }}
+            """);
+
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        recordingService.Received(1).ApplyRecordConfig(Arg.Is<SubNodeRecordConfigDto>(
+            r => r.RetentionDays == 30 && r.MaxStorageSizeMb == 2048));
+    }
+
+    /// <summary>
+    /// A message with only subNodeSettings.record and no deviceConfigs still enters the
+    /// transaction and applies the record (Record is a first-class participant).
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_RecordOnlyNoDevices_AppliesRecord()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson("""
+            {"devicecfg":{
+              "subNodeSettings":{"record":{"retentionDays":30}}
+            }}
+            """);
+
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        recordingService.Received(1).ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>());
+    }
+
+    /// <summary>
+    /// A record-only message must cache the desired so it survives a restart. The per-device
+    /// apply path caches the message, but a record-only message runs no device apply — without
+    /// the transaction caching it, rehydrate has nothing to replay and the record reverts to the
+    /// devicecfg.json value on restart. (Caught by SIT E2E.)
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_RecordOnlyNoDevices_CachesDesired()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson("""
+            {"devicecfg":{
+              "subNodeSettings":{"record":{"retentionDays":30}}
+            }}
+            """);
+
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        await _mockConfigurationCache.Received(1).SaveRawConfigurationAsync(
+            SubscriptionTypes.DeviceConfig, Arg.Any<SubNodeConfigUpdateMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// An out-of-range record fails validation and the whole transaction is rejected —
+    /// no record apply, and no device apply either.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_InvalidRecord_RejectsWholeTransaction()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1");
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ => Task.FromResult(ConfigUpdateResult.Success(device1.Configuration, "adamEthernet")));
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson("""
+            {"devicecfg":{
+              "deviceConfigs":{"device-1":{"enabled":true,"sensors":[]}},
+              "subNodeSettings":{"record":{"retentionDays":9999}}
+            }}
+            """);
+
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        recordingService.DidNotReceive().ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>());
+        device1.ApplyCallCount.ShouldBe(0, "no device should apply when the record is invalid");
+    }
+
+    /// <summary>
+    /// If a device apply fails, the record must not linger applied. Record applies last, so on a
+    /// device failure it was never applied — verify it is not applied.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_DeviceApplyFails_RecordNotApplied()
+    {
+        var recordingService = Substitute.For<IRecordingService>();
+        var manager = CreateManager(recordingService);
+        await manager.InitializeAsync();
+
+        var device1 = CreateFakeDevice("device-1")
+            .WithApplyResult(ConfigUpdateResult.Failed(
+                CreateTestDeviceConfiguration("device-1"), "adamEthernet", "boom"));
+        _deviceRegistry.Register(device1);
+        manager.RegisterDeviceHandler("device-1", _ => Task.FromResult(ConfigUpdateResult.Failed(device1.Configuration, "adamEthernet", "boom")));
+
+        var updateEvent = CreateDeviceConfigUpdateEventFromDesiredJson("""
+            {"devicecfg":{
+              "deviceConfigs":{"device-1":{"enabled":true,"sensors":[]}},
+              "subNodeSettings":{"record":{"retentionDays":30}}
+            }}
+            """);
+
+        _capturedConfigCallback.ShouldNotBeNull();
+        await _capturedConfigCallback!(updateEvent);
+
+        recordingService.DidNotReceive().ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>());
     }
 
     #endregion

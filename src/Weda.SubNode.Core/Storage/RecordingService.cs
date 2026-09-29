@@ -4,6 +4,7 @@ using ErrorOr;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Common;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Storage;
@@ -379,6 +380,38 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
         _logger.LogInformation(
             "[RecordingService] Storage limits updated: RetentionDays={RetentionDays}, MaxStorageSizeMb={MaxStorageSizeMb}, MinFreeDiskSpaceMb={MinFreeDiskSpaceMb}",
             settings.RetentionDays, settings.MaxStorageSizeMb, settings.MinFreeDiskSpaceMb);
+    }
+
+    /// <inheritdoc />
+    public RecordingOptions CaptureForRollback()
+    {
+        // enabled/batch live in fields that SetEnabled/UpdateBatchSettings mutate directly, so the
+        // provider's snapshot alone would miss them. Fold the live field values into the snapshot.
+        var snapshot = Options.Clone();
+        snapshot.Enabled = _enabled;
+        snapshot.BatchEnabled = _batchEnabled;
+        snapshot.BatchMaxSamples = _batchMaxSamples;
+        return snapshot;
+    }
+
+    /// <inheritdoc />
+    public void ApplyRecordConfig(SubNodeRecordConfigDto record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        SetEnabled(record.Enabled);
+        UpdateBatchSettings(record.BatchEnabled, record.BatchMaxSamples);
+        UpdateStorageSettings(record.ToStorageSettings());
+    }
+
+    /// <inheritdoc />
+    public void RestoreFromRollback(RecordingOptions snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        SetEnabled(snapshot.Enabled);
+        UpdateBatchSettings(snapshot.BatchEnabled, snapshot.BatchMaxSamples);
+        UpdateStorageSettings(snapshot.StorageSettings);
     }
 
     private static long GetStartOfDay(long timestamp)
