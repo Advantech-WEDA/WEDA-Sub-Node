@@ -299,7 +299,7 @@ public class WedaApplicationContext : IWedaApplicationContext
                 _recordingService,
                 _dynamicRecordStorage,
                 _recordingOptions.CleanupInterval ?? TimeSpan.Zero);
-            _cleanupScheduler.Start();
+            // Started below, once the cached cloud record has been applied.
         }
 
         // Bind configuration objects using Options Pattern
@@ -351,6 +351,11 @@ public class WedaApplicationContext : IWedaApplicationContext
         // Re-apply the SubNode-level record from the devicecfg cache after the per-device
         // rehydrate, so a cloud-pushed record survives a restart. Node-level, runs once.
         ApplyCachedRecordIfExists(_loggerFactory.CreateLogger<WedaApplicationContext>());
+
+        // Start cleanup only now: the first sweep runs immediately and deletes irreversibly, so
+        // it must use the cloud-pushed record, not the base devicecfg values. Started earlier,
+        // a cloud retention above the base would lose the files in between on every restart.
+        _cleanupScheduler?.Start();
 
         // Create Command Registry and auto-scan handlers (built before cloud
         // service so DeviceAgentClient can receive it for capability upload).

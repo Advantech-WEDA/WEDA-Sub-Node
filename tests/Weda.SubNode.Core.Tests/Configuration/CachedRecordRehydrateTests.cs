@@ -104,4 +104,57 @@ public class CachedRecordRehydrateTests
         recordingService.Received(1).ApplyRecordConfig(Arg.Is<SubNodeRecordConfigDto>(
             r => r.RetentionDays == 21 && r.MaxStorageSizeMb == 777));
     }
+
+    /// <summary>
+    /// The startup sweep must run with the cached cloud record, not the base devicecfg values.
+    /// A sweep that starts before the rehydrate uses the base retention, and on every restart
+    /// it irreversibly deletes files the cloud said to keep (base 7 days, cloud 30 days: the
+    /// 7-30 day files go).
+    /// </summary>
+    [Fact]
+    public async Task Context_OnStartup_FirstSweepUsesTheCachedRecord()
+    {
+        var cached = Deserialize("""
+            {"data":{"cfg":{"desired":{"devicecfg":{
+              "subNodeSettings":{"record":{"retentionDays":30,"maxStorageSizeMb":1024,"minFreeDiskSpaceMb":128}}
+            }}}}}
+            """);
+
+        var cache = Substitute.For<Weda.SubNode.Abstractions.Storage.IConfigurationCache>();
+        cache.ExistsAsync(Weda.SubNode.Abstractions.Cloud.Subscriptions.SubscriptionTypes.DeviceConfig)
+            .Returns(true);
+        cache.GetRawConfigurationAsync(Weda.SubNode.Abstractions.Cloud.Subscriptions.SubscriptionTypes.DeviceConfig)
+            .Returns(cached);
+
+        // Behave like the real service: the base limits are in force until the cached record
+        // is applied.
+        var settings = new Weda.SubNode.Abstractions.Storage.Recordings.RecordingStorageSettings(
+            RetentionDays: 7, MaxStorageSizeMb: 1024, MinFreeDiskSpaceMb: 128);
+        var recordingService = Substitute.For<IRecordingService>();
+        recordingService.StorageSettings.Returns(_ => settings);
+        recordingService
+            .When(s => s.ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>()))
+            .Do(ci => settings = ci.Arg<SubNodeRecordConfigDto>().ToStorageSettings());
+
+        var firstCutoff = new TaskCompletionSource<DateTimeOffset>(TaskCreationOptions.RunContinuationsAsynchronously);
+        recordingService.CleanupAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                firstCutoff.TrySetResult(ci.Arg<DateTimeOffset>());
+                return Task.FromResult(Weda.SubNode.Abstractions.Storage.Recordings.RecordingCleanupResult.Empty);
+            });
+
+        using var context = new Weda.SubNode.Host.Context.WedaApplicationContext(options =>
+        {
+            options.ConfigurationCache = cache;
+            options.RecordingService = recordingService;
+            options.DeviceOptions.EnableRecording = true;
+        });
+
+        var cutoff = await firstCutoff.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // 30-day retention puts the cutoff about 30 days back; the base 7 days would put it
+        // about 7 days back and delete everything in between.
+        cutoff.ShouldBeLessThan(DateTimeOffset.UtcNow.AddDays(-29));
+    }
 }
