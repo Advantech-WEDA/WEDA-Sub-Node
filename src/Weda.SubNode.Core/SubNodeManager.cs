@@ -191,6 +191,18 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
             return true;
         }
 
+        // A devicecfg shadow update may disable every device. The capability mapping
+        // cannot build a DTO from zero enabled devices, and retrying cannot change that,
+        // so skip the upload; the cloud keeps the last capability set until a device is
+        // re-enabled and the next upload runs.
+        if (!configurations.Values.Any(c => c.Enabled))
+        {
+            _logger.LogInformation(
+                "All {Count} device(s) are disabled; skipping device configuration upload",
+                configurations.Count);
+            return true;
+        }
+
         _logger.LogInformation(
             "Uploading {Count} device configuration(s) to cloud",
             configurations.Count);

@@ -680,8 +680,19 @@ public static partial class ConfigurationUpdateHelper
             return false;
         }
 
+        // Restore the device-level Enabled flag, so a device the cloud disabled stays
+        // disabled across restarts instead of reverting to the base devicecfg.json value.
+        baseConfig.Enabled = matchingConfig.Enabled;
+
         // Apply sensor replacement (REPLACE mode - supports add/remove/update)
         ReplaceSensors(baseConfig, matchingConfig.Sensors, baseConfig.DeviceId ?? baseConfig.DeviceName);
+
+        // Propagate the device-level Enabled flag to all sensors (after ReplaceSensors,
+        // which may create new sensor instances), mirroring the runtime apply path.
+        foreach (var sensor in baseConfig.Sensors)
+        {
+            sensor.DeviceEnabled = baseConfig.Enabled;
+        }
 
         // Apply pipeline updates (Transform and DSP filters)
         ApplyAllPipelineUpdates(baseConfig, matchingConfig.Sensors);
