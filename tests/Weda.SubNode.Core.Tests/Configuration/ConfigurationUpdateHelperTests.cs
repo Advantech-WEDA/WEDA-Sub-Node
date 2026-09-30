@@ -1083,6 +1083,45 @@ public class ConfigurationUpdateHelperTests
         sensor2!.Report.Interval.ShouldBe(3000);
     }
 
+    [Fact]
+    public void ApplyCachedConfiguration_Should_RestoreDisabledDevice_When_CacheDisablesDevice()
+    {
+        // Arrange - base devicecfg.json enables the device; the cloud later disabled it
+        var config = CreateDeviceConfiguration("TestDevice");
+        config.Enabled = true;
+
+        var cachedMessage = CreateValidMessage();
+        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Enabled = false;
+
+        // Act
+        var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
+
+        // Assert - the disabled state survives a restart, and no sensor reports
+        result.ShouldBeTrue();
+        config.Enabled.ShouldBeFalse();
+        config.Sensors.ShouldAllBe(s => !s.DeviceEnabled);
+        config.Sensors.ShouldAllBe(s => !s.IsEffectivelyEnabled);
+    }
+
+    [Fact]
+    public void ApplyCachedConfiguration_Should_RestoreEnabledDevice_When_BaseDisablesDevice()
+    {
+        // Arrange - base devicecfg.json disables the device; the cloud later enabled it
+        var config = CreateDeviceConfiguration("TestDevice");
+        config.Enabled = false;
+
+        var cachedMessage = CreateValidMessage();
+        cachedMessage.Data!.Cfg!.Desired!.SubNodeDeviceConfig!.DeviceConfigs!["TestDevice"].Enabled = true;
+
+        // Act
+        var result = ConfigurationUpdateHelper.ApplyCachedConfiguration(config, cachedMessage);
+
+        // Assert
+        result.ShouldBeTrue();
+        config.Enabled.ShouldBeTrue();
+        config.Sensors.ShouldAllBe(s => s.DeviceEnabled);
+    }
+
     #endregion
 
     #region Helper Methods
