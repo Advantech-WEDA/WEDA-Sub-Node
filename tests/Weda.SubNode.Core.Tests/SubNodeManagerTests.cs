@@ -1032,6 +1032,128 @@ public class SubNodeManagerTests : IAsyncDisposable
 
     #endregion
 
+    #region Upload With All Devices Disabled
+
+    /// <summary>
+    /// A devicecfg shadow update may legitimately set every device's Enabled to false.
+    /// The capability mapping cannot build a DTO from zero enabled devices, so the
+    /// upload must be skipped instead of retrying the same deterministic failure forever.
+    /// </summary>
+    [Fact]
+    public async Task UploadDeviceConfigurations_WhenAllDevicesDisabled_ShouldSkipUploadAndReturnTrue()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var config = CreateTestDeviceConfiguration("SystemAgentDeviceConfig");
+        config.Enabled = false;
+        var configurations = new DeviceConfigurations { ["SystemAgentDeviceConfig"] = config };
+
+        // Mirror the real mapping failure so the pre-fix code loops on it
+        _mockCloudService.UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ErrorOr.ErrorOr<bool>>>(_ =>
+                throw new InvalidOperationException("At least one DeviceConfiguration must be enabled"));
+
+        // Act
+        var result = await manager.UploadDeviceConfigurationsAsync(configurations, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert
+        result.ShouldBeTrue();
+        await _mockCloudService.DidNotReceive()
+            .UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Reproduces the field report: turning the only device off in an update that also
+    /// requires a caps re-upload left the devicecfg handler retrying forever, and since the
+    /// subscription processes messages serially, the later "turn it on" update never ran.
+    /// </summary>
+    [Fact]
+    public async Task HandleDeviceConfigUpdate_TurnOffThenOn_ShouldProcessBothUpdates()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        // Mirror ToConfigurationDto: mapping throws when no device is enabled
+        var uploadCallCount = 0;
+        _mockCloudService.UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ErrorOr.ErrorOr<bool>>>(x =>
+            {
+                uploadCallCount++;
+                if (!x.Arg<DeviceConfigurations>().Values.Any(c => c.Enabled))
+                {
+                    throw new InvalidOperationException("At least one DeviceConfiguration must be enabled");
+                }
+                return Task.FromResult<ErrorOr.ErrorOr<bool>>(true);
+            });
+
+        var publishedStatuses = new List<string?>();
+        _mockCloudService.PublishConfigurationReportAsync(
+            Arg.Any<SubscriptionType>(),
+            Arg.Any<SubNodeConfigUpdateMessage>(),
+            Arg.Any<CancellationToken>())
+            .Returns(true)
+            .AndDoes(x => publishedStatuses.Add(
+                x.Arg<SubNodeConfigUpdateMessage>().Data?.Cfg?.Reported?.DeviceCfg?.Message?.Status));
+
+        // Each update adds a sensor (caps re-upload) and carries the desired Enabled flag
+        var desiredEnabled = new Queue<bool>([false, true]);
+        var device = CreateFakeDevice("SystemAgentDeviceConfig")
+            .WithValidationResult(ConfigUpdateValidationResult.Valid("adamEthernet", requiresCapsReupload: true))
+            .WithApplyAction(config => config.Enabled = desiredEnabled.Dequeue());
+        _deviceRegistry.Register(device);
+        manager.RegisterDeviceHandler("SystemAgentDeviceConfig", _ =>
+            Task.FromResult(ConfigUpdateResult.Success(device.Configuration, "adamEthernet")));
+
+        _capturedConfigCallback.ShouldNotBeNull();
+
+        // Act: turn off, then turn back on
+        await _capturedConfigCallback!(CreateDeviceConfigUpdateEvent(["SystemAgentDeviceConfig"]))
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await _capturedConfigCallback!(CreateDeviceConfigUpdateEvent(["SystemAgentDeviceConfig"]))
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert
+        device.Configuration.Enabled.ShouldBeTrue("the turn-on update must be applied");
+        publishedStatuses.ShouldBe(new string?[] { ConfigUpdateStatus.Success, ConfigUpdateStatus.Success },
+            Case.Sensitive, "both updates must report back to the shadow");
+        uploadCallCount.ShouldBe(1, "only the turn-on update uploads capabilities");
+    }
+
+    [Fact]
+    public async Task UploadDeviceConfigurations_WhenOneDeviceEnabled_ShouldUpload()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var disabled = CreateTestDeviceConfiguration("DisabledDevice");
+        disabled.Enabled = false;
+        var enabled = CreateTestDeviceConfiguration("EnabledDevice");
+        var configurations = new DeviceConfigurations
+        {
+            ["DisabledDevice"] = disabled,
+            ["EnabledDevice"] = enabled
+        };
+
+        _mockCloudService.UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await manager.UploadDeviceConfigurationsAsync(configurations, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert
+        result.ShouldBeTrue();
+        await _mockCloudService.Received(1)
+            .UploadDeviceConfigurationsAsync(configurations, Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private DeviceConfiguration CreateTestDeviceConfiguration(string deviceName)
