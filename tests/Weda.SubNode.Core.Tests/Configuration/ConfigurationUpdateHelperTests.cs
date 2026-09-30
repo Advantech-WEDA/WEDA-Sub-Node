@@ -249,6 +249,69 @@ public class ConfigurationUpdateHelperTests
         result.IsValid.ShouldBeTrue();
     }
 
+    [Fact]
+    public void ReplaceSensors_RecordWithInterval_KeepsIt()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                Record = new SubNodeSensorRecordDto { Enabled = true, Interval = 5000 }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(5000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordNoInterval_FillsFromReport()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 },
+                Record = new SubNodeSensorRecordDto { Enabled = false }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        // report interval (3000) is above the 1000 record floor, so it is used as-is
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(3000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordNoInterval_ClampsReportBelowRecordFloor()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                // report interval 500 is a valid report value (floor 50) but below the record
+                // floor (1000), so the resolved record interval must clamp up to 1000
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 500 },
+                Record = new SubNodeSensorRecordDto { Enabled = false }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(1000);
+    }
+
     #endregion
 
     #region Sensor Validation Tests
@@ -327,7 +390,7 @@ public class ConfigurationUpdateHelperTests
 
         // Assert
         result.IsValid.ShouldBeFalse();
-        result.ErrorMessage?.ShouldContain("interval must be greater than 0");
+        result.ErrorMessage?.ShouldContain("must not be less than 50");
     }
 
     [Fact]

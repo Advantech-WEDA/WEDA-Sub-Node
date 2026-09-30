@@ -1017,16 +1017,19 @@ public class SubNodeSensorReportDto
 public class SubNodeSensorRecordDto
 {
     /// <summary>
-    /// Whether recording is enabled
+    /// Whether recording is enabled. Defaults to false so an empty <c>record: {}</c> does not
+    /// require an interval.
     /// </summary>
     [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Recording interval in milliseconds. 0 means use report interval.
+    /// Recording interval in milliseconds. Optional: required only when <see cref="Enabled"/> is
+    /// true. When recording is disabled the apply path fills it from the report interval, so the
+    /// value round-trips to the cloud without failing the interval range check.
     /// </summary>
     [JsonPropertyName("interval")]
-    public int Interval { get; set; } = 0;
+    public int? Interval { get; set; }
 }
 
 /// <summary>

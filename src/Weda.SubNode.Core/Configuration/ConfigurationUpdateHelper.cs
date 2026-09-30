@@ -404,7 +404,7 @@ public static partial class ConfigurationUpdateHelper
         if (desired.Record != null)
         {
             sensor.Record.Enabled = desired.Record.Enabled;
-            sensor.Record.Interval = desired.Record.Interval;
+            sensor.Record.Interval = ResolveRecordInterval(desired.Record, sensor.Report.Interval);
             wasUpdated = true;
         }
 
@@ -999,11 +999,31 @@ public static partial class ConfigurationUpdateHelper
         if (dto.Record != null)
         {
             sensor.Record.Enabled = dto.Record.Enabled;
-            sensor.Record.Interval = dto.Record.Interval;
+            sensor.Record.Interval = ResolveRecordInterval(dto.Record, sensor.Report.Interval);
         }
 
         return sensor;
     }
+
+    /// <summary>
+    /// Minimum record interval (ms). The report interval floor is lower (50 ms), so a record
+    /// interval derived from the report interval must be clamped up to this bound.
+    /// </summary>
+    private const int MinimumRecordIntervalMs = 1000;
+
+    /// <summary>
+    /// Resolves the effective record interval to store on the runtime sensor. The record interval
+    /// is optional on the wire: when it is missing or non-positive it falls back to the report
+    /// interval, clamped up to <see cref="MinimumRecordIntervalMs"/> because the report interval
+    /// floor (50 ms) is below the record interval floor (1000 ms). Resolving it here (rather than
+    /// only at sampling time) means the value that round-trips to the cloud is a valid in-range
+    /// interval, so a disabled record with no interval is not rejected by the cloud-side interval
+    /// range check on the way back down.
+    /// </summary>
+    private static int ResolveRecordInterval(SubNodeSensorRecordDto record, double reportInterval)
+        => record.Interval is > 0
+            ? record.Interval.Value
+            : Math.Max((int)reportInterval, MinimumRecordIntervalMs);
 
     /// <summary>
     /// Converts JsonElement values in a dictionary to their native .NET types.

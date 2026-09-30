@@ -45,7 +45,7 @@ internal static class SensorEnvelopeSchemas
         ["fields"] = new JsonArray
         {
             Field("enabled",           "boolean", required: false),
-            Field("interval",          "integer", required: false, minimum: 1000, maximum: int.MaxValue, description: "Sampling interval (ms)."),
+            Field("interval",          "integer", required: false, minimum: 50, maximum: int.MaxValue, description: "Sampling interval (ms)."),
             Field("unit",              "string",  required: false),
             Field("transformPipeline", pipelineListId, required: false),
             Field("dspPipeline",       pipelineListId, required: false),

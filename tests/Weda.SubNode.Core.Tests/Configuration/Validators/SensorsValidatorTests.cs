@@ -125,6 +125,80 @@ public class SensorsValidatorTests
 
     #region Helper Methods
 
+    #region Per-Sensor Record Interval Validation
+
+    // A record interval is required only when recording is enabled. When enabled, a missing or
+    // zero interval is rejected (0 would silently record at the report interval, which the cloud
+    // validator's range check rejects on the way back down). When disabled, the interval is not
+    // required — the apply path fills it from the report interval.
+
+    [Fact]
+    public void Validate_Record_EnabledWithInterval_Ok()
+    {
+        // { "record": { "enabled": true, "interval": 1000 } }
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true, Interval = 1000 });
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Record_EnabledNoInterval_Rejected()
+    {
+        // { "record": { "enabled": true } }
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true });
+        _validator.Validate(context).IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Record_EnabledZeroInterval_Rejected()
+    {
+        // { "record": { "enabled": true, "interval": 0 } }
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true, Interval = 0 });
+        _validator.Validate(context).IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Record_DisabledNoInterval_Ok()
+    {
+        // { "record": { "enabled": false } }
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = false });
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Record_EmptyObject_Ok()
+    {
+        // { "record": {} } — Enabled defaults to false, so no interval required
+        var context = CreateRecordContext(new SubNodeSensorRecordDto());
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    private static ConfigurationValidationContext CreateRecordContext(SubNodeSensorRecordDto record)
+    {
+        var desiredConfig = new SubNodeDeviceConfigDto
+        {
+            Sensors =
+            [
+                new SubNodeSensorReportDto
+                {
+                    Name = "temperature",
+                    SensorGroup = "AI",
+                    Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                    SensorInfo = new SubNodeSensorInfoDto { Schema = "double" },
+                    Record = record
+                }
+            ]
+        };
+
+        return new ConfigurationValidationContext
+        {
+            DesiredConfig = desiredConfig,
+            CurrentConfig = CreateDeviceConfiguration("temperature"),
+            Options = new ConfigUpdateOptions { ValidateSensors = true }
+        };
+    }
+
+    #endregion
+
     private static ConfigurationValidationContext CreateValidationContext(
         string sensorName,
         bool validateSensors = true)

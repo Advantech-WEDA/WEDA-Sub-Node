@@ -24,6 +24,9 @@ public class SensorsValidator : IConfigurationPropertyValidator
         "image/jpeg"
     };
 
+    private const int _minimumReportingIntervalMs = 50;
+    private const int _minimumRecordingIntervalMs = 1000;
+
     public string PropertyName => "Sensors";
 
     public ConfigurationValidationResult Validate(ConfigurationValidationContext context)
@@ -68,10 +71,10 @@ public class SensorsValidator : IConfigurationPropertyValidator
             // Validate sensor config values
             if (options.ValidateSensors && sensor.Report != null)
             {
-                if (sensor.Report.Interval <= 0)
+                if (sensor.Report.Interval is not >= _minimumReportingIntervalMs)
                 {
                     return ConfigurationValidationResult.Failure(
-                        $"Sensor '{sensor.Name}' interval must be greater than 0");
+                        $"Sensor '{sensor.Name}' interval must not be less than {_minimumReportingIntervalMs}");
                 }
 
                 // Validate thresholds if provided (if enabled)
@@ -81,6 +84,15 @@ public class SensorsValidator : IConfigurationPropertyValidator
                     if (!thresholdResult.IsValid)
                         return thresholdResult;
                 }
+            }
+
+            // A record interval is required only when recording is enabled. When disabled, the
+            // interval is optional (the apply path fills it from the report interval).
+            if (options.ValidateSensors && sensor.Record is { Enabled: true }
+                && sensor.Record.Interval is not >= _minimumRecordingIntervalMs)
+            {
+                return ConfigurationValidationResult.Failure(
+                    $"Sensor '{sensor.Name}' record interval must not be less than {_minimumRecordingIntervalMs} when recording is enabled");
             }
 
             var schemaResult = ValidateSchema(sensor);
@@ -110,7 +122,7 @@ public class SensorsValidator : IConfigurationPropertyValidator
 
     private static ConfigurationValidationResult ValidateThresholds(
         string sensorName,
-        Abstractions.Cloud.Clients.DeviceManagement.Contracts.SubNodeThresholdsDto thresholds)
+        SubNodeThresholdsDto thresholds)
     {
         if (thresholds.UpperCritical.HasValue && thresholds.UpperWarning.HasValue &&
             thresholds.UpperCritical < thresholds.UpperWarning)
