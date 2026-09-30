@@ -1032,6 +1032,70 @@ public class SubNodeManagerTests : IAsyncDisposable
 
     #endregion
 
+    #region Upload With All Devices Disabled
+
+    /// <summary>
+    /// A devicecfg shadow update may legitimately set every device's Enabled to false.
+    /// The capability mapping cannot build a DTO from zero enabled devices, so the
+    /// upload must be skipped instead of retrying the same deterministic failure forever.
+    /// </summary>
+    [Fact]
+    public async Task UploadDeviceConfigurations_WhenAllDevicesDisabled_ShouldSkipUploadAndReturnTrue()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var config = CreateTestDeviceConfiguration("SystemAgentDeviceConfig");
+        config.Enabled = false;
+        var configurations = new DeviceConfigurations { ["SystemAgentDeviceConfig"] = config };
+
+        // Mirror the real mapping failure so the pre-fix code loops on it
+        _mockCloudService.UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ErrorOr.ErrorOr<bool>>>(_ =>
+                throw new InvalidOperationException("At least one DeviceConfiguration must be enabled"));
+
+        // Act
+        var result = await manager.UploadDeviceConfigurationsAsync(configurations, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert
+        result.ShouldBeTrue();
+        await _mockCloudService.DidNotReceive()
+            .UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UploadDeviceConfigurations_WhenOneDeviceEnabled_ShouldUpload()
+    {
+        // Arrange
+        var manager = CreateManager();
+        await manager.InitializeAsync();
+
+        var disabled = CreateTestDeviceConfiguration("DisabledDevice");
+        disabled.Enabled = false;
+        var enabled = CreateTestDeviceConfiguration("EnabledDevice");
+        var configurations = new DeviceConfigurations
+        {
+            ["DisabledDevice"] = disabled,
+            ["EnabledDevice"] = enabled
+        };
+
+        _mockCloudService.UploadDeviceConfigurationsAsync(Arg.Any<DeviceConfigurations>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await manager.UploadDeviceConfigurationsAsync(configurations, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert
+        result.ShouldBeTrue();
+        await _mockCloudService.Received(1)
+            .UploadDeviceConfigurationsAsync(configurations, Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private DeviceConfiguration CreateTestDeviceConfiguration(string deviceName)
