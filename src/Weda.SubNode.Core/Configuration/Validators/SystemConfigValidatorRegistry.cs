@@ -6,7 +6,7 @@ namespace Weda.SubNode.Core.Configuration.Validators;
 
 /// <summary>
 /// Registry for system configuration property validators.
-/// Validates system-level settings like WedaNode, Record, and Serilog.
+/// Validates system-level settings like WedaNode and Serilog.
 /// </summary>
 public class SystemConfigValidatorRegistry
 {
@@ -21,7 +21,6 @@ public class SystemConfigValidatorRegistry
 
         // Register system config validators
         registry.Register(new WedaNodeValidator());
-        registry.Register(new RecordValidator());
 
         return registry;
     }
