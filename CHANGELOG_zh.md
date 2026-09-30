@@ -14,10 +14,12 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 ### 變更
 - 設定同步預設週期由 **60 秒調整為 24 小時**(`BackgroundTaskPeriods.DefaultReportConfigurationPeriod`);允許範圍由 10 秒–7 天收斂為 **60 秒–7 天**(`MinReportConfigurationPeriod` 10000 → 60000)。穩態下的 devicecfg 改以變更/重連觸發為主,而非高頻週期 tick。
 - 超出範圍的 `Periods.ReportConfiguration` 現在會**夾到最近的邊界**(先前是替換為預設值),以保留操作者意圖;`0` 仍為明確停用(關閉週期同步),且現在會記錄一則警告而非靜默套用。
+- **每個 sensor 的 `Record.Interval` 現在改為選填,僅在啟用錄製時必填。** `Sensors[].Record.Interval` 改為 nullable;僅當 `Record.Enabled` 為 `true` 時才必填,且必須 `>= 1000`。當錄製停用、或未填 interval 時,套用階段會以該 sensor 的 report interval 補值,並夾到 `1000` ms 的錄製下限(report interval 下限降為 `50` ms)。在套用階段就 resolve 出 interval,使上雲 round-trip 的值必定在合法範圍內,停用的 record 不再被雲端的 interval 檢查拒絕。**BREAKING:** `Record.Enabled` 的預設值改為 `false` — 原本沒帶 record 設定、或帶了 record 但沒明確 `enabled` 的 sensor,以前預設會錄製,現在不會。DTDL:report interval `minimum` 由 `1000` 降為 `50`;record interval `minimum` 維持 `1000`。
 
 ### 安裝與升級說明
 - 若你的裝置會在執行期變更自身設定(sensor 重新解析、calibration 寫入、`RawDeviceCfgJson` 更新),且原本仰賴舊的 60 秒週期 tick 來傳播,請在這些變更點呼叫 `ISubNodeManager.TriggerConfigSync()` — 在 24 小時預設下,未觸發的本地變更最多可能延遲一天才上雲。
 - 任何低於 60000ms 的 `Periods.ReportConfiguration` 現在會被夾到 60000ms(舊的 10000ms 下限不再適用)。若你依賴特定週期,請明確設定其值。
+- `Record.Enabled` 的預設值改為 `false`。若有 sensor 原本仰賴舊預設值來錄製(未明確設定),請在 `devicecfg.json` 該 sensor 加上 `"Record": { "Enabled": true, "Interval": <ms> }`。啟用錄製時 interval 必須 `>= 1000` ms。
 
 ## [1.2.0] - 2026-06-02
 
