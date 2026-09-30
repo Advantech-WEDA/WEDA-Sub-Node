@@ -21,6 +21,7 @@ public class FakeDevice : IDevice
     private ConfigUpdateResult _applyResult;
     private Exception? _validationException;
     private readonly DeviceConfigurationBackup _backup;
+    private Action<DeviceConfiguration>? _applyAction;
 
     public FakeDevice(DeviceConfiguration configuration)
     {
@@ -64,6 +65,16 @@ public class FakeDevice : IDevice
     }
 
     /// <summary>
+    /// Runs during Phase 2 so a test can mutate the configuration the way a real
+    /// device applies the desired state (e.g. DeviceBase setting Enabled).
+    /// </summary>
+    public FakeDevice WithApplyAction(Action<DeviceConfiguration> applyAction)
+    {
+        _applyAction = applyAction;
+        return this;
+    }
+
+    /// <summary>
     /// Makes Phase 1 throw instead of returning a verdict, the way a device
     /// refuses a configuration from its OnBeforeConfigUpdateAsync hook.
     /// </summary>
@@ -93,6 +104,7 @@ public class FakeDevice : IDevice
     {
         ApplyCallCount++;
         LastApplyMessage = message;
+        _applyAction?.Invoke(_configuration);
         return Task.FromResult(_applyResult);
     }
 
