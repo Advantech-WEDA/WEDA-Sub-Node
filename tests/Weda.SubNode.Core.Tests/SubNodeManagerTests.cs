@@ -879,6 +879,8 @@ public class SubNodeManagerTests : IAsyncDisposable
         recordingService.DidNotReceive().ApplyRecordConfig(Arg.Any<SubNodeRecordConfigDto>());
     }
 
+    #endregion
+
     #region Config Sync Trigger Tests (US-47107)
 
     [Fact]

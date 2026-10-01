@@ -60,12 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Installation and Upgrade Instructions
 - If your device mutates its own configuration at runtime (sensor re-resolution, calibration writes, `RawDeviceCfgJson` refresh) and relied on the old 60s periodic tick to propagate it, call `ISubNodeManager.TriggerConfigSync()` at those change points — with the 24h default, an untriggered local change can otherwise lag up to a day.
 - Any `Periods.ReportConfiguration` below 60000ms is now clamped to 60000ms (the old 10000ms floor no longer applies). Set the value explicitly if you depend on a specific cadence.
-<<<<<<< HEAD
 - `Record.Enabled` now defaults to `false`. If any sensor relied on the previous default to record without an explicit flag, add `"Record": { "Enabled": true, "Interval": <ms> }` to that sensor in `devicecfg.json`. For an enabled record the interval is now **required and must be at least `1000` ms**.
 - If any sensor used `"Record": { "Enabled": true, "Interval": 0 }` (or an enabled record with no interval, or a sub-floor value) to mean "record at the report interval", replace it with an explicit in-range value, e.g. `"Interval": 1000`. An enabled record is now validated and will be rejected otherwise. The report-interval fallback remains only for *disabled* records.
-=======
 - External implementers of `IRecordStorage` or `IRecordingService` must update `CleanupAsync` to return `RecordingCleanupResult` and implement `EnforceStorageLimitsAsync`, `StorageSettings` and `UpdateStorageSettings`.
->>>>>>> develop
 
 ## [1.2.0] - 2026-06-02
 
