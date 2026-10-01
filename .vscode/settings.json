@@ -1,0 +1,7 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "never",
+    "source.removeUnusedImports": "never"
+  },
+  "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true
+}

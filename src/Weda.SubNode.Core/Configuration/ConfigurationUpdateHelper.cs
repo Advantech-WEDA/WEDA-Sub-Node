@@ -8,6 +8,7 @@ using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Events;
+using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Core.Configuration.Results;
 using Weda.SubNode.Core.Configuration.Validators;
@@ -710,6 +711,30 @@ public static partial class ConfigurationUpdateHelper
             }
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Re-applies the cached SubNode-level record to the recording service on startup, so a
+    /// cloud-pushed record survives a restart. This is the node-level counterpart to
+    /// <see cref="ApplyCachedConfiguration"/>, which replays only per-device sensors/periods.
+    /// </summary>
+    /// <param name="cachedMessage">The cached cloud configuration message.</param>
+    /// <param name="recordingService">The recording service to apply the record to.</param>
+    /// <returns>True if a valid record was found and applied, false otherwise.</returns>
+    public static bool ApplyCachedRecord(
+        SubNodeConfigUpdateMessage cachedMessage,
+        IRecordingService recordingService)
+    {
+        var record = cachedMessage?.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.SubNodeSettings?.Record;
+        if (record == null)
+            return false;
+
+        // A cache file could have been edited by hand; treat its values as untrusted.
+        if (!record.TryValidate(out _))
+            return false;
+
+        recordingService.ApplyRecordConfig(record);
         return true;
     }
 

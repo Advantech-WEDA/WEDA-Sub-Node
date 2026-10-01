@@ -15,22 +15,66 @@ namespace Weda.SubNode.Core.Storage;
 /// Binary slot-based storage for fixed-size data types.
 /// Supports V1 (legacy, double-only) for reading and V2 (multi-type) for writing.
 /// </summary>
-public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<RecordingOptions> options) : IRecordStorage
+public class BinaryRecordStorage : IRecordStorage
 {
-    private readonly ILogger<BinaryRecordStorage> _logger = logger;
-    private readonly RecordingOptions _options = options.Value;
-    private readonly string _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
+    private readonly ILogger<BinaryRecordStorage> _logger;
+    private readonly RecordingOptionsProvider _optionsProvider;
+    private readonly string _resolvedStorageDirectory;
     private const int MillisecondsPerDay = 86400000;
     private const ushort CurrentVersion = 2;
     private const string FileNameDateFormat = "yyyy-MM-dd";
-    private readonly ResiliencePipeline _storagePipeline = ConnectionPolicies.CreateGeneralOperationPipeline(logger, ConnectionPolicyOptions.NFSDefault);
+    private readonly ResiliencePipeline _storagePipeline;
+
+    /// <summary>
+    /// Creates storage that reads its limits through a shared provider.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this overload wherever the limits can change at runtime: the provider is the one
+    /// cell a configuration update writes to, so storage constructed this way picks up a new
+    /// retention or ring-buffer limit without being rebuilt.
+    /// </remarks>
+    /// <param name="logger">Logger for storage diagnostics.</param>
+    /// <param name="optionsProvider">The provider holding the recording options in force.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    public BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, RecordingOptionsProvider optionsProvider)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(optionsProvider);
+
+        _logger = logger;
+        _optionsProvider = optionsProvider;
+        // Resolved once: the data already written lives here, so relocating it is a restart-time
+        // operation, not a runtime one.
+        _resolvedStorageDirectory = PathHelper.ResolveStorageDirectory(optionsProvider.Current.StorageDirectory);
+        _storagePipeline = ConnectionPolicies.CreateGeneralOperationPipeline(logger, ConnectionPolicyOptions.NFSDefault);
+    }
+
+    /// <summary>
+    /// Creates storage from a fixed set of options.
+    /// </summary>
+    /// <param name="logger">Logger for storage diagnostics.</param>
+    /// <param name="options">The recording options.</param>
+    public BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<RecordingOptions> options)
+        : this(logger, new RecordingOptionsProvider((options ?? throw new ArgumentNullException(nameof(options))).Value))
+    {
+    }
+
+    /// <summary>
+    /// The recording options in force right now.
+    /// </summary>
+    private RecordingOptions Options => _optionsProvider.Current;
+
+    /// <summary>
+    /// The absolute directory holding recording files.
+    /// </summary>
+    public string StorageDirectory => _resolvedStorageDirectory;
 
     public async Task WriteAsync(string sensorId, int interval, SchemaType schemaType, RecordingDataPoint dataPoint, CancellationToken cancellationToken = default)
     {
         if (!schemaType.IsSlotBasedSchema())
             throw new NotSupportedException($"SchemaType {schemaType} is not supported for slot-based storage");
 
-        EnsureDiskSpace();
+        EnsureDiskSpace(cancellationToken);
 
         var filePath = GetFilePath(sensorId, interval, schemaType, dataPoint.Timestamp);
         var startOfDay = GetStartOfDay(dataPoint.Timestamp);
@@ -208,12 +252,17 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         return int.TryParse(parts[1], out var interval) ? interval : null;
     }
 
-    public Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<RecordingCleanupResult> CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(_resolvedStorageDirectory))
-            return Task.CompletedTask;
+            return Task.FromResult(RecordingCleanupResult.Empty);
 
         var cutoffDate = before.UtcDateTime.Date;
+        var scanned = 0;
+        var deleted = 0;
+        var failed = 0;
+        long bytesFreed = 0;
 
         foreach (var sensorDir in Directory.GetDirectories(_resolvedStorageDirectory))
         {
@@ -224,14 +273,31 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
             foreach (var file in Directory.GetFiles(sensorDir, "*.bin"))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                scanned++;
 
                 var fileName = Path.GetFileNameWithoutExtension(file);
                 var datePart = fileName?.Split('_')[0];
 
-                if (DateTime.TryParseExact(datePart, FileNameDateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fileDate)
-                    && fileDate < cutoffDate)
+                if (!DateTime.TryParseExact(datePart, FileNameDateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fileDate)
+                    || fileDate >= cutoffDate)
+                {
+                    continue;
+                }
+
+                // One undeletable file must not cost every sensor after it its sweep: a lock
+                // or a permission error on a single recording would otherwise abort the pass
+                // and let storage grow unbounded with nothing to show why.
+                var size = TryGetFileSize(file);
+                try
                 {
                     File.Delete(file);
+                    deleted++;
+                    bytesFreed += size;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    failed++;
+                    _logger.LogWarning(ex, "Failed to delete expired recording {File}", file);
                 }
             }
 
@@ -241,8 +307,12 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
             RemoveSensorDirectoryIfEmpty(sensorDir);
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult(new RecordingCleanupResult(scanned, deleted, bytesFreed, failed));
     }
+
+    /// <inheritdoc />
+    public Task<RecordingCleanupResult> EnforceStorageLimitsAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(EnsureDiskSpace(cancellationToken));
 
     /// <summary>
     /// Removes a sensor directory once its last recording file is gone.
@@ -399,36 +469,49 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
     /// Ensures sufficient disk space is available by deleting oldest files (Ring Buffer FIFO).
     /// Supports both free-disk threshold and max storage size policies.
     /// </summary>
-    private void EnsureDiskSpace()
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>What the pass deleted and freed.</returns>
+    private RecordingCleanupResult EnsureDiskSpace(CancellationToken cancellationToken = default)
     {
-        if (_options.MinFreeDiskSpaceMb <= 0 && _options.MaxStorageSizeMb <= 0)
-            return;
+        var options = Options;
+
+        if (options.MinFreeDiskSpaceMb <= 0 && options.MaxStorageSizeMb <= 0)
+            return RecordingCleanupResult.Empty;
 
         if (!Directory.Exists(_resolvedStorageDirectory))
-            return;
+            return RecordingCleanupResult.Empty;
 
-        var minFreeBytes = (long)_options.MinFreeDiskSpaceMb * 1024 * 1024;
-        var maxStorageBytes = (long)_options.MaxStorageSizeMb * 1024 * 1024;
+        var minFreeBytes = (long)options.MinFreeDiskSpaceMb * 1024 * 1024;
+        var maxStorageBytes = (long)options.MaxStorageSizeMb * 1024 * 1024;
         var drivePath = Path.GetPathRoot(Path.GetFullPath(_resolvedStorageDirectory))!;
         var currentStorageBytes = GetStorageSizeBytes();
 
+        var deleted = 0;
+        long bytesFreed = 0;
+
         bool ShouldCleanup()
         {
-            var belowFreeSpace = _options.MinFreeDiskSpaceMb > 0 &&
+            var belowFreeSpace = options.MinFreeDiskSpaceMb > 0 &&
                 new DriveInfo(drivePath).AvailableFreeSpace < minFreeBytes;
-            var exceedStorageSize = _options.MaxStorageSizeMb > 0 && currentStorageBytes > maxStorageBytes;
+            var exceedStorageSize = options.MaxStorageSizeMb > 0 && currentStorageBytes > maxStorageBytes;
             return belowFreeSpace || exceedStorageSize;
         }
 
         while (ShouldCleanup())
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var deletedFileSize = _storagePipeline.Execute(DeleteOldestFileAndGetSize);
 
             if (deletedFileSize == 0)
                 break;
 
+            deleted++;
+            bytesFreed += deletedFileSize;
             currentStorageBytes = Math.Max(0, currentStorageBytes - deletedFileSize);
-        };
+        }
+
+        return new RecordingCleanupResult(deleted, deleted, bytesFreed, FilesFailed: 0);
     }
 
     private long DeleteOldestFileAndGetSize()
@@ -437,15 +520,7 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         if (oldestFile == null)
             return 0;
 
-        long deletedFileSize = 0;
-        try
-        {
-            deletedFileSize = new FileInfo(oldestFile).Length;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read file size for {File}", oldestFile);
-        }
+        var deletedFileSize = TryGetFileSize(oldestFile);
 
         File.Delete(oldestFile);
 
@@ -456,6 +531,28 @@ public class BinaryRecordStorage(ILogger<BinaryRecordStorage> logger, IOptions<R
         }
 
         return deletedFileSize;
+    }
+
+    /// <summary>
+    /// Reads a file's size, treating an unreadable file as zero bytes.
+    /// </summary>
+    /// <remarks>
+    /// Only ever used to tally freed space, so a file that vanished underneath us is worth a
+    /// warning and a zero - never a failed cleanup pass.
+    /// </remarks>
+    /// <param name="path">Absolute path of the file to measure.</param>
+    /// <returns>The size in bytes, or 0 when it could not be read.</returns>
+    private long TryGetFileSize(string path)
+    {
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read file size for {File}", path);
+            return 0;
+        }
     }
 
     private long GetStorageSizeBytes()

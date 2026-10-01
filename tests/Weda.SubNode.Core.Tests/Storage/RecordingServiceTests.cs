@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Weda.SubNode.Abstractions.Storage.Recordings;
-using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Core.Context;
 using Weda.SubNode.Core.Storage;
 using Xunit;
@@ -25,12 +24,13 @@ public class RecordingServiceTests : IDisposable
     public RecordingServiceTests()
     {
         _loggerFactory = new NullLoggerFactory();
-        // Use the constant storage directory resolved by PathHelper
-        _testDirectory = PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
+        // Each fixture owns its own storage directory. Sharing one global directory let the
+        // ring-buffer FIFO in one test delete files another test was asserting on.
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"recording-service-test-{Guid.NewGuid():N}");
         // Use a unique prefix for sensor IDs to avoid conflicts between test runs
         _testSensorPrefix = $"test-{Guid.NewGuid():N}-";
 
-        _options = new RecordingOptions();
+        _options = new RecordingOptions { StorageDirectory = _testDirectory };
         _storage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_options));
         _deviceRegistry = new DeviceRegistry();
         _service = new RecordingService(_loggerFactory.CreateLogger<RecordingService>(), _storage, _deviceRegistry, Options.Create(_options));
@@ -38,17 +38,9 @@ public class RecordingServiceTests : IDisposable
 
     public void Dispose()
     {
-        // Clean up only test sensor directories (those with our prefix)
         if (Directory.Exists(_testDirectory))
         {
-            foreach (var dir in Directory.GetDirectories(_testDirectory))
-            {
-                var dirName = Path.GetFileName(dir);
-                if (dirName.StartsWith(_testSensorPrefix))
-                {
-                    Directory.Delete(dir, recursive: true);
-                }
-            }
+            Directory.Delete(_testDirectory, recursive: true);
         }
     }
 
