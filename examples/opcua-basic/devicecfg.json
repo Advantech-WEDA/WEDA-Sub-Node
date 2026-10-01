@@ -6,6 +6,13 @@
     "Model": "OPC-UA Demo",
     "SwVersion": "1.0.0"
   },
+  "SubNodeSettings": {
+    "Record": {
+      "MinFreeDiskSpaceMb": 128,
+      "MaxStorageSizeMb": 1024,
+      "RetentionDays": 7
+    }
+  },
   "DeviceConfigs": {
     "MyOpcUaDeviceConfig": {
       "Enabled": true,
@@ -36,6 +43,9 @@
             "Enabled": true,
             "Interval": 5000,
             "Unit": "celsius"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -55,6 +65,9 @@
             "Enabled": true,
             "Interval": 5000,
             "Unit": "percent"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -74,6 +87,9 @@
             "Enabled": true,
             "Interval": 5000,
             "Unit": "hPa"
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]

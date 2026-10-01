@@ -31,6 +31,9 @@
             "Schema": "application/json",
             "DisplayName": "Raw Vibration Payload",
             "Description": "Raw DAQ frame JSON payload for feature extraction pipeline"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -47,6 +50,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis RMSmg",
             "Description": "RMS from FFT-transformed spectrum (Parseval energy)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -63,6 +69,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis Peakmg",
             "Description": "Maximum spectral magnitude in FFT spectrum"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -79,6 +88,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis Peak-to-Peak Displacement",
             "Description": "Peak-to-peak of displacement signal from double spectral integration"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -95,6 +107,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis OA Velocity",
             "Description": "Overall velocity RMS from acceleration spectrum"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -111,6 +126,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis Deviation",
             "Description": "Sample standard deviation"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -127,6 +145,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis Skewness",
             "Description": "Third standardized central moment"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -143,6 +164,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis Kurtosis",
             "Description": "Fourth standardized central moment"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -159,6 +183,9 @@
             "Schema": "double",
             "DisplayName": "X-Axis Crest Factor",
             "Description": "Ratio of peak to RMS"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -175,6 +202,9 @@
             "Schema": "dateTime",
             "DisplayName": "Timestamp",
             "Description": "Hardware sample timestamp"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -191,6 +221,9 @@
             "Schema": "dateTime",
             "DisplayName": "Device Time",
             "Description": "Edge device system clock at feature computation time"
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]

@@ -6,6 +6,13 @@
     "Model": "MNIST-Demo",
     "SwVersion": "1.0.0"
   },
+  "SubNodeSettings": {
+    "Record": {
+      "MinFreeDiskSpaceMb": 128,
+      "MaxStorageSizeMb": 1024,
+      "RetentionDays": 7
+    }
+  },
   "DeviceConfigs": {
     "ImageSensorConfig": {
       "Enabled": true,

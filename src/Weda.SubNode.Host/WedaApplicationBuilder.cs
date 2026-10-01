@@ -318,18 +318,10 @@ public class WedaApplicationBuilder
         return this;
     }
 
-    public WedaApplicationBuilder AddRecording(Action<RecordingOptions>? configure = null)
+    public WedaApplicationBuilder AddRecording()
     {
-        if (configure == null)
-        {
-            Services.Configure<RecordingOptions>(Configuration.GetSection($"SystemConfig:{RecordingOptions.SectionName}"));
-        }
-        else
-        {
-            Services.Configure(configure);
-        }
-
-        // Enable recording flag for WedaApplicationContext to create RecordingService
+        // Enable recording; WedaApplicationContext binds the options from
+        // devicecfg.subNodeSettings.record and creates the RecordingService itself.
         Services.Configure<DeviceOptions>(options => options.EnableRecording = true);
 
         return this;
@@ -603,9 +595,6 @@ public class WedaApplicationBuilder
             var registrationStorage = sp.GetService<IDeviceRegistrationStorage>();
             var configurationCache = sp.GetService<IConfigurationCache>();
 
-            // Get recording options from DI (registered by AddRecording)
-            var recordingOptions = sp.GetService<IOptions<RecordingOptions>>()?.Value;
-
             return new Context.WedaApplicationContext(options =>
             {
                 options.CloudService = cloudService;
@@ -616,8 +605,8 @@ public class WedaApplicationBuilder
                 // Pass DI-registered storage instances to share resources
                 options.RegistrationStorage = registrationStorage;
                 options.ConfigurationCache = configurationCache;
-                // Pass recording options (WedaApplicationContext creates RecordingService internally)
-                options.RecordingOptions = recordingOptions;
+                // Recording options are bound from devicecfg.subNodeSettings.record by the
+                // context itself; no code-level injection.
                 // Forward AddDevice<TDevice>("sectionName") class registrations so the
                 // loader can stash DeviceConfiguration.DeviceTypeName for typed devices.
                 options.DeviceClassesBySection = _deviceClassesBySection;

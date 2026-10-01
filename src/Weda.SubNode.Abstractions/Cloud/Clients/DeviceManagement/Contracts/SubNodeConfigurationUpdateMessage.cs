@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 
 using Weda.SubNode.Abstractions.Context;
+using Weda.SubNode.Abstractions.Storage.Recordings;
 
 namespace Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 
@@ -355,6 +356,16 @@ public class SubNodeDesiredConfigSections : SubNodeConfigSections
             return false;
         }
     }
+
+    /// <summary>
+    /// True only when the whole devicecfg section is JSON null. This resets everything back to
+    /// base, including the SubNode-level record. A narrower <c>DeviceConfigs: null</c> reset
+    /// (see <see cref="IsDeviceCfgReset"/>) resets only the device dictionary and leaves the
+    /// record untouched.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsWholeDeviceCfgReset
+        => RawDeviceCfg is { ValueKind: JsonValueKind.Null };
 }
 
 /// <summary>
@@ -523,17 +534,12 @@ public class SubNodeSystemCfgDto
     /// </summary>
     [JsonPropertyName("Serilog")]
     public Dictionary<string, JsonElement>? Serilog { get; set; }
-
-    /// <summary>
-    /// Recording configuration for local historical data storage
-    /// </summary>
-    [JsonPropertyName("Record")]
-    public SubNodeRecordConfigDto? Record { get; set; }
 }
 
 /// <summary>
 /// Recording configuration DTO for systemcfg.json.
-/// Note: StorageDirectory is not included as it cannot be changed at runtime.
+/// Note: StorageDirectory is not included - relocating live recording data is a restart-time
+/// operation, not a runtime one.
 /// </summary>
 public class SubNodeRecordConfigDto
 {
@@ -541,14 +547,16 @@ public class SubNodeRecordConfigDto
     /// Whether recording is enabled at runtime.
     /// When disabled, recording calls will be ignored.
     /// </summary>
-    [JsonPropertyName("Enabled")]
+    [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Minimum free disk space in megabytes for Ring Buffer FIFO cleanup.
+    /// This is a floor on free space for the whole drive, not a cap on the recording
+    /// directory - the cap is <see cref="MaxStorageSizeMb"/>.
     /// Valid range: 0-102400 (0-100GB).
     /// </summary>
-    [JsonPropertyName("MinFreeDiskSpaceMb")]
+    [JsonPropertyName("minFreeDiskSpaceMb")]
     public int MinFreeDiskSpaceMb { get; set; } = 128;
 
     /// <summary>
@@ -556,7 +564,7 @@ public class SubNodeRecordConfigDto
     /// Set to 0 to disable size-based cleanup.
     /// Valid range: 0-102400 (0-100GB).
     /// </summary>
-    [JsonPropertyName("MaxStorageSizeMb")]
+    [JsonPropertyName("maxStorageSizeMb")]
     public int MaxStorageSizeMb { get; set; } = 1024;
 
     /// <summary>
@@ -564,20 +572,20 @@ public class SubNodeRecordConfigDto
     /// Set to 0 to disable retention-based cleanup (files retained indefinitely).
     /// Valid range: 0-365.
     /// </summary>
-    [JsonPropertyName("RetentionDays")]
+    [JsonPropertyName("retentionDays")]
     public int RetentionDays { get; set; } = 7;
 
     /// <summary>
     /// Whether batch buffering is enabled for recording.
     /// </summary>
-    [JsonPropertyName("BatchEnabled")]
+    [JsonPropertyName("batchEnabled")]
     public bool BatchEnabled { get; set; } = true;
 
     /// <summary>
     /// Maximum number of samples to buffer before writing to storage.
     /// Valid range: 0-10000.
     /// </summary>
-    [JsonPropertyName("BatchMaxSamples")]
+    [JsonPropertyName("batchMaxSamples")]
     public int BatchMaxSamples { get; set; } = 0;
 
     /// <summary>
@@ -585,8 +593,19 @@ public class SubNodeRecordConfigDto
     /// Set to 0 to disable the limit (not recommended).
     /// Valid range: 0-365.
     /// </summary>
-    [JsonPropertyName("MaxQueryTimeRangeDays")]
+    [JsonPropertyName("maxQueryTimeRangeDays")]
     public int MaxQueryTimeRangeDays { get; set; } = 30;
+
+    /// <summary>
+    /// The retention and ring-buffer limits carried by this message.
+    /// </summary>
+    /// <remarks>
+    /// Call <see cref="TryValidate"/> first: these values arrive from off the device and are
+    /// not trustworthy until they have been range-checked.
+    /// </remarks>
+    /// <returns>The limits as a single value object.</returns>
+    public RecordingStorageSettings ToStorageSettings()
+        => new(RetentionDays, MaxStorageSizeMb, MinFreeDiskSpaceMb);
 
     /// <summary>
     /// Validates the configuration values.
@@ -723,6 +742,14 @@ public class SubNodeDeviceCfgDto
     [JsonPropertyName("subNode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubNodeInfoDto? SubNode { get; set; }
+
+    /// <summary>
+    /// SubNode-level settings (recording and future whole-node settings).
+    /// Unlike <c>subNode</c>, this section is carried through the reported round-trip verbatim.
+    /// </summary>
+    [JsonPropertyName("subNodeSettings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubNodeSettingsDto? SubNodeSettings { get; set; }
 
     /// <summary>
     /// Dictionary of device configurations keyed by device name (case-insensitive).
@@ -1017,16 +1044,22 @@ public class SubNodeSensorReportDto
 public class SubNodeSensorRecordDto
 {
     /// <summary>
-    /// Whether recording is enabled
+    /// Whether recording is enabled. Defaults to false so an empty <c>record: {}</c> does not
+    /// require an interval.
     /// </summary>
     [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Recording interval in milliseconds. 0 means use report interval.
+    /// Recording interval in milliseconds. When recording is enabled this is required and must be at
+    /// least the record-interval floor (1000 ms); null, 0 and sub-floor values are rejected. When
+    /// recording is disabled it is optional — the apply path fills it from the report interval and
+    /// clamps it up to the floor. The resolved, in-range value is reported back to the cloud (the
+    /// edge patches it into the reported devicecfg), because the cloud validator range-checks this
+    /// field regardless of the enabled flag.
     /// </summary>
     [JsonPropertyName("interval")]
-    public int Interval { get; set; } = 0;
+    public int? Interval { get; set; }
 }
 
 /// <summary>

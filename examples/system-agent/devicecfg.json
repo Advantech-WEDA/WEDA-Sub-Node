@@ -6,6 +6,13 @@
     "Model": "SystemAgent",
     "SwVersion": "1.0.0"
   },
+  "SubNodeSettings": {
+    "Record": {
+      "MinFreeDiskSpaceMb": 128,
+      "MaxStorageSizeMb": 1024,
+      "RetentionDays": 7
+    }
+  },
   "DeviceConfigs": {
     "SystemAgentDeviceConfig": {
       "Enabled": true,
@@ -44,6 +51,9 @@
             "Schema": "double",
             "Description": "CPU usage percentage",
             "DisplayName": "CPU Usage"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -61,6 +71,9 @@
             "Schema": "double",
             "Description": "1 minute load average",
             "DisplayName": "CPU Load (1m)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -78,6 +91,9 @@
             "Schema": "double",
             "Description": "5 minute load average",
             "DisplayName": "CPU Load (5m)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -95,6 +111,9 @@
             "Schema": "double",
             "Description": "15 minute load average",
             "DisplayName": "CPU Load (15m)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -112,6 +131,9 @@
             "Schema": "long",
             "Description": "Total context switches",
             "DisplayName": "Context Switches"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -129,6 +151,9 @@
             "Schema": "long",
             "Description": "Total memory in bytes",
             "DisplayName": "Memory Total"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -146,6 +171,9 @@
             "Schema": "long",
             "Description": "Available memory in bytes",
             "DisplayName": "Memory Available"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -163,6 +191,9 @@
             "Schema": "long",
             "Description": "Used memory in bytes",
             "DisplayName": "Memory Used"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -180,6 +211,9 @@
             "Schema": "long",
             "Description": "Cached memory in bytes",
             "DisplayName": "Memory Cached"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -197,6 +231,9 @@
             "Schema": "long",
             "Description": "Total swap in bytes",
             "DisplayName": "Swap Total"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -214,6 +251,9 @@
             "Schema": "long",
             "Description": "Free swap in bytes",
             "DisplayName": "Swap Free"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -232,6 +272,9 @@
             "Schema": "long",
             "Description": "Disk total capacity for root volume",
             "DisplayName": "Disk Total (root)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -250,6 +293,9 @@
             "Schema": "long",
             "Description": "Disk available capacity for root volume",
             "DisplayName": "Disk Available (root)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -268,6 +314,9 @@
             "Schema": "long",
             "Description": "Disk used capacity for root volume",
             "DisplayName": "Disk Used (root)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -286,6 +335,9 @@
             "Schema": "double",
             "Description": "Disk usage percentage for root volume",
             "DisplayName": "Disk Usage (root)"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -304,6 +356,9 @@
             "Schema": "long",
             "Description": "Total bytes sent",
             "DisplayName": "Bytes Sent"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -322,6 +377,9 @@
             "Schema": "long",
             "Description": "Total bytes received",
             "DisplayName": "Bytes Received"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -340,6 +398,9 @@
             "Schema": "long",
             "Description": "Total packets sent",
             "DisplayName": "Packets Sent"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -358,6 +419,9 @@
             "Schema": "long",
             "Description": "Total packets received",
             "DisplayName": "Packets Received"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -376,6 +440,9 @@
             "Schema": "long",
             "Description": "Total network errors",
             "DisplayName": "Network Errors"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -393,6 +460,9 @@
             "Schema": "long",
             "Description": "Current system time (Unix timestamp)",
             "DisplayName": "System Time"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -410,6 +480,9 @@
             "Schema": "long",
             "Description": "System boot time (Unix timestamp)",
             "DisplayName": "Boot Time"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -427,6 +500,9 @@
             "Schema": "integer",
             "Description": "GPU utilization percentage",
             "DisplayName": "GPU Utilization"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -444,6 +520,9 @@
             "Schema": "string",
             "Description": "Motherboard name",
             "DisplayName": "Motherboard"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -461,6 +540,9 @@
             "Schema": "string",
             "Description": "Manufacturer name",
             "DisplayName": "Manufacturer"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -478,6 +560,9 @@
             "Schema": "string",
             "Description": "BIOS revision",
             "DisplayName": "BIOS Revision"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -496,6 +581,9 @@
             "Schema": "double",
             "Description": "Temperature sensor",
             "DisplayName": "Temperature"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -513,6 +601,9 @@
             "Schema": "double",
             "Description": "Voltage sensor reading",
             "DisplayName": "Voltage"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -530,6 +621,9 @@
             "Schema": "double",
             "Description": "Fan speed reading",
             "DisplayName": "Fan Speed"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -547,6 +641,9 @@
             "Schema": "boolean",
             "Description": "GPIO support status",
             "DisplayName": "GPIO Supported"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -565,6 +662,9 @@
             "Schema": "integer",
             "Description": "GPIO pin state",
             "DisplayName": "Pin State"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -582,6 +682,9 @@
             "Schema": "boolean",
             "Description": "Watchdog support status",
             "DisplayName": "Watchdog Supported"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -599,6 +702,9 @@
             "Schema": "boolean",
             "Description": "Thermal protection support status",
             "DisplayName": "Thermal Protection Supported"
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]

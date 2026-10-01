@@ -179,8 +179,9 @@ public class BatchReportManualContextHarnessTests : IDisposable
 
     private static string PathHelperResolve()
     {
-        // Mirror BinaryRecordStorage's fixed storage directory resolution.
-        return Weda.SubNode.Abstractions.Utilities.PathHelper.ResolveStorageDirectory(RecordingOptions.StorageDirectory);
+        // Mirror BinaryRecordStorage's storage directory resolution. The context is built from an
+        // empty configuration, so recording uses the default directory.
+        return Weda.SubNode.Abstractions.Utilities.PathHelper.ResolveStorageDirectory(RecordingOptions.DefaultStorageDirectory);
     }
 
     private void WipeStorage()

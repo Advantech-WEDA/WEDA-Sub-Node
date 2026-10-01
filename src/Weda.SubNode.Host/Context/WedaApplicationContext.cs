@@ -2,7 +2,6 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Net;
 using Serilog;
@@ -15,6 +14,7 @@ using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
 using Weda.SubNode.Abstractions.Storage;
 using Weda.SubNode.Abstractions.Storage.Recordings;
+using Weda.SubNode.Abstractions.Utilities;
 using Weda.SubNode.Cloud;
 using Weda.SubNode.Cloud.Clients;
 using Weda.SubNode.Cloud.Serialization;
@@ -108,12 +108,18 @@ public class WedaApplicationContext : IWedaApplicationContext
     private readonly SystemCfg _systemCfg;
     private readonly DeviceCfg _deviceCfg;
     private readonly CustomCfg _customCfg;
-    private readonly Timer? _cleanupTimer;
+    private readonly RecordingCleanupScheduler? _cleanupScheduler;
     private readonly RecordingOptions? _recordingOptions;
+    private readonly RecordingOptionsProvider? _recordingOptionsProvider;
     private volatile bool _disposed;
 
-    public RecordingOptions? RecordingOptions => _recordingOptions;
-    
+    /// <summary>
+    /// The recording options currently in force. Backed by the RecordingOptionsProvider (the
+    /// single source of truth) so it reflects runtime updates, falling back to the startup
+    /// snapshot when no provider is present (e.g. an injected recording service).
+    /// </summary>
+    public RecordingOptions? RecordingOptions => _recordingOptionsProvider?.Current ?? _recordingOptions;
+
     /// <summary>
     /// Initializes a new instance of WedaApplicationContext with default options.
     /// </summary>
@@ -238,7 +244,7 @@ public class WedaApplicationContext : IWedaApplicationContext
             mockLogger.LogWarning("║                                                                     ║");
             mockLogger.LogWarning("║  To connect to Weda.Node, please remove:                            ║");
             mockLogger.LogWarning("║    options.CloudService = WedaFactory.Cloud.Mock in subnode mode or ║");
-            mockLogger.LogWarning("║    UseMockCloud() in wedabuilder mode                               ║"); 
+            mockLogger.LogWarning("║    UseMockCloud() in wedabuilder mode                               ║");
             mockLogger.LogWarning("╚═════════════════════════════════════════════════════════════════════╝");
         }
 
@@ -256,50 +262,57 @@ public class WedaApplicationContext : IWedaApplicationContext
             logger: _loggerFactory.CreateLogger<JsonDeviceRegistrationStorage>());
 
         // Use provided recording service from options (DI scenario), or create new instance if EnableRecording is true
-        if (_options.RecordingService != null)
+        if (_options.RecordingService != null || _options.DeviceOptions.EnableRecording)
         {
-            _recordingService = _options.RecordingService;
-            _recordingOptions = _options.RecordingOptions
-                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
+            _recordingOptions = BindConfiguration<RecordingOptions>(
+                $"{DeviceCfg.SectionName}:{DeviceCfg.SubNodeSettingsSectionName}:{RecordingOptions.SectionName}");
             _recordingOptions.Validate();
 
-            // Start daily cleanup timer
-            _cleanupTimer = new Timer(
-                callback: _ => ExecuteCleanup(),
-                state: null,
-                dueTime: TimeSpan.Zero,
-                period: TimeSpan.FromDays(1));
-        }
-        else if (_options.DeviceOptions.EnableRecording)
-        {
-            _recordingOptions = _options.RecordingOptions
-                ?? BindConfiguration<RecordingOptions>(RecordingOptions.SectionName);
-            _recordingOptions.Validate();
+            if (_options.RecordingService != null)
+            {
+                // An injected service owns its own options; runtime updates reach it through
+                // IRecordingService.UpdateStorageSettings like any other caller.
+                _recordingService = _options.RecordingService;
+            }
+            else
+            {
+                // One provider shared by storage and service, so a configuration update reaches
+                // both. Each component reading its own captured copy is what let a cloud-pushed
+                // retention change be acknowledged and then quietly ignored. The context reads
+                // the live options through this same provider.
+                _recordingOptionsProvider = new RecordingOptionsProvider(_recordingOptions);
+                var recordStorage = new BinaryRecordStorage(
+                    _loggerFactory.CreateLogger<BinaryRecordStorage>(), _recordingOptionsProvider);
+                _recordingService = new RecordingService(
+                    _loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, _recordingOptionsProvider);
+            }
 
-            var recordStorage = new BinaryRecordStorage(_loggerFactory.CreateLogger<BinaryRecordStorage>(), Options.Create(_recordingOptions));
-            _recordingService = new RecordingService(_loggerFactory.CreateLogger<RecordingService>(), recordStorage, _deviceRegistry, Options.Create(_recordingOptions));
-
-            // Start daily cleanup timer
-            _cleanupTimer = new Timer(
-                callback: _ => ExecuteCleanup(),
-                state: null,
-                dueTime: TimeSpan.Zero,
-                period: TimeSpan.FromDays(1));
-        }
-
-        // Initialize DynamicRecordStorage for MIME type data (JSON, images, etc.)
-        // This is independent of RecordingService (which handles primitive types)
-        if (_options.DeviceOptions.EnableRecording || _options.RecordingService != null)
-        {
+            // Initialize DynamicRecordStorage for MIME type data (JSON, images, etc.)
+            // This is independent of RecordingService (which handles primitive types), but it
+            // ages out under the same retention policy and must resolve to the same directory.
             _dynamicRecordStorage = new DynamicRecordStorage(
                 _loggerFactory.CreateLogger<DynamicRecordStorage>(),
-                RecordingOptions.StorageDirectory);
+                PathHelper.ResolveStorageDirectory(_recordingOptions.StorageDirectory));
+
+            _cleanupScheduler = new RecordingCleanupScheduler(
+                _loggerFactory.CreateLogger<RecordingCleanupScheduler>(),
+                _recordingService,
+                _dynamicRecordStorage,
+                _recordingOptions.CleanupInterval ?? TimeSpan.Zero);
+            // Started below, once the cached cloud record has been applied.
         }
 
         // Bind configuration objects using Options Pattern
         _systemCfg = BindConfiguration<SystemCfg>(SystemCfg.SectionName);
         _deviceCfg = BindConfiguration<DeviceCfg>(DeviceCfg.SectionName);
         _customCfg = BindConfiguration<CustomCfg>(CustomCfg.SectionName);
+
+        // Recording moved out of systemcfg; warn if an old Record section is still present.
+        if (_configuration != null)
+        {
+            Weda.SubNode.Host.Configuration.SystemCfgRecordMigration.WarnIfLegacyRecordPresent(
+                _configuration, _loggerFactory.CreateLogger<WedaApplicationContext>());
+        }
 
         // Auto-load NATS settings from SystemCfg (includes command-line args override)
         // SystemCfg.WedaNode is bound from configuration which includes --SystemConfig:WedaNode:Url=xxx
@@ -334,6 +347,15 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         // Load all device configurations from DeviceCfg
         _deviceConfigs = LoadAllDeviceConfigurations();
+
+        // Re-apply the SubNode-level record from the devicecfg cache after the per-device
+        // rehydrate, so a cloud-pushed record survives a restart. Node-level, runs once.
+        ApplyCachedRecordIfExists(_loggerFactory.CreateLogger<WedaApplicationContext>());
+
+        // Start cleanup only now: the first sweep runs immediately and deletes irreversibly, so
+        // it must use the cloud-pushed record, not the base devicecfg values. Started earlier,
+        // a cloud retention above the base would lose the files in between on every restart.
+        _cleanupScheduler?.Start();
 
         // Create Command Registry and auto-scan handlers (built before cloud
         // service so DeviceAgentClient can receive it for capability upload).
@@ -472,7 +494,7 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     /// <inheritdoc />
     public IRecordingService? RecordingService => _recordingService;
-    
+
     /// <inheritdoc />
     public IDynamicRecordStorage? DynamicRecordStorage => _dynamicRecordStorage;
 
@@ -848,6 +870,42 @@ public class WedaApplicationContext : IWedaApplicationContext
     }
 
     /// <summary>
+    /// Re-applies the SubNode-level record from the devicecfg cache on startup, so a cloud-pushed
+    /// record survives a restart. Node-level counterpart to <see cref="ApplyCachedConfigurationIfExists"/>.
+    /// </summary>
+    private void ApplyCachedRecordIfExists(Microsoft.Extensions.Logging.ILogger logger)
+    {
+        if (_recordingService == null)
+            return;
+
+        if (!_options.UseCache)
+        {
+            logger.LogDebug("Cache disabled (--no-cache), skipping cached record");
+            return;
+        }
+
+        try
+        {
+            if (!_configurationCache.ExistsAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult())
+                return;
+
+            var cachedMessage = _configurationCache.GetRawConfigurationAsync(SubscriptionTypes.DeviceConfig).GetAwaiter().GetResult();
+            if (cachedMessage == null)
+                return;
+
+            if (ConfigurationUpdateHelper.ApplyCachedRecord(cachedMessage, _recordingService))
+            {
+                logger.LogInformation("Applied cached SubNode-level record from {CachePath}",
+                    _configurationCache.GetCacheFilePath(SubscriptionTypes.DeviceConfig));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to apply cached SubNode-level record");
+        }
+    }
+
+    /// <summary>
     /// Validates all sensor names in a device configuration for IoTDB compatibility.
     /// Throws InvalidOperationException if any sensor name is invalid, causing application to fail-fast on startup.
     /// </summary>
@@ -1003,31 +1061,6 @@ public class WedaApplicationContext : IWedaApplicationContext
 
     #endregion
 
-    #region Recording Cleanup
-
-    private void ExecuteCleanup()
-    {
-        if (_recordingService == null || _recordingOptions == null)
-            return;
-
-        // RetentionDays = 0 means retention-based cleanup is disabled
-        if (_recordingOptions.RetentionDays <= 0)
-            return;
-
-        try
-        {
-            var cutoff = DateTimeOffset.UtcNow.AddDays(-_recordingOptions.RetentionDays);
-            _recordingService.CleanupAsync(cutoff, CancellationToken.None).Wait();
-        }
-        catch (Exception ex)
-        {
-            _loggerFactory.CreateLogger<WedaApplicationContext>()
-                .LogError(ex, "Recording cleanup failed");
-        }
-    }
-
-    #endregion
-
     #region IDisposable
 
     /// <inheritdoc />
@@ -1047,8 +1080,8 @@ public class WedaApplicationContext : IWedaApplicationContext
 
         if (disposing && _options.DisposeServices)
         {
-            // Dispose cleanup timer
-            _cleanupTimer?.Dispose();
+            // Dispose cleanup scheduler
+            _cleanupScheduler?.Dispose();
 
             // Flush recording buffers before shutdown
             if (_recordingService != null)

@@ -123,6 +123,99 @@ public class SensorsValidatorTests
 
     #endregion
 
+    #region Per-Sensor Record Interval Validation
+
+    // When recording is enabled the interval is mandatory and must already be at least the record
+    // floor (1000 ms): the resolved value is reported back to the cloud, whose validator range-checks
+    // the interval regardless of the enabled flag, so the edge must not emit a null/zero/sub-floor
+    // value for an enabled record. A disabled record may omit the interval (or send a sub-floor/zero
+    // one) — the apply path fills and clamps it before it is reported.
+
+    [Fact]
+    public void Validate_Record_EnabledWithFloorInterval_Ok()
+    {
+        // { "record": { "enabled": true, "interval": 1000 } }
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true, Interval = 1000 });
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Record_EnabledNoInterval_Rejected()
+    {
+        // { "record": { "enabled": true } } — an enabled record must carry an explicit interval.
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true });
+        _validator.Validate(context).IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Record_EnabledBelowFloorInterval_Rejected()
+    {
+        // { "record": { "enabled": true, "interval": 500 } } — below the record floor is rejected;
+        // an enabled record must declare a value that is already in range.
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true, Interval = 500 });
+        _validator.Validate(context).IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Record_EnabledZeroInterval_Rejected()
+    {
+        // { "record": { "enabled": true, "interval": 0 } } — 0 is neither unset nor usable.
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = true, Interval = 0 });
+        _validator.Validate(context).IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_Record_DisabledNoInterval_Ok()
+    {
+        // { "record": { "enabled": false } } — disabled records may omit the interval.
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = false });
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Record_DisabledBelowFloorInterval_Ok()
+    {
+        // { "record": { "enabled": false, "interval": 0 } } — a disabled record is not range-checked
+        // locally; the apply path clamps it before it is reported.
+        var context = CreateRecordContext(new SubNodeSensorRecordDto { Enabled = false, Interval = 0 });
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Record_EmptyObject_Ok()
+    {
+        // { "record": {} } — Enabled defaults to false, so no interval required
+        var context = CreateRecordContext(new SubNodeSensorRecordDto());
+        _validator.Validate(context).IsValid.ShouldBeTrue();
+    }
+
+    private static ConfigurationValidationContext CreateRecordContext(SubNodeSensorRecordDto record)
+    {
+        var desiredConfig = new SubNodeDeviceConfigDto
+        {
+            Sensors =
+            [
+                new SubNodeSensorReportDto
+                {
+                    Name = "temperature",
+                    SensorGroup = "AI",
+                    Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                    SensorInfo = new SubNodeSensorInfoDto { Schema = "double" },
+                    Record = record
+                }
+            ]
+        };
+
+        return new ConfigurationValidationContext
+        {
+            DesiredConfig = desiredConfig,
+            CurrentConfig = CreateDeviceConfiguration("temperature"),
+            Options = new ConfigUpdateOptions { ValidateSensors = true }
+        };
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static ConfigurationValidationContext CreateValidationContext(

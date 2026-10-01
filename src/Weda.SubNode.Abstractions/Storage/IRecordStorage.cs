@@ -94,9 +94,29 @@ public interface IRecordStorage
     /// <summary>
     /// Deletes all recordings older than the specified date.
     /// </summary>
+    /// <remarks>
+    /// A file that cannot be deleted must not abort the pass: one locked or permission-denied
+    /// file would otherwise leave every later sensor unswept, and the storage would keep
+    /// growing for a reason nothing reports. Implementations record such files in
+    /// <see cref="RecordingCleanupResult.FilesFailed"/> and carry on.
+    /// </remarks>
     /// <param name="before">Delete recordings before this date.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default);
+    /// <returns>What the pass scanned, deleted and freed.</returns>
+    Task<RecordingCleanupResult> CleanupAsync(DateTimeOffset before, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies the ring-buffer FIFO policies - maximum total size and minimum free disk space -
+    /// deleting the oldest recordings until both are satisfied.
+    /// </summary>
+    /// <remarks>
+    /// Storage also enforces these limits as it writes, but only while it is writing. A device
+    /// whose sensors stop recording, or whose recording is switched off, would otherwise sit
+    /// over the limit indefinitely, so the scheduled sweep calls this as well.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>What the pass scanned, deleted and freed.</returns>
+    Task<RecordingCleanupResult> EnforceStorageLimitsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes all recordings for a sensor.
