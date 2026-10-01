@@ -1024,9 +1024,12 @@ public class SubNodeSensorRecordDto
     public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Recording interval in milliseconds. Optional: required only when <see cref="Enabled"/> is
-    /// true. When recording is disabled the apply path fills it from the report interval, so the
-    /// value round-trips to the cloud without failing the interval range check.
+    /// Recording interval in milliseconds. When recording is enabled this is required and must be at
+    /// least the record-interval floor (1000 ms); null, 0 and sub-floor values are rejected. When
+    /// recording is disabled it is optional — the apply path fills it from the report interval and
+    /// clamps it up to the floor. The resolved, in-range value is reported back to the cloud (the
+    /// edge patches it into the reported devicecfg), because the cloud validator range-checks this
+    /// field regardless of the enabled flag.
     /// </summary>
     [JsonPropertyName("interval")]
     public int? Interval { get; set; }

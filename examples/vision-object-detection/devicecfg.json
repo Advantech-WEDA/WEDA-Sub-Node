@@ -21,57 +21,102 @@
         {
           "Name": "object_count",
           "SensorGroup": "AI",
-          "Parameters": { "Field": "objectCount" },
+          "Parameters": {
+            "Field": "objectCount"
+          },
           "SensorInfo": {
             "DisplayName": "Detected Object Count",
             "Description": "Number of objects detected in the current frame",
             "Schema": "double"
           },
-          "Report": { "Enabled": true, "Interval": 1000, "Unit": "count" }
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": "count"
+          },
+          "Record": {
+            "Enabled": false
+          }
         },
         {
           "Name": "inference_fps",
           "SensorGroup": "AI",
-          "Parameters": { "Field": "fps" },
+          "Parameters": {
+            "Field": "fps"
+          },
           "SensorInfo": {
             "DisplayName": "Inference FPS",
             "Description": "Model inference frame rate",
             "Schema": "double"
           },
-          "Report": { "Enabled": true, "Interval": 1000, "Unit": "fps" }
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": "fps"
+          },
+          "Record": {
+            "Enabled": false
+          }
         },
         {
           "Name": "confidence_max",
           "SensorGroup": "AI",
-          "Parameters": { "Field": "confidence.max" },
+          "Parameters": {
+            "Field": "confidence.max"
+          },
           "SensorInfo": {
             "DisplayName": "Max Confidence",
             "Description": "Highest detection confidence in the current frame (0-1)",
             "Schema": "double"
           },
-          "Report": { "Enabled": true, "Interval": 1000, "Unit": "" }
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": ""
+          },
+          "Record": {
+            "Enabled": false
+          }
         },
         {
           "Name": "confidence_avg",
           "SensorGroup": "AI",
-          "Parameters": { "Field": "confidence.avg" },
+          "Parameters": {
+            "Field": "confidence.avg"
+          },
           "SensorInfo": {
             "DisplayName": "Average Confidence",
             "Description": "Mean detection confidence in the current frame (0-1)",
             "Schema": "double"
           },
-          "Report": { "Enabled": true, "Interval": 1000, "Unit": "" }
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": ""
+          },
+          "Record": {
+            "Enabled": false
+          }
         },
         {
           "Name": "bottle_count",
           "SensorGroup": "AI",
-          "Parameters": { "Field": "classCount.bottle" },
+          "Parameters": {
+            "Field": "classCount.bottle"
+          },
           "SensorInfo": {
             "DisplayName": "Bottle Count",
             "Description": "Per-class count for 'bottle' (demo clip OD_bottle_2.mp4)",
             "Schema": "double"
           },
-          "Report": { "Enabled": true, "Interval": 1000, "Unit": "count" }
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": "count"
+          },
+          "Record": {
+            "Enabled": false
+          }
         }
       ]
     }

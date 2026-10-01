@@ -797,6 +797,8 @@ public class SubNodeManagerTests : IAsyncDisposable
             Arg.Any<SubscriptionType>(), Arg.Any<CancellationToken>());
     }
 
+    #endregion
+
     #region Config Sync Trigger Tests (US-47107)
 
     [Fact]
@@ -1001,6 +1003,8 @@ public class SubNodeManagerTests : IAsyncDisposable
     }
 
     #endregion
+
+    #region Config Event Helpers
 
     private UpdateConfigurationEvent CreateDeviceConfigResetEvent() =>
         CreateDeviceConfigUpdateEventFromDesiredJson("""{"devicecfg":null}""");

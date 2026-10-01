@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Abstractions.DigitalTwin;
 
@@ -45,7 +46,7 @@ internal static class SensorEnvelopeSchemas
         ["fields"] = new JsonArray
         {
             Field("enabled",           "boolean", required: false),
-            Field("interval",          "integer", required: false, minimum: 50, maximum: int.MaxValue, description: "Sampling interval (ms)."),
+            Field("interval",          "integer", required: false, minimum: SensorReport.MinimumIntervalMs, maximum: int.MaxValue, description: "Sampling interval (ms)."),
             Field("unit",              "string",  required: false),
             Field("transformPipeline", pipelineListId, required: false),
             Field("dspPipeline",       pipelineListId, required: false),
@@ -60,7 +61,7 @@ internal static class SensorEnvelopeSchemas
         ["fields"] = new JsonArray
         {
             Field("enabled",  "boolean", required: false),
-            Field("interval", "integer", required: false, minimum: 1000, maximum: int.MaxValue, description: "Recording interval (ms)."),
+            Field("interval", "integer", required: false, minimum: SensorRecordingConfig.MinimumIntervalMs, maximum: int.MaxValue, description: "Recording interval (ms)."),
         },
     };
 

@@ -36,6 +36,9 @@
             "Enabled": true,
             "Interval": 5000,
             "Unit": "celsius"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -55,6 +58,9 @@
             "Enabled": true,
             "Interval": 5000,
             "Unit": "percent"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -74,6 +80,9 @@
             "Enabled": true,
             "Interval": 5000,
             "Unit": "hPa"
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]
