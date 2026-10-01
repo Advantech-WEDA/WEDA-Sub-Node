@@ -28,6 +28,22 @@
       },
       "Sensors": [
         {
+          "Name": "hb",
+          "SensorGroup": "SYS",
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "Record": {
+            "Enabled": false
+          },
+          "SensorInfo": {
+            "Schema": "boolean",
+            "Description": "Reserved platform liveness ping. Declaring a sensor named 'hb' enables the SubNode heartbeat; it is never polled, its value is synthesized by the SDK, and its dtmi is supplied by the SDK. Schema is always stamped to boolean; it is declared here so the config satisfies the cloud sensorInfo envelope, where schema is required.",
+            "DisplayName": "Heartbeat"
+          }
+        },
+        {
           "Name": "temperature_sensor",
           "SensorGroup": "TEMP",
           "Parameters": {
@@ -43,7 +59,7 @@
           },
           "Report": {
             "Enabled": true,
-            "Interval": 5000,
+            "Interval": 500,
             "Unit": "celsius",
             "TransformPipeline": [
               {
@@ -71,8 +87,7 @@
             ]
           },
           "Record": {
-            "Enabled": true,
-            "Interval": 5000
+            "Enabled": true
           }
         }
       ]

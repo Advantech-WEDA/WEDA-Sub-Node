@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using ErrorOr;
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
@@ -405,7 +406,7 @@ public static partial class ConfigurationUpdateHelper
         if (desired.Record != null)
         {
             sensor.Record.Enabled = desired.Record.Enabled;
-            sensor.Record.Interval = desired.Record.Interval;
+            sensor.Record.Interval = ResolveRecordInterval(desired.Record, sensor.Report.Interval);
             wasUpdated = true;
         }
 
@@ -807,6 +808,15 @@ public static partial class ConfigurationUpdateHelper
                             LowerCritical = s.Report.Thresholds.LowerCritical
                         }
                         : null
+                },
+                // Report the resolved, in-range record interval so the cloud validator's range check
+                // (applied regardless of the enabled flag) passes. This DTO path is the fallback used
+                // only when no raw devicecfg JSON is available; the primary path patches the raw JSON
+                // in PatchReportedRecordIntervals.
+                Record = new SubNodeSensorRecordDto
+                {
+                    Enabled = s.Record.Enabled,
+                    Interval = ResolveRecordInterval(s.Record.Interval, s.Report.Interval)
                 }
             }).ToList()
         };
@@ -1024,11 +1034,41 @@ public static partial class ConfigurationUpdateHelper
         if (dto.Record != null)
         {
             sensor.Record.Enabled = dto.Record.Enabled;
-            sensor.Record.Interval = dto.Record.Interval;
+            sensor.Record.Interval = ResolveRecordInterval(dto.Record, sensor.Report.Interval);
         }
 
         return sensor;
     }
+
+    /// <summary>
+    /// Resolves the effective record interval (ms) from an optional configured value and the
+    /// sensor's report interval. A positive <paramref name="recordInterval"/> is used as the
+    /// source; a missing or non-positive one falls back to <paramref name="reportInterval"/>.
+    /// Either way the result is clamped up to <see cref="SensorRecordingConfig.MinimumIntervalMs"/>,
+    /// because the report interval floor (50 ms) is below the record interval floor (1000 ms) and a
+    /// sub-floor positive value is normalised rather than honoured. This is the single resolution
+    /// rule shared by the apply path, the reported-JSON patch
+    /// (<see cref="PatchReportedRecordIntervals"/>) and the sampling path (<c>DeviceBase</c>). For an
+    /// *enabled* record <c>SensorsValidator</c> requires the interval to already be in range, so the
+    /// fallback here applies in practice only to disabled records.
+    /// </summary>
+    public static int ResolveRecordInterval(int? recordInterval, double reportInterval)
+    {
+        var source = recordInterval is > 0 ? recordInterval.Value : (int)reportInterval;
+        return Math.Max(source, SensorRecordingConfig.MinimumIntervalMs);
+    }
+
+    /// <summary>
+    /// Resolves the effective record interval to store on the runtime sensor at apply time, so the
+    /// runtime model carries a concrete in-range interval instead of a null/sub-floor placeholder.
+    /// The resolved value does reach the cloud: <see cref="PatchReportedRecordIntervals"/> rewrites
+    /// the reported raw JSON with it, and <see cref="ToSubNodeDeviceConfigDto"/> (the fallback report
+    /// path) maps it too — so the cloud validator's interval range check, which runs regardless of
+    /// the enabled flag, sees a valid value. See <see cref="ResolveRecordInterval(int?, double)"/>
+    /// for the rule.
+    /// </summary>
+    private static int ResolveRecordInterval(SubNodeSensorRecordDto record, double reportInterval)
+        => ResolveRecordInterval(record.Interval, reportInterval);
 
     /// <summary>
     /// Converts JsonElement values in a dictionary to their native .NET types.
@@ -1289,6 +1329,69 @@ public static partial class ConfigurationUpdateHelper
         return null;
     }
 
+    /// <summary>
+    /// Rewrites every <c>Sensors[].Record.Interval</c> in a raw devicecfg JSON with the resolved,
+    /// in-range interval taken from the matching runtime sensor. The raw JSON is a verbatim copy of
+    /// the cloud-desired payload, which may carry a null, zero or sub-floor record interval; the
+    /// cloud validator range-checks that field regardless of the record's enabled flag, so the
+    /// edge must report the resolved value (see <see cref="ResolveRecordInterval(int?, double)"/>)
+    /// rather than echo the desired one. The JSON is parsed into a mutable node tree, only the
+    /// targeted intervals are replaced, and the tree is serialized back — so all other content
+    /// (property order, SensorInfo, protocol <c>Properties</c>, unknown fields) is preserved.
+    /// Property lookups are case-insensitive because the raw JSON may be authored PascalCase
+    /// (devicecfg.json) or camelCase (wire echo). A sensor with no <c>Record</c> object is left
+    /// untouched (recording is off by default, nothing to range-check).
+    /// </summary>
+    public static JsonElement PatchReportedRecordIntervals(
+        JsonElement rawDeviceCfg,
+        IDeviceRegistry deviceRegistry)
+    {
+        if (rawDeviceCfg.ValueKind != JsonValueKind.Object
+            || JsonNode.Parse(rawDeviceCfg.GetRawText()) is not JsonObject root)
+        {
+            return rawDeviceCfg;
+        }
+
+        foreach (var (deviceName, deviceNode) in root.Prop("DeviceConfigs")?.AsObject() ?? [])
+        {
+            var device = deviceRegistry.FindDevice(deviceName);
+            if (device != null && deviceNode.Prop("Sensors") is JsonArray sensors)
+            {
+                PatchSensorRecordIntervals(sensors, device.Configuration);
+            }
+        }
+
+        return JsonSerializer.SerializeToElement(root);
+    }
+
+    /// <summary>
+    /// For each sensor that carries a Record object and matches a runtime sensor, overwrites its
+    /// record interval with the resolved, in-range value. Sensors with no Record (recording off) or
+    /// no runtime match are left exactly as authored.
+    /// </summary>
+    private static void PatchSensorRecordIntervals(JsonArray sensors, DeviceConfiguration deviceConfig)
+    {
+        foreach (var sensorNode in sensors)
+        {
+            if (sensorNode.Prop("Record") is not JsonObject record)
+            {
+                continue;
+            }
+
+            var name = sensorNode.Prop("Name")?.GetValue<string>();
+            var runtime = deviceConfig.Sensors
+                .FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (runtime == null)
+            {
+                continue;
+            }
+
+            // The cloud validator range-checks the interval regardless of the enabled flag, so
+            // overwrite the existing key in place (preserving casing) or insert one if it was omitted.
+            record.SetRecordInterval(ResolveRecordInterval(runtime.Record.Interval, runtime.Report.Interval));
+        }
+    }
+
     private static JsonElement? BuildRawDeviceCfgFromDevices(
         IDeviceRegistry deviceRegistry,
         SubNodeConfigUpdateMessage incomingMessage)
@@ -1316,5 +1419,29 @@ public static partial class ConfigurationUpdateHelper
         // If we have desired config, merge it with base (update DeviceConfigs)
         // Otherwise just return the base
         return baseRawJson;
+    }
+}
+
+/// <summary>
+/// Case-insensitive helpers for raw devicecfg JSON, which may be authored PascalCase
+/// (devicecfg.json) or camelCase (wire echo).
+/// </summary>
+internal static class RawDeviceCfgJsonExtensions
+{
+    /// <summary>Returns the child node for <paramref name="name"/> ignoring case, or null.</summary>
+    public static JsonNode? Prop(this JsonNode? node, string name) =>
+        node is JsonObject obj
+            ? obj.FirstOrDefault(p => string.Equals(p.Key, name, StringComparison.OrdinalIgnoreCase)).Value
+            : null;
+
+    /// <summary>
+    /// Sets the record interval, overwriting the existing key in place to preserve its casing, or
+    /// inserting a camelCase <c>interval</c> if the record omitted it.
+    /// </summary>
+    public static void SetRecordInterval(this JsonObject record, int interval)
+    {
+        var key = record.FirstOrDefault(
+            p => string.Equals(p.Key, "Interval", StringComparison.OrdinalIgnoreCase)).Key ?? "interval";
+        record[key] = interval;
     }
 }

@@ -1044,16 +1044,22 @@ public class SubNodeSensorReportDto
 public class SubNodeSensorRecordDto
 {
     /// <summary>
-    /// Whether recording is enabled
+    /// Whether recording is enabled. Defaults to false so an empty <c>record: {}</c> does not
+    /// require an interval.
     /// </summary>
     [JsonPropertyName("enabled")]
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Recording interval in milliseconds. 0 means use report interval.
+    /// Recording interval in milliseconds. When recording is enabled this is required and must be at
+    /// least the record-interval floor (1000 ms); null, 0 and sub-floor values are rejected. When
+    /// recording is disabled it is optional — the apply path fills it from the report interval and
+    /// clamps it up to the floor. The resolved, in-range value is reported back to the cloud (the
+    /// edge patches it into the reported devicecfg), because the cloud validator range-checks this
+    /// field regardless of the enabled flag.
     /// </summary>
     [JsonPropertyName("interval")]
-    public int Interval { get; set; } = 0;
+    public int? Interval { get; set; }
 }
 
 /// <summary>

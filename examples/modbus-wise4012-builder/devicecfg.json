@@ -37,6 +37,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -56,6 +59,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -75,6 +81,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -94,6 +103,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 1000
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]

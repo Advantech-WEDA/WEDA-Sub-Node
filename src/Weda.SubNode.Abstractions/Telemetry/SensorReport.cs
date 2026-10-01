@@ -36,6 +36,14 @@ public class TransformConfig
 public class SensorReport
 {
     /// <summary>
+    /// Minimum valid report (sampling) interval (ms), and the single source of truth for that
+    /// floor. The sensor validator rejects a smaller interval, and the DTDL sensor-envelope schema
+    /// publishes it as the <c>minimum</c> for the report interval field, so the local check and the
+    /// cloud-facing contract stay in lockstep.
+    /// </summary>
+    public const int MinimumIntervalMs = 50;
+
+    /// <summary>
     /// Sensor enabled/disabled
     /// </summary>
     public bool Enabled { get; set; } = true;

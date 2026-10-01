@@ -249,6 +249,136 @@ public class ConfigurationUpdateHelperTests
         result.IsValid.ShouldBeTrue();
     }
 
+    [Fact]
+    public void ReplaceSensors_RecordWithInterval_KeepsIt()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                Record = new SubNodeSensorRecordDto { Enabled = true, Interval = 5000 }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(5000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordNoInterval_FillsFromReport()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 },
+                Record = new SubNodeSensorRecordDto { Enabled = false }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        // report interval (3000) is above the 1000 record floor, so it is used as-is
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(3000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordDisabledWithInterval_KeepsIt()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                // Disabled, but a valid explicit interval is supplied — the resolver keys off the
+                // interval being positive, not off Enabled, so the given value is used (and here it
+                // is already above the 1000 floor, so it survives the clamp unchanged).
+                Record = new SubNodeSensorRecordDto { Enabled = false, Interval = 5000 }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(5000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordEnabledBelowFloorInterval_ClampsUp()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 1000 },
+                // An explicit positive interval below the record floor is clamped up to 1000, not
+                // kept as given — a sub-floor record interval is a mistake we normalise.
+                Record = new SubNodeSensorRecordDto { Enabled = true, Interval = 500 }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(1000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordEnabledNoInterval_FillsFromReport()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 },
+                // Enabled with no interval — null means "use the default", so it is filled from the
+                // report interval (3000, already above the 1000 floor).
+                Record = new SubNodeSensorRecordDto { Enabled = true }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(3000);
+    }
+
+    [Fact]
+    public void ReplaceSensors_RecordNoInterval_ClampsReportBelowRecordFloor()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                // report interval 500 is a valid report value (floor 50) but below the record
+                // floor (1000), so the resolved record interval must clamp up to 1000
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 500 },
+                Record = new SubNodeSensorRecordDto { Enabled = false }
+            }
+        };
+
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(1000);
+    }
+
     #endregion
 
     #region Sensor Validation Tests
@@ -327,7 +457,7 @@ public class ConfigurationUpdateHelperTests
 
         // Assert
         result.IsValid.ShouldBeFalse();
-        result.ErrorMessage?.ShouldContain("interval must be greater than 0");
+        result.ErrorMessage?.ShouldContain("must not be less than 50");
     }
 
     [Fact]
@@ -1624,6 +1754,226 @@ public class ConfigurationUpdateHelperTests
         // Assert — nothing to echo -> desired stays absent (no crash, no empty desired).
         report.Data!.Cfg!.Reported.ShouldNotBeNull();
         report.Data.Cfg.Desired.ShouldBeNull();
+    }
+
+    #endregion
+
+    #region PatchReportedRecordIntervals (cloud round-trip)
+
+    // The reported devicecfg echoes the desired raw JSON verbatim, and the cloud validator range-
+    // checks the record interval regardless of the enabled flag. These tests pin that the edge
+    // rewrites each sensor's record interval with the resolved, in-range value before reporting.
+
+    private static (DeviceRegistry registry, DeviceConfiguration config) RegistryWithRecord(
+        bool enabled, int? runtimeRecordInterval, double reportInterval = 1000)
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var sensor = config.Sensors.First(s => s.Name == "channel_0");
+        sensor.Report.Interval = reportInterval;
+        sensor.Record.Enabled = enabled;
+        sensor.Record.Interval = runtimeRecordInterval;
+
+        var registry = new DeviceRegistry();
+        registry.Register(new FakeDevice(config));
+        return (registry, config);
+    }
+
+    private static JsonElement Prop(JsonElement el, string name)
+    {
+        // Case-insensitive lookup — the patched JSON preserves each key's original casing, and an
+        // inserted interval uses the camelCase wire name; both are valid since the cloud reads
+        // case-insensitively.
+        foreach (var p in el.EnumerateObject())
+        {
+            if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                return p.Value;
+        }
+        throw new Xunit.Sdk.XunitException($"property {name} not found");
+    }
+
+    private static int ReadRecordInterval(JsonElement patched, string deviceName, string sensorName)
+    {
+        var sensors = Prop(Prop(Prop(patched, "DeviceConfigs"), deviceName), "Sensors");
+        foreach (var s in sensors.EnumerateArray())
+        {
+            if (Prop(s, "Name").GetString() == sensorName)
+                return Prop(Prop(s, "Record"), "Interval").GetInt32();
+        }
+        throw new Xunit.Sdk.XunitException($"sensor {sensorName} not found");
+    }
+
+    [Fact]
+    public void PatchReportedRecordIntervals_DisabledZero_ClampedToFloor()
+    {
+        // Desired carried a disabled record with interval 0 (valid locally, but the cloud would
+        // reject 0). The runtime interval is already resolved to the report interval; patch must
+        // write that in-range value into the echoed JSON.
+        var (registry, _) = RegistryWithRecord(enabled: false, runtimeRecordInterval: 1000, reportInterval: 1000);
+        var raw = JsonDocument.Parse(
+            """
+            { "DeviceConfigs": { "TestDevice": { "Sensors": [
+              { "Name": "channel_0", "Record": { "Enabled": false, "Interval": 0 } }
+            ] } } }
+            """).RootElement.Clone();
+
+        var patched = ConfigurationUpdateHelper.PatchReportedRecordIntervals(raw, registry);
+
+        ReadRecordInterval(patched, "TestDevice", "channel_0").ShouldBe(1000);
+    }
+
+    [Fact]
+    public void PatchReportedRecordIntervals_MissingInterval_Inserted()
+    {
+        // Desired omitted the interval entirely; patch must insert the resolved in-range value so
+        // the cloud sees an interval field rather than a missing one.
+        var (registry, _) = RegistryWithRecord(enabled: false, runtimeRecordInterval: 3000, reportInterval: 3000);
+        var raw = JsonDocument.Parse(
+            """
+            { "DeviceConfigs": { "TestDevice": { "Sensors": [
+              { "Name": "channel_0", "Record": { "Enabled": false } }
+            ] } } }
+            """).RootElement.Clone();
+
+        var patched = ConfigurationUpdateHelper.PatchReportedRecordIntervals(raw, registry);
+
+        ReadRecordInterval(patched, "TestDevice", "channel_0").ShouldBe(3000);
+    }
+
+    [Fact]
+    public void PatchReportedRecordIntervals_EnabledValue_Preserved()
+    {
+        var (registry, _) = RegistryWithRecord(enabled: true, runtimeRecordInterval: 5000);
+        var raw = JsonDocument.Parse(
+            """
+            { "DeviceConfigs": { "TestDevice": { "Sensors": [
+              { "Name": "channel_0", "Record": { "Enabled": true, "Interval": 5000 } }
+            ] } } }
+            """).RootElement.Clone();
+
+        var patched = ConfigurationUpdateHelper.PatchReportedRecordIntervals(raw, registry);
+
+        ReadRecordInterval(patched, "TestDevice", "channel_0").ShouldBe(5000);
+    }
+
+    [Fact]
+    public void PatchReportedRecordIntervals_CamelCaseKeys_Patched()
+    {
+        // Wire-echo JSON is camelCase; the patch must find and rewrite it regardless of casing.
+        var (registry, _) = RegistryWithRecord(enabled: false, runtimeRecordInterval: 1000, reportInterval: 500);
+        var raw = JsonDocument.Parse(
+            """
+            { "deviceConfigs": { "TestDevice": { "sensors": [
+              { "name": "channel_0", "record": { "enabled": false, "interval": 0 } }
+            ] } } }
+            """).RootElement.Clone();
+
+        var patched = ConfigurationUpdateHelper.PatchReportedRecordIntervals(raw, registry);
+
+        var sensor = patched.GetProperty("deviceConfigs").GetProperty("TestDevice")
+            .GetProperty("sensors").EnumerateArray().First();
+        // report interval 500 is below the record floor, so the resolved value clamps up to 1000.
+        sensor.GetProperty("record").GetProperty("interval").GetInt32().ShouldBe(1000);
+    }
+
+    [Fact]
+    public void PatchReportedRecordIntervals_SensorWithoutRecord_Untouched()
+    {
+        var (registry, _) = RegistryWithRecord(enabled: false, runtimeRecordInterval: null);
+        var raw = JsonDocument.Parse(
+            """
+            { "DeviceConfigs": { "TestDevice": { "Sensors": [
+              { "Name": "channel_0", "SensorInfo": { "Schema": "double" } }
+            ] } } }
+            """).RootElement.Clone();
+
+        var patched = ConfigurationUpdateHelper.PatchReportedRecordIntervals(raw, registry);
+
+        var sensor = patched.GetProperty("DeviceConfigs").GetProperty("TestDevice")
+            .GetProperty("Sensors").EnumerateArray().First();
+        sensor.TryGetProperty("Record", out _).ShouldBeFalse();
+        // Unrelated fields are preserved verbatim.
+        sensor.GetProperty("SensorInfo").GetProperty("Schema").GetString().ShouldBe("double");
+    }
+
+    [Fact]
+    public void RecordInterval_ApplyThenPatch_EndToEnd_ReportsResolvedValue()
+    {
+        // End-to-end over the real logic: a desired disabled record carries interval 0 (which the
+        // cloud would reject). Apply resolves it into the runtime sensor via ReplaceSensors, then the
+        // reported raw JSON is patched from that runtime state — so the value echoed to the cloud is
+        // the resolved, in-range one, not the desired 0.
+        var config = CreateDeviceConfiguration("TestDevice");
+        config.Sensors.First(s => s.Name == "channel_0").Report.Interval = 3000;
+
+        var desired = new List<SubNodeSensorReportDto>
+        {
+            new()
+            {
+                Name = "channel_0",
+                SensorGroup = "AI",
+                Report = new SubNodeSensorRuntimeConfigDto { Enabled = true, Interval = 3000 },
+                Record = new SubNodeSensorRecordDto { Enabled = false, Interval = 0 }
+            }
+        };
+
+        // Real apply path resolves the runtime record interval (0 -> report interval 3000).
+        ConfigurationUpdateHelper.ReplaceSensors(config, desired, "TestDevice");
+        config.Sensors.First(s => s.Name == "channel_0").Record.Interval.ShouldBe(3000);
+
+        var registry = new DeviceRegistry();
+        registry.Register(new FakeDevice(config));
+
+        // The desired raw JSON still carries the out-of-range 0; the patch must replace it.
+        var raw = JsonDocument.Parse(
+            """
+            { "DeviceConfigs": { "TestDevice": { "Sensors": [
+              { "Name": "channel_0", "Record": { "Enabled": false, "Interval": 0 } }
+            ] } } }
+            """).RootElement.Clone();
+
+        var patched = ConfigurationUpdateHelper.PatchReportedRecordIntervals(raw, registry);
+
+        ReadRecordInterval(patched, "TestDevice", "channel_0").ShouldBe(3000);
+    }
+
+    #endregion
+
+    #region ToSubNodeDeviceConfigDto record mapping (fallback report path)
+
+    [Fact]
+    public void ToSubNodeDeviceConfigDto_MapsRecord_WithResolvedInterval()
+    {
+        // The fallback report path (used when no raw devicecfg JSON is available) must also carry the
+        // resolved, in-range record interval so the cloud range check passes.
+        var config = CreateDeviceConfiguration("TestDevice");
+        var sensor = config.Sensors.First(s => s.Name == "channel_0");
+        sensor.Report.Interval = 2000;
+        sensor.Record.Enabled = false;
+        sensor.Record.Interval = 0; // unresolved sentinel; DTO mapping must resolve it
+
+        var dto = ConfigurationUpdateHelper.ToSubNodeDeviceConfigDto(config);
+
+        var sensorDto = dto.Sensors!.First(s => s.Name == "channel_0");
+        sensorDto.Record.ShouldNotBeNull();
+        sensorDto.Record!.Enabled.ShouldBeFalse();
+        // 0 resolves to the report interval (2000), already above the 1000 floor.
+        sensorDto.Record.Interval.ShouldBe(2000);
+    }
+
+    [Fact]
+    public void ToSubNodeDeviceConfigDto_MapsRecord_ClampsSubFloorToFloor()
+    {
+        var config = CreateDeviceConfiguration("TestDevice");
+        var sensor = config.Sensors.First(s => s.Name == "channel_0");
+        sensor.Report.Interval = 500;  // below the record floor
+        sensor.Record.Enabled = true;
+        sensor.Record.Interval = 500;
+
+        var dto = ConfigurationUpdateHelper.ToSubNodeDeviceConfigDto(config);
+
+        var sensorDto = dto.Sensors!.First(s => s.Name == "channel_0");
+        // report interval 500 is below the record floor, so the resolved value clamps up to 1000.
+        sensorDto.Record!.Interval.ShouldBe(1000);
     }
 
     #endregion

@@ -987,7 +987,12 @@ public sealed class SubNodeManager : ISubNodeManager, IAsyncDisposable
 
         try
         {
-            var rawJson = rawDeviceCfg.Value.Clone();
+            // Patch each sensor's record interval with the resolved, in-range value before caching
+            // the raw JSON. The desired payload may carry a null/zero/sub-floor record interval, and
+            // the cloud validator range-checks that field regardless of the enabled flag, so the
+            // reported echo (which copies this raw JSON verbatim) must carry the resolved value.
+            var rawJson = ConfigurationUpdateHelper.PatchReportedRecordIntervals(
+                rawDeviceCfg.Value, _deviceRegistry);
 
             // Update each applied device's RawDeviceCfgJson
             foreach (var deviceName in appliedDevices)

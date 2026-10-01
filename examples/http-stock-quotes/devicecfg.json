@@ -33,6 +33,9 @@
             "DisplayName": "Advantech Current Price",
             "Description": "Latest traded price for Advantech (2395)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -51,6 +54,9 @@
             "DisplayName": "Advantech Open Price",
             "Description": "Opening price of the trading day for Advantech (2395)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -69,6 +75,9 @@
             "DisplayName": "Advantech High Price",
             "Description": "Highest price of the trading day for Advantech (2395)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -87,6 +96,9 @@
             "DisplayName": "Advantech Low Price",
             "Description": "Lowest price of the trading day for Advantech (2395)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -105,6 +117,9 @@
             "DisplayName": "Advantech Price Change",
             "Description": "Change from the previous close for Advantech (2395)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -123,6 +138,9 @@
             "DisplayName": "Advantech Change Percent",
             "Description": "Change from the previous close, as a percentage for Advantech (2395)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -141,6 +159,9 @@
             "DisplayName": "Advantech Volume",
             "Description": "Accumulated trading volume for Advantech (2395)",
             "Schema": "long"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -159,6 +180,9 @@
             "DisplayName": "TSMC Current Price",
             "Description": "Latest traded price for TSMC (2330)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -177,6 +201,9 @@
             "DisplayName": "TSMC Open Price",
             "Description": "Opening price of the trading day for TSMC (2330)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -195,6 +222,9 @@
             "DisplayName": "TSMC High Price",
             "Description": "Highest price of the trading day for TSMC (2330)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -213,6 +243,9 @@
             "DisplayName": "TSMC Low Price",
             "Description": "Lowest price of the trading day for TSMC (2330)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -231,6 +264,9 @@
             "DisplayName": "TSMC Price Change",
             "Description": "Change from the previous close for TSMC (2330)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -249,6 +285,9 @@
             "DisplayName": "TSMC Change Percent",
             "Description": "Change from the previous close, as a percentage for TSMC (2330)",
             "Schema": "double"
+          },
+          "Record": {
+            "Enabled": false
           }
         },
         {
@@ -267,6 +306,9 @@
             "DisplayName": "TSMC Volume",
             "Description": "Accumulated trading volume for TSMC (2330)",
             "Schema": "long"
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]

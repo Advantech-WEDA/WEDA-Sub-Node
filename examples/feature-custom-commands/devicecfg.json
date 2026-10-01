@@ -38,6 +38,9 @@
             "Enabled": true,
             "Interval": 1000,
             "Unit": "celsius"
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]

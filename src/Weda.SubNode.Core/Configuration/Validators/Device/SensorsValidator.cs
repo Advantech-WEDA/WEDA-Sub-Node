@@ -1,6 +1,7 @@
 using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
 using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Configuration.Validators;
+using Weda.SubNode.Abstractions.Telemetry;
 
 namespace Weda.SubNode.Core.Configuration.Validators.Device;
 
@@ -68,10 +69,10 @@ public class SensorsValidator : IConfigurationPropertyValidator
             // Validate sensor config values
             if (options.ValidateSensors && sensor.Report != null)
             {
-                if (sensor.Report.Interval <= 0)
+                if (sensor.Report.Interval is not >= SensorReport.MinimumIntervalMs)
                 {
                     return ConfigurationValidationResult.Failure(
-                        $"Sensor '{sensor.Name}' interval must be greater than 0");
+                        $"Sensor '{sensor.Name}' interval must not be less than {SensorReport.MinimumIntervalMs}");
                 }
 
                 // Validate thresholds if provided (if enabled)
@@ -81,6 +82,19 @@ public class SensorsValidator : IConfigurationPropertyValidator
                     if (!thresholdResult.IsValid)
                         return thresholdResult;
                 }
+            }
+
+            // When recording is enabled the interval is mandatory and must already be at least the
+            // record floor: the resolved value is reported back to the cloud, whose validator range-
+            // checks the interval field regardless of the enabled flag, so the edge must not emit a
+            // null or sub-floor value for an enabled record. A disabled record may omit the interval
+            // (or send a sub-floor/zero one); the apply path fills it from the report interval and
+            // clamps it up to the floor before it is reported.
+            if (options.ValidateSensors && sensor.Record is { Enabled: true }
+                && sensor.Record.Interval is not >= SensorRecordingConfig.MinimumIntervalMs)
+            {
+                return ConfigurationValidationResult.Failure(
+                    $"Sensor '{sensor.Name}' record interval is required and must be at least {SensorRecordingConfig.MinimumIntervalMs} ms when recording is enabled");
             }
 
             var schemaResult = ValidateSchema(sensor);
@@ -110,7 +124,7 @@ public class SensorsValidator : IConfigurationPropertyValidator
 
     private static ConfigurationValidationResult ValidateThresholds(
         string sensorName,
-        Abstractions.Cloud.Clients.DeviceManagement.Contracts.SubNodeThresholdsDto thresholds)
+        SubNodeThresholdsDto thresholds)
     {
         if (thresholds.UpperCritical.HasValue && thresholds.UpperWarning.HasValue &&
             thresholds.UpperCritical < thresholds.UpperWarning)

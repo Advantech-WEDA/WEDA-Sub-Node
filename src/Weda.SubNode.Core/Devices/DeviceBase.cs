@@ -342,9 +342,11 @@ public abstract class DeviceBase : IDevice, ILifecycleHooks
             var sensor = Configuration.GetSensorById(processedMeasure.ResourceId);
             if (sensor?.Record.Enabled == true)
             {
-                var interval = sensor.Record.Interval > 0
-                    ? sensor.Record.Interval
-                    : (int)sensor.Report.Interval;
+                // Record.Interval is normally resolved (and clamped) at apply time; resolve it the
+                // same way here to cover a sensor whose record was set directly without going
+                // through apply, so sampling-time and apply-time agree on the effective interval.
+                var interval = ConfigurationUpdateHelper.ResolveRecordInterval(
+                    sensor.Record.Interval, sensor.Report.Interval);
 
                 var schemaType = SchemaTypeExtensions.ParseSchema(sensor.Schema);
 

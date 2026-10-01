@@ -318,11 +318,22 @@ Local recording settings:
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `Enabled` | bool | No | **true** | Enable local recording for this sensor. Set `false` to make a sensor transmit-only |
-| `Interval` | int | No | 0 | Recording interval in milliseconds. `0` means use the sensor's reporting interval |
+| `Enabled` | bool | No | `false` | Enable local recording for this sensor. A sensor that declares no `Record` config does not record |
+| `Interval` | int? | Required when `Enabled` is `true` | report interval | Recording interval in milliseconds. When recording is enabled it must be present and at least `1000`. When disabled it may be omitted; the SDK then derives it from the reporting interval |
 
-Recording is on by default per sensor, so a sensor is recorded unless you opt it out. The
-storage location is a device-wide setting, not a per-sensor one.
+Recording is off by default per sensor, so a sensor is not recorded unless you opt it in with
+`"Record": { "Enabled": true, "Interval": <ms> }`. How `Interval` is treated depends on `Enabled`,
+because the resolved value is reported back to the cloud, whose validator range-checks the interval
+whether or not recording is enabled:
+
+- **`Enabled: true`** — `Interval` is **required and must be at least `1000`**. A missing, `0`, or
+  sub-floor value (e.g. `500`) is **rejected** at validation. You must declare an in-range value
+  yourself; the SDK does not guess one for an enabled record.
+- **`Enabled: false`** — `Interval` is optional. If omitted, `0`, or sub-floor, the SDK derives it
+  from the reporting interval, raised to the `1000` ms record floor if the reporting interval is
+  lower. The resolved value is what gets reported.
+
+The storage location is a device-wide setting, not a per-sensor one.
 
 ## DeviceCommunication
 

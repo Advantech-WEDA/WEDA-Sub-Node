@@ -37,6 +37,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 3000
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]
@@ -71,6 +74,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 3000
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]
@@ -110,6 +116,9 @@
           "Report": {
             "Enabled": true,
             "Interval": 3000
+          },
+          "Record": {
+            "Enabled": false
           }
         }
       ]
