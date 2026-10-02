@@ -23,6 +23,7 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - `Record.MinFreeDiskSpaceMb` 與 `Record.MaxStorageSizeMb` 的說明文件已更正為兩個不同的限制 — 前者是整顆*磁碟*的可用空間下限,後者是 recording *目錄*的容量上限。預設值維持不變(128 MB 與 1024 MB);兩者同為 128 的巧合,長期讓前者被誤讀為「recording 上限 128 MB」。
 - `IRecordStorage.CleanupAsync` 與 `IRecordingService.CleanupAsync` 的回傳型別由 `Task` 改為 `RecordingCleanupResult`(掃描/刪除檔數、釋放位元組、失敗檔數)。對外部實作者為 source-breaking 變更。
 - Recording 設定改為透過共用的 `RecordingOptionsProvider` 讀取,不再各自快取 `IOptions<RecordingOptions>.Value`,因此一次更新即可同時生效於 storage、recording service 與清理排程。更新會發佈新的 options 實例,不會就地修改既有實例。
+- **Heartbeat sensor 現在帶 `"Parameters": {}`。** `Heartbeat.ApplyReservedContract` 會蓋上空物件(若有設定 parameters 則丟棄並記錄警告),範例 `devicecfg.json` 也加上此欄位;heartbeat 的 DTDL Interface 現在宣告 `Parameters`,綁定到無欄位的 Object(`dtmi:com:advantech:weda:Heartbeat:Parameters;1`)。若未宣告,雲端 strict(v2)驗證會把 `parameters` 視為未知欄位而拒絕;宣告後 `{}`(或省略)可通過,任何實際參數仍會被拒絕。
 
 ### 移除
 - **BREAKING — recording 不再於 `systemcfg.json` 設定。** `systemcfg` 依政策不開放遠端設定;recording 已移至 `devicecfg.json` 的 `SubNodeSettings.Record`。移除項目:`HandleSystemConfigUpdateAsync` 中的 `Record` 套用路徑、`SubNodeSystemCfgDto.Record` wire 欄位,以及 `RecordValidator`。仍留在 `systemcfg.json` 的 `Record` 區塊現在會被忽略,並在啟動時記錄一則警告。

@@ -236,6 +236,33 @@ public class HeartbeatSensorResolutionTests
     }
 
     [Fact]
+    public void ApplyReservedContract_StampsAnEmptyParametersObject()
+    {
+        // The wire entry carries "parameters": {} like every other sensor, rather than
+        // omitting the key.
+        var heartbeat = MakeSensor();
+
+        Heartbeat.ApplyReservedContract([heartbeat]);
+
+        Assert.NotNull(heartbeat.Parameters);
+        Assert.Empty(heartbeat.Parameters);
+    }
+
+    [Fact]
+    public void ApplyReservedContract_DiscardsConfiguredParameters()
+    {
+        // The heartbeat Interface declares Parameters as an Object with no fields, so a
+        // configured parameter could never validate cloud-side; the contract wins.
+        var heartbeat = MakeSensor();
+        heartbeat.Parameters = new Dictionary<string, object> { ["address"] = 40001 };
+
+        Heartbeat.ApplyReservedContract([heartbeat]);
+
+        Assert.NotNull(heartbeat.Parameters);
+        Assert.Empty(heartbeat.Parameters);
+    }
+
+    [Fact]
     public void ApplyReservedContract_LeavesOrdinarySensorsAlone()
     {
         var ordinary = MakeSensor(name: "cpu_usage", dtmi: "dtmi:example:Custom;1", schema: "double");
@@ -244,6 +271,7 @@ public class HeartbeatSensorResolutionTests
 
         Assert.Equal("dtmi:example:Custom;1", ordinary.Dtmi);
         Assert.Equal("double", ordinary.SensorInfo.Schema);
+        Assert.Null(ordinary.Parameters);
     }
 
     [Fact]

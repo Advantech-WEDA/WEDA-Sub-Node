@@ -46,7 +46,8 @@ public class TwseStockParser : IRequestResponseProtocolParser
     {
         var result = new Dictionary<string, List<StockSensorBinding>>();
 
-        foreach (var sensor in sensors)
+        // The heartbeat is synthesised by the SDK and carries no stock binding.
+        foreach (var sensor in sensors.Where(s => !Heartbeat.IsHeartbeat(s)))
         {
             var parameters = DeserializeParameters(sensor);
 

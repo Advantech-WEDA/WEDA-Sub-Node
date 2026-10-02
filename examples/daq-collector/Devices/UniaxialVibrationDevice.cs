@@ -105,8 +105,9 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
             "FrameSize={frameSize}, FreqResolution={freqResolution:F3}Hz, Nyquist={nyquist}Hz",
             acquisitionRate, observationWindowSeconds, frameSize, freqResolutionHz, nyquistHz);
 
-        // Log per-sensor reporting cadence
-        foreach (var sensor in configuration.Sensors)
+        // Log per-sensor reporting cadence. The heartbeat beats on its own interval and is
+        // never sampled, so the observation-window rule does not apply to it.
+        foreach (var sensor in configuration.Sensors.Where(s => !Heartbeat.IsHeartbeat(s)))
         {
             if (sensor.Report?.Enabled ?? false)
             {
@@ -276,7 +277,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         }
 
         // Validate per-sensor Report.Interval (must be a positive integer multiple of observation window)
-        foreach (var sensor in Configuration.Sensors.Where(s => s.Report?.Enabled ?? false))
+        foreach (var sensor in Configuration.Sensors.Where(s => (s.Report?.Enabled ?? false) && !Heartbeat.IsHeartbeat(s)))
         {
             var intervalMsRounded = (int)Math.Round(sensor.Report!.Interval);
             if (intervalMsRounded <= 0 || intervalMsRounded < effectiveWindowMs || intervalMsRounded % effectiveWindowMs != 0)
@@ -298,7 +299,7 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         if (rawSensor == null)
             throw new InvalidOperationException("Raw DAQ payload sensor ('daqraw:vibration:payload') is required but not configured");
 
-        var phMSensors = Configuration.Sensors.Count(s => s.Report?.Enabled ?? false);
+        var phMSensors = Configuration.Sensors.Count(s => (s.Report?.Enabled ?? false) && !Heartbeat.IsHeartbeat(s));
         _logger.LogInformation("Sensor configuration validated: {count} sensors configured for reporting", phMSensors);
 
         _logger.LogInformation("Configuration validation passed.");
@@ -322,7 +323,8 @@ public class UniaxialVibrationDevice : StreamingDeviceBase
         // Validate per-sensor Report.Interval in the incoming update
         var desiredConfig = message.Data?.Cfg?.Desired?.SubNodeDeviceConfig?.DeviceConfigs?
             .GetValueOrDefault(Configuration.DeviceName);
-        foreach (var sensor in desiredConfig?.Sensors?.Where(s => s.Report?.Enabled == true) ?? [])
+        foreach (var sensor in desiredConfig?.Sensors?.Where(s => s.Report?.Enabled == true
+                     && !string.Equals(s.Name, Heartbeat.SensorName, StringComparison.OrdinalIgnoreCase)) ?? [])
         {
             var intervalMs = sensor.Report!.Interval;
             if (intervalMs <= 0)

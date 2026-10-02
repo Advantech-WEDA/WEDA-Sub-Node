@@ -23,8 +23,8 @@ namespace Weda.SubNode.Abstractions.Telemetry;
 /// </para>
 /// <para>
 /// <strong>The DTMI and schema are SDK-owned, not configuration.</strong>
-/// <see cref="ApplyReservedContract"/> stamps <see cref="Dtmi"/> and <see cref="Schema"/>
-/// onto the declared sensor before DTDL generation, so <c>devicecfg.json</c> declares only
+/// <see cref="ApplyReservedContract"/> stamps <see cref="Dtmi"/>, <see cref="Schema"/> and an
+/// empty <c>Parameters</c> object onto the declared sensor before DTDL generation, so <c>devicecfg.json</c> declares only
 /// a name and a report interval and the model is generated automatically like any other
 /// sensor. Identity is the name because that is the one field the author must write:
 /// deriving identity from a value the SDK itself supplies would be circular, and requiring
@@ -57,6 +57,7 @@ namespace Weda.SubNode.Abstractions.Telemetry;
 /// {
 ///   "Name": "hb",
 ///   "SensorGroup": "SYS",
+///   "Parameters": {},
 ///   "Report": { "Enabled": true, "Interval": 60000 },
 ///   "Record": { "Enabled": false }
 /// }
@@ -125,7 +126,8 @@ public static class Heartbeat
 
     /// <summary>
     /// Stamps the SDK-owned parts of the reserved contract onto a device's declared
-    /// heartbeat sensor: its <see cref="Dtmi"/> and its <see cref="Schema"/>.
+    /// heartbeat sensor: its <see cref="Dtmi"/>, its <see cref="Schema"/> and an empty
+    /// <c>Parameters</c> object.
     /// </summary>
     /// <param name="sensors">The device's configured sensors. May be <see langword="null"/>.</param>
     /// <param name="logger">Optional logger, used to report overwritten configuration.</param>
@@ -137,7 +139,7 @@ public static class Heartbeat
     /// <c>boolean</c> Telemetry content.
     /// </para>
     /// <para>
-    /// Overwrites rather than merges. Both values are part of a platform contract the
+    /// Overwrites rather than merges. All three values are part of a platform contract the
     /// application does not get to vary, and honouring a configured schema of, say,
     /// <c>double</c> would produce a model that disagrees with the <c>true</c> the SDK
     /// sends. Anything overwritten is logged so the divergence is visible.
@@ -170,8 +172,17 @@ public static class Heartbeat
                     sensor.Name, sensor.SensorInfo.Schema, Schema);
             }
 
+            if (sensor.Parameters is { Count: > 0 })
+            {
+                logger?.LogWarning(
+                    "Sensor '{Sensor}' is the reserved heartbeat and takes no parameters; " +
+                    "configured parameters {Parameters} are replaced by an empty object",
+                    sensor.Name, string.Join(", ", sensor.Parameters.Keys));
+            }
+
             sensor.Dtmi = Dtmi;
             sensor.SensorInfo.Schema = Schema;
+            sensor.Parameters = new Dictionary<string, object>();
         }
     }
 
@@ -190,9 +201,13 @@ public static class Heartbeat
     /// dispatch — so it has to supply its own definition.
     /// </para>
     /// <para>
-    /// Carries no <c>Parameters</c> property. Typed sensor Interfaces bind one, but the
-    /// heartbeat takes no configuration and the cloud rejects a SensorRef carrying unknown
-    /// fields — so the Interface stays an envelope and nothing more.
+    /// Declares a <c>Parameters</c> Property bound to an Object with no fields, the same
+    /// shape a typed sensor Interface gets for a parameter class with no properties. The
+    /// heartbeat takes no configuration, but <see cref="ApplyReservedContract"/> stamps
+    /// <c>Parameters = {}</c> so the wire entry matches every other sensor; the cloud's
+    /// strict validator rejects any top-level sensor key the Interface does not declare,
+    /// so the empty object has to be declared here. Being field-less, it still accepts
+    /// nothing but <c>{}</c>.
     /// </para>
     /// </remarks>
     public static JsonObject GetInterface() => new()
@@ -206,7 +221,27 @@ public static class Heartbeat
             "Reserved SubNode liveness beat. Declared as a sensor so it carries a ResourceId "
             + "and registers in the sensor registry; it is never polled and its boolean value "
             + "is synthesised by the SDK.",
+        ["contents"] = new JsonArray(new JsonObject
+        {
+            ["@type"] = new JsonArray("Property", "ConfigConstraint"),
+            ["name"] = "Parameters",
+            ["schema"] = ParametersSchemaDtmi,
+            ["required"] = false,
+            ["writable"] = true,
+        }),
+        ["schemas"] = new JsonArray(new JsonObject
+        {
+            ["@id"] = ParametersSchemaDtmi,
+            ["@type"] = "Object",
+            ["fields"] = new JsonArray(),
+        }),
     };
+
+    /// <summary>
+    /// DTMI of the field-less Object that <see cref="GetInterface"/> binds
+    /// <c>Parameters</c> to.
+    /// </summary>
+    private const string ParametersSchemaDtmi = "dtmi:com:advantech:weda:Heartbeat:Parameters;1";
 
     /// <summary>
     /// Whether any of the given sensors is the reserved heartbeat, i.e. whether
