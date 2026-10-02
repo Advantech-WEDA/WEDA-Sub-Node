@@ -32,6 +32,7 @@ switch** — there is no separate flag, no builder call and no `systemcfg.json` 
 {
   "Name": "hb",
   "SensorGroup": "SYS",
+  "Parameters": {},
   "SensorInfo": {
     "DisplayName": "Heartbeat"
   },
@@ -68,7 +69,7 @@ heartbeat and pays nothing for the feature. Upgrading the SDK never starts one o
 | `SensorInfo.DisplayName` | Optional | Cosmetic only |
 | `Dtmi` | **Do not set** | Supplied by the SDK — see below |
 | `SensorInfo.Schema` | **Do not set** | Supplied by the SDK as `boolean` — see below |
-| `Parameters` | **No** | The heartbeat takes none. It is never read from hardware |
+| `Parameters` | Optional, always `{}` | The heartbeat takes none — it is never read from hardware. The SDK stamps an empty object, and the heartbeat Interface declares `Parameters` as a field-less Object, so `{}` passes the cloud's strict key check while any actual parameter is rejected |
 
 :::note The SDK supplies the DTMI and the schema
 The heartbeat's DTMI (`dtmi:com:advantech:weda:Heartbeat;1`) and its `boolean` schema are part of
@@ -96,7 +97,7 @@ device's, so a SubNode running ten devices still produces exactly one liveness s
 the sensor on more than one device logs a warning and uses the first.
 
 **It is never polled.** No protocol parser is asked to read it — the SDK synthesises the value.
-That is why it needs no `Parameters`, and why it works identically on Modbus, OPC UA, MQTT and
+That is why its `Parameters` is always empty, and why it works identically on Modbus, OPC UA, MQTT and
 custom devices, none of which could produce a liveness reading themselves.
 
 **It starts beating once the SubNode is registered.** The first beat is sent immediately after
@@ -156,13 +157,19 @@ and in the device-management sensor registry:
 
 // refModelsMap.configs[] — the heartbeat supplies its own Interface
 { "@id": "dtmi:com:advantech:weda:Heartbeat;1", "@type": "Interface",
-  "extends": "dtmi:advantech:weda:sensor:base;1", "displayName": "Heartbeat" }
+  "extends": "dtmi:advantech:weda:sensor:base;1", "displayName": "Heartbeat",
+  "contents": [{ "@type": ["Property", "ConfigConstraint"], "name": "Parameters",
+                 "schema": "dtmi:com:advantech:weda:Heartbeat:Parameters;1" }],
+  "schemas": [{ "@id": "dtmi:com:advantech:weda:Heartbeat:Parameters;1",
+                "@type": "Object", "fields": [] }] }
 ```
 
 That last entry matters. A sensor's DTMI is resolved against `refModelsMap`, and ordinary sensors
 get there through the sensor-type registry — which the heartbeat never enters, because it is
 skipped during typed dispatch to preserve its reserved DTMI. It therefore contributes its own
-Interface, extending the universal sensor envelope and carrying no `Parameters`.
+Interface, extending the universal sensor envelope and binding `Parameters` to an Object with
+no fields — the same shape a typed sensor gets for a parameter class with no properties. Without
+that declaration the cloud's strict validator would reject `"parameters": {}` as an unknown field.
 
 You can confirm all of this for your own application without a cloud connection:
 

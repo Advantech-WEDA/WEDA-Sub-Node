@@ -23,6 +23,7 @@
         {
           "Name": "hb",
           "SensorGroup": "SYS",
+          "Parameters": {},
           "Report": {
             "Enabled": true,
             "Interval": 60000
