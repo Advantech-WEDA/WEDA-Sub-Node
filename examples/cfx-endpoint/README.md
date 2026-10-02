@@ -30,7 +30,7 @@ slots of unit data. So here:
 | [`Program.cs`](Program.cs) | Host bootstrap; picks the real WedaNode or the mock cloud from `customcfg.json` |
 | [`MyCfxEndpointDevice.cs`](MyCfxEndpointDevice.cs) | `MqttCfxDevice` subclass — logs received data, connection changes, and unmapped message types |
 | [`Sensors/TypedCatalog.cs`](Sensors/TypedCatalog.cs) | Typed capability descriptors for the `mqtt-cfx` device kind and its `cfx-message` sensor kind |
-| [`devicecfg.json`](devicecfg.json) | The bridge connection and the 17 sensors |
+| [`devicecfg.json`](devicecfg.json) | The bridge connection, the 17 sensors and the `hb` heartbeat |
 | [`systemcfg.json`](systemcfg.json) | WedaNode address and NATS credentials |
 | [`customcfg.json`](customcfg.json) | `UseMockCloud` switch |
 | [`appsettings.json`](appsettings.json) | Serilog settings |

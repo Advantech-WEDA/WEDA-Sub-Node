@@ -1,7 +1,9 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using Shouldly;
 
+using Weda.Dtdl.Validation;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.DigitalTwin;
@@ -124,13 +126,39 @@ public class HeartbeatRefModelTests
     }
 
     [Fact]
-    public void TheHeartbeatInterfaceCarriesNoParameters()
+    public void TheHeartbeatInterfaceDeclaresParametersAsAFieldlessObject()
     {
-        // The cloud rejects a SensorRef carrying unknown fields, and the heartbeat takes no
-        // configuration -- so the Interface stays a bare envelope.
+        // The SDK stamps "parameters": {} on the heartbeat, and the cloud's strict validator
+        // rejects any top-level sensor key the Interface does not declare -- so Parameters
+        // must be declared, bound to an Object with no fields so nothing but {} fits.
         var heartbeat = Heartbeat.GetInterface();
 
-        heartbeat["contents"].ShouldBeNull();
+        var property = heartbeat["contents"]!.AsArray().ShouldHaveSingleItem()!.AsObject();
+        property["name"]!.GetValue<string>().ShouldBe("Parameters");
+
+        var schemaId = property["schema"]!.GetValue<string>();
+        var schema = heartbeat["schemas"]!.AsArray()
+            .Single(s => s!["@id"]!.GetValue<string>() == schemaId)!;
+        schema["@type"]!.GetValue<string>().ShouldBe("Object");
+        schema["fields"]!.AsArray().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void TheHeartbeatRefModelParsesUnderTheCloudValidator()
+    {
+        // An Object with no fields has to be legal DTDL v3, or the shadow would reject the
+        // whole capability upload. WedaDtValidator parses with the same extension context.
+        var docs = new[] { SensorBase.GetInterface(), Heartbeat.GetInterface() }
+            .Select(i => JsonDocument.Parse(i.ToJsonString()))
+            .ToList();
+        try
+        {
+            Should.NotThrow(() => new WedaDtValidator(docs.Select(d => d.RootElement)));
+        }
+        finally
+        {
+            docs.ForEach(d => d.Dispose());
+        }
     }
 
     [Fact]

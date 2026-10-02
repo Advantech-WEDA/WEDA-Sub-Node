@@ -26,17 +26,30 @@ public class DeviceConfigJsonTests
         return JsonDocument.Parse(File.ReadAllText(path));
     }
 
-    private static IEnumerable<JsonElement> Sensors =>
+    private static IEnumerable<JsonElement> AllSensors =>
         Config.RootElement
             .GetProperty("DeviceConfigs")
             .GetProperty("StockMonitorConfig")
             .GetProperty("Sensors")
             .EnumerateArray();
 
+    /// <summary>The stock sensors: every sensor except the SDK-synthesised heartbeat.</summary>
+    private static IEnumerable<JsonElement> Sensors =>
+        AllSensors.Where(s => !string.Equals(Name(s), Heartbeat.SensorName, StringComparison.OrdinalIgnoreCase));
+
     private static string Name(JsonElement sensor) => sensor.GetProperty("Name").GetString()!;
 
     private static string Metric(JsonElement sensor) =>
         sensor.GetProperty("Parameters").GetProperty("Metric").GetString()!;
+
+    [Fact]
+    public void TheHeartbeatIsDeclaredWithEmptyParameters()
+    {
+        // The heartbeat carries no stock binding; its parameters are an empty object.
+        var heartbeat = AllSensors.Single(s => Name(s) == Heartbeat.SensorName);
+
+        heartbeat.GetProperty("Parameters").EnumerateObject().ShouldBeEmpty();
+    }
 
     [Fact]
     public void EverySensorRequestsExactlyOneMetric()

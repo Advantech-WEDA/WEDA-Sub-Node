@@ -275,8 +275,8 @@ public class DeviceConfiguration
             foreach (var sensor in Sensors)
             {
                 // The reserved heartbeat keeps its platform-owned dtmi. It is the one
-                // sanctioned exception to the auto-gen-only DTMI policy: it carries no
-                // Parameters, so typed dispatch has nothing to match on, and the dtmi IS
+                // sanctioned exception to the auto-gen-only DTMI policy: its Parameters
+                // are always empty, so typed dispatch has nothing to match on, and the dtmi IS
                 // its identity — the SDK recognises the liveness beat by that value.
                 // Without this it would survive only by resolve() happening to throw.
                 if (Heartbeat.IsHeartbeat(sensor))

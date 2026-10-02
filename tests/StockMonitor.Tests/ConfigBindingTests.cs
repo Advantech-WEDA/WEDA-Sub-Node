@@ -7,6 +7,7 @@ using StockMonitor.Communication;
 using StockMonitor.Protocols;
 
 using Weda.SubNode.Abstractions.Devices;
+using Weda.SubNode.Abstractions.Telemetry;
 
 using Xunit;
 
@@ -20,6 +21,9 @@ namespace StockMonitor.Tests;
 /// </summary>
 public class ConfigBindingTests
 {
+    private static IEnumerable<Sensor> StockSensors(DeviceConfiguration configuration) =>
+        configuration.Sensors.Where(s => !Heartbeat.IsHeartbeat(s));
+
     private static DeviceConfiguration BindShippedConfig()
     {
         var path = Path.GetFullPath(Path.Combine(
@@ -40,9 +44,9 @@ public class ConfigBindingTests
     {
         var configuration = BindShippedConfig();
 
-        configuration.Sensors.ShouldNotBeEmpty();
+        StockSensors(configuration).ShouldNotBeEmpty();
 
-        foreach (var sensor in configuration.Sensors)
+        foreach (var sensor in StockSensors(configuration))
         {
             sensor.Parameters.ShouldNotBeNull($"{sensor.Name} bound no parameters");
             sensor.Parameters.ShouldContainKey("StockCode");
@@ -76,7 +80,8 @@ public class ConfigBindingTests
             TwseFixtures.QuotesFor("2395", "2330"),
             configuration.Sensors.Select(s => s.ResourceId).ToHashSet());
 
-        measures.Count.ShouldBe(configuration.Sensors.Count);
+        // The heartbeat is synthesised by the SDK, never parsed from a quote.
+        measures.Count.ShouldBe(StockSensors(configuration).Count());
         measures.ShouldAllBe(m => m.Metadata == null);
     }
 }
