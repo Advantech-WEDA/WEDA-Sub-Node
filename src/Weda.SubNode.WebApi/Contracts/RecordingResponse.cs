@@ -59,7 +59,7 @@ public record RecordingResponse
         };
     }
 
-    private static bool IsEmptyValue(object value, SchemaType schemaType) => schemaType switch
+    private static bool IsEmptyValue(object? value, SchemaType schemaType) => value is null || schemaType switch
     {
         SchemaType.Double => value is double d && double.IsNaN(d),
         SchemaType.Long => value is long l && l == long.MinValue,
@@ -83,9 +83,12 @@ public record RecordingMeasure
     [JsonPropertyName("schemaType")]
     public required string SchemaType { get; init; }
 
+    /// <summary>
+    /// One entry per interval from <see cref="StartTimeStamp"/>; <c>null</c> where nothing was recorded.
+    /// </summary>
     [JsonPropertyName("values")]
     [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
-    public required List<object> Values { get; init; }
+    public required List<object?> Values { get; init; }
 }
 
 /// <summary>
