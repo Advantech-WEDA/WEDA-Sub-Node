@@ -6,6 +6,73 @@
     "Model": "SubNode-Template",
     "SwVersion": "1.0.0"
   },
+  "SubNodeSettings": {
+    "Record": {
+      "Enabled": true,
+      "MinFreeDiskSpaceMb": 128,
+      "MaxStorageSizeMb": 1024,
+      "RetentionDays": 7,
+      "CleanupIntervalMinutes": 60,
+      "BatchEnabled": true,
+      "BatchMaxSamples": 0,
+      "MaxQueryTimeRangeDays": 30
+    }
+  },
   "DeviceConfigs": {
+    "MyFirstDevice": {
+      "Enabled": true,
+      "DeviceCommunication": {
+        "Host": "127.0.0.1",
+        "Port": 5020
+      },
+      "Dtdl": {
+        "AutoGenEnabled": true
+      },
+      "Properties": {
+        "SlaveId": 1
+      },
+      "Sensors": [
+        {
+          "Name": "hb",
+          "SensorGroup": "SYS",
+          "Parameters": {},
+          "SensorInfo": {
+            "DisplayName": "Heartbeat",
+            "Description": "Reserved platform liveness ping. Declaring a sensor named 'hb' enables the SubNode heartbeat; it is never polled, its value is synthesized by the SDK, and its dtmi is supplied by the SDK. Schema is always stamped to boolean; it is declared here so the config satisfies the cloud sensorInfo envelope, where schema is required.",
+            "Schema": "boolean"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 60000
+          },
+          "Record": {
+            "Enabled": false
+          }
+        },
+        {
+          "Name": "temperature_sensor",
+          "SensorGroup": "TEMP",
+          "Parameters": {
+            "RegisterType": "HoldingRegister",
+            "RegisterAddress": 0,
+            "RegisterCount": 2,
+            "DataType": "Float32"
+          },
+          "SensorInfo": {
+            "DisplayName": "Temperature Sensor",
+            "Description": "Main temperature reading",
+            "Schema": "double"
+          },
+          "Report": {
+            "Enabled": true,
+            "Interval": 1000,
+            "Unit": "celsius"
+          },
+          "Record": {
+            "Enabled": false
+          }
+        }
+      ]
+    }
   }
 }

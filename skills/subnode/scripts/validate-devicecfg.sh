@@ -87,8 +87,13 @@ done <<< "$SENSORS"
 echo "[4/5] Checking for register address overlaps..."
 OVERLAP_FOUND=0
 for DEV in $(jq -r '.DeviceConfigs // {} | keys[]' "$CFG" 2>/dev/null); do
+    # The reserved 'hb' heartbeat (SensorGroup SYS, empty Parameters) is never polled
+    # and carries no register, so it must be excluded from register-overlap detection.
     ADDRS=$(jq -r "
       .DeviceConfigs[\"$DEV\"].Sensors // [] | .[] |
+      select((.Name | ascii_downcase) != \"hb\") |
+      select(.SensorGroup != \"SYS\") |
+      select(.Parameters | has(\"RegisterAddress\")) |
       \"\(.Parameters.RegisterType // \"HoldingRegister\")|\(.Parameters.RegisterAddress // 0)|\(.Parameters.RegisterCount // 1)|\(.Name)\"
     " "$CFG" 2>/dev/null | sort)
 
