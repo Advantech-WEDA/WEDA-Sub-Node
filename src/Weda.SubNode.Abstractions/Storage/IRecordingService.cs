@@ -139,8 +139,19 @@ public record RecordingResult(
     string SensorId,
     IReadOnlyList<RecordingMeasureResult> Measures);
 
+/// <summary>
+/// A run of recorded values on one slot grid.
+/// </summary>
+/// <param name="Interval">Recording interval in milliseconds.</param>
+/// <param name="StartTimeStamp">Unix timestamp in milliseconds of the first value.</param>
+/// <param name="SchemaType">Data type of the values.</param>
+/// <param name="Values">
+/// One entry per slot: the value at index <c>i</c> was recorded at
+/// <c>StartTimeStamp + i * Interval</c>. <c>null</c> marks a slot with no recording, such as a
+/// failed read. The first and last entries are never <c>null</c>.
+/// </param>
 public record RecordingMeasureResult(
     int Interval,
     long StartTimeStamp,
     SchemaType SchemaType,
-    IReadOnlyList<object> Values);
+    IReadOnlyList<object?> Values);
