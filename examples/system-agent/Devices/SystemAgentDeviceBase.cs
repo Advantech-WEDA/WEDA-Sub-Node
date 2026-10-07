@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using SystemAgentExample.Communication;
 using SystemAgentExample.Models;
 using SystemAgentExample.Protocols;
+using Weda.SubNode.Abstractions.Cloud.Clients.DeviceManagement.Contracts;
+using Weda.SubNode.Abstractions.Configuration;
 using Weda.SubNode.Abstractions.Context;
 using Weda.SubNode.Abstractions.Devices;
 using Weda.SubNode.Abstractions.Devices.Capabilities;
@@ -41,9 +43,42 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase,
         // Retained so runtime configuration updates can re-discover resources and re-resolve.
         _localCommunication = communication;
 
+        // The reported devicecfg echoes the raw file; see HeartbeatConfigCompat.
+        if (Configuration.RawDeviceCfgJson is { } rawDeviceCfg
+            && HeartbeatConfigCompat.TryApplyDefaults(rawDeviceCfg, Configuration.DeviceName, out var patched))
+        {
+            Configuration.RawDeviceCfgJson = patched;
+            _logger.LogInformation(
+                "devicecfg.json declares the '{Sensor}' heartbeat incompletely or not at all; reporting it with the defaults filled in",
+                Heartbeat.SensorName);
+        }
+
         _logger.LogInformation(
             "SystemAgentDevice initialized ({SensorCount} sensors after resolution)",
             configuration.Sensors.Count);
+    }
+
+    /// <summary>
+    /// Completes the heartbeat in the desired configuration, then runs the SDK validation.
+    /// </summary>
+    /// <remarks>
+    /// A config reset re-validates devicecfg.json as written. A wizard-installed file declares
+    /// <c>hb</c> without a schema, which the SDK validator refuses, and a file that declares no
+    /// <c>hb</c> would remove the running heartbeat. See <see cref="HeartbeatConfigCompat"/>.
+    /// </remarks>
+    /// <param name="message">The configuration update message.</param>
+    /// <returns>The SDK validation result.</returns>
+    protected override ConfigurationValidationResult ValidateConfigurationUpdate(
+        SubNodeConfigUpdateMessage message)
+    {
+        if (HeartbeatConfigCompat.ApplyDefaults(message, Configuration.DeviceName))
+        {
+            _logger.LogDebug(
+                "Completed the '{Sensor}' heartbeat with its defaults in the desired configuration",
+                Heartbeat.SensorName);
+        }
+
+        return base.ValidateConfigurationUpdate(message);
     }
 
     /// <summary>
