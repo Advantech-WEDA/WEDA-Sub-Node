@@ -15,6 +15,8 @@ namespace Weda.SubNode.Core.Storage;
 
 public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
 {
+    private const long MillisecondsPerDay = 86_400_000;
+
     private readonly ILogger<RecordingService> _logger;
     private readonly IRecordStorage _storage;
     private readonly IDeviceRegistry _deviceRegistry;
@@ -295,14 +297,7 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
             foreach (var interval in intervals)
             {
                 var data = await _storage.ReadAsync(sensorId, interval, start, end, cancellationToken);
-                if (data.Count == 0)
-                    continue;
-
-                measures.Add(new RecordingMeasureResult(
-                    Interval: interval,
-                    StartTimeStamp: data[0].Timestamp,
-                    SchemaType: data[0].SchemaType,
-                    Values: data.Select(d => d.Value).ToList()));
+                measures.AddRange(ToMeasures(interval, data));
             }
 
             return new RecordingResult(sensorId, measures);
@@ -412,6 +407,63 @@ public class RecordingService : IRecordingService, IAsyncDisposable, IDisposable
         SetEnabled(snapshot.Enabled);
         UpdateBatchSettings(snapshot.BatchEnabled, snapshot.BatchMaxSamples);
         UpdateStorageSettings(snapshot.StorageSettings);
+    }
+
+    /// <summary>
+    /// Lays recorded points out on their slot grid, so that a value's position in
+    /// <see cref="RecordingMeasureResult.Values"/> is its distance from the start in intervals.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Storage returns only the slots that hold a sample. Every consumer rebuilds timestamps as
+    /// <c>StartTimeStamp + index * Interval</c>, so a slot whose read failed must keep its place
+    /// as <c>null</c>: dropping it moves every later value one interval earlier.
+    /// </para>
+    /// <para>
+    /// A new measure starts instead when the next point is a day or more away, or is off the
+    /// current grid (an interval that does not divide a day restarts its grid at midnight). A gap
+    /// of a day or more can cover days with no recording file at all; filling it would allocate
+    /// more nulls than the files on disk hold slots.
+    /// </para>
+    /// </remarks>
+    /// <param name="interval">Recording interval in milliseconds.</param>
+    /// <param name="data">The points read for that interval.</param>
+    /// <returns>One measure per run of points that share a slot grid; none when there is no data.</returns>
+    private static IEnumerable<RecordingMeasureResult> ToMeasures(int interval, IReadOnlyList<RecordingDataPoint> data)
+    {
+        // Storage concatenates one file per day and schema, so the points are not guaranteed
+        // to arrive in time order.
+        var points = data.OrderBy(p => p.Timestamp).ToList();
+        var runStart = 0;
+
+        for (var i = 1; i <= points.Count; i++)
+        {
+            if (i < points.Count)
+            {
+                var step = points[i].Timestamp - points[i - 1].Timestamp;
+                if (step < MillisecondsPerDay && step % interval == 0)
+                    continue;
+            }
+
+            yield return ToMeasure(interval, points, runStart, i);
+            runStart = i;
+        }
+    }
+
+    /// <summary>
+    /// Builds one measure from <c>points[from..to)</c>, with <c>null</c> in every empty slot.
+    /// </summary>
+    private static RecordingMeasureResult ToMeasure(int interval, List<RecordingDataPoint> points, int from, int to)
+    {
+        var first = points[from];
+        var values = new object?[(points[to - 1].Timestamp - first.Timestamp) / interval + 1];
+
+        for (var i = from; i < to; i++)
+        {
+            values[(points[i].Timestamp - first.Timestamp) / interval] = points[i].Value;
+        }
+
+        return new RecordingMeasureResult(interval, first.Timestamp, first.SchemaType, values);
     }
 
     private static long GetStartOfDay(long timestamp)
