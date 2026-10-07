@@ -384,4 +384,114 @@ public class RecordingServiceTests : IDisposable
     }
 
     #endregion
+
+    #region GetRecordingsAsync Gap Tests
+
+    private static long StartOfUtcDay(int daysAgo)
+        => new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-daysAgo), TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+    private static object SampleValue(SchemaType schemaType, int n) => schemaType switch
+    {
+        SchemaType.Integer => n,
+        SchemaType.Long => (long)n,
+        SchemaType.Boolean => n % 2 == 0,
+        _ => (double)n
+    };
+
+    private Task WriteSlotAsync(string sensorId, int interval, SchemaType schemaType, long timestamp, object value)
+        => _storage.WriteAsync(sensorId, interval, schemaType, new RecordingDataPoint(timestamp, value, schemaType));
+
+    [Theory]
+    [InlineData(SchemaType.Double)]
+    [InlineData(SchemaType.Integer)]
+    [InlineData(SchemaType.Long)]
+    [InlineData(SchemaType.Boolean)]
+    public async Task GetRecordingsAsync_MissedRead_KeepsLaterValuesOnTheirSlots(SchemaType schemaType)
+    {
+        // Arrange - Reads land in slots 2, 3 and 5; the read for slot 4 failed and left it empty.
+        // Slots 0-1 and everything after 5 are empty too.
+        const int interval = 5000;
+        var sensorId = TestSensorId($"sensor-gap-{schemaType}");
+        var day = StartOfUtcDay(daysAgo: 1);
+        foreach (var slot in new[] { 2, 3, 5 })
+        {
+            await WriteSlotAsync(sensorId, interval, schemaType, day + slot * interval, SampleValue(schemaType, slot));
+        }
+
+        // Act
+        var result = await _service.GetRecordingsAsync(
+            sensorId,
+            DateTimeOffset.FromUnixTimeMilliseconds(day),
+            DateTimeOffset.FromUnixTimeMilliseconds(day).AddHours(1));
+
+        // Assert - Consumers rebuild timestamps as StartTimeStamp + index * Interval, so the missed
+        // read must keep its place as null. Dropping it moved slot 5's value onto slot 4.
+        // Leading and trailing empty slots are not padded.
+        result.IsError.ShouldBeFalse();
+        var measure = result.Value.Measures.ShouldHaveSingleItem();
+        measure.Interval.ShouldBe(interval);
+        measure.SchemaType.ShouldBe(schemaType);
+        measure.StartTimeStamp.ShouldBe(day + 2 * interval);
+        measure.Values.ShouldBe([
+            SampleValue(schemaType, 2),
+            SampleValue(schemaType, 3),
+            null,
+            SampleValue(schemaType, 5)]);
+    }
+
+    [Fact]
+    public async Task GetRecordingsAsync_GapOfADayOrMore_StartsNewMeasure()
+    {
+        // Arrange - One reading three days ago, the next one yesterday: nothing was recorded in
+        // between, and the day in the middle has no recording file at all.
+        const int interval = 60000;
+        var sensorId = TestSensorId("sensor-outage");
+        var firstDay = StartOfUtcDay(daysAgo: 3);
+        var lastDay = StartOfUtcDay(daysAgo: 1);
+        await WriteSlotAsync(sensorId, interval, SchemaType.Double, firstDay, 1.0);
+        await WriteSlotAsync(sensorId, interval, SchemaType.Double, lastDay, 2.0);
+
+        // Act
+        var result = await _service.GetRecordingsAsync(
+            sensorId,
+            DateTimeOffset.FromUnixTimeMilliseconds(firstDay),
+            DateTimeOffset.FromUnixTimeMilliseconds(lastDay).AddHours(1));
+
+        // Assert - Each side of the outage is its own measure, starting on its own timestamp,
+        // rather than two days of nulls between them.
+        result.IsError.ShouldBeFalse();
+        result.Value.Measures.Count.ShouldBe(2);
+        result.Value.Measures[0].StartTimeStamp.ShouldBe(firstDay);
+        result.Value.Measures[0].Values.ShouldBe([1.0]);
+        result.Value.Measures[1].StartTimeStamp.ShouldBe(lastDay);
+        result.Value.Measures[1].Values.ShouldBe([2.0]);
+    }
+
+    [Fact]
+    public async Task GetRecordingsAsync_IntervalNotDividingADay_StartsNewMeasureAtMidnight()
+    {
+        // Arrange - 7 s does not divide a day, so each day's slot grid restarts at midnight:
+        // the last slot of one day and the first slot of the next are 13 s apart, not 7 s.
+        const int interval = 7000;
+        var sensorId = TestSensorId("sensor-off-grid");
+        var firstDay = StartOfUtcDay(daysAgo: 2);
+        var nextDay = StartOfUtcDay(daysAgo: 1);
+        var lastSlotOfFirstDay = firstDay + (86_400_000 / interval - 1) * interval;
+        await WriteSlotAsync(sensorId, interval, SchemaType.Double, lastSlotOfFirstDay, 1.0);
+        await WriteSlotAsync(sensorId, interval, SchemaType.Double, nextDay, 2.0);
+
+        // Act
+        var result = await _service.GetRecordingsAsync(
+            sensorId,
+            DateTimeOffset.FromUnixTimeMilliseconds(firstDay),
+            DateTimeOffset.FromUnixTimeMilliseconds(nextDay).AddHours(1));
+
+        // Assert - No single StartTimeStamp + index * Interval can reach both, so they are split.
+        result.IsError.ShouldBeFalse();
+        result.Value.Measures.Count.ShouldBe(2);
+        result.Value.Measures[0].StartTimeStamp.ShouldBe(lastSlotOfFirstDay);
+        result.Value.Measures[1].StartTimeStamp.ShouldBe(nextDay);
+    }
+
+    #endregion
 }
