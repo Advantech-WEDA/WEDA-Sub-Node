@@ -40,6 +40,7 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - **MIME 型別的 recording 永遠不會過期。** `DynamicRecordStorage.CleanupAsync` 存在但無人呼叫,已記錄的 JSON 與影像因此無上限累積。掃描現在會以相同 cutoff 套用到兩種儲存。
 - **單一無法刪除的檔案會中止整趟清理。** `BinaryRecordStorage.CleanupAsync` 直接呼叫 `File.Delete` 而未防護,唯一的例外處理在 timer callback 最外層,因此一個被鎖定或權限不足的檔案會讓其後所有 sensor 都沒被掃到。現在改為逐檔記錄失敗、計入 `RecordingCleanupResult.FilesFailed`,並繼續掃完。
 - `DynamicRecordStorage` 以未解析的相對路徑建構,而 `BinaryRecordStorage` 對同一設定會經過 `PathHelper` 解析,導致在容器外兩者可能寫到不同目錄。現在兩者解析方式一致。
+- **Heartbeat 在其 sensor 或所屬裝置重新啟用後會恢復。** `HeartbeatHostedService` 只在啟動時解析一次 `hb` sensor,第一次發現它被停用就永久停止;因此把所屬裝置關閉再開啟(例如透過 telemetry-configs)後,健康的 SubNode 不再送出 heartbeat,平台顯示 `Disconnected`,直到程序重啟。啟動時 sensor 就是停用狀態、或尚未宣告 sensor 的 SubNode,則永遠不會開始送 heartbeat。新的 `HeartbeatLoop` 每一輪都重新讀取設定 — 未送 heartbeat 時每秒一次,每次送出前也會檢查 — 因此 sensor 一旦啟用,約一秒內就會恢復;它也會跟隨雲端更新重建的 sensor,並套用變更後的 interval。恢復時以 `Information` 記錄 `liveness reporting resumed`;已宣告但被停用的 sensor 現在會如實回報為停用,而非「找不到」。裝置更新期間讀取設定失敗會記錄並重試,不再讓 heartbeat 就此終止。
 
 ### 安裝與升級說明
 - 若你的裝置會在執行期變更自身設定(sensor 重新解析、calibration 寫入、`RawDeviceCfgJson` 更新),且原本仰賴舊的 60 秒週期 tick 來傳播,請在這些變更點呼叫 `ISubNodeManager.TriggerConfigSync()` — 在 24 小時預設下,未觸發的本地變更最多可能延遲一天才上雲。
