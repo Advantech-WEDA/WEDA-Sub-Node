@@ -110,7 +110,8 @@ leave a perfectly healthy SubNode reading as `Disconnected`.
 
 ### Confirming it is running
 
-Two lines are logged once per process at **Debug**:
+Two lines are logged at **Debug** each time the heartbeat starts — at startup, and again
+whenever it resumes after being disabled:
 
 ```
 [DBG] SubNode heartbeat ARMED from sensor 'hb' (interval 60000 ms)
@@ -136,7 +137,15 @@ The **failure** directions stay visible at the default level. If no heartbeat is
       publishes no liveness signal and the platform will read it as Disconnected.
 ```
 
-That one is a warning on purpose: a SubNode publishing no liveness signal reads as
+If one is declared but disabled — its `Report.Enabled`, or the device that declares it, is off:
+
+```
+[WRN] SubNode heartbeat is DISABLED: sensor 'hb' is declared but disabled by configuration
+      (its Report.Enabled, or the device that declares it, is off). The platform will read
+      this SubNode as Disconnected until it is enabled.
+```
+
+Both are warnings on purpose: a SubNode publishing no liveness signal reads as
 `Disconnected` with nothing else on the device indicating why, and heartbeat silence is
 otherwise indistinguishable from a dead node.
 
@@ -230,7 +239,15 @@ reason, so the cause is visible in device logs:
 
 ```
 [WRN] Heartbeat sensor 'hb' was disabled by configuration; liveness reporting has
-      stopped and the platform will read this SubNode as Disconnected
+      stopped and the platform will read this SubNode as Disconnected until it is
+      enabled again
+```
+
+Enabling it again — or declaring it in a later configuration update — resumes the beat within
+about a second, with no restart. The first beat goes out at once, and the resume is logged:
+
+```
+[INF] Heartbeat sensor 'hb' is enabled; liveness reporting resumed (interval 60000 ms)
 ```
 
 The platform is expected to filter the heartbeat out of the customer-facing telemetry-configs
@@ -264,7 +281,8 @@ Leave `Interval` at `60000` unless you have agreed a different `T` with the plat
 |---------|--------------|
 | No beats at all | No device declares a sensor named `hb`. Look for the `heartbeat is DISABLED` warning in device logs |
 | `ARMED` logged but never `CONFIRMED` (at `Debug`) | The uplink is rejecting the beat. Check the WedaNode agent log for telemetry validation errors, and confirm nothing added metadata to the measure |
-| Beats stopped, no device fault | The sensor was disabled — check device logs for the warning above, and whether a cloud config update changed `Report.Enabled` |
+| Beats stopped, no device fault | The sensor was disabled — check device logs for the warning above, and whether a cloud config update changed `Report.Enabled` or disabled the device |
+| Beats did not resume after re-enabling the sensor or its device | The SubNode runs an SDK build from before the heartbeat followed configuration changes; those stop it until the process restarts. Upgrade, or restart the SubNode |
 | `Disconnected` right after start | Normal until the SubNode completes cloud registration; the first beat follows immediately after |
 | Beating faster than configured | `Interval` was below the 1000 ms floor and was clamped; a warning names the effective value |
 | Cloud cannot resolve the heartbeat's DTMI | The SubNode is on an SDK build predating `refModelsMap` support; the Interface is not in the uploaded catalog |
