@@ -1,7 +1,11 @@
+using Microsoft.Extensions.Configuration;
+
 using Serilog;
 
 using SystemAgentExample;
+using SystemAgentExample.Devices;
 
+using Weda.SubNode.Abstractions.Telemetry;
 using Weda.SubNode.Host;
 
 Console.WriteLine("===========================================");
@@ -26,7 +30,20 @@ try
 
     // Step 3: Register LocalSystemAgentDevice
     // Note: Device configuration validation happens in ValidateConfigurationUpdate override
-    builder.AddDevice<LocalSystemAgentDevice>("SystemAgentDeviceConfig");
+    const string deviceConfigKey = "SystemAgentDeviceConfig";
+
+    // A devicecfg.json that declares no heartbeat gets the default one, added before the
+    // device is bound so the SDK treats it as declared; see HeartbeatConfigCompat.
+    var heartbeatDefaults = HeartbeatConfigCompat.DefaultSensorSettings(builder.Configuration, deviceConfigKey);
+    if (heartbeatDefaults != null)
+    {
+        builder.Configuration.AddInMemoryCollection(heartbeatDefaults);
+        Console.WriteLine(
+            $"[INFO] devicecfg.json declares no '{Heartbeat.SensorName}' sensor; " +
+            $"using the default heartbeat (every {Heartbeat.DefaultIntervalMilliseconds} ms)");
+    }
+
+    builder.AddDevice<LocalSystemAgentDevice>(deviceConfigKey);
 
     // Step 4: Build and run the application
     var app = builder.Build();
