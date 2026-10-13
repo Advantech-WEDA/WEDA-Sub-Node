@@ -23,4 +23,8 @@
     <PackageReference Include="Serilog.Sinks.File" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Weda.SubNode.Core.Tests" />
+  </ItemGroup>
+
 </Project>
