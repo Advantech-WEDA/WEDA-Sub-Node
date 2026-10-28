@@ -1,5 +1,6 @@
 # Changelog
 
+- **system-agent `cpu_usage` reports current usage, not the average since boot.** It divided cumulative `/proc/stat` counters from a single read, so after a day of uptime the value barely moved under full load. It is now the share of non-idle time over the window between two samples of the aggregate `cpu` line (which also survives CPU hot-plug, unlike the per-core sum it replaced), with iowait counted as idle. A failed read now reaches the retry policy and marks the cpu metrics as failed instead of publishing `0`; platforms without a usage source (Windows, macOS) publish nothing instead of a constant `0`. Load averages are parsed culture-invariantly.
 All notable changes to the Weda SubNode SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

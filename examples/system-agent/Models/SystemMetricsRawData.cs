@@ -49,71 +49,20 @@ public class HealthStatusMetrics
 }
 
 /// <summary>
-/// CPU metrics per core.
-/// </summary>
-public class CpuCoreMetrics
-{
-    /// <summary>
-    /// CPU core number (0-based).
-    /// </summary>
-    public int CoreNumber { get; set; }
-
-    /// <summary>
-    /// Time spent in user mode (seconds).
-    /// </summary>
-    public double SecondsUser { get; set; }
-
-    /// <summary>
-    /// Time spent in nice priority (seconds).
-    /// </summary>
-    public double SecondsNice { get; set; }
-
-    /// <summary>
-    /// Time spent in system/kernel mode (seconds).
-    /// </summary>
-    public double SecondsSystem { get; set; }
-
-    /// <summary>
-    /// Time spent idle (seconds).
-    /// </summary>
-    public double SecondsIdle { get; set; }
-
-    /// <summary>
-    /// Time spent waiting for I/O (seconds).
-    /// </summary>
-    public double SecondsIowait { get; set; }
-
-    /// <summary>
-    /// Time spent handling hardware IRQs (seconds).
-    /// </summary>
-    public double SecondsIrq { get; set; }
-
-    /// <summary>
-    /// Time spent handling software IRQs (seconds).
-    /// </summary>
-    public double SecondsSoftirq { get; set; }
-
-    /// <summary>
-    /// Time stolen by other VMs (seconds).
-    /// </summary>
-    public double SecondsSteal { get; set; }
-
-    /// <summary>
-    /// Total CPU time (sum of all modes).
-    /// </summary>
-    public double SecondsTotal => SecondsUser + SecondsNice + SecondsSystem + SecondsIdle +
-                                   SecondsIowait + SecondsIrq + SecondsSoftirq + SecondsSteal;
-}
-
-/// <summary>
 /// CPU metrics from the system.
 /// </summary>
 public class CpuMetrics
 {
     /// <summary>
-    /// Per-core CPU metrics.
+    /// Overall CPU usage in percent (0-100) over the window since the previous
+    /// collection, or <c>null</c> when no valid window exists yet or the platform
+    /// has no usage source.
     /// </summary>
-    public List<CpuCoreMetrics> Cores { get; set; } = [];
+    /// <remarks>
+    /// Nullable for the same reason as <see cref="GpuMetrics.Utilization"/>:
+    /// the parser skips a null metric instead of publishing a made-up 0.
+    /// </remarks>
+    public double? UsagePercent { get; set; }
 
     /// <summary>
     /// 1-minute load average.

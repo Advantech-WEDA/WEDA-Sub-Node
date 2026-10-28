@@ -199,34 +199,13 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     {
         return metricName.ToLowerInvariant() switch
         {
-            "usage" => CalculateCpuUsage(cpu),
+            "usage" => cpu.UsagePercent,
             "load1" => cpu.Load1,
             "load5" => cpu.Load5,
             "load15" => cpu.Load15,
             "context_switches" => cpu.ContextSwitchesTotal,
             _ => null
         };
-    }
-
-    private double CalculateCpuUsage(CpuMetrics cpu)
-    {
-        if (cpu.Cores.Count == 0) return 0;
-
-        // Calculate overall CPU usage from all cores
-        double totalIdle = 0;
-        double totalBusy = 0;
-
-        foreach (var core in cpu.Cores)
-        {
-            totalIdle += core.SecondsIdle;
-            totalBusy += core.SecondsUser + core.SecondsSystem + core.SecondsNice +
-                        core.SecondsIowait + core.SecondsIrq + core.SecondsSoftirq + core.SecondsSteal;
-        }
-
-        var total = totalIdle + totalBusy;
-        if (total == 0) return 0;
-
-        return Math.Round((totalBusy / total) * 100, 2);
     }
 
     private object? GetMemoryMetric(RamMetrics ram, string metricName)
