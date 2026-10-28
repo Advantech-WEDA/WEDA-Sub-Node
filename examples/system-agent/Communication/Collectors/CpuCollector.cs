@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 
 using Microsoft.Extensions.Logging;
 
@@ -8,87 +9,93 @@ namespace SystemAgentExample.Communication.Collectors;
 
 public class CpuCollector
 {
+    private const string ProcStatPath = "/proc/stat";
+
+    /// <summary>
+    /// Shortest window a usage figure is computed over. Reads closer together than
+    /// this repeat the last figure (see <see cref="CpuUsageTracker"/>).
+    /// </summary>
+    private static readonly TimeSpan MinimumUsageWindow = TimeSpan.FromSeconds(1);
+
     private readonly ILogger _logger;
+    private readonly CpuUsageTracker _usageTracker = new(MinimumUsageWindow);
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly object _usageLock = new();
 
     public CpuCollector(ILogger logger)
     {
         _logger = logger;
+        PrimeUsageBaseline();
     }
 
+    /// <summary>
+    /// Collects CPU usage, load averages and context switches.
+    /// </summary>
+    /// <remarks>
+    /// On Linux a failure to read or parse /proc/stat or /proc/loadavg is thrown, so
+    /// the caller's retry policy runs and the cpu metrics are reported as failed
+    /// rather than as zeros. Platforms without a usage source leave
+    /// <see cref="CpuMetrics.UsagePercent"/> null.
+    /// </remarks>
     public async Task<CpuMetrics> CollectCpuMetricsAsync(CancellationToken ct)
     {
         var metrics = new CpuMetrics();
 
-        try
+        if (OperatingSystem.IsLinux())
         {
-            if (OperatingSystem.IsLinux())
-            {
-                var statContent = await File.ReadAllTextAsync("/proc/stat", ct);
-                metrics.Cores = ParseLinuxCpuStats(statContent);
-                metrics.ContextSwitchesTotal = ParseContextSwitches(statContent);
+            var statContent = await File.ReadAllTextAsync(ProcStatPath, ct);
+            var sample = CpuTimes.ParseAggregate(statContent)
+                ?? throw new InvalidDataException($"{ProcStatPath} has no parsable aggregate 'cpu' line");
+            metrics.UsagePercent = UpdateUsage(sample);
+            metrics.ContextSwitchesTotal = ParseContextSwitches(statContent);
 
-                var loadContent = await File.ReadAllTextAsync("/proc/loadavg", ct);
-                var loadParts = loadContent.Split(' ');
-                if (loadParts.Length >= 3)
-                {
-                    metrics.Load1 = double.Parse(loadParts[0]);
-                    metrics.Load5 = double.Parse(loadParts[1]);
-                    metrics.Load15 = double.Parse(loadParts[2]);
-                }
-            }
-            else if (OperatingSystem.IsMacOS())
+            var loadContent = await File.ReadAllTextAsync("/proc/loadavg", ct);
+            var loadParts = loadContent.Split(' ');
+            if (loadParts.Length >= 3)
             {
-                metrics.Cores = GetMacOSCpuCores();
-                var loadAvg = GetMacOSLoadAverage();
-                metrics.Load1 = loadAvg.load1;
-                metrics.Load5 = loadAvg.load5;
-                metrics.Load15 = loadAvg.load15;
-            }
-            else if (OperatingSystem.IsWindows())
-            {
-                metrics.Cores = GetWindowsCpuCores();
+                metrics.Load1 = double.Parse(loadParts[0], CultureInfo.InvariantCulture);
+                metrics.Load5 = double.Parse(loadParts[1], CultureInfo.InvariantCulture);
+                metrics.Load15 = double.Parse(loadParts[2], CultureInfo.InvariantCulture);
             }
         }
-        catch (Exception ex)
+        else if (OperatingSystem.IsMacOS())
         {
-            _logger.LogWarning(ex, "Failed to collect CPU metrics");
+            var loadAvg = GetMacOSLoadAverage();
+            metrics.Load1 = loadAvg.load1;
+            metrics.Load5 = loadAvg.load5;
+            metrics.Load15 = loadAvg.load15;
         }
 
         return metrics;
     }
 
-    private static List<CpuCoreMetrics> ParseLinuxCpuStats(string statContent)
+    /// <summary>
+    /// Takes the first usage sample at start-up, so the first collection already
+    /// covers a full window instead of reporting nothing.
+    /// </summary>
+    private void PrimeUsageBaseline()
     {
-        var cores = new List<CpuCoreMetrics>();
-        var lines = statContent.Split('\n');
+        if (!OperatingSystem.IsLinux())
+            return;
 
-        foreach (var line in lines)
+        try
         {
-            if (line.StartsWith("cpu") && line.Length > 3 && char.IsDigit(line[3]))
-            {
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 8)
-                {
-                    var coreNum = int.Parse(parts[0][3..]);
-                    const double userHz = 100.0;
-
-                    cores.Add(new CpuCoreMetrics
-                    {
-                        CoreNumber = coreNum,
-                        SecondsUser = long.Parse(parts[1]) / userHz,
-                        SecondsNice = long.Parse(parts[2]) / userHz,
-                        SecondsSystem = long.Parse(parts[3]) / userHz,
-                        SecondsIdle = long.Parse(parts[4]) / userHz,
-                        SecondsIowait = parts.Length > 5 ? long.Parse(parts[5]) / userHz : 0,
-                        SecondsIrq = parts.Length > 6 ? long.Parse(parts[6]) / userHz : 0,
-                        SecondsSoftirq = parts.Length > 7 ? long.Parse(parts[7]) / userHz : 0,
-                        SecondsSteal = parts.Length > 8 ? long.Parse(parts[8]) / userHz : 0
-                    });
-                }
-            }
+            if (CpuTimes.ParseAggregate(File.ReadAllText(ProcStatPath)) is { } sample)
+                UpdateUsage(sample);
         }
+        catch (Exception ex)
+        {
+            // Not fatal: the first collection becomes the baseline instead
+            _logger.LogWarning(ex, "Failed to take the initial CPU usage sample from {Path}", ProcStatPath);
+        }
+    }
 
-        return cores;
+    private double? UpdateUsage(CpuTimes sample)
+    {
+        lock (_usageLock)
+        {
+            return _usageTracker.Update(sample, _clock.Elapsed);
+        }
     }
 
     private static long ParseContextSwitches(string statContent)
@@ -106,19 +113,6 @@ public class CpuCollector
             }
         }
         return 0;
-    }
-
-    private static List<CpuCoreMetrics> GetMacOSCpuCores()
-    {
-        var cores = new List<CpuCoreMetrics>();
-        var coreCount = Environment.ProcessorCount;
-
-        for (int i = 0; i < coreCount; i++)
-        {
-            cores.Add(new CpuCoreMetrics { CoreNumber = i });
-        }
-
-        return cores;
     }
 
     private (double load1, double load5, double load15) GetMacOSLoadAverage()
@@ -143,9 +137,9 @@ public class CpuCollector
                 if (parts.Length >= 3)
                 {
                     return (
-                        double.Parse(parts[0]),
-                        double.Parse(parts[1]),
-                        double.Parse(parts[2])
+                        double.Parse(parts[0], CultureInfo.InvariantCulture),
+                        double.Parse(parts[1], CultureInfo.InvariantCulture),
+                        double.Parse(parts[2], CultureInfo.InvariantCulture)
                     );
                 }
             }
@@ -156,18 +150,5 @@ public class CpuCollector
         }
 
         return (0, 0, 0);
-    }
-
-    private static List<CpuCoreMetrics> GetWindowsCpuCores()
-    {
-        var cores = new List<CpuCoreMetrics>();
-        var coreCount = Environment.ProcessorCount;
-
-        for (int i = 0; i < coreCount; i++)
-        {
-            cores.Add(new CpuCoreMetrics { CoreNumber = i });
-        }
-
-        return cores;
     }
 }

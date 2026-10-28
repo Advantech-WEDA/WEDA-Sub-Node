@@ -72,6 +72,8 @@ The CPU MetricType does **not** support Explicit list / Auto-detect mode. The sc
 | `load15` | `double` | — |
 | `context_switches` | `long` | count |
 
+> **How `usage` is computed**: the share of non-idle CPU time across all cores over the window since the previous CPU collection, from the aggregate `cpu` line of `/proc/stat` — not the average since boot. iowait counts as idle, steal as busy. The agent takes a baseline sample at start-up; a collection less than 1 s after the previous one repeats the last value, except for the first collection, which measures whatever window has elapsed since start-up. When no value can be computed — the read failed, the counters went backwards, or the platform has no usage source (Windows, macOS) — nothing is published for the sensor rather than `0`.
+
 ---
 
 ## Network Metric (v1.0 & v1.1)

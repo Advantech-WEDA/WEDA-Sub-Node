@@ -24,6 +24,12 @@ public class TemperatureMetricParameters
     /// </summary>
     [JsonPropertyName("sources")]
     public List<string>? Sources { get; init; }
+
+    /// <summary>
+    /// The single source this sensor reads. Set by the runtime on each per-source sensor.
+    /// </summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; init; }
 }
 
 public class TemperatureMetricSensor : IConfigurableSensor<TemperatureMetricParameters>

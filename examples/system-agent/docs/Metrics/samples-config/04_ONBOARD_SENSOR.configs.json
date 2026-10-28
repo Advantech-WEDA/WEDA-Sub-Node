@@ -151,5 +151,106 @@
     },
     "expect": "valid",
     "reason": "single-telemetry fanspeed sensor"
+  },
+  {
+    "Name": "voltage_auto",
+    "SensorGroup": "PWR",
+    "Parameters": {
+      "MetricType": "voltage",
+      "MetricName": "voltage"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 auto-detect (expand per discovered rail)",
+      "DisplayName": "Onboard Voltage"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- auto-detect (neither Source nor Sources set)"
+  },
+  {
+    "Name": "voltage_sources",
+    "SensorGroup": "PWR",
+    "Parameters": {
+      "MetricType": "voltage",
+      "MetricName": "voltage",
+      "Sources": ["Vcore", "12V"]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 explicit rail list",
+      "DisplayName": "Onboard Voltage"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- explicit Sources list"
+  },
+  {
+    "Name": "voltage_source",
+    "SensorGroup": "PWR",
+    "Parameters": {
+      "MetricType": "voltage",
+      "MetricName": "voltage",
+      "Source": "CMOS Battery"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 single rail",
+      "DisplayName": "CMOS Battery"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- bound to one rail via Source"
+  },
+  {
+    "Name": "voltage_v10_with_source",
+    "SensorGroup": "PWR",
+    "Parameters": {
+      "MetricType": "voltage",
+      "MetricName": "Vcore",
+      "Source": "12V"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "...",
+      "DisplayName": "..."
+    },
+    "expect": "invalid",
+    "reason": "v1.0-compat sensor (MetricName != 'voltage') must not carry Source"
+  },
+  {
+    "Name": "fanspeed_auto",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "fanspeed",
+      "MetricName": "fanspeed"
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "v1.1 auto-detect (expand per discovered fan)",
+      "DisplayName": "Onboard Fan Speed"
+    },
+    "expect": "valid",
+    "reason": "v1.1 mode -- auto-detect (neither Source nor Sources set)"
+  },
+  {
+    "Name": "fanspeed_both_source_sources",
+    "SensorGroup": "SYS",
+    "Parameters": {
+      "MetricType": "fanspeed",
+      "MetricName": "fanspeed",
+      "Source": "CPU",
+      "Sources": ["System"]
+    },
+    "Report": { "Enabled": true, "Interval": 5000 },
+    "SensorInfo": {
+      "Schema": "double",
+      "Description": "...",
+      "DisplayName": "..."
+    },
+    "expect": "invalid",
+    "reason": "Source and Sources are mutually exclusive"
   }
 ]
