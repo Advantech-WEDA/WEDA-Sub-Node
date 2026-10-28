@@ -42,6 +42,7 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
     private readonly DeviceConfiguration _configuration;
     private readonly LocalSystemCommunication _communication;
     private readonly ILogger<SystemMetricsParser> _logger;
+    private readonly MissingValueTracker _missingValues = new();
 
     public SystemMetricsParser(
         DeviceConfiguration configuration,
@@ -158,14 +159,24 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             }
 
             var value = GetMetricValue(rawData, metricType, metricName, sensor);
-            if (value != null)
+            if (value == null)
             {
-                measures.Add(new TelemetryMeasure
+                // Warn once per outage rather than on every poll
+                if (_missingValues.MarkMissing(sensor.Name))
                 {
-                    ResourceId = sensor.ResourceId,
-                    Value = value
-                });
+                    _logger.LogWarning(
+                        "Sensor {SensorName} ({MetricType}/{MetricName}) produced no value; nothing is published for it until it does",
+                        sensor.Name, metricType, metricName);
+                }
+                continue;
             }
+
+            _missingValues.MarkPresent(sensor.Name);
+            measures.Add(new TelemetryMeasure
+            {
+                ResourceId = sensor.ResourceId,
+                Value = value
+            });
         }
 
         return measures;
@@ -185,9 +196,9 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
             SupportedDataType.Gpu => metricName != null ? GetGpuMetric(rawData.Gpu, metricName) : null,
             SupportedDataType.System => metricName != null ? GetSystemMetric(rawData.System, metricName) : null,
             SupportedDataType.Hwinfo => metricName != null ? GetHardwareInfoMetric(rawData.HardwareInfo, metricName) : null,
-            SupportedDataType.Temperature => GetTemperatureMetric(rawData.Temperature, metricName, sensor),
-            SupportedDataType.Voltage => metricName != null ? GetVoltageMetric(rawData.Voltage, metricName, sensor) : null,
-            SupportedDataType.Fanspeed => metricName != null ? GetFanSpeedMetric(rawData.FanSpeed, metricName, sensor) : null,
+            SupportedDataType.Temperature => GetOnboardMetric(rawData.Temperature?.Temperatures, SupportedDataType.Temperature, sensor),
+            SupportedDataType.Voltage => GetOnboardMetric(rawData.Voltage?.Voltages, SupportedDataType.Voltage, sensor),
+            SupportedDataType.Fanspeed => GetOnboardMetric(rawData.FanSpeed?.FanSpeeds, SupportedDataType.Fanspeed, sensor),
             SupportedDataType.Gpio => GetGpioMetric(rawData.Gpio, metricName, sensor),
             SupportedDataType.Watchdog => metricName != null ? GetWatchdogMetric(rawData.Watchdog, metricName) : null,
             SupportedDataType.Thermalprotection => metricName != null ? GetThermalProtectionMetric(rawData.ThermalProtection, metricName) : null,
@@ -347,67 +358,13 @@ public class SystemMetricsParser : IRequestResponseProtocolParser
         };
     }
 
-    private object? GetTemperatureMetric(TemperatureMetrics? metrics, string? metricName, Sensor sensor)
-    {
-        if (metrics == null || metrics.Temperatures == null) return null;
-
-        // v1.1: use Source parameter as the sensor source name
-        // v1.0 fallback: use MetricName as the sensor source name
-        var sourceName = GetParameterValue(sensor, "Source") ?? metricName;
-
-        if (string.IsNullOrEmpty(sourceName))
-        {
-            _logger.LogWarning("Sensor '{Name}' missing Source/MetricName for temperature, skipping", sensor.Name);
-            return null;
-        }
-
-        // Try exact match first
-        if (metrics.Temperatures.TryGetValue(sourceName, out var temp))
-        {
-            return temp;
-        }
-
-        // Try case-insensitive match
-        var key = metrics.Temperatures.Keys
-            .FirstOrDefault(k => k.Equals(sourceName, StringComparison.OrdinalIgnoreCase));
-        if (key != null && metrics.Temperatures.TryGetValue(key, out var tempValue))
-        {
-            return tempValue;
-        }
-
-        _logger.LogDebug("Temperature sensor '{Source}' not found in collected metrics", sourceName);
-        return null;
-    }
-
-    private object? GetVoltageMetric(VoltageMetrics? metrics, string metricName, Sensor sensor)
-    {
-        if (metrics == null || metrics.Voltages == null) return null;
-
-        // Look up specific voltage by metricName, fall back to first if only one exists
-        if (metrics.Voltages.TryGetValue(metricName, out var voltage))
-            return voltage;
-
-        // If metricName is "voltage" and there's exactly one entry, return it
-        if (metricName.Equals("voltage", StringComparison.OrdinalIgnoreCase) && metrics.Voltages.Count == 1)
-            return metrics.Voltages.Values.First();
-
-        return null;
-    }
-
-    private object? GetFanSpeedMetric(FanSpeedMetrics? metrics, string metricName, Sensor sensor)
-    {
-        if (metrics == null || metrics.FanSpeeds == null) return null;
-
-        // Look up specific fan speed by metricName, fall back to first if only one exists
-        if (metrics.FanSpeeds.TryGetValue(metricName, out var fanSpeed))
-            return fanSpeed;
-
-        // If metricName is "fanspeed" and there's exactly one entry, return it
-        if (metricName.Equals("fanspeed", StringComparison.OrdinalIgnoreCase) && metrics.FanSpeeds.Count == 1)
-            return metrics.FanSpeeds.Values.First();
-
-        return null;
-    }
+    /// <summary>
+    /// Reads one onboard sensor (temperature, voltage, fan speed) from the per-source
+    /// readings; see <see cref="OnboardMetricLookup"/> for the matching rules.
+    /// </summary>
+    private static object? GetOnboardMetric(
+        IReadOnlyDictionary<string, double?>? readings, string metricType, Sensor sensor)
+        => OnboardMetricLookup.Find(readings, sensor, OnboardMetricLookup.GenericMetricName(metricType)!);
 
     private object? GetGpioMetric(GpioMetrics? metrics, string? metricName, Sensor sensor)
     {

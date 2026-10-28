@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 using Microsoft.Extensions.Logging;
 
 using SystemAgentExample.Communication;
@@ -11,7 +13,7 @@ namespace SystemAgentExample.Devices;
 /// Resolves sensor configuration mode (Bound / Explicit list / Auto-detect) and
 /// produces per-resource sensors from template sensors based on discovered system resources.
 /// </summary>
-internal static class SensorResolver
+internal static partial class SensorResolver
 {
     /// <summary>
     /// Resolves each sensor's mode (Bound / Explicit list / Auto-detect) and produces
@@ -65,7 +67,8 @@ internal static class SensorResolver
         {
             SupportedDataType.Network => !IsNetworkBound(sensor),
             SupportedDataType.Gpio => IsGpioPinStateSensor(sensor) && !IsGpioBound(sensor),
-            SupportedDataType.Temperature => !IsTemperatureBound(sensor),
+            _ when OnboardMetricLookup.GenericMetricName(metricType) is { } generic
+                => !OnboardMetricLookup.IsBound(sensor, generic),
             _ => false
         };
     }
@@ -79,18 +82,6 @@ internal static class SensorResolver
 
     /// <summary>Already bound to a specific pin.</summary>
     private static bool IsGpioBound(Sensor sensor) => GetParam(sensor, "PinId") != null;
-
-    /// <summary>
-    /// Already bound to a specific source. Includes the v1.0 compatibility rule:
-    /// a MetricName without Source/Sources means the MetricName itself acts as the source.
-    /// </summary>
-    private static bool IsTemperatureBound(Sensor sensor)
-    {
-        if (GetParam(sensor, "Source") != null)
-            return true;
-
-        return GetParam(sensor, "Sources") == null && GetParam(sensor, "MetricName") != null;
-    }
 
     /// <summary>
     /// Resolves a single sensor based on its MetricType.
@@ -109,7 +100,14 @@ internal static class SensorResolver
         {
             SupportedDataType.Network => ResolveNetwork(sensor, resources.NetworkInterfaces, existingNames, logger),
             SupportedDataType.Gpio => ResolveGpio(sensor, resources.GpioPins, existingNames, logger),
-            SupportedDataType.Temperature => ResolveTemperature(sensor, resources.TemperatureSources, existingNames, logger),
+            // Temperature clones keep the raw source in their name: renaming them would
+            // orphan data already reported under names such as temperature_CPU-therm.
+            SupportedDataType.Temperature => ResolveOnboard(
+                sensor, resources.TemperatureSources, "temperature", cleanNames: false, existingNames, logger),
+            SupportedDataType.Voltage => ResolveOnboard(
+                sensor, resources.VoltageSources, "voltage", cleanNames: true, existingNames, logger),
+            SupportedDataType.Fanspeed => ResolveOnboard(
+                sensor, resources.FanSources, "fan", cleanNames: true, existingNames, logger),
             _ => [sensor]
         };
     }
@@ -159,25 +157,43 @@ internal static class SensorResolver
         return ExpandTemplate(sensor, pins, "PinIds", "PinId", existingNames);
     }
 
-    private static List<Sensor> ResolveTemperature(
-        Sensor sensor, IReadOnlyList<string> discovered, ISet<string> existingNames, ILogger logger)
+    /// <summary>
+    /// Expands an onboard sensor template (temperature, voltage, fan speed) into one
+    /// sensor per source reported by the hardware driver, each carrying its source in
+    /// the <c>Source</c> parameter.
+    /// </summary>
+    /// <param name="cleanNames">
+    /// Replace characters a sensor name may not contain (e.g. the space in
+    /// <c>CMOS Battery</c>) when building clone names. The raw source name is kept in
+    /// <c>Source</c>, which is what readings are looked up by.
+    /// </param>
+    private static List<Sensor> ResolveOnboard(
+        Sensor sensor,
+        IReadOnlyList<string> discovered,
+        string kind,
+        bool cleanNames,
+        ISet<string> existingNames,
+        ILogger logger)
     {
-        // Already bound to a specific source, or v1.0 compat where MetricName acts as the source
-        if (IsTemperatureBound(sensor))
+        var metricType = GetParam(sensor, "MetricType");
+        if (OnboardMetricLookup.GenericMetricName(metricType) is not { } generic
+            || OnboardMetricLookup.IsBound(sensor, generic))
+        {
             return [sensor];
+        }
 
         var sources = ResolveResourceList(sensor, "Sources", discovered);
         if (sources.Count == 0)
         {
-            logger.LogWarning("No temperature sources discovered for sensor '{Name}', keeping as-is", sensor.Name);
+            logger.LogWarning("No {Kind} sources discovered for sensor '{Name}', keeping as-is", kind, sensor.Name);
             return [sensor];
         }
 
         logger.LogInformation(
-            "Resolving sensor '{Name}' into {Count} sensors for sources: {Sources}",
-            sensor.Name, sources.Count, string.Join(", ", sources));
+            "Resolving sensor '{Name}' into {Count} sensors for {Kind} sources: {Sources}",
+            sensor.Name, sources.Count, kind, string.Join(", ", sources));
 
-        return ExpandTemplate(sensor, sources, "Sources", "Source", existingNames);
+        return ExpandTemplate(sensor, sources, "Sources", "Source", existingNames, cleanNames);
     }
 
     /// <summary>
@@ -186,20 +202,23 @@ internal static class SensorResolver
     /// excluded from sampling but still uploaded in <c>deviceCapabilities.sensors[]</c>,
     /// which is exactly why the original name is kept. Clones whose names already exist
     /// in the input list are skipped: the live sensor passes through its own resolution
-    /// unchanged, so re-resolving a template+clones list never duplicates sensors.
+    /// unchanged, so re-resolving a template+clones list never duplicates sensors. A
+    /// generated name is recorded as it is produced, so two resources whose cleaned
+    /// names collide (<c>5V</c> and <c>+5V</c>) yield one sensor, not two.
     /// </summary>
     private static List<Sensor> ExpandTemplate(
         Sensor template,
         IReadOnlyList<string> resourceNames,
         string arrayParamKey,
         string singleParamKey,
-        ISet<string> existingNames)
+        ISet<string> existingNames,
+        bool cleanNames = false)
     {
         var resolved = new List<Sensor> { AsCapabilityTemplate(template) };
 
         resolved.AddRange(resourceNames
-            .Select(resource => CloneSensor(template, resource, arrayParamKey, singleParamKey))
-            .Where(clone => !existingNames.Contains(clone.Name)));
+            .Select(resource => CloneSensor(template, resource, arrayParamKey, singleParamKey, cleanNames))
+            .Where(clone => existingNames.Add(clone.Name)));
 
         return resolved;
     }
@@ -262,7 +281,7 @@ internal static class SensorResolver
     /// Creates a new sensor for a specific resource, copying config from the template.
     /// </summary>
     private static Sensor CloneSensor(
-        Sensor template, string resourceName, string arrayParamKey, string singleParamKey)
+        Sensor template, string resourceName, string arrayParamKey, string singleParamKey, bool cleanName)
     {
         var parameters = new Dictionary<string, object>(
             template.Parameters?.Where(p => p.Key != arrayParamKey)
@@ -273,7 +292,7 @@ internal static class SensorResolver
 
         return new Sensor
         {
-            Name = $"{template.Name}_{resourceName}",
+            Name = $"{template.Name}_{(cleanName ? ToNameSuffix(resourceName) : resourceName)}",
             Dtmi = template.Dtmi,
             SensorGroup = template.SensorGroup,
             SensorInfo = new SensorInfo
@@ -295,6 +314,20 @@ internal static class SensorResolver
             DeviceEnabled = template.DeviceEnabled,
         };
     }
+
+    /// <summary>
+    /// Turns a hardware source name into a sensor-name suffix that satisfies the
+    /// IoTDB identifier rule enforced by <c>SensorNameValidator</c>:
+    /// <c>CMOS Battery</c> → <c>CMOS_Battery</c>, <c>+3.3V</c> → <c>3_3V</c>.
+    /// </summary>
+    private static string ToNameSuffix(string resourceName)
+    {
+        var suffix = InvalidNameCharacters().Replace(resourceName, "_").Trim('_');
+        return suffix.Length > 0 ? suffix : "source";
+    }
+
+    [GeneratedRegex("[^A-Za-z0-9_]+")]
+    private static partial Regex InvalidNameCharacters();
 
     private static string? GetParam(Sensor sensor, string key)
     {

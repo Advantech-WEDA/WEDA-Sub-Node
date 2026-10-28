@@ -6,7 +6,7 @@
   "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:FanspeedSensor;1",
   "@type": "Interface",
   "displayName": "Fan Speed Sensor (Onboard Sensor)",
-  "description": "Validation schema for one fanspeed Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1). MetricName is a free-form non-empty string -- the onboard fan tachometer name (e.g. 'fan_in'); the fan set is platform-dependent so it is not enumerated. SensorInfo.Schema is always 'double'.",
+  "description": "Validation schema for one fanspeed Sensor entry of devicecfg.json Sensors[]. Every Property and Field is co-typed ConfigConstraint (dtmi:advantech:edgesync:validation;1). MetricName is a free-form non-empty string: 'fanspeed' for v1.1 (one sensor per discovered fan, chosen by Source / Sources), or a fan name itself for v1.0 (e.g. 'fan_in'); the fan set is platform-dependent so it is not enumerated. Source / Sources are mutually exclusive and allowed only when MetricName='fanspeed'. SensorInfo.Schema is always 'double'.",
   "schemas": [
     {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:FanspeedSensor:MetricType;1",
@@ -32,6 +32,10 @@
       "enumValues": [ { "name": "Double", "enumValue": "double", "displayName": "double" } ]
     },
     {
+      "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:FanspeedSensor:SourceList;1",
+      "@type": "Array", "displayName": "Fan List", "elementSchema": "string"
+    },
+    {
       "@id": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:FanspeedSensor:Parameters;1",
       "@type": "Object", "displayName": "Fan Speed Parameters",
       "fields": [
@@ -40,7 +44,17 @@
           "required": true, "writable": false },
         { "@type": ["Field", "ConfigConstraint"], "name": "MetricName", "displayName": "Metric Name",
           "schema": "string", "required": true, "writable": false,
-          "minLength": 1, "maxLength": 64 }
+          "minLength": 1, "maxLength": 64 },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Source", "displayName": "Fan (v1.1)",
+          "schema": "string", "required": false, "writable": false,
+          "minLength": 1, "maxLength": 64,
+          "mutexGroup": "fanSource",
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "fanspeed" } },
+        { "@type": ["Field", "ConfigConstraint"], "name": "Sources", "displayName": "Fan List (v1.1)",
+          "schema": "dtmi:advantech:EdgeSync:SystemAgent:DeviceCfg:FanspeedSensor:SourceList;1",
+          "required": false, "writable": false,
+          "mutexGroup": "fanSource", "csvStringAccepted": true,
+          "allowedOnlyWhen": { "field": "MetricName", "equals": "fanspeed" } }
       ]
     },
     {

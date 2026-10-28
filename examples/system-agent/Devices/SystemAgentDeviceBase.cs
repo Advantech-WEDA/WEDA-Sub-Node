@@ -174,10 +174,12 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase,
         var resources = communication.DiscoverAvailableResources();
 
         logger.LogInformation(
-            "Discovered resources — Network: [{Networks}], GPIO: [{Gpio}], Temperature: [{Temp}]",
+            "Discovered resources — Network: [{Networks}], GPIO: [{Gpio}], Temperature: [{Temp}], Voltage: [{Voltage}], Fan: [{Fan}]",
             string.Join(", ", resources.NetworkInterfaces),
             string.Join(", ", resources.GpioPins),
-            string.Join(", ", resources.TemperatureSources));
+            string.Join(", ", resources.TemperatureSources),
+            string.Join(", ", resources.VoltageSources),
+            string.Join(", ", resources.FanSources));
 
         // Recover array values lost during IConfiguration Dictionary<string, object> binding
         // by reading the raw IConfigurationSection children (e.g., "Sensors:0:Parameters:Interfaces:0")

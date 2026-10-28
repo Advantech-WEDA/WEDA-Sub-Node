@@ -42,6 +42,9 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - `DynamicRecordStorage` 以未解析的相對路徑建構,而 `BinaryRecordStorage` 對同一設定會經過 `PathHelper` 解析,導致在容器外兩者可能寫到不同目錄。現在兩者解析方式一致。
 - **Heartbeat 在其 sensor 或所屬裝置重新啟用後會恢復。** `HeartbeatHostedService` 只在啟動時解析一次 `hb` sensor,第一次發現它被停用就永久停止;因此把所屬裝置關閉再開啟(例如透過 telemetry-configs)後,健康的 SubNode 不再送出 heartbeat,平台顯示 `Disconnected`,直到程序重啟。啟動時 sensor 就是停用狀態、或尚未宣告 sensor 的 SubNode,則永遠不會開始送 heartbeat。新的 `HeartbeatLoop` 每一輪都重新讀取設定 — 未送 heartbeat 時每秒一次,每次送出前也會檢查 — 因此 sensor 一旦啟用,約一秒內就會恢復;它也會跟隨雲端更新重建的 sensor,並套用變更後的 interval。恢復時以 `Information` 記錄 `liveness reporting resumed`;已宣告但被停用的 sensor 現在會如實回報為停用,而非「找不到」。裝置更新期間讀取設定失敗會記錄並重試,不再讓 heartbeat 就此終止。
 - **system-agent `cpu_usage` 回報當下使用率,而非開機以來的平均值。** 原本以單次讀取的 `/proc/stat` 累計計數器相除,開機一天後即使滿載數值也幾乎不動。現在改為兩次取樣之間、總計 `cpu` 行的非閒置時間比例(總計行在 CPU 熱插拔時仍持續累加,不像原本的逐核加總),iowait 計為閒置。讀取失敗會交給重試機制並將 cpu 指標標記為失敗,不再發布 `0`;沒有使用率來源的平台(Windows、macOS)不再發布固定的 `0`。Load average 改以與文化設定無關的方式解析。
+- **在多個電壓軌或風扇的主機板上,system-agent 現在會發布電壓與風扇轉速。** 通用的 `voltage` / `fanspeed` sensor 會尋找名稱恰為 `voltage` / `fanspeed` 的來源,因此在 ARK-2250L 這類主機板上(電壓軌 `Vcore`、`5V`、`12V`、`CMOS Battery`)完全不會發布、也沒有任何 log。兩者現在比照溫度展開:通用 sensor 會依偵測到的來源各自展開為一個 sensor(`voltage_Vcore`、`voltage_CMOS_Battery`…),原始來源名稱放在新的選用參數 `Source`,並可用選用的 `Sources` 清單挑選部分來源。展開後的電壓 / 風扇名稱會替換 sensor 名稱不允許的字元。v1.0 寫法(在 `MetricName` 填來源名稱)仍可使用。
+- system-agent 溫度在 `MetricName: "therm"` 且未設定 `Sources` 時,現在會依文件所述自動偵測;原本會被當成名為 `therm` 的來源,讀不到任何值。
+- system-agent 在已啟用的 sensor 沒有產生數值時會記錄一次警告,恢復後再次失敗才會再記錄。原本這類 sensor 會被靜默略過。
 
 ### 安裝與升級說明
 - 若你的裝置會在執行期變更自身設定(sensor 重新解析、calibration 寫入、`RawDeviceCfgJson` 更新),且原本仰賴舊的 60 秒週期 tick 來傳播,請在這些變更點呼叫 `ISubNodeManager.TriggerConfigSync()` — 在 24 小時預設下,未觸發的本地變更最多可能延遲一天才上雲。

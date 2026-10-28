@@ -298,7 +298,7 @@ public class LocalSystemResourceCollector
 
     /// <summary>
     /// Discovers available resource names for sensor resolution (Auto-detect mode).
-    /// Returns network interface names, GPIO pin names, and temperature source names.
+    /// Returns network interface names, GPIO pin names, and onboard temperature, voltage and fan source names.
     /// </summary>
     public DiscoveredResources DiscoverAvailableResources()
     {
@@ -306,9 +306,11 @@ public class LocalSystemResourceCollector
             .Select(n => n.InterfaceName)
             .ToList();
 
-        // For GPIO and temperature sources, we need to handle potential exceptions since they may not be supported on all hardware
+        // GPIO and onboard sensor sources may not be supported on all hardware, so each discovery is guarded
         List<string> gpioPins = [];
         List<string> temperatureSources = [];
+        List<string> voltageSources = [];
+        List<string> fanSources = [];
 
         if (_hardwarePlatformCollector != null)
         {
@@ -332,9 +334,29 @@ public class LocalSystemResourceCollector
             {
                 _logger.LogWarning(ex, "Failed to discover temperature sources");
             }
+
+            try
+            {
+                var voltage = _hardwarePlatformCollector.CollectVoltageMetrics();
+                voltageSources = voltage.Voltages.Keys.ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover voltage sources");
+            }
+
+            try
+            {
+                var fan = _hardwarePlatformCollector.CollectFanSpeedMetrics();
+                fanSources = fan.FanSpeeds.Keys.ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to discover fan sources");
+            }
         }
 
-        return new DiscoveredResources(networkInterfaces, gpioPins, temperatureSources);
+        return new DiscoveredResources(networkInterfaces, gpioPins, temperatureSources, voltageSources, fanSources);
     }
 
     private static void AddCollectionError(SystemMetricsRawData rawData, string metricType)
