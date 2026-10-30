@@ -74,6 +74,10 @@ internal static class SensorReResolver
         configuration.Sensors = resolved;
         configuration.InvalidateSensorLookup();
 
+        // The framework regenerated the DTDL from the cloud's template list before this hook ran.
+        // Rebuild it so the capability re-upload describes the per-resource sensors.
+        configuration.RefreshSensorDtmis(logger);
+
         return true;
     }
 

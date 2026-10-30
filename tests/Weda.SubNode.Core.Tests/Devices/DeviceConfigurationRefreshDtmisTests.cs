@@ -137,6 +137,71 @@ public class DeviceConfigurationRefreshDtmisTests
         config.DtdlInterface.ShouldNotBeSameAs(before);
     }
 
+    // --- Telemetry @id after typed dispatch ---
+    //
+    // Typed dispatch overwrites every sensor's dtmi with its sensor TYPE dtmi, which several
+    // sensors share. Regenerating the Interface from those dtmis gave every sensor of a type
+    // the same Telemetry @id, and a sensor added after startup (system-agent clones a template
+    // per discovered rail or interface, copying the template's type dtmi) the same @id as the
+    // template. The Interface must keep one autogen @id per sensor, as InitializeDtdl built it.
+
+    private static List<DtdlContent> TelemetryOf(DeviceConfiguration config) =>
+        config.DtdlInterface.ShouldBeOfType<DtdlInterface>().Contents;
+
+    [Fact]
+    public void RefreshSensorDtmis_TypedDevice_KeepsTheTelemetryIdsInitializeDtdlBuilt()
+    {
+        using var _ = UseResolveHook((_, _) => CatalogDtmi);
+
+        var config = CreateConfig(typed: true);
+        config.Sensors.Add(MakeSensor("network_packets_sent"));
+        config.InitializeDtdl();
+        var initialIds = TelemetryOf(config).Select(c => c.Id).ToList();
+
+        config.RefreshSensorDtmis().ShouldBeTrue();
+
+        TelemetryOf(config).Select(c => c.Id).ShouldBe(initialIds);
+        initialIds.ShouldNotContain(CatalogDtmi);
+        initialIds.Distinct().Count().ShouldBe(2);
+    }
+
+    [Fact]
+    public void RefreshSensorDtmis_TypedDevice_SensorAddedWithTheTypeDtmi_GetsItsOwnTelemetryId()
+    {
+        using var _ = UseResolveHook((_, _) => CatalogDtmi);
+
+        var config = CreateConfig(typed: true);
+        config.InitializeDtdl();
+
+        // A per-interface clone of the template, carrying the template's resolved type dtmi.
+        config.Sensors.Add(MakeSensor("network_bytes_received_eth0", CatalogDtmi));
+
+        config.RefreshSensorDtmis().ShouldBeTrue();
+
+        var clone = TelemetryOf(config).Single(c => c.Name == "network_bytes_received_eth0");
+        clone.Id.ShouldBe(DtdlGenerator.GenerateDtmi(
+            "network_bytes_received_eth0", nameof(SensorGroup.SYS), deviceKey: config.DeviceName));
+        TelemetryOf(config).Select(c => c.Id).Distinct().Count().ShouldBe(2);
+
+        // The capability still reports the sensor type dtmi.
+        config.Sensors.ShouldAllBe(s => s.Dtmi == CatalogDtmi);
+    }
+
+    [Fact]
+    public void RefreshSensorDtmis_TypedDevice_HeartbeatKeepsItsReservedDtmi()
+    {
+        using var _ = UseResolveHook((_, _) => CatalogDtmi);
+
+        var config = CreateConfig(typed: true);
+        config.Sensors.Add(MakeSensor(Heartbeat.SensorName));
+        config.InitializeDtdl();
+
+        config.RefreshSensorDtmis().ShouldBeTrue();
+
+        TelemetryOf(config).Single(c => c.Name == Heartbeat.SensorName).Id.ShouldBe(Heartbeat.Dtmi);
+        config.Sensors.Single(Heartbeat.IsHeartbeat).Dtmi.ShouldBe(Heartbeat.Dtmi);
+    }
+
     // --- Guards ---
 
     [Fact]

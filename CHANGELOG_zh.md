@@ -45,6 +45,8 @@ Weda SubNode SDK 的所有重要變更都將記錄在此文件中。
 - **在多個電壓軌或風扇的主機板上,system-agent 現在會發布電壓與風扇轉速。** 通用的 `voltage` / `fanspeed` sensor 會尋找名稱恰為 `voltage` / `fanspeed` 的來源,因此在 ARK-2250L 這類主機板上(電壓軌 `Vcore`、`5V`、`12V`、`CMOS Battery`)完全不會發布、也沒有任何 log。兩者現在比照溫度展開:通用 sensor 會依偵測到的來源各自展開為一個 sensor(`voltage_Vcore`、`voltage_CMOS_Battery`…),原始來源名稱放在新的選用參數 `Source`,並可用選用的 `Sources` 清單挑選部分來源。展開後的電壓 / 風扇名稱會替換 sensor 名稱不允許的字元。v1.0 寫法(在 `MetricName` 填來源名稱)仍可使用。
 - system-agent 溫度在 `MetricName: "therm"` 且未設定 `Sources` 時,現在會依文件所述自動偵測;原本會被當成名為 `therm` 的來源,讀不到任何值。
 - system-agent 在已啟用的 sensor 沒有產生數值時會記錄一次警告,恢復後再次失敗才會再記錄。原本這類 sensor 會被靜默略過。
+- **system-agent 上傳的 DTDL 現在包含它展開出的 sensor 的 Telemetry。** Host 在 system-agent 把 `devicecfg.json` 的範本展開為逐一資源的 sensor 之前就已依範本建立 DTDL,因此 capability 上傳只描述 `voltage` 與 `network_bytes_sent`,沒有 `voltage_12V` 或 `network_bytes_sent_eth0`。雲端因而把這些 data stream 建成沒有顯示名稱的 `string`,最新值也從未出現。現在啟動時展開後、以及雲端設定更新後重新解析後,都會重建 DTDL;逐一資源的 sensor 也不再沿用範本的 dtmi。
+- `DeviceConfiguration.RefreshSensorDtmis` 在強型別裝置上為每個 sensor 保留各自的 Telemetry `@id`。原本它以前一次 typed dispatch 寫入的 sensor 型別 dtmi 重新產生 Interface,同一型別的所有 sensor 因而共用同一個 `@id`(例如雲端更新新增 sensor 之後)。現在會先清除這些 dtmi,回到 `InitializeDtdl` 一開始的狀態;heartbeat 保留其保留 dtmi。
 
 ### 安裝與升級說明
 - 若你的裝置會在執行期變更自身設定(sensor 重新解析、calibration 寫入、`RawDeviceCfgJson` 更新),且原本仰賴舊的 60 秒週期 tick 來傳播,請在這些變更點呼叫 `ISubNodeManager.TriggerConfigSync()` — 在 24 小時預設下,未觸發的本地變更最多可能延遲一天才上雲。

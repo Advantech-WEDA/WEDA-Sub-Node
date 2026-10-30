@@ -190,6 +190,13 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase,
 
         configuration.Sensors = SensorResolver.Resolve(configuration.Sensors, resources, logger);
 
+        // The host built the DTDL from devicecfg.json's templates while loading the file, and the
+        // base constructor's InitializeDtdl is a no-op once it exists. Without a rebuild the cloud
+        // receives no Telemetry for the expanded sensors (voltage_12V, network_bytes_sent_eth0, ...)
+        // and creates their data streams as strings. Returns false, harmlessly, when the host did
+        // not build one: the base constructor then builds it from the expanded list.
+        configuration.RefreshSensorDtmis(logger);
+
         return configuration;
     }
 
