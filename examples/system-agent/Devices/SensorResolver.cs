@@ -280,6 +280,11 @@ internal static partial class SensorResolver
     /// <summary>
     /// Creates a new sensor for a specific resource, copying config from the template.
     /// </summary>
+    /// <remarks>
+    /// The template's dtmi is not copied: it is the template's own identity (its autogen dtmi,
+    /// or the sensor type dtmi that typed dispatch shares across a type). Regenerating the DTDL
+    /// gives the clone its own dtmi.
+    /// </remarks>
     private static Sensor CloneSensor(
         Sensor template, string resourceName, string arrayParamKey, string singleParamKey, bool cleanName)
     {
@@ -293,7 +298,6 @@ internal static partial class SensorResolver
         return new Sensor
         {
             Name = $"{template.Name}_{(cleanName ? ToNameSuffix(resourceName) : resourceName)}",
-            Dtmi = template.Dtmi,
             SensorGroup = template.SensorGroup,
             SensorInfo = new SensorInfo
             {

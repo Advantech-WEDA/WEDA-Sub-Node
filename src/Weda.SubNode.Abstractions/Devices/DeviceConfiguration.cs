@@ -191,6 +191,13 @@ public class DeviceConfiguration
     /// the previous sensor set.
     /// </para>
     /// <para>
+    /// On a strongly-typed device every sensor still carries the sensor TYPE dtmi that the previous
+    /// typed dispatch wrote, and sensors of one type share it. Those dtmis are cleared first (the
+    /// reserved heartbeat keeps its own), so the regenerated Interface gives each sensor its own
+    /// autogen Telemetry <c>@id</c>, as <see cref="InitializeDtdl"/> did, before typed dispatch
+    /// writes the type dtmis again.
+    /// </para>
+    /// <para>
     /// No-op in manual DTDL mode: there the dtmis are author-specified and the Interface comes from
     /// <see cref="Dtdl"/>.<c>DtdlPath</c>, so there is nothing to regenerate. Also a no-op before
     /// the first <see cref="InitializeDtdl"/> call, which remains responsible for initial setup.
@@ -218,6 +225,19 @@ public class DeviceConfiguration
             logger?.LogDebug(
                 "Device '{DeviceName}' uses manual DTDL, skipping dtmi refresh", DeviceName);
             return false;
+        }
+
+        if (typed)
+        {
+            // GenerateDtdlFromSensors uses an existing dtmi as the Telemetry @id. Left in place,
+            // the shared type dtmis would give every sensor of a type the same @id.
+            foreach (var sensor in Sensors)
+            {
+                if (!Heartbeat.IsHeartbeat(sensor))
+                {
+                    sensor.Dtmi = null;
+                }
+            }
         }
 
         GenerateDtdlFromSensors(logger);
