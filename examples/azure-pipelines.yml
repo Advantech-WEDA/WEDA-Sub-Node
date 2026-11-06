@@ -1,0 +1,183 @@
+# Build the SubNode example images from a release branch and push them to Harbor.
+#
+# One job per image, so a broken example does not hold the others back and a failed
+# image can be re-run on its own. Each image is built with scripts/build-push-image.sh
+# (the one build path, repository root as context) and lands at
+#
+#   harbor.arfa.wise-paas.com/edge-coa/<name>:<build number>   e.g. v1.2.0_20261106.1, never reused
+#   harbor.arfa.wise-paas.com/edge-coa/<name>:<version>        e.g. v1.2.0, the release branch name
+#   harbor.arfa.wise-paas.com/edge-coa/<name>:latest           when tagLatest is set (default)
+#
+# which is the image line the examples' docker-compose.deploy.yml and e2e-expect.json pull.
+# The version and latest tags move only after the build-number image has passed the
+# platform and credential checks and its SBOM has been generated.
+#
+# edge-coa is a public project, so no credential may be baked in: WEDA_NATS_PASSWORD is
+# removed from the build environment, and the build fails if the pushed image history
+# shows a non-empty value anyway.
+#
+# Not built here: system-agent (examples/system-agent/azure-pipelines.yml owns it) and
+# robot (no image).
+
+name: $(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - release/*
+  paths:
+    include:
+      - src/**
+      - examples/**
+      - tools/cfx-replay/**
+      - tests/Weda.SubNode.Core.Tests/Protocols/Cfx/Fixtures/**
+      - common.props
+      - Directory.Packages.props
+      - nuget.config
+      - nuget/**
+      - scripts/build-push-image.sh
+    exclude:
+      - examples/system-agent/**
+      - examples/robot/**
+      - '**/*.md'
+
+pr: none
+
+parameters:
+  - name: tagLatest
+    displayName: 'Move :latest to this build'
+    type: boolean
+    default: true
+  - name: images
+    displayName: 'Images to build (name, and the folder holding it)'
+    type: object
+    default:
+      - { name: cfx-endpoint, pathPrefix: examples }
+      - { name: daq-collector, pathPrefix: examples }
+      - { name: daq-proxy, pathPrefix: examples }
+      - { name: feature-aggregation, pathPrefix: examples }
+      - { name: feature-custom-commands, pathPrefix: examples }
+      - { name: feature-transform-pipeline, pathPrefix: examples }
+      - { name: http-air-quality, pathPrefix: examples }
+      - { name: http-stock-quotes, pathPrefix: examples }
+      - { name: modbus-wise4012, pathPrefix: examples }
+      - { name: modbus-wise4012-builder, pathPrefix: examples }
+      - { name: mqtt-image-chunked, pathPrefix: examples }
+      - { name: mqtt-isensing-wise4012, pathPrefix: examples }
+      - { name: opcua-basic, pathPrefix: examples }
+      - { name: vision-object-detection, pathPrefix: examples }
+      - { name: cfx-replay, pathPrefix: tools }
+
+variables:
+  CONTAINER_REGISTRY_SERVICE_CONNECTION: 'Edge COA Harbor'
+  REGISTRY_HOST: 'harbor.arfa.wise-paas.com'
+  IMAGE_PROJECT: 'edge-coa'
+  PLATFORMS: 'linux/amd64,linux/arm64'
+  IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL: 'CRITICAL,HIGH'
+
+stages:
+- stage: Build_Images
+  displayName: 'Build & push example images'
+  jobs:
+  - ${{ each image in parameters.images }}:
+    - job: ${{ replace(image.name, '-', '_') }}
+      displayName: '${{ image.name }}'
+      pool:
+        name: 'CI Agent Pool'
+      timeoutInMinutes: 60
+      variables:
+        IMAGE_REPO: '${{ variables.REGISTRY_HOST }}/${{ variables.IMAGE_PROJECT }}/${{ image.name }}'
+      steps:
+      - checkout: self
+        fetchDepth: 1
+
+      - bash: |
+          set -euo pipefail
+          case "$(Build.SourceBranch)" in
+            refs/heads/release/*) ;;
+            *) echo "##vso[task.logissue type=error]Example images are built from release/* only, not $(Build.SourceBranch)"
+               exit 1 ;;
+          esac
+          VERSION="$(Build.SourceBranchName)"
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "##vso[task.logissue type=error]Release branch must be named release/vX.Y.Z, got release/$VERSION"
+            exit 1
+          fi
+          echo "Release version: $VERSION"
+          echo "##vso[task.setvariable variable=RELEASE_VERSION]$VERSION"
+        displayName: 'Resolve release version'
+
+      - task: Docker@2
+        displayName: 'Login Harbor'
+        inputs:
+          command: 'login'
+          containerRegistry: $(CONTAINER_REGISTRY_SERVICE_CONNECTION)
+
+      - bash: |
+          set -euo pipefail
+          # Unset, not empty: build-push-image.sh would bake any value into systemcfg.json.
+          env -u WEDA_NATS_PASSWORD \
+            PATH_PREFIX='${{ image.pathPrefix }}' \
+            IMAGE_REPO='$(IMAGE_REPO)' \
+            IMAGE_TAG='$(Build.BuildNumber)' \
+            PLATFORMS='$(PLATFORMS)' \
+            ./scripts/build-push-image.sh '${{ image.name }}'
+        displayName: 'Build & push $(Build.BuildNumber)'
+
+      - bash: |
+          set -euo pipefail
+          REF='$(IMAGE_REPO):$(Build.BuildNumber)'
+
+          MANIFEST="$(docker buildx imagetools inspect "$REF" --format '{{json .Manifest}}')"
+          for platform in $(echo '$(PLATFORMS)' | tr ',' ' '); do
+            arch="${platform#*/}"
+            if ! grep -qE "\"architecture\": *\"$arch\"" <<< "$MANIFEST"; then
+              echo "##vso[task.logissue type=error]$REF has no $platform image"
+              exit 1
+            fi
+          done
+
+          # Count non-empty WEDA_NATS_PASSWORD values in the build history; never print them.
+          # The inspect runs on its own so a registry error fails the step instead of
+          # reading as zero leaks.
+          IMAGE_JSON="$(docker buildx imagetools inspect "$REF" --format '{{json .Image}}')"
+          LEAKS="$({ grep -oE 'WEDA_NATS_PASSWORD=[^ "\\]+' <<< "$IMAGE_JSON" || true; } | wc -l)"
+          if [ "$LEAKS" -ne 0 ]; then
+            echo "##vso[task.logissue type=error]$REF was built with WEDA_NATS_PASSWORD set; delete it from Harbor and rotate the password"
+            exit 1
+          fi
+          echo "$REF: $(echo '$(PLATFORMS)' | tr ',' ' '), no baked NATS password"
+        displayName: 'Verify platforms and no baked credential'
+
+      - bash: |
+          set -euo pipefail
+          trivy image --severity '$(IMAGE_PREVENT_DEPLOY_SECURITY_LEVEL)' --exit-code 1 \
+            '$(IMAGE_REPO):$(Build.BuildNumber)'
+        displayName: 'Vulnerability scan'
+        continueOnError: true
+
+      - bash: |
+          set -euo pipefail
+          OUT='$(Build.ArtifactStagingDirectory)/sbom'
+          mkdir -p "$OUT"
+          trivy image --format cyclonedx --output "$OUT/${{ image.name }}-$(Build.BuildNumber).cdx.json" \
+            '$(IMAGE_REPO):$(Build.BuildNumber)'
+          trivy image --format spdx-json --output "$OUT/${{ image.name }}-$(Build.BuildNumber).spdx.json" \
+            '$(IMAGE_REPO):$(Build.BuildNumber)'
+        displayName: 'Generate SBOM'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish SBOM'
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)/sbom'
+          artifactName: 'sbom-${{ image.name }}'
+
+      - bash: |
+          set -euo pipefail
+          TAGS=(-t '$(IMAGE_REPO):$(RELEASE_VERSION)')
+          if [ "$(echo '${{ parameters.tagLatest }}' | tr '[:upper:]' '[:lower:]')" = true ]; then
+            TAGS+=(-t '$(IMAGE_REPO):latest')
+          fi
+          docker buildx imagetools create "${TAGS[@]}" '$(IMAGE_REPO):$(Build.BuildNumber)'
+          docker buildx imagetools inspect '$(IMAGE_REPO):$(RELEASE_VERSION)'
+        displayName: 'Tag the release version (and latest)'

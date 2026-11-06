@@ -67,6 +67,12 @@ Confirm what actually landed:
 docker buildx imagetools inspect harbor.arfa.wise-paas.com/edge-coa/<name>:latest
 ```
 
+Release branches build these images in CI. `examples/azure-pipelines.yml` runs on every push to
+`release/vX.Y.Z` that touches the SDK or an example, and publishes each example as
+`<name>:vX.Y.Z_<yyyyMMdd>.<n>` (fixed, the one to quote in a problem report), `<name>:vX.Y.Z` and
+`<name>:latest`. Those images never carry a NATS password; build one yourself, as below, when it
+should. system-agent has its own pipeline.
+
 Set `WEDA_NATS_PASSWORD` in the environment when building an image to be handed on: it is written
 into the configuration baked into the image, so the receiver needs only the image and a compose
 file. `scripts/package-example.sh <example> <tag>` assembles exactly that pair.
