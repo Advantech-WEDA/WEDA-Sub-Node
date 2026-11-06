@@ -68,7 +68,7 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
             targetDevices = devices;
         }
 
-        // If no specific outputs requested, read all available outputs from each device
+        // No outputs requested: read every output the target devices report
         var outputsToRead = command.Parameters.Outputs.Length > 0
             ? command.Parameters.Outputs
             : GetAllDigitalOutputNames(targetDevices);
@@ -180,13 +180,20 @@ public class GetDigitalOutputCommandHandler : ICommandHandler<GetDigitalOutputCo
         return (null, null, null);
     }
 
+    /// <summary>
+    /// The outputs an empty request reads: every name each device reports through
+    /// <see cref="IDigitalOutputReadable.GetDigitalOutputNames"/>, each once.
+    /// </summary>
+    /// <remarks>
+    /// The device decides, because only it knows which of its sensors are outputs. A System
+    /// Agent's GPIO sensors are named <c>gpio_pinState_*</c> and their direction is read from the
+    /// hardware; the old <c>do</c> name rule found none of them (bug 58206).
+    /// </remarks>
     private static string[] GetAllDigitalOutputNames(IReadOnlyCollection<IDigitalOutputReadable> devices)
     {
         return devices
-            .SelectMany(d => d.Configuration.Sensors
-                .Where(s => s.Name.StartsWith("do", StringComparison.OrdinalIgnoreCase))
-                .Select(s => s.Name))
-            .Distinct()
+            .SelectMany(d => d.GetDigitalOutputNames())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 }

@@ -1,3 +1,6 @@
+using SystemAgentExample.Models;
+
+using Weda.SubNode.Abstractions.Devices.Capabilities;
 using Weda.SubNode.Abstractions.Telemetry;
 
 namespace SystemAgentExample.Devices;
@@ -15,6 +18,12 @@ public static class GpioPinLookup
     private const string PinIdParameter = "PinId";
     private const string GpioMetricType = "gpio";
     private const string PinStateMetricName = "pinState";
+
+    /// <summary>The <see cref="GpioPinDescriptor.Direction"/> of an input pin.</summary>
+    public const string InputDirection = "input";
+
+    /// <summary>The <see cref="GpioPinDescriptor.Direction"/> of an output pin.</summary>
+    public const string OutputDirection = "output";
 
     /// <summary>
     /// The hardware pin a sensor is bound to, or null when it is not bound to one.
@@ -113,6 +122,55 @@ public static class GpioPinLookup
         var pinId = sensor is null ? null : Parameter(sensor, PinIdParameter);
 
         return string.IsNullOrWhiteSpace(pinId) ? requestedName : pinId;
+    }
+
+    /// <summary>
+    /// The names an empty <c>di.get</c> reads: the sensor bound to each pin whose direction is
+    /// <c>input</c>, then any <c>di*</c> sensor of the SDK's default rule, each once.
+    /// </summary>
+    /// <remarks>
+    /// A pin whose direction could not be read, or that has no bound sensor, is left out:
+    /// reading it as an input would be a guess, and the command handlers address pins through
+    /// their sensors. Bug 58206.
+    /// </remarks>
+    /// <param name="pins">The pins as <see cref="SystemAgentDeviceBase.ListGpioPins"/> reports them, sensor names bound.</param>
+    /// <param name="sensors">The device's configured sensors.</param>
+    /// <returns>The input names; empty when there are none.</returns>
+    public static IReadOnlyList<string> DigitalInputNames(IEnumerable<GpioPinDescriptor> pins, IEnumerable<Sensor> sensors) =>
+        DigitalNames(pins, sensors, InputDirection, DigitalIoNames.InputPrefix);
+
+    /// <summary>
+    /// The names an empty <c>do.get</c> reads: the sensor bound to each pin whose direction is
+    /// <c>output</c>, then any <c>do*</c> sensor of the SDK's default rule, each once.
+    /// </summary>
+    /// <remarks>
+    /// A pin whose direction could not be read, or that has no bound sensor, is left out. Bug 58206.
+    /// </remarks>
+    /// <param name="pins">The pins as <see cref="SystemAgentDeviceBase.ListGpioPins"/> reports them, sensor names bound.</param>
+    /// <param name="sensors">The device's configured sensors.</param>
+    /// <returns>The output names; empty when there are none.</returns>
+    public static IReadOnlyList<string> DigitalOutputNames(IEnumerable<GpioPinDescriptor> pins, IEnumerable<Sensor> sensors) =>
+        DigitalNames(pins, sensors, OutputDirection, DigitalIoNames.OutputPrefix);
+
+    private static IReadOnlyList<string> DigitalNames(
+        IEnumerable<GpioPinDescriptor> pins,
+        IEnumerable<Sensor> sensors,
+        string direction,
+        string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(pins);
+        ArgumentNullException.ThrowIfNull(sensors);
+
+        var gpioNames = pins
+            .Where(p => string.Equals(p.Direction, direction, StringComparison.OrdinalIgnoreCase))
+            .Select(p => p.SensorName)
+            .OfType<string>()
+            .Where(name => !string.IsNullOrWhiteSpace(name));
+
+        return gpioNames
+            .Concat(DigitalIoNames.WithPrefix(sensors, prefix))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static string? Parameter(Sensor sensor, string key) =>

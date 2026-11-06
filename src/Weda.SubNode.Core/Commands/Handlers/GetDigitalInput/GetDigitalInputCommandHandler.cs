@@ -69,7 +69,7 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
             targetDevices = devices;
         }
 
-        // If no specific inputs requested, read all available inputs from each device
+        // No inputs requested: read every input the target devices report
         var inputsToRead = command.Parameters.Inputs.Length > 0
             ? command.Parameters.Inputs
             : GetAllDigitalInputNames(targetDevices);
@@ -181,13 +181,20 @@ public class GetDigitalInputCommandHandler : ICommandHandler<GetDigitalInputComm
         return (null, null, null);
     }
 
+    /// <summary>
+    /// The inputs an empty request reads: every name each device reports through
+    /// <see cref="IDigitalInputReadable.GetDigitalInputNames"/>, each once.
+    /// </summary>
+    /// <remarks>
+    /// The device decides, because only it knows which of its sensors are inputs. A System
+    /// Agent's GPIO sensors are named <c>gpio_pinState_*</c> and their direction is read from the
+    /// hardware; the old <c>di</c> name rule found none of them (bug 58206).
+    /// </remarks>
     private static string[] GetAllDigitalInputNames(IReadOnlyCollection<IDigitalInputReadable> devices)
     {
         return devices
-            .SelectMany(d => d.Configuration.Sensors
-                .Where(s => s.Name.StartsWith("di", StringComparison.OrdinalIgnoreCase))
-                .Select(s => s.Name))
-            .Distinct()
+            .SelectMany(d => d.GetDigitalInputNames())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 }
