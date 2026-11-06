@@ -71,6 +71,11 @@ image 會落在 `harbor.arfa.wise-paas.com/edge-coa/<名稱>:latest`，可用 `I
 docker buildx imagetools inspect harbor.arfa.wise-paas.com/edge-coa/<名稱>:latest
 ```
 
+release 分支上的這些 image 由 CI 建置：`examples/azure-pipelines.yml` 在每次推送到 `release/vX.Y.Z`、
+且動到 SDK 或範例時執行，把每個範例發佈成 `<名稱>:vX.Y.Z_<yyyyMMdd>.<n>`（固定不變，回報問題時引用這個）、
+`<名稱>:vX.Y.Z` 與 `<名稱>:latest`。這些 image 一律不含 NATS 密碼；需要內含密碼時，請依下面的方式自己建。
+system-agent 有自己的 pipeline。
+
 要建一個準備交出去的 image 時，請在環境裡設好 `WEDA_NATS_PASSWORD`：它會被寫進烘在 image 裡的設定，
 於是收到的人只需要 image 和一份 compose 檔。`scripts/package-example.sh <範例> <tag>` 就是把這兩樣
 組裝起來。
