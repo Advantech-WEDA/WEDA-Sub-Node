@@ -37,4 +37,18 @@ public interface IDigitalInputReadable : IDevice
     /// </code>
     /// </example>
     Task<bool?> GetDigitalInputAsync(string inputName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the names of every digital input this device has: the inputs an empty
+    /// <c>di.get</c> (<c>"inputs": []</c>) reads.
+    /// </summary>
+    /// <remarks>
+    /// Each name must be one <see cref="GetDigitalInputAsync"/> accepts. The default is the
+    /// configured sensors whose names start with <c>di</c> (<see cref="DigitalIoNames.WithPrefix"/>).
+    /// Override it when the sensor name does not say whether it is an input, as with the
+    /// System Agent's GPIO pins, whose direction is only known on the hardware.
+    /// </remarks>
+    /// <returns>The input names, without duplicates; empty when the device has none.</returns>
+    IReadOnlyList<string> GetDigitalInputNames() =>
+        DigitalIoNames.WithPrefix(Configuration, DigitalIoNames.InputPrefix);
 }
