@@ -26,6 +26,10 @@ Three moving parts:
 Only the first two run in Docker Compose. The Receiver is a verification tool you run on your own
 machine — section 5 shows how to do that **without installing .NET**.
 
+> **Publishing real camera images to WEDA Core?** Follow the
+> [End-to-End Integration Guide](./INTEGRATION-GUIDE.md): it configures this example for JPEG or PNG
+> images, reads them back through the Data Stream API with an MD5 check, and lists the tested limits.
+
 ## 1. Prerequisites
 
 | Requirement | Why | Notes |
@@ -280,5 +284,6 @@ Two ways out, depending on what you want from the example:
 
 ## Reference
 
+- [End-to-End Integration Guide](./INTEGRATION-GUIDE.md) — publish camera images to WEDA Core and read them back through the API
 - [`examples/README.md`](../README.md) — index of all SubNode examples
 - [Connect to WedaCore](../../docs/wiki/en/02-getting-started/04-connect-to-wedacore.md) — credential handling
