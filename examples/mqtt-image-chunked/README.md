@@ -102,7 +102,8 @@ Required fields:
 | `WEDA_NODE_URL` | WedaNode (NATS) address — `host:port`, no scheme | `10.0.1.50:4224` |
 | `WEDA_NODE_AUTH_STRATEGY` | `None` / `UserPassword` / `Token` / `TlsCert` / `CredFile` | `UserPassword` |
 | `WEDA_NODE_USERNAME` | Username (for `UserPassword`) | `advantech_nats` |
-| `WEDA_NATS_PASSWORD` | Password (for `UserPassword`) — `docker-compose.yml` reads this name, not the `WEDA_NODE_PASSWORD` in `.env.sample` | (get from your admin) |
+| `WEDA_NATS_PASSWORD` | Password (for `UserPassword`), passed to the SubNode by `docker-compose.yml` | (get from your admin) |
+| `WEDA_NODE_PASSWORD` | The same password, read only by the Receiver (section 5) | (get from your admin) |
 | `SUBNODE_NAME` | Unique name for this deployment — set it per host | `ImageSensor-Floor3` |
 
 Optional (defaults in `docker-compose.yml` apply when unset): `IMAGE_SENSOR_IMAGE`, `WEDA_NODE_NAME`,
@@ -265,14 +266,13 @@ Avoid `docker compose kill` (SIGKILL) unless the container is wedged — it skip
 
 ## 9. Known issue: `chunkSize` cannot be set
 
-`devicecfg.json` ships the transform with `"Parameters": { "chunkSize": 128 }`. In this release any
+Do not add `Parameters` with a `chunkSize` to the `chunking` transform. In this release any
 `chunkSize` fails, whatever its value: transform parameters are read from configuration as strings,
 and `TransformFactory` cannot convert the string to the `int` that `ChunkingParameters.ChunkSize`
 expects. Every report then fails with `Transform failed` and `could not be converted to
-System.Int32` in the SubNode log, and the image is dropped. Setting a larger value such as `1024`
-does not help.
+System.Int32` in the SubNode log, and the image is dropped.
 
-Remove `Parameters` from the `chunking` entry instead:
+`devicecfg.json` therefore ships the transform without `Parameters`:
 
 ```json
 "TransformPipeline": [

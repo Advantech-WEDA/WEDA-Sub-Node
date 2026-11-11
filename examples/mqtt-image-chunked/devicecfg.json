@@ -62,10 +62,7 @@
             "TransformPipeline": [
               {
                 "Type": "chunking",
-                "Enabled": true,
-                "Parameters": {
-                  "chunkSize": 128
-                }
+                "Enabled": true
               }
             ]
           }

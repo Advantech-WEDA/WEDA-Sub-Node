@@ -126,7 +126,7 @@ The example needs four changes before it can carry a real image: the password, t
    SUBNODE_NAME=ImageSensor-Line1
    ```
 
-   Use the name `WEDA_NATS_PASSWORD`. `docker-compose.yml` reads that name, not the `WEDA_NODE_PASSWORD` shown in `.env.sample`.
+   Use the name `WEDA_NATS_PASSWORD`, which `docker-compose.yml` passes to the Sub-Node. `WEDA_NODE_PASSWORD` in `.env.sample` is read only by the example's Receiver, which this guide does not use.
 2. In `devicecfg.json`, delete the `MnistCamera` entry from `Sensors`. Its sample PNGs are too small to be chunked, and an unchunked image in the same report as a chunked one makes the whole send fail.
 3. In `devicecfg.json`, add this entry to `Sensors` for your test image.
 
