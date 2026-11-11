@@ -102,7 +102,7 @@ Required fields:
 | `WEDA_NODE_URL` | WedaNode (NATS) address — `host:port`, no scheme | `10.0.1.50:4224` |
 | `WEDA_NODE_AUTH_STRATEGY` | `None` / `UserPassword` / `Token` / `TlsCert` / `CredFile` | `UserPassword` |
 | `WEDA_NODE_USERNAME` | Username (for `UserPassword`) | `advantech_nats` |
-| `WEDA_NODE_PASSWORD` | Password (for `UserPassword`) | (get from your admin) |
+| `WEDA_NATS_PASSWORD` | Password (for `UserPassword`) — `docker-compose.yml` reads this name, not the `WEDA_NODE_PASSWORD` in `.env.sample` | (get from your admin) |
 | `SUBNODE_NAME` | Unique name for this deployment — set it per host | `ImageSensor-Floor3` |
 
 Optional (defaults in `docker-compose.yml` apply when unset): `IMAGE_SENSOR_IMAGE`, `WEDA_NODE_NAME`,
@@ -263,24 +263,28 @@ stop_grace_period: 30s
 
 Avoid `docker compose kill` (SIGKILL) unless the container is wedged — it skips the shutdown hooks.
 
-## 9. Known issue: `chunkSize` is below the allowed minimum
+## 9. Known issue: `chunkSize` cannot be set
 
-`devicecfg.json` configures the transform with `"chunkSize": 128`, but `ChunkingParameters.ChunkSize`
-is annotated `[Range(1024, 768000)]` and `TransformFactory` validates it when the pipeline is built
-for a report. As shipped, the first report therefore throws:
+`devicecfg.json` ships the transform with `"Parameters": { "chunkSize": 128 }`. In this release any
+`chunkSize` fails, whatever its value: transform parameters are read from configuration as strings,
+and `TransformFactory` cannot convert the string to the `int` that `ChunkingParameters.ChunkSize`
+expects. Every report then fails with `Transform failed` and `could not be converted to
+System.Int32` in the SubNode log, and the image is dropped. Setting a larger value such as `1024`
+does not help.
 
+Remove `Parameters` from the `chunking` entry instead:
+
+```json
+"TransformPipeline": [
+  { "Type": "chunking", "Enabled": true }
+]
 ```
-Transform 'chunking': parameter validation failed — The field ChunkSize must be between 1024 and 768000.
-```
 
-Two ways out, depending on what you want from the example:
-
-- **See chunking work.** Relax the range on `ChunkingParameters` (`src/Weda.SubNode.Core/Transforms/ChunkingTransform.cs`)
-  so a sub-KB `chunkSize` is legal. The MNIST PNGs are 167–255 bytes, i.e. roughly 224–340 Base64
-  characters, so only a chunk size well under 1 KB splits them at all.
-- **See the pipeline run end to end.** Set `"chunkSize": 1024` in `devicecfg.json`. Values then pass
-  through unchunked, and the Receiver handles them on its non-chunked path — the viewer still works,
-  but the chunk reassembly path is not exercised.
+Images are then split into 256 KB chunks, the default. The MNIST PNGs (167–255 bytes) pass through
+unchunked, and the Receiver shows them on its non-chunked path, so the chunk reassembly path is not
+exercised. To exercise it, publish an image larger than about 200 KB on a sensor of its own, and
+delete `MnistCamera`: an unchunked image in the same report as a chunked one makes the whole send
+fail. The [End-to-End Integration Guide](./INTEGRATION-GUIDE.md) walks through that setup.
 
 ## Reference
 
