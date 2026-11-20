@@ -26,6 +26,10 @@ Three moving parts:
 Only the first two run in Docker Compose. The Receiver is a verification tool you run on your own
 machine — section 5 shows how to do that **without installing .NET**.
 
+> **Publishing real camera images to WEDA Core?** Follow the
+> [End-to-End Integration Guide](./INTEGRATION-GUIDE.md): it configures this example for JPEG or PNG
+> images, reads them back through the Data Stream API with an MD5 check, and lists the tested limits.
+
 ## 1. Prerequisites
 
 | Requirement | Why | Notes |
@@ -98,7 +102,8 @@ Required fields:
 | `WEDA_NODE_URL` | WedaNode (NATS) address — `host:port`, no scheme | `10.0.1.50:4224` |
 | `WEDA_NODE_AUTH_STRATEGY` | `None` / `UserPassword` / `Token` / `TlsCert` / `CredFile` | `UserPassword` |
 | `WEDA_NODE_USERNAME` | Username (for `UserPassword`) | `advantech_nats` |
-| `WEDA_NODE_PASSWORD` | Password (for `UserPassword`) | dmagent's `NATS_PASSWORD` on the device: `grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml` |
+| `WEDA_NATS_PASSWORD` | Password (for `UserPassword`), passed to the SubNode by `docker-compose.yml` | dmagent's `NATS_PASSWORD` on the device: `grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml` |
+| `WEDA_NODE_PASSWORD` | The same password, read only by the Receiver (section 5) | dmagent's `NATS_PASSWORD` on the device: `grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml` |
 | `SUBNODE_NAME` | Unique name for this deployment — set it per host | `ImageSensor-Floor3` |
 
 Optional (defaults in `docker-compose.yml` apply when unset): `IMAGE_SENSOR_IMAGE`, `WEDA_NODE_NAME`,
@@ -259,26 +264,30 @@ stop_grace_period: 30s
 
 Avoid `docker compose kill` (SIGKILL) unless the container is wedged — it skips the shutdown hooks.
 
-## 9. Known issue: `chunkSize` is below the allowed minimum
+## 9. Known issue: `chunkSize` cannot be set
 
-`devicecfg.json` configures the transform with `"chunkSize": 128`, but `ChunkingParameters.ChunkSize`
-is annotated `[Range(1024, 768000)]` and `TransformFactory` validates it when the pipeline is built
-for a report. As shipped, the first report therefore throws:
+Do not add `Parameters` with a `chunkSize` to the `chunking` transform. In this release any
+`chunkSize` fails, whatever its value: transform parameters are read from configuration as strings,
+and `TransformFactory` cannot convert the string to the `int` that `ChunkingParameters.ChunkSize`
+expects. Every report then fails with `Transform failed` and `could not be converted to
+System.Int32` in the SubNode log, and the image is dropped.
 
+`devicecfg.json` therefore ships the transform without `Parameters`:
+
+```json
+"TransformPipeline": [
+  { "Type": "chunking", "Enabled": true }
+]
 ```
-Transform 'chunking': parameter validation failed — The field ChunkSize must be between 1024 and 768000.
-```
 
-Two ways out, depending on what you want from the example:
-
-- **See chunking work.** Relax the range on `ChunkingParameters` (`src/Weda.SubNode.Core/Transforms/ChunkingTransform.cs`)
-  so a sub-KB `chunkSize` is legal. The MNIST PNGs are 167–255 bytes, i.e. roughly 224–340 Base64
-  characters, so only a chunk size well under 1 KB splits them at all.
-- **See the pipeline run end to end.** Set `"chunkSize": 1024` in `devicecfg.json`. Values then pass
-  through unchunked, and the Receiver handles them on its non-chunked path — the viewer still works,
-  but the chunk reassembly path is not exercised.
+Images are then split into 256 KB chunks, the default. The MNIST PNGs (167–255 bytes) pass through
+unchunked, and the Receiver shows them on its non-chunked path, so the chunk reassembly path is not
+exercised. To exercise it, publish an image larger than about 200 KB on a sensor of its own, and
+delete `MnistCamera`: an unchunked image in the same report as a chunked one makes the whole send
+fail. The [End-to-End Integration Guide](./INTEGRATION-GUIDE.md) walks through that setup.
 
 ## Reference
 
+- [End-to-End Integration Guide](./INTEGRATION-GUIDE.md) — publish camera images to WEDA Core and read them back through the API
 - [`examples/README.md`](../README.md) — index of all SubNode examples
 - [Connect to WedaCore](../../docs/wiki/en/02-getting-started/04-connect-to-wedacore.md) — credential handling
