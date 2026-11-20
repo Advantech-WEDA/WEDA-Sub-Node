@@ -127,6 +127,16 @@ SDK 支援以下認證策略（對應 `NatsAuthStrategy` enum）：
 }
 ```
 
+由 Device Activator 安裝的裝置上，密碼就是 dmagent 的 `NATS_PASSWORD`，在裝置上讀取：
+
+```bash
+grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml
+#       - NATS_PASSWORD=<64 個十六進位字元>
+```
+
+把 `=` 後面的值填入 `Password`（或 `SystemConfig__WedaNode__Password`）。每台裝置都不同，請在每台上各自讀取；
+也不要提交到 repository：放在已列入 gitignore 的 `.env`。
+
 ### Token
 
 Token 認證：

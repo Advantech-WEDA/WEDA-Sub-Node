@@ -62,7 +62,9 @@ container-management or driven by hand over SSH. See
 [Build, push and deploy an example image](../docs/wiki/en/02-getting-started/09-build-push-deploy-images.md).
 
 The repository holds an empty WedaNode password - the value belongs to the node you are connecting
-to, not to the example. For local development, copy `.env.example` to `.env` and fill it in;
+to, not to the example. On the device it is dmagent's `NATS_PASSWORD`; read it with
+`grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml`. For local development, copy
+`.env.example` to `.env` and fill it in;
 docker compose reads `.env` automatically, and `.env` is gitignored. An image built for delivery
 gets the password written in at build time instead, so whoever receives it needs only the image
 and `docker-compose.deploy.yml`; `scripts/package-example.sh` puts those two together.
