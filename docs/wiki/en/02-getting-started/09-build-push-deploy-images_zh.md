@@ -334,6 +334,8 @@ scp examples/<範例>/docker-compose.deploy.yml <device>:/opt/<範例>-demo/
 
 用 `build-push-image.sh` 並在環境裡設了 `WEDA_NATS_PASSWORD` 建出來的 image 會帶著那個密碼，所以跑它
 的裝置不需要其他東西。沒設就建的話，image 帶的是版控裡那個空密碼，值就得改由環境提供。
+不論哪一種，值都是該 image 要跑的那台裝置上 dmagent 的 `NATS_PASSWORD`，在那台裝置上用
+`grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml` 讀取。
 
 compose 裡那一項是**不帶等號的鍵**——`- SystemConfig__WedaNode__Password`——所以只有在環境真的有定義
 時才會被傳進去。這一點很重要：寫成 `=${WEDA_NATS_PASSWORD:-}` 時，沒設值會展開成空字串，而空的環境

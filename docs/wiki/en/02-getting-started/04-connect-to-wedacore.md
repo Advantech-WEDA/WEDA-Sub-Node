@@ -127,6 +127,18 @@ Username and password authentication (default strategy used by Device Activator)
 }
 ```
 
+On a device set up by Device Activator, the password is dmagent's `NATS_PASSWORD`. Read it on
+the device:
+
+```bash
+grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml
+#       - NATS_PASSWORD=<64 hex characters>
+```
+
+Use the value after `=` as `Password` (or `SystemConfig__WedaNode__Password`). It differs per
+device, so read it on each one, and keep it out of the repository: put it in `.env`, which is
+gitignored.
+
 ### Token
 
 Token-based authentication:

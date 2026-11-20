@@ -276,4 +276,24 @@ public class SystemAgentDeviceBase : RequestResponseDeviceBase,
 
     public Task<bool?> GetDigitalOutputAsync(string outputName, CancellationToken cancellationToken = default)
         => Task.FromResult(Gpio.GetLevel(outputName));
+
+    /// <summary>
+    /// The inputs an empty <c>di.get</c> reads: the sensors of the GPIO pins the hardware
+    /// reports as inputs right now, plus any <c>di*</c> sensor.
+    /// </summary>
+    /// <remarks>
+    /// The SDK's default rule keeps only <c>di*</c> names and so found none of the
+    /// <c>gpio_pinState_*</c> sensors (bug 58206). A pin's direction can change between runs,
+    /// so it is read from the hardware on every call, as <c>gpio.list</c> does.
+    /// </remarks>
+    public IReadOnlyList<string> GetDigitalInputNames()
+        => GpioPinLookup.DigitalInputNames(ListGpioPins(), Configuration.Sensors);
+
+    /// <summary>
+    /// The outputs an empty <c>do.get</c> reads: the sensors of the GPIO pins the hardware
+    /// reports as outputs right now, plus any <c>do*</c> sensor.
+    /// </summary>
+    /// <remarks>See <see cref="GetDigitalInputNames"/>.</remarks>
+    public IReadOnlyList<string> GetDigitalOutputNames()
+        => GpioPinLookup.DigitalOutputNames(ListGpioPins(), Configuration.Sensors);
 }

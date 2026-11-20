@@ -343,6 +343,8 @@ there in 8.2.
 An image built by `build-push-image.sh` with `WEDA_NATS_PASSWORD` set in the environment carries
 that password, so a device running it needs nothing else. Built without it, the image holds the
 empty password the repository keeps, and the value has to come from the environment instead.
+Either way the value is dmagent's `NATS_PASSWORD` on the device the image will run on; read it
+there with `grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml`.
 
 The compose entry is a bare key - `- SystemConfig__WedaNode__Password` - so it is passed through
 only when something actually defines it. That matters: an entry written

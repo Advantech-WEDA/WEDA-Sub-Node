@@ -38,4 +38,18 @@ public interface IDigitalOutputReadable : IDevice
     /// </code>
     /// </example>
     Task<bool?> GetDigitalOutputAsync(string outputName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the names of every digital output this device has: the outputs an empty
+    /// <c>do.get</c> (<c>"outputs": []</c>) reads.
+    /// </summary>
+    /// <remarks>
+    /// Each name must be one <see cref="GetDigitalOutputAsync"/> accepts. The default is the
+    /// configured sensors whose names start with <c>do</c> (<see cref="DigitalIoNames.WithPrefix"/>).
+    /// Override it when the sensor name does not say whether it is an output, as with the
+    /// System Agent's GPIO pins, whose direction is only known on the hardware.
+    /// </remarks>
+    /// <returns>The output names, without duplicates; empty when the device has none.</returns>
+    IReadOnlyList<string> GetDigitalOutputNames() =>
+        DigitalIoNames.WithPrefix(Configuration, DigitalIoNames.OutputPrefix);
 }
