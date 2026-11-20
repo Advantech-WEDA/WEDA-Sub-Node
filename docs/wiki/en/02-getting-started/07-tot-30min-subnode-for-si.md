@@ -262,7 +262,7 @@ services:
       - SystemConfig__WedaNode__Password=<from your WedaNode administrator>
 ```
 
-Note the `__` (double underscore) level separator, and that five authentication strategies are supported (`None`, `UserPassword`, `Token`, `CredFile`, `TlsCert`). Credentials come from whoever runs the WedaNode -- they are never invented by the SI.
+Note the `__` (double underscore) level separator, and that five authentication strategies are supported (`None`, `UserPassword`, `Token`, `CredFile`, `TlsCert`). Credentials are never invented by the SI: with `UserPassword`, the password is dmagent's `NATS_PASSWORD` on the device (`grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml`); for the other strategies, ask whoever runs the WedaNode.
 
 Close the demo:
 

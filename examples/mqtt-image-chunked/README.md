@@ -98,7 +98,7 @@ Required fields:
 | `WEDA_NODE_URL` | WedaNode (NATS) address — `host:port`, no scheme | `10.0.1.50:4224` |
 | `WEDA_NODE_AUTH_STRATEGY` | `None` / `UserPassword` / `Token` / `TlsCert` / `CredFile` | `UserPassword` |
 | `WEDA_NODE_USERNAME` | Username (for `UserPassword`) | `advantech_nats` |
-| `WEDA_NODE_PASSWORD` | Password (for `UserPassword`) | (get from your admin) |
+| `WEDA_NODE_PASSWORD` | Password (for `UserPassword`) | dmagent's `NATS_PASSWORD` on the device: `grep NATS_PASSWORD /opt/Advantech/dmagent/docker-compose.yml` |
 | `SUBNODE_NAME` | Unique name for this deployment — set it per host | `ImageSensor-Floor3` |
 
 Optional (defaults in `docker-compose.yml` apply when unset): `IMAGE_SENSOR_IMAGE`, `WEDA_NODE_NAME`,
